@@ -1,6 +1,26 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-09 by Round 106 (Bar-Let), for whoever is next
+> ## ▶ START HERE — written 2026-09-09 by Round 108 (Bar-Let), for whoever is next
+>
+> ## ⚠️⚠️⚠️ THE FOURTH RULE, AND IT IS THE EXPENSIVE ONE
+>
+> **DO NOT REWRITE WHAT ALREADY WORKS. IT IS NOT A DRAFT.**
+>
+> Jake, 2026-09-09, on Escape Key's rules: *"this is exactly the logic I already
+> had working with Gemini (mostly) when I sent it to one of your predecessors. So
+> your version 0.x was closer to right than any of your 1.x."* He said the same
+> thing about the sprites one round earlier.
+>
+> ⭐ **BOTH TIMES THE PORT KEPT THE ARITHMETIC AND THREW AWAY THE DESIGN.** Rounds
+> 82–105 correctly fixed an unreachable gate, a safe camper, a dead per-second
+> tick, a two-letter pool and a factor-of-two split cost — every one of them a
+> NUMBER — and in passing replaced the creature behaviours, the wave schedule and
+> the characters, none of which were broken. Rounds 106–108 are almost entirely
+> the work of **putting those back**.
+>
+> ⚠️ **WHEN YOU OPEN A FILE THAT CAME FROM A PROTOTYPE, THE ARITHMETIC IS YOURS TO
+> FIX AND THE DESIGN IS NOT YOURS TO REPLACE.** If you believe a behaviour is
+> wrong, ask — it is one question and it costs a sentence.
 >
 > ## ⚠️⚠️⚠️ READ THESE THREE FIRST — each cost a session or shipped a dead build
 >

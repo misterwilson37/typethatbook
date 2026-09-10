@@ -420,7 +420,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.10.1';
+const ARCADE_PAGE_VERSION = '3.11.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1191,6 +1191,21 @@ function playFree() {
         // worse than an absent one — game-escape.js v1.1.0's header says so.
         // ⭐ THE PROVIDER IS BUILT FROM THE SAME KEY SET arcadeConfig() USED, so
         // the words and the pace come from one level and cannot disagree.
+        // ⚠️⚠️ THE PANELS ARE PASSED TO ESCAPE KEY AND NOT TO SHATTER. Escape
+        // Key v2.0.0 accepts a preview canvas, a gauge canvas, a bar host and a
+        // minutes getter; game-shatter.js accepts NONE of them and says so in its
+        // header. A silently-ignored option is worse than an absent one.
+        // ⚠️ THE PREVIEW PANEL REUSES #radar-canvas, THE ELEMENT, NOT THE RADAR.
+        // Deadline's radar answers "where"; this one deliberately refuses to —
+        // see drawWavePreview()'s header. Same box on the page, different job.
+        ...(g.id === 'escape'
+            ? {
+                barHost: $('controls-col'),
+                previewCanvas: $('radar-canvas'),
+                gaugeCanvas: $('gauge-canvas'),
+                minutes: () => MINUTES,
+              }
+            : {}),
         ...(g.id === 'escape'
             ? { poolFor: poolProviderFor(
                     arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx()),

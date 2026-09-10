@@ -1,4 +1,13 @@
-// game-draw.js v1.8.0 — Round 101: the quota row becomes the SURVIVAL score once
+// game-draw.js v1.9.0 — Round 108 (Bar-Let): drawWavePreview(), and Shift is two
+//   REAL KEYS on the bottom row instead of a line of text over the space bar.
+//   ⚠️⚠️ ONLY THE OPPOSITE HAND'S SHIFT LIGHTS UP — a capital is typed with the
+//   hand that is NOT holding Shift, so lighting both would teach the one-handed
+//   claw this strip exists to prevent. The hand comes from keyboard.js's finger
+//   map, never from a list of letters here.
+//   ⚠️ drawWavePreview() ANSWERS "WHAT AND HOW SOON" AND REFUSES "WHERE". Jake:
+//   *"previews what's coming, but not where."* Deadline's radar shows position
+//   because its threat IS a position; Escape Key's threat is a KIND. A future
+//   round that adds a spawn-edge indicator has changed the game.
 // the run is passed, because a bar pinned at 100% reports nothing.
 // game-draw.js v1.7.0 — Round 101: the BANKED bank sizes and spaces itself to
 // the console's spare height, and the keyboard shows BOTH halves of an error —
@@ -42,7 +51,12 @@
 // may be imported by anything that draws; that only stays safe while it knows
 // nothing.
 
-export const GAME_DRAW_VERSION = '1.8.0';
+// ⚠️ THE PREVIEW PANEL DRAWS THE REAL CREATURES. Three coloured dots would need
+// a legend, and a legend is something a twelve-year-old has to learn instead of
+// a picture they already know from the board.
+import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
+
+export const GAME_DRAW_VERSION = '1.9.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -224,6 +238,49 @@ export function drawKeyboardStrip(ctx, o) {
             ctx.globalAlpha = 1;
         });
 
+        // ⚠️⚠️ SHIFT FLANKS THE BOTTOM ROW, ON BOTH SIDES, WHICH IS WHERE IT IS
+        // ON THE MACHINE UNDER THEIR HANDS. It used to be a line of text over the
+        // space bar reading "⇧ SHIFT + A" — that says Shift exists but not where
+        // it is or which hand takes it, and those are the only two things a
+        // beginner needs.
+        // ⭐⭐ ONLY THE OPPOSITE HAND'S SHIFT LIGHTS UP. A capital is typed with
+        // the hand that is NOT holding Shift, so lighting both would teach the
+        // habit this strip exists to prevent — the one-handed claw. The needed
+        // letter's own finger decides: a left-hand letter lights the RIGHT Shift.
+        if (r === 2 && rows.length >= 3) {
+            const sw = keyW * LAY.KB_SHIFT_WIDTH;
+            const lx = originX + indent - sw - pad;
+            const rx = originX + indent + rowChars.length * (keyW + pad);
+            // ⚠️ THE HAND COMES FROM keyboard.js's FINGER MAP, not from a list of
+            // letters here — a fourth copy of that map is exactly the Rule 9
+            // shape this project keeps finding. Fingers 0–3 are the left hand.
+            const fi = wantLower == null ? -1 : fingerIndexOfChar(wantLower);
+            const wantLeftShift = shifted && fi >= 4;
+            const wantRightShift = shifted && fi >= 0 && fi < 4;
+            for (const sk of [{ x: lx, on: wantLeftShift }, { x: rx, on: wantRightShift }]) {
+                // ⚠️ THE SHIFT KEYS ARE PINKY KEYS AND TAKE THE PINKY COLOUR from
+                // the shared map, so they match the rest of the row's logic.
+                const scol = fingerColorOf(sk.x === lx ? 'a' : ';');
+                roundRect(ctx, sk.x, y, sw, keyH, 4);
+                ctx.fillStyle = scol;
+                ctx.globalAlpha = sk.on ? 0.95 : 0.16;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                ctx.strokeStyle = sk.on ? '#ffffff' : scol;
+                ctx.lineWidth = sk.on ? 2 : 1;
+                ctx.globalAlpha = sk.on ? 1 : 0.75;
+                ctx.stroke();
+                ctx.globalAlpha = 1;
+                ctx.save();
+                ctx.font = 'bold ' + Math.max(9, Math.floor(keyH * 0.34)) + 'px "Courier Prime", monospace';
+                ctx.fillStyle = sk.on ? '#04070d' : '#e8f2fa';
+                ctx.globalAlpha = sk.on ? 1 : 0.9;
+                ctx.fillText('\u21e7', sk.x + sw / 2, y + keyH / 2 + 0.5);
+                ctx.restore();
+                ctx.globalAlpha = 1;
+            }
+        }
+
         // ⚠️ ENTER SITS AT THE RIGHT END OF THE HOME ROW (rIdx 1), which is where
         // keyboard.js's createKeyboard() puts it and therefore where School has
         // trained the student to look. Putting it anywhere else would teach a
@@ -277,14 +334,11 @@ export function drawKeyboardStrip(ctx, o) {
     ctx.lineWidth = wantSpace || spaceSt === 'miss' || spaceFa ? 2 : 1;
     ctx.stroke();
 
-    // ⚠️ SHIFT IS ANNOUNCED, NOT DRAWN AS KEYS. Matching is case-sensitive here
-    // exactly as it is in the drills, so the student must know a capital needs
-    // Shift — but two full shift keys would cost a row.
-    if (shifted) {
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 11px "Courier Prime", monospace';
-        ctx.fillText('\u21e7 SHIFT + ' + wantLower.toUpperCase(), W / 2, sy + keyH / 2 + 0.5);
-    }
+    // ⚠️ THE SPACE-BAR ANNOUNCEMENT IS GONE — Shift is drawn as two real keys on
+    // the bottom row now. ⚠️⚠️ DO NOT RE-ADD THE TEXT ALONGSIDE THEM: two signals
+    // for one fact is the shape Round 101 spent a whole section untangling, and
+    // here the text would be over the space bar while the lit key is two rows
+    // down, so a student would be told to look in two places at once.
 
     // ── the key they NEEDED, swelling (Round 101) ───────────────────────────
     //
@@ -1442,5 +1496,109 @@ export function drawThreatBoard(ctx, o) {
         ctx.globalAlpha = 1;
     });
 
+    ctx.restore();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// THE WAVE PREVIEW — ESCAPE KEY'S LEFT PANEL. Round 108 (Bar-Let).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-09: *"Left panel is like the radar in Deadline in that it
+// previews what's coming, but not where. So it can go ahead and tell us what the
+// next three monsters are - maybe even with a countdown."*
+//
+// ⚠️⚠️ "BUT NOT WHERE" IS THE ENTIRE SPECIFICATION AND IT IS A DESIGN RULE, NOT A
+// SIMPLIFICATION. Deadline's radar shows position because Deadline's threat IS a
+// position — a word falling in a lane. Escape Key's threat is a KIND: what a
+// spider does to you and what a kaiju does to you are different problems, and
+// knowing a spider is coming is what lets a student plan. Showing where it will
+// enter would remove the read-the-board skill the game is built on.
+//
+// ⭐ SO THIS PANEL ANSWERS "WHAT, AND HOW SOON" AND REFUSES TO ANSWER "WHERE."
+// A future round that adds a spawn-edge indicator here has changed the game.
+//
+// ⚠️ THE SPRITES ARE THE REAL ONES. A panel with three coloured dots on it would
+// need a legend, and a legend is a thing a twelve-year-old has to learn instead
+// of a picture they already recognise from the board.
+
+/**
+ * @param {object} o
+ *   W, H     {number}
+ *   waves    {object[]}  from escape-board.js's upcoming(): { wave, kind, gap }
+ *   progress {number}    0..1 toward the NEXT wave, or null if it is waiting on
+ *                        a clear board rather than on a distance
+ *   round    {number}    the wave the student is currently in
+ */
+export function drawWavePreview(ctx, o) {
+    const { W, H } = o;
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,10,20,0.92)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(163,44,196,0.45)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+    const pad = 12;
+    ctx.font = 'bold 11px "Courier Prime", monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#9fb6d8';
+    ctx.fillText('INCOMING', pad, pad);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd700';
+    ctx.fillText('WAVE ' + (o.round || 1), W - pad, pad);
+
+    const waves = (o.waves || []).slice(0, 3);
+    if (!waves.length) { ctx.restore(); return; }
+
+    const top = pad + 24;
+    const rowH = Math.max(46, Math.min(96, (H - top - pad) / 3));
+    // ⚠️ THE SPRITE IS SIZED TO THE ROW, NOT TO A CONSTANT. This panel is a flex
+    // child between GAUGE_MIN_H and GAUGE_MAX_H on the real page and a fixed
+    // sprite size would overflow it on a short window — the Round 101 defect,
+    // one panel over.
+    const sprite = Math.min(rowH * 0.78, W - pad * 2 - 70);
+
+    waves.forEach((w, i) => {
+        const y = top + i * rowH;
+        // ⭐ THE NEXT ONE IS FULL STRENGTH AND THE OTHERS FADE BACK. Three equal
+        // rows read as a list; a fading queue reads as an order of arrival, which
+        // is the fact the student actually needs.
+        ctx.globalAlpha = i === 0 ? 1 : (i === 1 ? 0.62 : 0.38);
+
+        const s = ENEMY_SPRITES[w.kind];
+        if (s) {
+            drawPixelSprite(ctx, s, ENEMY_PALETTES[w.kind],
+                            pad + sprite / 2, y + rowH / 2, sprite);
+        }
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold 12px "Courier Prime", monospace';
+        ctx.fillStyle = '#e8f2fa';
+        ctx.fillText(String(w.kind || '').toUpperCase(), pad + sprite + 10, y + rowH / 2 - 8);
+
+        ctx.font = 'bold 10px "Courier Prime", monospace';
+        ctx.fillStyle = '#7f97b8';
+        // ⚠️ ONLY THE NEXT WAVE GETS A COUNTDOWN. The two behind it depend on when
+        // this one lands, so a number on them would be a guess presented as a
+        // fact — and a preview that is sometimes wrong is worse than one that
+        // says less.
+        const note = i > 0 ? 'then'
+            : w.gap == null ? 'when the board clears'
+            : 'in ' + w.gap + ' square' + (w.gap === 1 ? '' : 's');
+        ctx.fillText(note, pad + sprite + 10, y + rowH / 2 + 8);
+        ctx.globalAlpha = 1;
+    });
+
+    // The countdown bar for the next wave only, and only when it is measurable.
+    if (o.progress != null && waves.length) {
+        const bw = W - pad * 2, by = top + rowH - 8;
+        roundRect(ctx, pad, by, bw, 5, 2.5);
+        ctx.fillStyle = 'rgba(12,20,34,0.95)'; ctx.fill();
+        roundRect(ctx, pad, by, bw * Math.max(0, Math.min(1, o.progress)), 5, 2.5);
+        ctx.fillStyle = '#a32cc4'; ctx.fill();
+    }
     ctx.restore();
 }

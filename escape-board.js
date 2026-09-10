@@ -1,14 +1,22 @@
-// escape-board.js v1.2.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
-// Round 82 (Victor), Round 104, Round 107 (Bar-Let).
+// escape-board.js v2.0.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
+// Round 82 (Victor), Round 104, Rounds 107–108 (Bar-Let).
 //
-// ⚠️⚠️ v1.2.0 IS A RULES REWRITE AND IS PROBABLY MAJOR-BUMP WORTHY. Jake's call,
-// not mine (Rule 3). The creature behaviours, the spawn geometry and the round
-// system are all replaced against his 2026-09-09 spec; `round` now means WAVE
-// rather than a step count, and `STEPS_PER_ROUND`, `HUNTER_ROUND`,
-// `MIN_SPAWN_DISTANCE`, `ZAP_STEPS` and `ENEMY_LIFE_ROUNDS` are gone. ⭐ IF
-// ANYTHING OUTSIDE THIS REPO EVER IMPORTED THOSE, THIS IS A 2.0.0.
+// ✅ **2.0.0 ON JAKE'S EXPLICIT SIGN-OFF, 2026-09-09**: *"If it was 1.x, then
+// it's definitely 2."* Rule 3 satisfied — flagged, not decided unilaterally.
+// The creature behaviours, the spawn geometry and the round system are all
+// replaced; `round` now means WAVE rather than a step count, and
+// `STEPS_PER_ROUND`, `HUNTER_ROUND`, `MIN_SPAWN_DISTANCE`, `ZAP_STEPS` and
+// `ENEMY_LIFE_ROUNDS` are gone.
 //
-// v1.2.0 — ⭐ THE ROUND SYSTEM IS A WAVE SCHEDULE, AND THE OLD ONE TAUGHT THE
+// ⚠️⚠️ AND THE REASON THIS IS A 2.0.0 RATHER THAN A FEATURE IS WORTH RECORDING.
+// Jake: *"this is exactly the logic I already had working with Gemini (mostly)
+// when I sent it to one of your predecessors. So your version 0.x was closer to
+// right than any of your 1.x."* ⭐ HE IS RIGHT, AND IT IS THE SAME FAILURE AS THE
+// SPRITES ONE FILE OVER: the port kept the arithmetic and threw away the design.
+// The rules in this file are not new work — they are RECOVERED work, and the
+// rounds that lost them cost more than the round that restored them.
+//
+// v2.0.0 — ⭐ THE ROUND SYSTEM IS A WAVE SCHEDULE, AND THE OLD ONE TAUGHT THE
 //   STUDENT NOTHING. Creatures used to arrive on a POPULATION TARGET driven by
 //   pressure, so a child met a kaiju and a spider together in their first thirty
 //   seconds with no idea what either did. Jake: *"Second round does not spawn
@@ -73,7 +81,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const ESCAPE_BOARD_VERSION = '1.2.0';
+export const ESCAPE_BOARD_VERSION = '2.0.0';
 
 export const COLS = 6;
 export const ROWS = 5;

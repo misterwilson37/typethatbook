@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- tools/game-lab.html v1.6.0 — Round 105 (Bar-Let): the bench offers BOTH scopes,
+<!-- tools/game-lab.html v1.7.0 — Round 108 (Bar-Let): the bench shows Escape Key's
+     side panels, which were previously only visible on the live page.
+     tools/game-lab.html v1.6.0 — Round 105 (Bar-Let): the bench offers BOTH scopes,
      and Shatter can be benched on its morpheme pool. ⚠️ A bench that could only
      exercise the level-scoped path was testing the smaller half — about a third
      of the school goes straight to the full pool.
@@ -94,7 +96,14 @@
   <span id="derived" class="n" style="font-size:12px;"></span>
 </header>
 
-<div id="stage"></div>
+<!-- ⚠️ THE BENCH GETS THE PANELS TOO. They were the one part of Deadline the lab
+     could never show, so every panel defect had to be found on the live page by a
+     student. -->
+<div id="lab-cols" style="display:flex;gap:8px;align-items:stretch">
+  <canvas id="preview-canvas" style="width:210px;flex:0 0 210px;background:#06101c"></canvas>
+  <div id="stage" style="flex:1 1 auto"></div>
+  <canvas id="gauge-canvas" style="width:230px;flex:0 0 230px;background:#06101c"></canvas>
+</div>
 <div id="readout">Set a gate, press Start, then Start again on the get-ready panel. Sound is off by default — the Sound button turns it on. Escape clears the current word. Deadline: type the word nearest the ground. Escape Key: type an adjacent word to move onto it — your row and column are tinted, because that is where creatures arrive. Shatter: type the rock nearest your ship; it breaks into pieces that spell it, and you have to type those too. Clearing rocks fills the WARP meter — Space pushes everything back. The readout counts banked seconds, which is the only thing Shatter and Escape Key save.</div>
 
 <script type="module">
@@ -212,6 +221,16 @@ function start() {
         // ⚠️ ESCAPE KEY ONLY — see arcade.html's note. The provider is what makes
         // words LENGTHEN as rounds advance; without it the bench would read one
         // of the eight banks and the other seven would stay unexercised.
+        // ⚠️ ESCAPE KEY ONLY — game-shatter.js accepts neither canvas.
+        ...(which === 'escape'
+            ? { previewCanvas: document.getElementById('preview-canvas'),
+                gaugeCanvas: document.getElementById('gauge-canvas'),
+                // ⚠️ THE BENCH HAS NO AUTH, so it fabricates the banked clocks
+                // rather than reading them. ⭐ IT PASSES A GETTER, exactly as the
+                // real page does, so the SEAM is exercised even though the data
+                // is not real.
+                minutes: () => ({ todayClock: '0:12:30', weekClock: '1:48:05' }) }
+            : {}),
         ...(which === 'escape' && bankPool
             ? { poolFor: poolProviderFor(LAB_KEYS, Math.random,
                                          src === 'bankfull' ? 'full' : 'level') }

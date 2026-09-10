@@ -1,5 +1,107 @@
 # CHANGELOG — TypeThatBook
 
+## Round 108 (Bar-Let) — 2026-09-09 — the side panels, the keyboard, and escape-board 2.0.0
+
+✅ **`escape-board.js` IS 2.0.0 ON JAKE'S EXPLICIT SIGN-OFF**: *"If it was 1.x,
+then it's definitely 2."* Rule 3 satisfied — flagged, not decided unilaterally.
+
+⚠️⚠️ **AND THE REASON IT IS A 2.0.0 RATHER THAN A FEATURE BELONGS IN THE RECORD.**
+Jake: *"this is exactly the logic I already had working with Gemini (mostly) when
+I sent it to one of your predecessors. So your version 0.x was closer to right
+than any of your 1.x."* ⭐ **HE IS RIGHT, AND IT IS THE SAME FAILURE AS THE
+SPRITES:** the port kept the arithmetic and threw away the design. Round 107's
+rules are not new work — they are **recovered** work. The rounds that lost them
+cost more than the round that restored them, and that is now written at the top
+of the file so the next rewrite has to read it.
+
+### Shipped
+
+| file | version | state |
+|---|---|---|
+| `escape-board.js` | **2.0.0** | the rules rewrite, signed off |
+| `game-escape.js` | **2.0.0** | side panels, keyboard strip, error memory |
+| `game-draw.js` | **1.9.0** | `drawWavePreview()`; Shift as two real keys |
+| `game-layout.js` | — | `KB_SHIFT_WIDTH` |
+| `arcade.html` | **3.11.0** | Escape Key gets the flanks |
+| `tools/game-lab.html` | **1.7.0** | the bench shows the panels |
+
+---
+
+### ⭐ THE LEFT PANEL ANSWERS "WHAT AND HOW SOON" AND REFUSES TO ANSWER "WHERE"
+
+Jake: *"Left panel is like the radar in Deadline in that it previews what's
+coming, **but not where**."*
+
+⚠️⚠️ **THAT CLAUSE IS THE WHOLE SPECIFICATION AND IT IS A DESIGN RULE, NOT A
+SIMPLIFICATION.** Deadline's radar shows position because **Deadline's threat IS a
+position** — a word falling in a lane. Escape Key's threat is a **kind**: what a
+spider does to you and what a kaiju does to you are different problems, and
+knowing a spider is next is what lets a student plan. Showing the spawn edge would
+delete the read-the-board skill the game is built on. ⚠️ A future round that adds
+an edge indicator here has changed the game.
+
+⭐ **THE PREVIEW DRAWS THE REAL CREATURES**, not coloured dots — a legend is
+something a twelve-year-old has to learn instead of a picture they already know.
+The next wave is full strength and the two behind it fade: three equal rows read
+as a list, a fading queue reads as an order of arrival.
+
+⚠️ **ONLY THE NEXT WAVE GETS A COUNTDOWN**, and only when it is gated on a
+distance rather than on a clear board. The two behind it depend on when this one
+lands, so a number on them would be a guess presented as a fact — **a preview that
+is sometimes wrong is worse than one that says less.**
+
+⭐ **THE SCHEDULE IS DECIDED IN ADVANCE AND STORED**, so the panel cannot show one
+creature and deliver another, and reading it cannot consume the board's random
+sequence and change the game's future.
+
+---
+
+### ⭐ SHIFT IS TWO REAL KEYS, AND ONLY THE OPPOSITE HAND'S LIGHTS UP
+
+It was a line of text over the space bar reading `⇧ SHIFT + A`. ⚠️ **THAT TELLS A
+STUDENT THAT SHIFT EXISTS BUT NOT WHERE IT IS OR WHICH HAND TAKES IT**, and those
+are the only two things a beginner needs.
+
+⚠️⚠️ **A CAPITAL IS TYPED WITH THE HAND THAT IS NOT HOLDING SHIFT**, so lighting
+both keys would teach the one-handed claw this strip exists to prevent. The hand
+comes from `keyboard.js`'s finger map — ⚠️ **never from a list of letters here**,
+which would be a fourth copy of that map.
+
+⚠️ **THE TEXT IS GONE, NOT KEPT ALONGSIDE.** Two signals for one fact would put
+the announcement over the space bar and the lit key two rows down, telling a
+student to look in two places at once.
+
+---
+
+### The right panel, and one thing that finally crossed over
+
+`drawGauges()` already carried lives, run clock, WPM, accuracy and the banked
+TODAY/WEEK rows — Deadline's console, unchanged. ⚠️ **THE MINUTES ARE A GETTER,
+NOT A VALUE**: they live in `daylog.js` day documents, which is a Firestore read,
+and **a view must not fetch** — this file is mounted by `tools/game-lab.html`,
+which has no auth at all.
+
+⭐ **AND ROUND 90's ERROR MEMORY REACHES ESCAPE KEY AT LAST.** It was built for
+Deadline and never crossed over. ⚠️ **THE KEY THE STUDENT *NEEDED* IS MARKED, NOT
+THE ONE THEY HIT** — marking the wrong key tells them where they went, which they
+already know.
+
+⚠️ **THE KEYBOARD'S HEIGHT COMES OUT OF THE BOARD'S BUDGET BEFORE THE CELL SIZE IS
+COMPUTED.** Subtracting it afterwards sizes the cells to a canvas that no longer
+exists and pushes the bottom row under the strip.
+
+---
+
+### ⭐ THE BENCH SHOWS THE PANELS NOW
+
+`tools/game-lab.html` gained both canvases and a fabricated minutes getter. ⚠️ It
+passes a **getter**, exactly as the real page does, so the seam is exercised even
+though the data is not real — the panels were previously the one part of the
+arcade the lab could never show, which meant every panel defect had to be found on
+the live page by a student.
+
+**ALL 93 HARNESSES PASS.** ⚠️⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
+
 ## Round 106 (Bar-Let) — 2026-09-09 — ⚠️⚠️ arcade.html WAS DEAD, and the art comes back
 
 ### ⚠️⚠️⚠️ `arcade.html` DID NOT LOAD AT ALL, FOR A ONE-LINE REASON

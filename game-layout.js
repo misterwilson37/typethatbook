@@ -52,6 +52,14 @@ export const KEY_MAX_W = 46;
 export const KB_BOARD_WIDTH_FRACTION = 0.62;
 // Row step-right, in key widths.
 export const KB_ROW_STAGGER = 0.34;
+// ⚠️⚠️ SHIFT IS A REAL KEY NOW, ON BOTH ENDS OF THE BOTTOM ROW. Jake,
+// 2026-09-09: *"Keyboard should have shift keys. Been meaning to add that for a
+// minute."* It used to be a line of TEXT over the space bar reading
+// "⇧ SHIFT + A" — which tells a student that Shift exists but not WHERE IT IS or
+// WHICH HAND takes it, and those are the only two things a beginner needs.
+// ⭐ TWO KEYS, BECAUSE WHICH ONE MATTERS: the capital is typed with the hand
+// that is NOT holding Shift, and a single centred key cannot teach that.
+export const KB_SHIFT_WIDTH = 1.6;
 export const KB_ENTER_WIDTH = 1.6;
 export const KB_SPACE_WIDTH_FRACTION = 0.46;
 

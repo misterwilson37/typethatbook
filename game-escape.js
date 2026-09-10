@@ -1,4 +1,22 @@
-// game-escape.js v1.3.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106.
+// game-escape.js v2.0.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106, 108.
+//
+// ✅ 2.0.0 on Jake's sign-off — escape-board.js's rules rewrite is a 2.0.0 and
+// this view moves with it.
+//
+// v2.0.0 — ⭐ THE SIDE PANELS AND THE KEYBOARD. Jake, 2026-09-09: a left panel
+//   that *"previews what's coming, but not where"*, a right panel carrying lives,
+//   time, speed, accuracy and the banked minutes, and a keyboard with Shift keys.
+//   • ⚠️ EVERY PANEL IS ABSENT-SAFE. tools/game-lab.html mounts this view with no
+//     side canvases at all, so a panel that assumed its canvas existed would
+//     break the bench the moment it was added.
+//   • ⚠️ THE KEYBOARD'S HEIGHT COMES OUT OF THE BOARD'S BUDGET BEFORE the cell
+//     size is computed. Subtracting it afterwards sizes the cells to a canvas
+//     that no longer exists and pushes the bottom row under the strip.
+//   • ⭐ THE ERROR MEMORY REACHES THIS GAME AT LAST. Round 90 built it for
+//     Deadline and it never crossed over: the key the student NEEDED is marked,
+//     not the one they hit — marking the wrong key tells them where they went,
+//     which they already know.
+// game-escape.js v1.3.0 — Round 106.
 //
 // v1.3.0 — ⚠️⚠️ THE ART IS JAKE'S AGAIN. Jake, 2026-09-09: *"ALL THE ANIMATION I
 //   STARTED WITH IS GONE... I can't share what you made with kids."* He is right,
@@ -111,6 +129,7 @@ import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
     fitCanvas, platedText, platedProgress, burst, updateParticles,
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
+    drawKeyboardStrip, keyboardStripHeight, drawWavePreview, drawGauges,
 } from './game-draw.js';
 // ⚠️⚠️ THE CHARACTERS ARE JAKE'S, FROM HIS PROTOTYPE. Rounds 82–105 rebuilt this
 // game's rules correctly and quietly replaced its ART with primitives — a frog in
@@ -121,7 +140,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '1.3.0';
+export const GAME_ESCAPE_VERSION = '2.0.0';
 
 /**
  * @param {HTMLElement} container
@@ -177,6 +196,28 @@ export function mount(container, opts) {
     // not do.
     const poolFor = (opts && opts.poolFor) || null;
 
+    // ⚠️⚠️ THE SIDE PANELS, ALL OPTIONAL. Jake, 2026-09-09, asked for Deadline's
+    // two flanks on this game: a left panel previewing what is coming and a right
+    // panel carrying lives, time, speed, accuracy and the banked minutes.
+    // ⚠️ EVERY ONE IS ABSENT-SAFE. tools/game-lab.html mounts this view with no
+    // side canvases at all, and a panel that assumed its canvas existed would
+    // break the bench the moment it was added — which is why game-deadline.js
+    // states the same rule about its three.
+    const previewCanvas = (opts && opts.previewCanvas) || (opts && opts.radarCanvas) || null;
+    const gaugeCanvas = (opts && opts.gaugeCanvas) || null;
+    const previewCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
+    const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
+    // ⚠️⚠️ A GETTER, NOT A VALUE. The daily and weekly totals live in daylog.js's
+    // day documents — a Firestore read — and A VIEW MUST NOT FETCH: this file is
+    // mounted by tools/game-lab.html, which has no auth at all. A getter keeps
+    // the read where the page's own budget is accounted for, and lets a page that
+    // cannot answer simply not pass one.
+    const getMinutes = (opts && opts.minutes) || null;
+    // ⚠️ THE KEYBOARD IS OPT-IN AND DEFAULTS **ON** where there is room for it.
+    // keyboardStripHeight() returns 0 on a canvas too short to carry it, so the
+    // board never loses half its height to a strip nobody can read.
+    let keysOn = !(opts && opts.keys === false);
+
     let d = new GameDirector(cfg);
     let board = new EscapeBoard({ pool: cfg.targets || [], poolFor, rand });
     let capsOn = false;
@@ -189,7 +230,7 @@ export function mount(container, opts) {
     container.appendChild(canvas);
     const ctx = canvas.getContext('2d');
 
-    let W = 0, H = 0, cell = 0, offX = 0, offY = 0;
+    let W = 0, H = 0, cell = 0, offX = 0, offY = 0, kbH = 0;
 
     // ⚠️ THE BOARD SCALES TO THE CANVAS. The prototype hardcoded 120 px cells on a
     // 720×600 canvas, so on a student iPad in portrait the board was cropped and
@@ -197,9 +238,14 @@ export function mount(container, opts) {
     function layout() {
         const size = fitCanvas(canvas, ctx);
         W = size.w; H = size.h;
-        cell = Math.floor(Math.min(W / COLS, (H - 54) / ROWS));
+        // ⚠️ THE STRIP'S HEIGHT COMES OUT OF THE BOARD'S BUDGET BEFORE THE CELL
+        // SIZE IS COMPUTED, not after. Subtracting it afterwards would size the
+        // cells to a canvas that no longer exists and push the bottom row under
+        // the keyboard — which is the class of bug Round 100 spent a round on.
+        kbH = keyboardStripHeight(H, keysOn);
+        cell = Math.floor(Math.min(W / COLS, (H - 54 - kbH) / ROWS));
         offX = Math.round((W - cell * COLS) / 2);
-        offY = Math.round((H - 54 - cell * ROWS) / 2) + 46;
+        offY = Math.round((H - 54 - kbH - cell * ROWS) / 2) + 46;
     }
 
     // ── view-only state ─────────────────────────────────────────────────────
@@ -215,6 +261,12 @@ export function mount(container, opts) {
     // restart(), or the replay's first N seconds are swallowed by the last run's
     // mark, which is the exact bug game-deadline.js v1.10.0 records.
     let secondsBanked = 0;
+    // ⚠️⚠️ THE ERROR MEMORY. Round 90 built this for Deadline and it never reached
+    // this game: a key the student gets wrong stays tinted red until they get it
+    // right, so a child who keeps missing the same letter can SEE which one.
+    // ⚠️ 'fixed' IS NOT ERASED. A key that stops shouting but stays marked is the
+    // information they asked for; deleting it deletes the record.
+    const keyStates = {};
     // Per-enemy render position, eased toward the board's integer cell so a step
     // reads as a glide rather than a teleport.
     const ease = new Map();
@@ -242,9 +294,18 @@ export function mount(container, opts) {
         d.keyResult(r.correct, now);
 
         if (!r.correct) {
+            // ⚠️ THE KEY THEY *NEEDED* IS MARKED, NOT THE ONE THEY HIT. Marking
+            // the wrong key tells a student where they went, which they already
+            // know; marking the right one tells them where they should have gone.
+            const wanted = nextKeyWanted();
+            if (wanted) keyStates[wanted.toLowerCase()] = 'miss';
             flash = Math.max(flash, 0.11);
             sfx.misfire();
             return;
+        }
+        {
+            const hit = e.key.toLowerCase();
+            if (keyStates[hit] === 'miss') keyStates[hit] = 'fixed';
         }
         if (r.kind === 'tear-free') {
             sfx.free();
@@ -323,6 +384,7 @@ export function mount(container, opts) {
         particles = []; ease.clear();
         banner = null; flash = 0; stepAccMs = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
+        for (const k of Object.keys(keyStates)) delete keyStates[k];
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous
         // run's high-water mark. A fresh director means a fresh clock starting
         // at zero, so the mark has to start at zero with it.
@@ -397,6 +459,7 @@ export function mount(container, opts) {
         // reads identically to game-deadline.js's call and one assertion pins
         // both files.
         bankWholeSeconds(now);
+        drawPanels(now, d.report(now));
         if (onTick && !ended) {
             tickAcc += dt;
             if (tickAcc >= 1) { tickAcc = 0; onTick(d.report(now)); }
@@ -433,6 +496,75 @@ export function mount(container, opts) {
         }
     }
 
+    /**
+     * The character the keyboard should light.
+     *
+     * ⚠️ WHILE WEBBED IT IS THE TEAR-FREE WORD, NOT A NEIGHBOUR. A student
+     * fighting out of a web who was shown a key belonging to a word they cannot
+     * currently type would be given an instruction that does not work.
+     * ⭐ WITH NOTHING AIMED AT, IT SHOWS A NEIGHBOUR'S FIRST LETTER rather than
+     * going dark — a strip that stops teaching between words is a strip that is
+     * dark most of the time, because between words is where a beginner lives.
+     */
+    function nextKeyWanted() {
+        const p = board.player;
+        if (p.webWord != null) return p.webWord[board.typed.length] || null;
+        if (board.typed) {
+            for (const c of board.adjacent(p.x, p.y)) {
+                const w = board.grid[c.y][c.x];
+                if (w && w.startsWith(board.typed)) return w[board.typed.length] || null;
+            }
+        }
+        for (const c of board.adjacent(p.x, p.y)) {
+            const w = board.grid[c.y][c.x];
+            if (w) return w[0];
+        }
+        return null;
+    }
+
+    /**
+     * The two side panels. ⚠️ DRAWN FROM THE FRAME LOOP LIKE THE BOARD, not on
+     * their own timer — two clocks over one game state is how a panel comes to
+     * disagree with the thing it is describing.
+     */
+    function drawPanels(now, rep) {
+        if (previewCtx) {
+            const size = fitCanvas(previewCanvas, previewCtx);
+            drawWavePreview(previewCtx, {
+                W: size.w, H: size.h,
+                round: board.round,
+                waves: board.upcoming(3),
+                // ⚠️ NULL WHEN THE NEXT WAVE WAITS ON A CLEAR BOARD RATHER THAN A
+                // DISTANCE. A bar filling toward an event that is not on a timer
+                // would be an animation telling a lie.
+                progress: waveProgress(),
+            });
+        }
+        if (gaugeCtx) {
+            const size = fitCanvas(gaugeCanvas, gaugeCtx);
+            const m = getMinutes ? getMinutes() : null;
+            drawGauges(gaugeCtx, {
+                W: size.w, H: size.h,
+                seconds: rep.seconds,
+                shieldsLeft: rep.shieldsLeft,
+                wpm: rep.wpm,
+                acc: rep.acc,
+                todayClock: m ? m.todayClock : null,
+                weekClock: m ? m.weekClock : null,
+            });
+        }
+    }
+
+    /** 0..1 toward the next wave, or null when it is gated on an empty board. */
+    function waveProgress() {
+        const last = board._lastSpawned;
+        const gap = board.enemies.length ? null : undefined;
+        const g = board.round >= 1 ? (typeof board.upcoming(1)[0].gap === 'number'
+            ? board.upcoming(1)[0].gap : null) : null;
+        if (g == null || !last || !board.enemies.includes(last)) return null;
+        return Math.max(0, Math.min(1, (last.stepsIn || 0) / g));
+    }
+
     // ── drawing ─────────────────────────────────────────────────────────────
     function cx(x) { return offX + x * cell + cell / 2; }
     function cy(y) { return offY + y * cell + cell / 2; }
@@ -456,6 +588,19 @@ export function mount(container, opts) {
                 font: `bold ${Math.max(16, Math.round(cell * 0.24))}px "Courier Prime", monospace`,
                 border: '#ffd700', typedColor: '#ffd700', restColor: '#fff',
                 bg: 'rgba(40,26,4,0.94)',
+            });
+        }
+
+        // ⚠️ THE KEYBOARD IS DRAWN BEFORE THE FLASH AND THE BANNER, so neither
+        // sits under it. It lights the character the student needs NEXT, which
+        // comes from the word they are aiming at — or, when nothing is aimed at,
+        // from the first letter of a neighbour, because a strip that goes dark
+        // between words is a strip that stops teaching between words.
+        if (kbH) {
+            drawKeyboardStrip(ctx, {
+                W, H, height: kbH,
+                nextChar: nextKeyWanted(),
+                keyStates,
             });
         }
 
@@ -731,6 +876,11 @@ export function mount(container, opts) {
             + 'Esc clears what you have typed.',
         muted: isMuted(),
         onStart() { started = true; lastFrame = null; stepAccMs = 0; },
+        // ⚠️ THE BUTTON ONLY APPEARS BECAUSE THIS VIEW NOW OFFERS THE STRIP.
+        // game-chrome.js omits it when onToggleKeys is absent, and a dead button
+        // is worse than a missing one.
+        keysOn,
+        onToggleKeys() { keysOn = !keysOn; layout(); return keysOn; },
         onPause(on) {
             const now = performance.now();
             // ⚠️ PAUSE STOPS THE GRADED CLOCK — the one deliberate exception
