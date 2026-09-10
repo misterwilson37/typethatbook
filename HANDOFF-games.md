@@ -37,8 +37,17 @@ assumes the standing rules, the deploy table and §5's invariants.
 | `tests/game-assumptions-test.mjs` | 1.0.0 | **new.** 59 assertions, green — the seam |
 | `tools/game-lab.html` | 1.4.0 | Play bench, **all three games**, with a banked-seconds counter |
 | `shatter-board.js` | 1.0.0 | 🆕 **Round 103.** Pure. The split ladder, rock travel, the lock, the warp |
+| `arcade-pool.js` | 1.0.0 | 🆕 **Round 104.** Pure. Real words when the level's keys allow, letter groups when they do not |
+| `tests/arcade-pool-test.mjs` | 1.0.0 | 🆕 **Round 104.** 20 assertions, green |
+| `escape-board.js` | **1.1.0** | ⭐ optional `poolFor(round)` — without it `word-banks.js` is decorative |
+| `game-escape.js` | **1.2.0** | one cell font for the board, set by its longest word; accepts `poolFor` |
 | `game-shatter.js` | 1.0.0 | 🆕 **Round 103.** Shatter view. Arcade-only by ruling |
 | `tests/shatter-board-test.mjs` | 1.0.0 | 🆕 **Round 103.** 55 assertions, green |
+
+⚠️⚠️ **AS OF ROUND 104 ESCAPE KEY PLAYS REAL LIBRARY WORDS WHERE THE LEVEL ALLOWS
+IT.** `arcade-pool.js` decides per level; the home row spells **four** bank words
+in total, so Units 1–2 correctly keep letter groups. ⚠️ **THAT FALLBACK IS NOT A
+DEGRADATION** and must never be logged, warned or styled as one.
 
 ⚠️ **`keyboard.js` IS NOW IMPORTED BY `game-deadline.js`** and was not touched.
 It is the source of truth for the finger map and the finger colours; see §1c.
@@ -688,6 +697,7 @@ open. Full quotes and consequences in `NEXT-STEPS.md` §4.
 | 4c | assessed → lesson gates; arcade → **furthest gate reached** | `arcadeTargetWPM()` |
 | 4d | **both** entry points, quiet, **no day gate** | `game-names.js` `ARCADE_ENTRY` |
 | 4e | Escape Key **arcade-only**, time still counts | `game-names.js` `assessed`/`countsTime` |
+| 4g | ⭐ **2026-09-09**: *"choosing a specific level in the lessons should help decide what characters are available and what the starting speed should be. Beyond that... They're all going to be 'How far can you get?' games, gradually getting to impossible."* ⚠️ ONE `levelIdx` FEEDS BOTH the key set and the gate — `arcadeWindow()` is the single answerer, because two windows over one list would draw the letters from one lesson and the speed from another | `game-shell.js` v1.7.0, `arcade.html`'s LEVEL row |
 | 4f | ⭐ **RESTATED AND WIDENED 2026-09-09**: *"Shatter and Escape Key are just games. They're not quizzes... They're graded on time, and time spent typing is time spent well."* ⚠️ This closes the question 4e left half-open and applies to BOTH — no quota, no grade, no comparison table; the tick is the whole product | `game-shatter.js` header, `arcade.html` free-play path |
 
 ### ⚠️ THE TWO THAT CARRY A COST WORTH RE-READING

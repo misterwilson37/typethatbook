@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- tools/game-lab.html v1.4.0 — Round 103 (Bar-Let): Shatter joins the bench, and
+<!-- tools/game-lab.html v1.5.0 — Round 104 (Bar-Let): a word-bank source, so Escape
+     Key can be benched on real library words that lengthen as rounds advance.
+     tools/game-lab.html v1.4.0 — Round 103 (Bar-Let): Shatter joins the bench, and
      the readout counts BANKED SECONDS.
      ⚠️⚠️ THE COUNTER IS NOT DECORATION. Shatter and Escape Key are graded on time
      alone (Jake, 2026-09-09), so the per-second tick is the only thing either one
@@ -66,6 +68,7 @@
       <option value="reach">home + e i r u (Unit 2)</option>
       <option value="words" selected>sight words</option>
       <option value="prose">book prose</option>
+      <option value="bank">word bank, by level (Escape Key)</option>
     </select>
   </label>
   <label>game
@@ -93,6 +96,7 @@
 import { mount as mountDeadline } from '../game-deadline.js';
 import { mount as mountEscape } from '../game-escape.js';
 import { mount as mountShatter } from '../game-shatter.js';
+import { poolProviderFor, poolForLevel } from '../arcade-pool.js';
 import { SHATTER_COST_FACTOR } from '../shatter-board.js';
 import { GAMES, titleOf } from '../game-names.js';
 import {
@@ -113,6 +117,13 @@ const WORDS = ('said with that this from have they were when your what been many
 const PROSE = 'The cat sat on the mat and looked at the rain. It was a long grey afternoon '
             + 'and nothing at all was going to happen until supper.';
 
+// ⚠️ THE BENCH'S STAND-IN FOR A LESSON LEVEL. The real page reads
+// arcadeKeySet(LESSONS, PROGRESS, levelIdx); the lab has no lessons, so it uses
+// the course's actual unlock order. ⚠️ KEEP THIS LIST IN STEP WITH
+// tests/arcade-pool-test.mjs's UNLOCKS — if they drift, the bench and the
+// harness are describing two different schools.
+const LAB_KEYS = HOME.concat(['e','i','r','u','g','h','t','y','n','m','c','v','o','w']);
+
 function sequenceFor(kind) {
     if (kind === 'home')  return makeArcadeTargets(HOME, 40, 4).join(' ').split('');
     if (kind === 'reach') return makeArcadeTargets(REACH, 40, 4).join(' ').split('');
@@ -120,6 +131,7 @@ function sequenceFor(kind) {
     return PROSE.split('');
 }
 
+let bankPoolSource = '';
 function describe(cfg) {
     const which = document.getElementById('game').value;
     const avg = avgTargetChars(cfg.targets);
@@ -135,6 +147,7 @@ function describe(cfg) {
          + (cost > 1 ? ` · cost ×${cost} (${(avg * cost).toFixed(1)} keys/target)` : '')
          + (cadence ? ` · enemy step ${(iv / 1000).toFixed(2)}s`
                     : ` · push ${(iv / 1000).toFixed(2)}s · lifetime ${(life / 1000).toFixed(1)}s`)
+         + (bankPoolSource ? ` · pool ${bankPoolSource}` : '')
          + ` · quota ${cfg.endless ? '∞' : cfg.quotaChars} chars`;
 }
 
@@ -147,7 +160,15 @@ function start() {
     // itself; this only stops the bench from claiming otherwise on screen.
     const endless = which === 'shatter'
         || document.getElementById('mode').value === 'arcade';
-    const targets = targetsFromSequence(sequenceFor(document.getElementById('src').value));
+    const src = document.getElementById('src').value;
+    // ⚠️ THE BANK POOL IS NOT A SEQUENCE. Every other source here is a stream of
+    // characters that targetsFromSequence() splits on spaces; the banks are
+    // already a word list, and round-tripping them through a character stream
+    // would be a second way to produce the same array.
+    const bankPool = src === 'bank'
+        ? poolForLevel({ keySet: LAB_KEYS, round: 1 }) : null;
+    const targets = bankPool ? bankPool.targets
+        : targetsFromSequence(sequenceFor(src));
     const cfg = {
         targets,
         targetWPM: Number(document.getElementById('wpm').value) || 15,
@@ -156,6 +177,7 @@ function start() {
         endless,
         quotaChars: targets.reduce((n, t) => n + t.length, 0),
     };
+    bankPoolSource = bankPool ? `${bankPool.source}${bankPool.len ? ' len ' + bankPool.len : ''}` : '';
     derived.textContent = describe(cfg);
     out.textContent = 'Playing…';
 
@@ -174,6 +196,11 @@ function start() {
     handle = mount(stage, {
         config: cfg,
         onSecond: () => { ticks++; },
+        // ⚠️ ESCAPE KEY ONLY — see arcade.html's note. The provider is what makes
+        // words LENGTHEN as rounds advance; without it the bench would read one
+        // of the eight banks and the other seven would stay unexercised.
+        ...(which === 'escape' && bankPool
+            ? { poolFor: poolProviderFor(LAB_KEYS) } : {}),
         onTick: r => {
             out.textContent = `live · ${r.wpm} WPM · ${r.acc}% · ${r.seconds.toFixed(0)}s`
                 + ` · cleared ${r.targetsCleared} · leaks ${r.hits} · score ${r.score}`

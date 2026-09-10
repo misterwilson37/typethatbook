@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-09 by Round 103 (Bar-Let), for whoever is next
+> ## ▶ START HERE — written 2026-09-09 by Round 104 (Bar-Let), for whoever is next
 >
 > **Instance name: Bar-Let**, the Swiss portable. ⚠️ Checked against
 > `CHANGELOG.md`, `HANDOFF.md`, `HANDOFF-games.md`, `ROADMAP.md` **and
@@ -21,7 +21,53 @@
 >
 > ---
 >
-> ## WHAT THIS ROUND SHIPPED — Shatter exists and is reachable
+> ## ⭐ ROUNDS 103 AND 104, ONE CONVERSATION — BOTH GAMES ARE NOW ALPHA-PLAYABLE
+>
+> ⚠️ **ONE NAME PER CONVERSATION, NOT PER ROUND.** Bar-Let covers both.
+>
+> ### Round 104 — the level chooses the letters, and Escape Key gets real words
+>
+> | file | version | state |
+> |---|---|---|
+> | `arcade-pool.js` | **1.0.0** | 🆕 which words an arcade run is played with. **Pure** |
+> | `tests/arcade-pool-test.mjs` | **1.0.0** | 🆕 **20 assertions, green.** Read Part C first |
+> | `game-shell.js` | **1.7.0** | `arcadeWindow()` + `levelIdx` |
+> | `escape-board.js` | **1.1.0** | an optional `poolFor(round)` |
+> | `game-escape.js` | **1.2.0** | length-scaled cell font; accepts `poolFor` |
+> | `arcade.html` | **3.9.0** | a **LEVEL** picker for free play |
+> | `tools/game-lab.html` | **1.5.0** | a word-bank source on the bench |
+> | `tests/run-all-tests.mjs` | **1.27.0** | **93 harnesses** |
+>
+> ⭐ **Jake, 2026-09-09**: *"choosing a specific level in the lessons should help
+> decide what characters are available and what the starting speed should be.
+> Beyond that, you're right. They're all going to be 'How far can you get?' games,
+> gradually getting to impossible."*
+>
+> ⚠️⚠️ **THE RULE THAT CAME OUT OF IT, AND IT IS THE WHOLE OF `arcade-pool.js`:**
+> **real words when the level's keys can supply enough of them, letter groups when
+> they cannot.** The home row spells **four** bank words in total — measured, Part
+> A — so "real words restricted to your keys" is an EMPTY POOL at Unit 1, and an
+> empty pool in Escape Key is a board of blank cells with nowhere to move. ⚠️ **THE
+> FALLBACK IS NOT A FAILURE PATH**: for the early units it is the correct answer
+> and will be for months. It must never warn, degrade quietly, or be styled as a
+> problem.
+>
+> ⚠️⚠️ **AND THE POOL MUST BE PER-ROUND OR THE BANKS ARE DECORATIVE.** Eight banks
+> exist so words lengthen while the student plays; a pool fixed at mount pins every
+> run to round 1 and leaves **seven banks nothing ever reads**. `escape-board.js`
+> v1.1.0's `poolFor(round)` is that. ⚠️ Part D pins the seam at **both** ends,
+> because a provider the board ignores is the exact shape of Escape Key's
+> twenty-round dead tick.
+>
+> ⚠️ **`word-banks.js` IS NO LONGER DATA-ONLY.** Both new-data files from Round 102
+> are now read by code.
+>
+> ⚠️ **THE CELL FONT IS ONE SIZE FOR THE WHOLE BOARD, SET BY ITS LONGEST WORD.**
+> Sizing each cell to its own word was rejected on Jake's standing pet peeve —
+> thirty labels at thirty slightly different sizes, where slightly-off reads worse
+> than plainly different.
+>
+> ### Round 103 — Shatter exists and is reachable
 >
 > | file | version | state |
 > |---|---|---|
@@ -29,7 +75,7 @@
 > | `game-shatter.js` | **1.0.0** | 🆕 the view. Arcade-only by ruling — no quota, no grade |
 > | `tests/shatter-board-test.mjs` | **1.0.0** | 🆕 **55 assertions, green.** Read Part B first |
 > | `game-shell.js` | **1.6.0** | `costFactor`; `cleared()` takes `{ ramp }` |
-> | `tests/run-all-tests.mjs` | **1.26.0** | registers the above — **92 harnesses** |
+> | `tests/run-all-tests.mjs` | **1.26.0** | registers the above |
 > | `arcade.html` | **3.8.0** | a GAME picker; **free play for Shatter AND Escape Key** |
 > | `tools/game-lab.html` | **1.4.0** | Shatter on the bench, with a banked-seconds counter |
 >
@@ -103,13 +149,13 @@
 > ## 3. STATE OF PLAY
 >
 > * **Green**: shatter-board 55, game-shell 120, escape-board 39, escape-seconds
->   19, game-assumptions 59, arcade-lesson 103, arcade-versions 29, arcade-panels,
->   docs-vs-repo 21, all 39 modules parse.
+>   19, game-assumptions 59, arcade-lesson 103, arcade-versions 32, arcade-panels,
+>   docs-vs-repo 21, **arcade-pool 20**, all 41 modules parse.
 > * ⚠️ **Nine pre-existing failures, NOT from this round** — verified identical on
 >   an untouched copy: `undefined-calls`, `credits`, `credit`, `card-markup`,
 >   `about`, `about-render`, `metadata-map`, `drill-filter`, `continue-reading`.
 >   **Do not assume they are yours. Do not assume they are fine.** Nobody has
->   looked, across three rounds now.
+>   looked, across four rounds now.
 > * ⚠️ **`docs-vs-repo-test.mjs` was RED at the start of this round**, while Round
 >   102's block said 21 green. Two documents had been missing from §9's map since
 >   the round that created them. Repaired.
@@ -124,8 +170,15 @@
 >    decorative — the Escape Key defect, reproduced.
 > 3. Fill the WARP meter, then **hit space right after clearing a word**: it must
 >    NOT fire. Wait half a second and it must.
-> 4. `arcade.html` → the GAME picker offers three; picking Shatter hides the
->    LESSON/RUN/SPEED rows and the result panel shows **no comparison table**.
+> 4. `arcade.html` → the GAME picker offers three; picking Shatter or Escape Key
+>    hides the LESSON/RUN/SPEED rows, shows the **LEVEL** row, and the result panel
+>    has **no comparison table**.
+> 4b. ⚠️ **MOVE THE LEVEL PICKER AND WATCH THE LETTERS CHANGE.** Early levels must
+>    say "letter groups"; later ones "real words from the library". If every level
+>    says one or the other, `arcade-pool.js` is not seeing a real key set.
+> 4c. **Escape Key, a late level, played for two minutes** — the words must get
+>    LONGER as rounds advance. If they do not, `poolFor` is not reaching the board
+>    and seven banks are still unread.
 > 5. ⚠️ A student with **no passed lessons**: the picker must still open, with
 >    Deadline removed and a note, not the old dead end.
 > 6. Deadline itself, unchanged — `costFactor` defaults to 1 and must have moved
@@ -137,14 +190,19 @@
 >
 > 1. ⚠️⚠️ **RECONCILE THE `learn2` FORK.** Promote or fold back, **and delete the
 >    loser.** `HANDOFF-learn2.md` §0. Unchanged from Round 102 and still first.
-> 2. **Wire `word-banks.js` into Escape Key AND Shatter.** `bankForRound()` /
->    `wordsForRound()` are ready; both still take `makeArcadeTargets()` letter
->    groups. ⚠️ **FOR SHATTER THIS IS MORE THAN A POOL SWAP**: real words hit the
->    morpheme rung instead of the halves rung, so the split becomes meaningful
->    rather than mechanical — which is the pedagogy Jake asked for. Re-run
->    `shatter-board-test.mjs` Part A's filter sweep against the new pool.
-> 3. **Length-scaled cell font** in `game-escape.js` before the 9/10 banks are used.
-> 4. **The nine pre-existing failures.** Three rounds of "nobody has looked."
+> 2. ✅ **DONE, ROUND 104 — `word-banks.js` IS WIRED INTO ESCAPE KEY** via
+>    `arcade-pool.js`. ⚠️⚠️ **IT IS NOT DONE FOR SHATTER, AND THAT IS THE NEXT
+>    REAL PIECE OF WORK.** Shatter still plays `makeArcadeTargets()` letter groups
+>    from the director's pool, so every split lands on the **halves** rung
+>    (`asdfjk` → `asd|fjk`) and the **morpheme** rung — the one carrying the whole
+>    pedagogy, `un|usual|ly` — is reached by nothing a student can currently play.
+>    ⭐ `shatter-words.js` is the pool it wants, not `word-banks.js`: those 300
+>    words are exactly the ones with verified morpheme splits. ⚠️ Re-run
+>    `shatter-board-test.mjs` Part A's drill-filter sweep against whatever pool is
+>    chosen, and mind `splittable()` — a level whose keys spell no splittable word
+>    needs `arcade-pool.js`'s fallback shape, not a blank field.
+> 3. ✅ **DONE, ROUND 104** — length-scaled cell font, one size per board.
+> 4. **The nine pre-existing failures.** Four rounds of "nobody has looked."
 > 5. **Eight secretly-four-part Shatter words** — `un+doubted+ly` is really
 >    `un+doubt+ed+ly`; likewise `un+expected+ly`, `un+willing+ly`, `re+assuring+ly`,
 >    `mis+giving+s`, `pre+caution+s`, `re+collection+s`, `re+solution+s`. ⚠️ Use the
@@ -715,8 +773,8 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **92 harnesses pass** (122 assertions in the panels harness), `audit:versions`
->   0 problems, all 35 modules parse. ⚠️ **92, not 91, as of Round 103** —
+> * **93 harnesses pass** (122 assertions in the panels harness), `audit:versions`
+>   0 problems, all 41 modules parse. ⚠️ **93, not 92, as of Round 104** —
 >   `escape-seconds-test.mjs` joined the registry. docs-vs-repo-test C2 reads
 >   THIS line and only this line, so it is the one that has to move.
 > * ⚠️ **STILL NOT BROWSER-VERIFIED.** What to confirm: the flanks fit the play

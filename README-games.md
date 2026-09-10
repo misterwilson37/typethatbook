@@ -15,6 +15,14 @@ from whatever keys a student has unlocked (arcade). Two of three are built.
 | `escape` | **Escape Key** | `game-escape.js` | built — **arcade-only** |
 | `shatter` | **Shatter** | `game-shatter.js` | ✅ built (Round 103) — arcade only |
 
+⚠️ **WHERE THE WORDS COME FROM (Round 104).** `arcade-pool.js` chooses per level:
+real `word-banks.js` words when the level's key set can supply at least 24 of them
+with at least 5 distinct first characters, letter groups otherwise. The home row
+spells four bank words in total, so the early units correctly get letter groups —
+**that is the right answer there, not a fallback that failed.** Escape Key
+consumes it through `escape-board.js`'s `poolFor(round)`, so words lengthen as
+rounds advance. ⚠️ **Shatter does NOT use it yet** — see `HANDOFF.md` §4 item 2.
+
 **Every game's time counts toward the student's totals.** Only Deadline produces a
 grade. Escape Key is arcade-only by Jake's ruling (2026-09-07) — ⚠️ a product
 decision, not a capability one: `escape-board-test.mjs` Part B proves a camper

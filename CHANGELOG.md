@@ -1,5 +1,135 @@
 # CHANGELOG — TypeThatBook
 
+## Round 104 (Bar-Let) — 2026-09-09 — the level chooses the letters, and Escape Key gets real words
+
+**Same instance as Round 103** — one name per conversation, not per round, however
+many rounds it covers.
+
+### What shipped
+
+| file | version | state |
+|---|---|---|
+| `arcade-pool.js` | **1.0.0** | 🆕 which words an arcade run is played with. Pure |
+| `tests/arcade-pool-test.mjs` | **1.0.0** | 🆕 20 assertions, green |
+| `game-shell.js` | **1.7.0** | `arcadeWindow()` + `levelIdx` on the three arcade functions |
+| `escape-board.js` | **1.1.0** | an optional `poolFor(round)` |
+| `game-escape.js` | **1.2.0** | length-scaled cell font; accepts `poolFor` |
+| `arcade.html` | **3.9.0** | a LEVEL picker for free play |
+| `tools/game-lab.html` | **1.5.0** | a word-bank source on the bench |
+| `tests/run-all-tests.mjs` | **1.27.0** | registers the above — **93 harnesses** |
+
+⭐ **JAKE, 2026-09-09**: *"choosing a specific level in the lessons should help
+decide what characters are available and what the starting speed should be.
+Beyond that, you're right. They're all going to be 'How far can you get?' games,
+gradually getting to impossible."*
+
+---
+
+### ⭐ THE LEVEL PICKER COLLAPSED A DUPLICATE `game-shell.js` HAD ALREADY WARNED ABOUT
+
+`arcadeKeySet()` and `arcadeTargetWPM()` each spelled out the same window
+arithmetic — furthest lesson passed, plus the one they are on — under a comment
+saying **two windows over the same list would draw the arcade's letters from one
+lesson and its speed from another.** The duplicate was latent while nothing could
+reach it. ⚠️ **A CHOSEN LEVEL MAKES BOTH REACHABLE FROM A PICKER**, so it stops
+being latent. ⭐ `arcadeWindow()` is now the one answerer and both call it.
+
+⚠️ **OMITTING `levelIdx` IS THE OLD BEHAVIOUR EXACTLY** — all 120 `game-shell-test`
+assertions and all 103 `arcade-lesson-test` assertions stayed green.
+
+---
+
+### ⚠️⚠️ TWO GOOD RULES THAT CANNOT BOTH HOLD AT UNIT 1
+
+Jake's ruling says the level decides the letters. `HANDOFF.md` §7 item 2 says wire
+`word-banks.js` in, because letter groups are why the arcade reads as nonsense.
+
+⚠️⚠️ **THE HOME ROW SPELLS FOUR BANK WORDS IN TOTAL.** Measured, not estimated —
+`arcade-pool-test.mjs` Part A. So "real words, restricted to the letters this
+level has taught" is an **empty pool** for a Unit 1 student, and an empty pool in
+Escape Key is a board of blank cells with nowhere to move: the worst outcome
+available, and one that throws nothing and logs nothing.
+
+⭐ **THE RULE IS ONE SENTENCE: real words when the level's keys can supply enough
+of them, letter groups when they cannot.** The game upgrades itself as a student
+advances, with no switch for anyone to forget to flip, and the letters come from
+the level either way. ⚠️ **THE FALLBACK IS NOT A FAILURE PATH** — for the early
+units it is the correct answer and will be for months. It never warns, never
+degrades quietly and is never styled as a problem.
+
+Measured across the real unlock order, at round 1:
+
+| unlock | keys | pool |
+|---|---|---|
+| 0 (home row) | 8 | letter groups |
+| 1 (+ e i) | 10 | letter groups |
+| 2 (+ r u) | 12 | **words**, 26 of them |
+| 3 (+ g h t y n m) | 18 | **words**, 98 |
+| 8 (all) | 31 | **words**, 199 |
+
+⚠️ **UNLOCK 2 IS THE THIN SPOT AND IT IS THIN HONESTLY**: 26 three-letter words,
+and only 15 four-letter ones, so that level walks down and stays at three letters
+however long the run goes. Their keys genuinely cannot spell more. ⚠️ Do not
+"fix" it by relaxing `MIN_POOL` — the next thing below 24 words on a 30-cell board
+is the same eight words repeated.
+
+⭐ **AND THE POOL WALKS DOWN IN LENGTH BEFORE GIVING UP ON WORDS.** A student whose
+keys spell plenty of 4-letter words should not be thrown back to letter groups in
+round 7 merely because their keys spell no 6-letter ones. ⚠️ The round remains a
+**ceiling**, never a floor.
+
+---
+
+### ⚠️⚠️ THE BANKS WOULD HAVE BEEN DECORATIVE WITHOUT A PER-ROUND POOL
+
+`word-banks.js` has eight banks so that **words lengthen while the student plays**.
+A pool chosen once at mount pins every run to round 1's length and **seven of the
+eight banks are never read by anything** — which would have been a round that
+"wired in the word banks" and left them as unread as they were before.
+
+`escape-board.js` v1.1.0 takes an optional `poolFor(round)` and calls it with its
+own round. ⚠️ **A HOST THAT PASSES NOTHING GETS THE OLD BEHAVIOUR BYTE FOR BYTE**,
+which is the path all 39 existing assertions run. ⚠️ Part D of the new harness
+pins the seam at **both** ends — a provider the board ignores is the exact shape of
+Escape Key's twenty-round dead tick, wired at one end with nothing consuming it at
+the other.
+
+---
+
+### ⚠️ THE CELL FONT HAD TO BE FIXED BEFORE THE BANKS COULD BE USED AT ALL
+
+`word-banks.js`'s own header warned about this: at the fixed `cell * 0.20` a board
+fits about 8.3 characters, and BANK_9 and BANK_10 exist. The banks this round
+connected would have run off their plates in later rounds.
+
+⚠️ **THE OBVIOUS FIX — SIZE EACH CELL TO ITS OWN WORD — IS THE ONE JAKE HAS ASKED
+ME NOT TO MAKE.** Thirty labels at thirty slightly different sizes on one board is
+his standing pet peeve, where slightly-different reads worse than plainly
+different. ⭐ **ONE SIZE FOR THE WHOLE BOARD, SET BY THE LONGEST WORD ON IT**, is
+both fixes at once: nothing overflows and every cell matches every other exactly.
+It changes only when the round's word length does, so the board does not breathe
+while a student reads it.
+
+---
+
+### The picker shows the letters rather than counting them
+
+"12 keys" is a number a student has to trust. `a d e f i j k l r s u ;` is a thing
+they can check against their own hands, and it is the entire content of the choice
+they just made. The panel also names the starting speed and, for Escape Key,
+whether this level plays real words or letter groups — ⚠️ **with neither phrased as
+better than the other.**
+
+---
+
+### State
+
+* **Green**: arcade-pool 20, shatter-board 55, game-shell 120, escape-board 39,
+  escape-seconds 19, game-assumptions 59, arcade-lesson 103, arcade-versions 32.
+* ⚠️ **The same nine pre-existing failures**, verified identical on an untouched
+  copy. Four rounds of "nobody has looked."
+* ⚠️⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
+
 ## Round 103 (Bar-Let) — 2026-09-09 — Shatter is real, and the split cost twice what it looked like
 
 **Instance name: Bar-Let**, the Swiss portable. Not present in `CHANGELOG.md`,

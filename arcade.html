@@ -283,6 +283,16 @@
                 <label for="game">GAME</label>
                 <select id="game"></select>
             </div>
+            <!-- ⚠️ FREE PLAY'S OWN ROW. Jake, 2026-09-09: *"choosing a specific
+                 level in the lessons should help decide what characters are
+                 available and what the starting speed should be."* It replaces
+                 LESSON/RUN/SPEED rather than joining them, because for a game
+                 that grades nothing there is no run to pick and no gate to
+                 alter — one choice decides both letters and pace. -->
+            <div class="row" id="row-level" style="display:none">
+                <label for="level">LEVEL &mdash; sets the letters and the starting speed</label>
+                <select id="level"></select>
+            </div>
             <div class="row" id="row-lesson">
                 <label for="lesson">LESSON</label>
                 <select id="lesson"></select>
@@ -390,11 +400,13 @@ import { GAME_DEADLINE_VERSION } from './game-deadline.js';
 import { GAME_ESCAPE_VERSION } from './game-escape.js';
 import { GAME_SHATTER_VERSION } from './game-shatter.js';
 import { SHATTER_BOARD_VERSION } from './shatter-board.js';
+import { ARCADE_POOL_VERSION } from './arcade-pool.js';
+import { ESCAPE_BOARD_VERSION } from './escape-board.js';
 import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.8.0';
+const ARCADE_PAGE_VERSION = '3.9.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -411,8 +423,10 @@ function buildBadge() {
         // build footer cannot report is a machine nobody can diagnose from the
         // classroom, which is the only reason this panel exists.
         ['game-escape.js', GAME_ESCAPE_VERSION],
+        ['escape-board.js', ESCAPE_BOARD_VERSION],
         ['game-shatter.js', GAME_SHATTER_VERSION],
         ['shatter-board.js', SHATTER_BOARD_VERSION],
+        ['arcade-pool.js', ARCADE_POOL_VERSION],
         ['game-shell.js', GAME_SHELL_VERSION],
         ['game-draw.js', GAME_DRAW_VERSION],
         ['game-chrome.js', GAME_CHROME_VERSION],
@@ -464,7 +478,8 @@ import { mount as mountShatter } from './game-shatter.js';
 // game-names.js's whole reason for existing is that a rename must be one line;
 // a title spelled into this picker would be the copy nobody finds.
 import { GAMES, GAME_ORDER, titleOf } from './game-names.js';
-import { arcadeConfig } from './game-shell.js';
+import { arcadeConfig, arcadeKeySet, arcadeWindow, arcadeTargetWPM } from './game-shell.js';
+import { poolProviderFor, poolForLevel } from './arcade-pool.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
 // and telling those apart is the entire reason this panel exists. HANDOFF §2:
@@ -931,18 +946,34 @@ function applyGameMode() {
     for (const id of ['row-lesson', 'row-run', 'row-speed']) {
         $(id).style.display = free ? 'none' : '';
     }
-    if (free) {
-        const g = currentGame();
-        $('gates').innerHTML =
-            `<span>${g.tagline}</span>` +
-            // ⚠️ SAYS PLAINLY THAT NOTHING IS GRADED, because the panel directly
-            // above it grades things for the other game on the same page.
-            '<span><i>Nothing here is graded \u2014 but the time you spend typing ' +
-            'counts toward your day and your week, exactly like School.</i></span>';
-        $('play').disabled = false;
-    } else {
-        showGates();
-    }
+    $('row-level').style.display = free ? '' : 'none';
+    if (free) showFreeGates(); else showGates();
+}
+
+function showFreeGates() {
+    const g = currentGame();
+    const { keys, wpm, pool } = describeLevel();
+    // ⚠️ THE LETTERS ARE SHOWN, NOT COUNTED. "12 keys" is a number a student has
+    // to trust; `a s d f j k l ; e i r u` is a thing they can check against their
+    // own hands, and it is the whole content of the level choice they just made.
+    const shown = keys.slice().sort().join(' ');
+    $('gates').innerHTML =
+        `<span>${g.tagline}</span>` +
+        `<span>letters <b>${shown || '\u2014'}</b></span>` +
+        `<span>starting speed <b>${wpm} WPM</b></span>` +
+        // ⚠️ AND WHETHER IT IS REAL WORDS OR LETTER GROUPS, SAID PLAINLY. It is
+        // the most visible difference between two levels, and a student who
+        // moved the picker and saw the game change deserves to know why.
+        // ⚠️ NEITHER IS PHRASED AS BETTER — for the early units, letter groups
+        // ARE the correct answer, and will be for months.
+        (g.id === 'escape'
+            ? `<span>${pool.source === 'words'
+                ? 'real words from the library, getting longer as you go'
+                : 'letter groups \u2014 real words need more letters than this level has'}</span>`
+            : '') +
+        '<span><i>Nothing here is graded \u2014 but the time you spend typing ' +
+        'counts toward your day and your week, exactly like School.</i></span>';
+    $('play').disabled = false;
 }
 
 /**
@@ -955,8 +986,52 @@ function applyGameMode() {
  * game-shell.js is explicit that it may only be supplied by a caller that
  * ALREADY holds the leaderboard document, and this page does not.
  */
+function chosenLevelIdx() {
+    const v = parseInt($('level').value, 10);
+    return Number.isFinite(v) && v >= 0 ? v : null;
+}
+
+/**
+ * ⚠️ THE LEVEL LIST IS EVERY LESSON, NOT ONLY THE PLAYABLE ONES. `PLAYABLE`
+ * filters to steps that carry a speed gate and deterministic text, which is
+ * exactly right for Deadline and irrelevant here — free play needs a key set and
+ * a pace, and every lesson has both. ⭐ IT ALSO MEANS A STUDENT CAN DELIBERATELY
+ * PLAY AN EASIER LEVEL, which is the point of letting them choose.
+ *
+ * ⚠️ DEFAULTS TO WHERE THEY ACTUALLY ARE. arcadeWindow() with no index is the
+ * furthest lesson passed plus the one they are on — the same answer the arcade
+ * gave before there was a picker, so the default costs a returning student
+ * nothing.
+ */
+function fillLevels() {
+    const sel = $('level');
+    sel.innerHTML = '';
+    LESSONS.forEach((l, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = (l.title || l.id || ('Lesson ' + (i + 1)));
+        sel.appendChild(o);
+    });
+    const here = arcadeWindow(LESSONS, PROGRESS);
+    sel.value = String(here >= 0 ? here : 0);
+    sel.disabled = !LESSONS.length;
+}
+
 function freePlayConfig() {
-    return arcadeConfig({ lessons: LESSONS, progress: PROGRESS });
+    // ⚠️ ONE levelIdx, AND arcadeConfig() HANDS IT TO BOTH THE KEY SET AND THE
+    // GATE. game-shell.js's arcadeWindow() is the single answerer — two windows
+    // over one list would draw the letters from one lesson and the speed from
+    // another.
+    return arcadeConfig({ lessons: LESSONS, progress: PROGRESS, levelIdx: chosenLevelIdx() });
+}
+
+/** What the chosen level actually produces, in words a twelve-year-old can read. */
+function describeLevel() {
+    const idx = chosenLevelIdx();
+    const keys = arcadeKeySet(LESSONS, PROGRESS, idx);
+    const wpm = arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
+    const pool = poolForLevel({ keySet: keys, round: 1 });
+    return { keys, wpm, pool };
 }
 
 function chosenWPM() {
@@ -1064,8 +1139,19 @@ function playFree() {
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
     if (handle) { handle.destroy(); handle = null; }
+    const cfg = freePlayConfig();
     handle = mountGame($('stage'), {
-        config: freePlayConfig(),
+        config: cfg,
+        // ⚠️⚠️ ESCAPE KEY ONLY, AND game-shatter.js DOES NOT ACCEPT IT. Shatter's
+        // rocks come from the director's target pool and its own split ladder;
+        // handing it a per-round provider would be this page asserting a
+        // contract that view does not have. ⚠️ A silently-ignored option is
+        // worse than an absent one — game-escape.js v1.1.0's header says so.
+        // ⭐ THE PROVIDER IS BUILT FROM THE SAME KEY SET arcadeConfig() USED, so
+        // the words and the pace come from one level and cannot disagree.
+        ...(g.id === 'escape'
+            ? { poolFor: poolProviderFor(arcadeKeySet(LESSONS, PROGRESS, chosenLevelIdx())) }
+            : {}),
         // ⚠️⚠️ THE WHOLE REASON THIS PATH EXISTS. `countsTime: true` in the
         // registry is a promise, and for twenty rounds Escape Key had no way to
         // keep it because its view emitted no seconds at all. The date is
@@ -1304,6 +1390,7 @@ async function load(user) {
         }
         $('pickerBody').style.display = 'block';
         fillGames();
+        fillLevels();
         if (!PLAYABLE.length) {
             // ⚠️ THE ASSESSED GAME IS REMOVED FROM THE PICKER, NOT LEFT TO FAIL
             // ON PLAY. currentRun() would return null and play() would return
@@ -1331,6 +1418,7 @@ async function load(user) {
 }
 
 $('game').addEventListener('change', applyGameMode);
+$('level').addEventListener('change', showFreeGates);
 $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);

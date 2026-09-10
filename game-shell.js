@@ -1,3 +1,12 @@
+// game-shell.js v1.7.0 — Round 104 (Bar-Let): `arcadeWindow()` and `levelIdx`.
+// Jake, 2026-09-09: *"choosing a specific level in the lessons should help decide
+// what characters are available and what the starting speed should be."* ⭐ AND IT
+// COLLAPSED A DUPLICATE THIS FILE HAD ALREADY WARNED ABOUT IN PROSE —
+// arcadeKeySet() and arcadeTargetWPM() each spelled the same window arithmetic
+// out, under a comment saying two windows would draw the arcade's letters from
+// one lesson and its speed from another. A chosen level makes both reachable
+// from a picker, so the second copy stops being latent. ⚠️ OMITTING levelIdx IS
+// THE OLD BEHAVIOUR EXACTLY.
 // game-shell.js v1.6.0 — Round 103 (Bar-Let): `costFactor`, and it exists because
 // SHATTER'S TARGETS COST TWICE THEIR OWN CHARACTERS. A student types `unusually`
 // to break the rock and then types `un`, `usual` and `ly` — the pieces spell the
@@ -135,7 +144,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.6.0';
+export const GAME_SHELL_VERSION = '1.7.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -393,14 +402,45 @@ export function avgTargetChars(targets) {
  * furthestIndexOf() is given. Sorting is the caller's job because the caller is
  * the one holding the sort the map is already drawn in.
  */
-export function arcadeKeySet(lessons, progress) {
+/**
+ * ⚠️⚠️ THE ONE ANSWERER FOR "HOW FAR INTO THE COURSE IS THIS ARCADE RUN?"
+ *
+ * v1.7.0, Round 104. Jake, 2026-09-09: *"choosing a specific level in the lessons
+ * should help decide what characters are available and what the starting speed
+ * should be."*
+ *
+ * ⚠️ IT EXISTS AS A FUNCTION BECAUSE arcadeKeySet() AND arcadeTargetWPM() BOTH
+ * NEED IT AND MUST NEVER DISAGREE. This file already carried that warning in
+ * prose — *"two different windows over the same list would mean the arcade drew
+ * letters from one lesson and its speed from another"* — while the arithmetic
+ * was spelled out twice, once in each function. A chosen level makes the two
+ * copies reachable from a picker, so the second copy stops being a latent bug
+ * and becomes a live one. ⭐ SPELLED ONCE NOW.
+ *
+ * @param {number} [levelIdx]  an index into `lessons`. Omitted or negative means
+ *        the old behaviour exactly: the furthest lesson passed, plus the one
+ *        they are working on.
+ *
+ * ⚠️ A CHOSEN LEVEL IS CLAMPED, NOT REJECTED. A stale index from a picker built
+ * before a lesson was deleted must give a playable game, not an empty key set.
+ */
+export function arcadeWindow(lessons, progress, levelIdx) {
     const list = Array.isArray(lessons) ? lessons : [];
+    if (!list.length) return -1;
+    if (levelIdx != null && levelIdx >= 0) {
+        return Math.min(list.length - 1, Math.floor(levelIdx));
+    }
     let furthest = -1;
     list.forEach((l, i) => { if (progress && progress[l.id] && progress[l.id].passed) furthest = i; });
     // Include the lesson they are currently working on, not just the last one
     // passed — otherwise a student who has never passed anything gets an empty
     // key set and an arcade with no letters in it.
-    const upTo = Math.min(list.length - 1, furthest + 1);
+    return Math.min(list.length - 1, furthest + 1);
+}
+
+export function arcadeKeySet(lessons, progress, levelIdx) {
+    const list = Array.isArray(lessons) ? lessons : [];
+    const upTo = arcadeWindow(list, progress, levelIdx);
     const keys = new Set();
     for (let i = 0; i <= upTo; i++) {
         const l = list[i] || {};
@@ -1036,14 +1076,12 @@ export const ARCADE_BEST_FRACTION = 0.8;
  *   bestWPM   {number}   OPTIONAL, and only if the caller already has it
  * @returns {number} WPM
  */
-export function arcadeTargetWPM({ lessons, progress, bestWPM }) {
+export function arcadeTargetWPM({ lessons, progress, bestWPM, levelIdx }) {
     const list = Array.isArray(lessons) ? lessons : [];
-    let furthest = -1;
-    list.forEach((l, i) => { if (progress && progress[l.id] && progress[l.id].passed) furthest = i; });
-    // Include the lesson they are on, matching arcadeKeySet()'s window exactly —
-    // ⚠️ two different windows over the same list would mean the arcade drew
-    // letters from one lesson and its speed from another.
-    const upTo = Math.min(list.length - 1, furthest + 1);
+    // ⚠️ THE SAME WINDOW arcadeKeySet() USES, FROM THE SAME FUNCTION. Two
+    // windows over one list would draw the arcade's letters from one lesson and
+    // its speed from another — see arcadeWindow()'s header.
+    const upTo = arcadeWindow(list, progress, levelIdx);
     let gate = 15;
     for (let i = 0; i <= upTo; i++) {
         const g = (list[i] || {}).gates || {};
@@ -1061,11 +1099,13 @@ export function arcadeTargetWPM({ lessons, progress, bestWPM }) {
  * above — read its header before substituting anything, especially anything that
  * costs a Firestore read.
  */
-export function arcadeConfig({ lessons, progress, bestWPM, targetWPM,
+export function arcadeConfig({ lessons, progress, bestWPM, targetWPM, levelIdx,
                                count = 200, rand = Math.random }) {
-    const keys = arcadeKeySet(lessons, progress);
+    // ⚠️ ONE `levelIdx`, PASSED TO BOTH. See arcadeWindow().
+    const keys = arcadeKeySet(lessons, progress, levelIdx);
     const targets = makeArcadeTargets(keys, count, ARCADE_GROUP_SIZE, rand);
-    const gate = targetWPM > 0 ? targetWPM : arcadeTargetWPM({ lessons, progress, bestWPM });
+    const gate = targetWPM > 0 ? targetWPM
+        : arcadeTargetWPM({ lessons, progress, bestWPM, levelIdx });
     return {
         targets,
         targetWPM: gate,

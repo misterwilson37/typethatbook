@@ -1,4 +1,18 @@
-// game-escape.js v1.1.0 — ESCAPE KEY. Round 82 (Victor), Round 102.
+// game-escape.js v1.2.0 — ESCAPE KEY. Round 82 (Victor), Round 102, Round 104.
+//
+// v1.2.0 — ⚠️⚠️ THE CELL FONT IS SIZED TO THE LONGEST WORD ON THE BOARD, and it
+//   had to be before word-banks.js could be wired in at all. That file's own
+//   header warns that an 8-letter word touches both edges of a cell at the old
+//   fixed `cell*0.20`, and BANK_9 and BANK_10 exist — so the banks this round
+//   connected would have overflowed their plates in later rounds.
+//   ⚠️ SIZING EACH CELL TO ITS OWN WORD WAS REJECTED: thirty labels at thirty
+//   slightly different sizes is Jake's standing pet peeve, where slightly-off
+//   reads worse than plainly different. ONE size for the board is both fixes.
+//   ⭐ AND THE WORDS THEMSELVES NOW COME FROM THE STUDENT'S LEVEL: the host may
+//   pass `poolFor(round)` through to escape-board.js v1.1.0, so real library
+//   words replace random letter groups the moment a level's keys can spell
+//   enough of them. See arcade-pool.js.
+// game-escape.js v1.1.0 — Round 102.
 //
 // v1.1.0 — ⚠️⚠️ THE PER-SECOND TICK DID NOT EXIST, SO NO HOST COULD EVER BANK A
 //   MINUTE OF THIS GAME. game-names.js has carried `countsTime: true` for this
@@ -86,7 +100,7 @@ import {
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_ESCAPE_VERSION = '1.1.0';
+export const GAME_ESCAPE_VERSION = '1.2.0';
 
 /**
  * @param {HTMLElement} container
@@ -133,8 +147,17 @@ export function mount(container, opts) {
     // The registry was promising something the view could not deliver.
     const onSecond = (opts && opts.onSecond) || null;
 
+    // ⚠️⚠️ OPTIONAL, AND IT IS HOW word-banks.js REACHES THE BOARD. arcade-pool.js
+    // builds one from the student's chosen level; `escape-board.js` calls it with
+    // its own round so words lengthen as the run goes on. ⚠️ A HOST THAT PASSES
+    // NOTHING GETS `cfg.targets` AND THE OLD BEHAVIOUR BYTE FOR BYTE.
+    // ⚠️ IT IS PASSED THROUGH, NEVER CALLED HERE. A view that picked its own
+    // words would be deciding difficulty, which is the one thing this file may
+    // not do.
+    const poolFor = (opts && opts.poolFor) || null;
+
     let d = new GameDirector(cfg);
-    let board = new EscapeBoard({ pool: cfg.targets || [], rand });
+    let board = new EscapeBoard({ pool: cfg.targets || [], poolFor, rand });
     let capsOn = false;
     let started = false;   // set by the countdown; enemy steps wait for it
 
@@ -275,7 +298,7 @@ export function mount(container, opts) {
      */
     function restart() {
         d = new GameDirector(cfg);
-        board = new EscapeBoard({ pool: cfg.targets || [], rand });
+        board = new EscapeBoard({ pool: cfg.targets || [], poolFor, rand });
         particles = []; ease.clear();
         banner = null; flash = 0; stepAccMs = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
@@ -470,8 +493,47 @@ export function mount(container, opts) {
         }
     }
 
+    // ⚠️ Courier Prime's advance width, in ems. Used to fit a word to a cell
+    // WITHOUT measuring 30 strings every frame.
+    const MONO_ADVANCE = 0.6;
+    // The plate's own horizontal padding (game-draw.js platedText/platedProgress)
+    // plus a margin so two neighbouring plates never touch.
+    const PLATE_PAD = 18 + 10;
+
+    /**
+     * ⚠️⚠️ ONE FONT SIZE FOR THE WHOLE BOARD, SET BY THE LONGEST WORD ON IT.
+     *
+     * word-banks.js says so in its own header: *"8-LETTER WORDS DO NOT FIT THE
+     * DEFAULT CELL FONT... an 8-letter word touches both edges."* At `cell*0.20`
+     * the board fits about 8.3 characters, and BANK_9 and BANK_10 exist, so the
+     * banks this round wired in would have run off their plates in later rounds.
+     *
+     * ⚠️ THE OBVIOUS FIX — SIZE EACH CELL TO ITS OWN WORD — IS THE ONE JAKE HAS
+     * ASKED ME NOT TO MAKE. It puts thirty labels at thirty slightly different
+     * sizes on one board, and slightly-different reads worse than plainly
+     * different. ⭐ Sizing the whole board to its longest word is both fixes at
+     * once: nothing overflows, and every cell matches every other cell exactly.
+     *
+     * ⚠️ IT CHANGES ONLY WHEN THE ROUND'S WORD LENGTH DOES, not per frame, so the
+     * board does not breathe while a student reads it.
+     */
+    function cellFont() {
+        let longest = 0;
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                const w = board.grid[y][x];
+                if (w && w.length > longest) longest = w.length;
+            }
+        }
+        const base = cell * 0.20;
+        const fitted = longest > 0
+            ? (cell - PLATE_PAD) / (MONO_ADVANCE * longest)
+            : base;
+        return `bold ${Math.max(11, Math.round(Math.min(base, fitted)))}px "Courier Prime", monospace`;
+    }
+
     function drawWords() {
-        const font = `bold ${Math.max(12, Math.round(cell * 0.20))}px "Courier Prime", monospace`;
+        const font = cellFont();
         const typed = board.typed;
         for (let y = 0; y < ROWS; y++) {
             for (let x = 0; x < COLS; x++) {

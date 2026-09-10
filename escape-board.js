@@ -1,5 +1,11 @@
-// escape-board.js v1.0.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
-// Round 82 (Victor).
+// escape-board.js v1.1.0 — ESCAPE KEY's BOARD, WITH NO CANVAS IN IT.
+// Round 82 (Victor), Round 104 (Bar-Let).
+//
+// v1.1.0 — an OPTIONAL `poolFor(round)`. ⚠️⚠️ WITHOUT IT `word-banks.js` IS
+//   DECORATIVE: the eight banks exist so words lengthen as the student plays,
+//   and a pool fixed at construction pins every run to round 1's length, leaving
+//   seven banks that nothing ever reads. ⚠️ A HOST THAT PASSES NOTHING GETS THE
+//   OLD BEHAVIOUR BYTE FOR BYTE — all 39 assertions here run that path.
 //
 // ⚠️⚠️ EXTRACTED FROM THE VIEW SO THE CAMPER CAN BE PROVED TO DIE. Jake asked
 // the right question, 2026-09-07: *"Doesn't a student have to type in order to
@@ -40,7 +46,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const ESCAPE_BOARD_VERSION = '1.0.0';
+export const ESCAPE_BOARD_VERSION = '1.1.0';
 
 export const COLS = 6;
 export const ROWS = 5;
@@ -122,6 +128,15 @@ export class EscapeBoard {
     constructor(o) {
         const c = o || {};
         this.pool = (c.pool || []).slice();
+        // ⚠️⚠️ OPTIONAL, AND WITHOUT IT `word-banks.js` IS DECORATIVE. The eight
+        // banks exist so words LENGTHEN while the student plays; a pool fixed at
+        // construction pins every run to round 1's length and seven of the eight
+        // banks are never read by anything. `poolFor(round)` is called on every
+        // draw so the board's own round decides the words.
+        // ⚠️ A HOST THAT PASSES NOTHING GETS THE OLD BEHAVIOUR EXACTLY — the
+        // static `pool`, byte for byte. escape-board-test.mjs's 39 assertions
+        // all run that path and must stay green.
+        this.poolFor = typeof c.poolFor === 'function' ? c.poolFor : null;
         this.rand = c.rand || Math.random;
 
         this.player = { x: 2, y: 2, facingLeft: false, webWord: null };
@@ -168,18 +183,24 @@ export class EscapeBoard {
      * that is perfect, and a game that hangs beats nothing.
      */
     wordAvoiding(avoid) {
-        if (!this.pool.length) return '';
+        // ⚠️ THE ROUND'S POOL, NOT THE CONSTRUCTOR'S, WHEN A PROVIDER IS GIVEN.
+        // ⚠️ AND IT FALLS BACK TO `this.pool` IF THE PROVIDER RETURNS NOTHING: a
+        // provider is host code, and a board of blank cells with nowhere to move
+        // is the worst outcome this file can produce.
+        const pool = (this.poolFor && (this.poolFor(this.round) || []).length)
+            ? this.poolFor(this.round) : this.pool;
+        if (!pool.length) return '';
         const taken = new Set((avoid || []).filter(Boolean).map(w => w[0]));
         for (let i = 0; i < 40; i++) {
-            const w = this.pool[Math.floor(this.rand() * this.pool.length)];
+            const w = pool[Math.floor(this.rand() * pool.length)];
             if (!taken.has(w[0])) return w;
         }
-        const distinct = new Set(this.pool.map(w => w[0])).size;
+        const distinct = new Set(pool.map(w => w[0])).size;
         if (distinct <= 4) {
             console.warn(`[escape] only ${distinct} distinct first characters in the pool — ` +
                          'adjacent cells cannot all differ. Check this lesson\'s key set.');
         }
-        return this.pool[Math.floor(this.rand() * this.pool.length)];
+        return pool[Math.floor(this.rand() * pool.length)];
     }
 
     /** Called after every move, because "adjacent" moves with the player. */
