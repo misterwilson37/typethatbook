@@ -11,104 +11,336 @@
 >
 > *On the name:* before visible writers, the type bar struck the **underside** of
 > the platen. You typed blind and lifted the carriage to see whether any of it
-> had worked. That is precisely what this round found: a clock nobody could see,
-> that had never worked, for twenty rounds.
+> had worked. That is precisely what this round found twice over: a clock nobody
+> could see that had never worked for twenty rounds, and a lesson gate that would
+> have passed a child who never touched the keyboard.
 >
-> ### ⚠️⚠️ ESCAPE KEY NEVER EMITTED A SECOND, AND NOTHING WENT RED
+> ⚠️⚠️ **THIS BLOCK WAS STALE WHEN THE ROUND ENDED AND THAT COST THE NEXT
+> INSTANCE A SESSION.** I wrote it at the Escape Key milestone and never
+> rewrote it as the round kept going, so it described a per-second tick and
+> nothing else — and the next instance opened a repo full of `word-banks.js`,
+> `shatter-words.js` and a v0.4.0 fork with no idea where any of it came from.
+> Jake's report: *"the next guy seems to think that you gave over nothing but
+> files."* ⭐ **REWRITE THIS BLOCK LAST, NOT WHEN THE FIRST THING SHIPS.** A
+> handoff written at the halfway point is worse than one written at the end,
+> because its confident tone hides everything it does not mention.
 >
-> | file | version |
-> |---|---|
-> | `game-escape.js` | **1.1.0** |
-> | `tests/escape-seconds-test.mjs` | **1.0.0** (19 assertions) |
-> | `tests/run-all-tests.mjs` | **1.25.0** |
+> ---
 >
-> `game-names.js` has carried `countsTime: true` for Escape Key since Round 82 —
-> Jake's 4e ruling, *"I'm leaning toward arcade for now, but time typed should
-> still count"* — and `mount()` accepted **no `onSecond` at all**. Every minute a
-> student spent in Escape Key was unbankable by any host. **The registry was
-> promising a thing the view had no way to deliver.**
+> ## WHAT THIS ROUND SHIPPED — five things, in dependency order
 >
-> * ⭐ **THIS IS DEADLINE v1.10.0 A SECOND TIME, AND THE LESSON WAS ALREADY
->   WRITTEN DOWN**: *"arcade-lesson-test.mjs pinned the PAGE's listener and stayed
->   green for ten rounds while nothing emitted. A seam needs BOTH ends asserted."*
->   ⚠️ **Escape Key had NEITHER end asserted**, which is why twenty rounds passed
->   with nothing to go red. ⚠️ **Assume a third file has this shape and go
->   looking** rather than waiting for Jake to play it and watch zeros.
+> | file | version | state |
+> |---|---|---|
+> | `learn2.js` | **0.4.0-staging** | ⚠️ STAGING FORK. Deadline as the lesson gate. |
+> | `learn2.html` | **0.1.0-staging** | Its page. |
+> | `HANDOFF-learn2.md` | — | ⚠️ **READ IT BEFORE TOUCHING EITHER LEARN PAGE.** |
+> | `game-escape.js` | **1.1.0** | Emits a per-second tick at last. |
+> | `tests/escape-seconds-test.mjs` | **1.0.0** | New, 19 assertions, registered. |
+> | `tests/run-all-tests.mjs` | **1.25.0** | Registers the above. |
+> | `word-banks.js` | **1.0.0** | ⚠️ **DATA ONLY. NOTHING READS IT YET.** |
+> | `shatter-words.js` | **1.0.0** | ⚠️ **DATA ONLY. SHATTER DOES NOT EXIST.** |
+> | `tools/wordbank/*` | — | The generator, the model prompt, the raw reply. |
+>
+> ---
+>
+> ## 1. ⭐ DEADLINE IS THE LESSON GATE — but only in a fork
+>
+> Jake: a student on run 5/6 at the bell should come back, finish run 5, play
+> Deadline to prove they are ready, and pass into the next lesson.
+>
+> ⚠️⚠️ **IT IS A FORK, `learn2.*`, AND THAT IS A DELIBERATE RULE 9 EXCEPTION.**
+> Deadline's keystrokes never touch `drillPos`/`learnLastInputTime`, so the
+> graded-time gate four counting bugs died to make singular
+> (`tests/open-unit-test.mjs` Part E, which reads `../learn.js` **by hardcoded
+> filename**) cannot see a game run without a second increment site inside
+> `learn.js` itself — the exact shape that harness exists to catch. Jake chose
+> the fork over touching the harness or the live page. **The cost is that
+> `learn2.js` carries its own full copy of the grading/time engine.**
+>
+> ⚠️⚠️ **IT MUST BE RECONCILED — PROMOTE IT OR FOLD IT BACK, AND DELETE THE
+> LOSER.** Two copies surviving past that decision is the failure the exception
+> was accepted to avoid. Full detail in `HANDOFF-learn2.md` §0.
+>
+> ### ⚠️⚠️ THE ZERO-EFFORT PASS — a defect the wiring created, caught before it shipped
+>
+> A student who mounts the game and **types nothing** loses every shield to
+> leaks. Leaks are not charged as accuracy errors (Jake's ruling, correct), so
+> the report reads `chars: 0, mistakes: 0` — and **accuracy of zero characters
+> is 100 by definition.** `calculateGrade()` turns that into A🔥 on an
+> accuracy-only run, or `'C'` on a speed-graded one, and `gradeAdvances('C')` is
+> true because nothing sets `strictSpeed`. **Sitting still would have passed the
+> lesson.**
+>
+> ⚠️ **A TYPED RUN CANNOT DO THIS AND THE ASYMMETRY IS THE POINT.**
+> `finishStep()` is only reachable by typing to the end. **The game is the first
+> run in this app that can END BY ITSELF**, so it is the first that ever needed
+> this said. ⭐ Fixed by treating a lost game as an **unfinished** run, not a
+> failed one: minutes bank, sprint logs, no grade written. ⚠️ **DO NOT "FIX"
+> THIS BY INVENTING AN 'F'** — a child who cleared 90% at 100% accuracy did not
+> earn one.
+>
+> ### ⭐ THE VICTORY LAP — how prose lessons work (v0.4.0)
+>
+> Jake, after correcting me **twice**: *"kids do 1/4 as they did originally,
+> then 2/4, then 3/4, then 4/4. Then — only for fun — they do the passage AGAIN
+> as a game. Once they pass 1/4, they win, and the next lesson is unlocked...
+> but the game doesn't stop until they lose."*
+>
+> * Every authored chunk survives, graded as before.
+> * One extra run pools the **whole** passage; its **quota is chunk 1's
+>   characters** — ~25% of the passage, **45–60 s** to unlock the next lesson.
+> * It runs in **survival**: play continues past the bar until they lose.
+>   Everything after the bar is leaderboard only.
+>
+> ⚠️⚠️ **THE GRADE READS `rep.pass`, NEVER `rep`** — this file already warned
+> that *"a wiring that filed `rep` grades a leaderboard stunt as a lesson."*
+> `rep` is the whole session; `rep.pass` is the snapshot frozen at the quota.
+> **Subtracting survival afterwards is impossible** — WPM and accuracy are
+> ratios and do not decompose. `chars`, `mistakes` and `logRun()` read the
+> snapshot too. ⚠️ Only the CLOCK counts every second, survival included.
+>
+> ⚠️ **I GOT THIS SHAPE WRONG TWICE IN OPPOSITE DIRECTIONS** — v0.2.0 made the
+> lesson longer, v0.3.0 deleted chunks 2..N to "fix" that. ⭐ **NEITHER THE RUN
+> LIST NOR THE POOL WAS EVER THE PROBLEM: THE QUOTA AND THE ENDING WERE.** When
+> a shape keeps coming out wrong, check whether you are adjusting the wrong
+> dimension.
+>
+> ### The three game gates, and where the game appears
+>
+> `gameSlotIdx()` is **the one answerer**; `attachGameSlot()` in
+> `buildRunList()` is the one decider. ⚠️ The first draft spelled the test out
+> in three places and was already drifting.
+>
+> * **No game on a one-run lesson** — replace path only (a victory lap cannot
+>   eat the lesson, so prose is exempt).
+> * ⭐ **No game where speed is not graded.** A `minWPM: null` run is graded on
+>   accuracy alone, but Deadline is a throughput test by construction — the
+>   student would lose their city for being slow and then read that speed was
+>   never measured. Read through `gatesForRun()`, **never** by testing
+>   `run.type`.
+> * **≥ 4 cumulative keys.** ⚠️ Cannot fire against the current corpus; kept
+>   deliberately, and it is **not** dead in the `stunSteps` sense.
+>
+> Measured on the real 47-lesson fixture: **28 prose (victory lap), 4 replace,
+> 15 no game.**
+>
+> ### The run picker — and a correction that matters more than the feature
+>
+> ⚠️⚠️ **`firstOpenRunIdx()` NEVER COVERED THE ORDINARY STUDENT, AND I TOLD JAKE
+> IT DID.** A run only becomes resumable once **mastered** — 4 points, at
+> A🔥 = 2 and A = 1, with **B, C, D and F all worth ZERO**. So resume only ever
+> fired for a student who scored two fireballs on every earlier run. A child
+> passing with B's and C's reopens at run 1 every visit, which is what Jake
+> watched happen. ⚠️ **NOTHING IS BROKEN IN `firstOpenRunIdx()`** — do not go
+> hunting.
+>
+> The picker sits on the **intro panel only**: a Tab-reachable control in a
+> typing view eats keystrokes (ROADMAP item 8). ⚠️ **THE CEILING IS THE POINT** —
+> a student may replay anything reached plus exactly one run past it. Without
+> it, any child could jump to the final run and pass a lesson without typing a
+> character of the ones before.
+>
+> ⚠️ **EVERY UNIT 7 PICKER OPENS AT RUN 1 ONCE, FOR EVERYONE.** The victory lap
+> changed those lessons' `runCount`; `maxReachableRunIdx()` refuses its shortcut
+> when the stored count disagrees. Correct, self-healing after one run, and it
+> will look like a regression.
+>
+> ---
+>
+> ## 2. ⚠️⚠️ ESCAPE KEY NEVER EMITTED A SECOND, AND NOTHING WENT RED
+>
+> `game-names.js` has carried `countsTime: true` since Round 82 — Jake's 4e
+> ruling, *"time typed should still count"* — and `mount()` accepted **no
+> `onSecond` at all**. Every minute a student spent in Escape Key was
+> unbankable by any host. **The registry promised a thing the view could not
+> deliver.**
+>
+> ⭐ **THIS IS DEADLINE v1.10.0 A SECOND TIME AND THE LESSON WAS ALREADY WRITTEN
+> DOWN**: *"a seam needs BOTH ends asserted."* Escape Key had **neither** end
+> asserted, which is why twenty rounds passed with nothing to go red.
+> ⚠️ **ASSUME A THIRD FILE HAS THIS SHAPE AND GO LOOKING.**
+>
 > * `bankWholeSeconds()` mirrors Deadline statement for statement: off
->   `d.clock.seconds()` (never a private accumulator), a high-water mark so it is
->   idempotent, called from the frame loop **and** at the top of `finish()` above
->   both `ended = true` and `d.end(now)`, reset in `restart()`.
-> * ⚠️ **THE `dt` TRAP IS WORSE HERE THAN IN DEADLINE.** `frame()` CLAMPS `dt` to
->   50ms for the enemy stepper, so a `dt`-based accumulator would silently
->   under-bank every hidden tab. Reading the graded clock sidesteps it entirely.
-> * ⚠️ **v1.0.0's doc comment claimed "same contract as game-deadline". It was
->   false** — no `onSecond`, no `minutes`, no `barHost`, no side canvases — **and
->   being false is how the gap stayed invisible to a reader.** Now the accepted
->   options are listed and so are the refused ones. ⭐ **A DOC COMMENT THAT
->   OVERSTATES A CONTRACT IS A DEFECT, not untidiness.**
-> * ⚠️ **STILL ARCADE-ONLY.** `assessed: false` is untouched. This makes the
->   clock half of 4e *reachable*; it does not grade anything.
+>   `d.clock.seconds()` (never a private accumulator), a high-water mark so it
+>   is idempotent, called from the frame loop **and** at the top of `finish()`
+>   above both `ended = true` and `d.end(now)`, reset in `restart()`.
+> * ⚠️ **THE `dt` TRAP IS WORSE HERE.** `frame()` CLAMPS `dt` to 50 ms for the
+>   enemy stepper, so a `dt`-based accumulator would silently under-bank every
+>   hidden tab.
+> * ⚠️ v1.0.0's doc comment claimed *"same contract as game-deadline"*. **It was
+>   false, and being false is how the gap stayed invisible.** ⭐ **A DOC COMMENT
+>   THAT OVERSTATES A CONTRACT IS A DEFECT.**
+> * ⚠️ **STILL ARCADE-ONLY** (`assessed: false` untouched), and **nothing calls
+>   it**: `arcade.html` hardcodes `mountDeadline` and never imports
+>   `game-escape.js`. Only `tools/game-lab.html` mounts it.
 >
-> ### ⚠️ AND NOTHING IS CALLING IT YET
+> ---
 >
-> **`arcade.html` hardcodes `mountDeadline` and never imports `game-escape.js`.**
-> Escape Key has **no student-facing surface at all** — `tools/game-lab.html` is
-> the only thing that mounts it. So the tick now exists and still fires nowhere.
-> ⚠️ **DO NOT READ `escape-seconds-test.mjs` GREEN AS "TIME BANKS."** It is
-> structural: it proves the four mistakes Deadline made are absent. A browser is
-> the only thing that can prove a minute lands.
+> ## 3. ⭐ THE WORD BANKS — built from the library, not from a model
 >
-> Round 100b's standing note remains true and is not shortened by this round:
-> *"Escape Key is still untouched"* — no scope, no console, no threat board, no
-> mid-field countdown, no hardware buttons (it mounts the floating bar), no space
-> rule. **One clock is not parity.**
+> **Why they exist:** `arcadeKeySet()` walks lessons up to the furthest *passed*
+> one plus the current. ⚠️⚠️ **A STUDENT WHO HAS NEVER PASSED A LESSON GETS
+> `f` AND `j` — TWO LETTERS.** Jake: about **a third of his students already
+> type** and never touch the lessons. The key-set rule was written for the
+> ladder-climbing audience and silently punishes the audience that does not
+> climb. **The banks are the fix for a live defect, not a nicety.**
 >
-> ### THE HARNESS LESSON, WHICH OUTLASTS THIS ROUND
+> `word-banks.js`: **six banks, 3–10 letters, 200 words each**, extracted from
+> the 80 cleaned EPUBs (5.4 M tokens, 52 k distinct words) by
+> `tools/wordbank/build-word-banks.py`, then chosen **greedily for letter
+> balance** rather than frequency. Rare letters (`qzxjkv`) run **4–8%** against
+> a natural **1.6%**, with all 26 letters present from four letters up.
 >
-> ⚠️⚠️ **A HARNESS THAT IS WRITTEN BUT NOT REGISTERED IS WORSE THAN NO HARNESS.**
-> `tests/run-all-tests.mjs` uses an **explicit array, not directory discovery**.
-> An unlisted file is one nobody runs, and it *looks* like coverage on the disk.
-> Registered in the same round it was written, and `docs-vs-repo-test` C2 caught
-> the knock-on immediately: the harness count in START HERE moved 90 → 91.
-> ⚠️ **C2 reads the FIRST `**N harnesses pass**` line in this file and only that
-> one** — later blocks are previous rounds' own records and must not be edited.
+> ⚠️ **BALANCE AND SIZE FIGHT EACH OTHER** — that, not file size, is why the
+> banks are capped at 200. Every extra word is a common-letter word that drowns
+> the `q`s. Repetition is also a feature: ~28 targets a mission means a word
+> recurs about every seventh mission, which is how motor memory forms.
 >
-> ### ⚠️ RULE 10, DONE PROPERLY, AND IT IS CHEAP
+> ### ⚠️⚠️ THE CONTAMINATION THAT ALMOST SHIPPED, AND WHY IT IS A GENERAL LESSON
 >
-> `escape-seconds-test.mjs` fails **11 of 19** against the pre-fix file and
-> passes 19/19 after. That took one `cp` and two runs. ⭐ **A harness not run
-> against the broken code is a harness you are guessing about** — and this one
-> caught a real mistake of mine mid-round: I had put `bankWholeSeconds()` *above*
-> `frame()`, where Deadline has it below, which broke a slice. **I moved the code
-> to match Deadline rather than loosen the assertion.**
+> **The best quality signal in the script was promoting the worst text in the
+> corpus.** Breadth-across-books is the strongest filter available — `jump` is
+> in 62 of 80 books, dialect junk like `yez` in 3 — but Standard Ebooks front
+> and back matter (`imprint`, `colophon`, `uncopyright`, `titlepage`) is
+> **identical in all 80**, so `domain` scored **80/80**, `ebook` 77, `trademark`
+> 34. ⭐ **IDENTICAL BOILERPLATE IS MAXIMALLY "BROAD."** Fixed with
+> `SKIP_PAGES`, by **filename** — a first attempt sniffing for "gutenberg" near
+> "licence" missed them entirely, because Standard Ebooks uses no such markers
+> and the imprint says none of those words.
 >
-> ### THE STATE OF PLAY
+> Three more, all caught by **reading the output**, none by any statistic:
+> `didn`/`don`/`couldn` from apostrophe splitting (`don` scored 7,806 across 76
+> books); `quot` from HTML entities; and British spellings, which are the
+> nastiest because the corpus is **mixed** — `grey` is in 42 books and `gray` in
+> 45, so no statistic separates them and an explicit list is required.
+>
+> ⚠️ **9- AND 10-LETTER WORDS DO NOT FIT THE DEFAULT CELL FONT.** Grid words
+> draw at `cell * 0.20` in Courier Prime (~0.6 em) — about 8.3 characters of
+> cell width. Roughly `cell * Math.min(0.20, 1.6 / word.length)`.
+>
+> ⚠️ **THE LENGTH RAMP IS A SKILL RAMP, NOT A SPEED RAMP.** `enemyStepMs()` is
+> linear in `avgChars`, so a 6-letter bank buys exactly **twice** the step time
+> of a 3-letter one at the same gate. `pressure` remains the only difficulty
+> knob. ⚠️ But note `escape-board.js` **wipes the whole typed prefix on one
+> wrong key** — at ten letters that is punishing in a way three is not, and
+> that interaction is what to watch, not the length.
+>
+> ### Provenance is baked in and costs nothing
+>
+> `provenanceLine('bronze')` → *"in The Golden Fleece..., The Adventures of
+> Odysseus... and 16 more"*. **Zero reads, zero latency** — the 80-book list is
+> in the module. Jake asked for a pause-and-hover and it turned out free.
+> ⚠️ Labels are disambiguated (two books are titled *Short Fiction*) and
+> de-duplicated (**two books are duplicated on disk** — verified-identical
+> second copies of *The Wonderful Wizard of Oz* and *The Half-Back*. ⚠️ *Barry
+> Locke, half-back* is a genuinely different book — **keep it**).
+>
+> ---
+>
+> ## 4. ⭐ SHATTER'S VOCABULARY — 300 words, and the model was a classifier
+>
+> `shatter-words.js`: **300 words, 139 three-part, 161 two-part**, each with
+> morphemes, a plain-English gloss per part for the hover, a grade band, and its
+> books.
+>
+> ⭐ **THE MODEL JUDGED A CLOSED LIST RATHER THAN GENERATING AN OPEN ONE**, and
+> that is the whole reliability story: it could not invent a word absent from
+> the library. It was needed, too — mechanical affix-stripping produces
+> confident nonsense (`de+liver+ed`, `de+sir+ous`, `de+bat+ing`) and **no
+> algorithm can tell those from `un+fold+ed` without knowing meaning.**
+>
+> ⚠️ **`rejoin-shatter.py` VERIFIES AND DROPS, NEVER REPAIRS** — tiles must
+> spell the word, gloss count must match part count, no invented words. Tested
+> against a deliberately corrupted reply. **Repairing would be the script
+> guessing at morphology, the one thing it is unqualified to do.**
+>
+> Two Jake rulings that must not be "tidied away" by a future round:
+>
+> * ⭐ **THE SILENT E IS RECOVERED, NOT DROPPED.** English drops the e before
+>   `-ing`, so `debate + ing` is morphologically right and orthographically
+>   unusable. **It was never a choice between them:** `p` is the surface split
+>   (`debat|ing`) that the tiles rebuild, `lemma` is the dictionary form the
+>   hover explains. Jake: *"even if it requires a janky letter addition... I
+>   like it!"*
+> * ⭐ **"OPAQUE" IS NOT "WRONG."** Nineteen Latinate splits a 12-year-old cannot
+>   see through (`ex+tend+ed`, `re+port+ed`, `in+tense+ly`) were **kept** on
+>   Jake's ruling: *"If even one kid pauses the game and goes 'What?', it will
+>   be worth it... We're doing it to make kids start to question why words split
+>   the way they do."* ⚠️ Only `submission` was cut, because `sub+mis+sion` is
+>   **false** (it is sub + miss + ion) and a false split teaches a wrong fact.
+>
+> ---
+>
+> ## 5. THE HARNESS LESSONS
+>
+> * ⚠️⚠️ **A HARNESS WRITTEN BUT NOT REGISTERED IS WORSE THAN NO HARNESS.**
+>   `run-all-tests.mjs` uses an **explicit array**, not directory discovery. An
+>   unlisted file is one nobody runs and it *looks* like coverage.
+> * ⭐ **RULE 10 IS CHEAP WHEN YOU ACTUALLY DO IT.** `escape-seconds-test.mjs`
+>   fails **11 of 19** against the pre-fix file and passes 19/19 after — one
+>   `cp` and two runs. It caught a real mistake mid-round: I had put
+>   `bankWholeSeconds()` *above* `frame()` where Deadline has it below.
+>   **I moved the code to match rather than loosen the assertion.**
+> * ⚠️ **STRUCTURAL IS NOT BEHAVIOURAL.** Green there means *the four mistakes
+>   Deadline made are absent*, **not** that a minute banks. Only a browser
+>   proves that.
+>
+> ---
+>
+> ## 6. STATE OF PLAY
 >
 > * **Green**: escape-seconds 19, escape-board 39, arcade-lesson 103, game-shell
->   120, game-assumptions 59, arcade-versions 29, version-stamp 284, docs-vs-repo
->   21, all 35 modules parse.
-> * ⚠️ **Pre-existing failures unrelated to this round** (they fail identically on
->   an untouched copy of the repo, verified): `undefined-calls-test`,
->   `credits-test`, `credit-test`, `card-markup-test`, `about-test`,
->   `about-render-test`, `metadata-map-test`, `drill-filter-test`,
->   `continue-reading-test`. ⚠️ **DO NOT ASSUME THESE ARE YOURS** — and do not
->   assume they are fine either; nobody has looked.
-> * ⚠️ **NOT BROWSER-VERIFIED.** Play Escape Key in `tools/game-lab.html` with an
->   `onSecond` that logs, and confirm: ticks during play (not only at game over),
->   none before the first keystroke, none while paused, and a restart that does
->   not swallow its first seconds.
+>   120, game-assumptions 59, arcade-versions 29, version-stamp 284,
+>   docs-vs-repo 21, all 35 modules parse.
+> * ⚠️ **Nine pre-existing failures, NOT from this round** — verified identical
+>   on an untouched copy of the repo: `undefined-calls`, `credits`, `credit`,
+>   `card-markup`, `about`, `about-render`, `metadata-map`, `drill-filter`,
+>   `continue-reading`. **Do not assume they are yours. Do not assume they are
+>   fine.** Nobody has looked.
+> * ⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
 >
-> ### ⚠️ THE OTHER HALF OF THIS SESSION IS NOT IN THIS FILE
+> ### What to confirm in a browser, in order
 >
-> The Deadline→lesson-gate work lives in **`HANDOFF-learn2.md`** with
-> `learn2.html`/`learn2.js` — a **staging fork** of `learn.html`/`learn.js`,
-> deliberately absent from `versions.js`, carrying a deliberate Rule 9 exception
-> that **must be reconciled before a whole roster uses it**. ⚠️ **Read that file
-> before touching either learn page.** It also records two things that outlast
-> it: a **zero-effort lesson pass** the game wiring created (a student who types
-> nothing scores acc 100 / wpm 0 and advances) and the correction that
-> `firstOpenRunIdx()` **never covered the ordinary student**, because B, C, D and
-> F are all worth zero mastery points.
+> 1. A word-list lesson (`u3_l1`): the game **replaces** the final run, ends at
+>    its quota.
+> 2. A graduation passage (`u7_r1`): four chunks typed, then the victory lap —
+>    unlocks at ~45–60 s, then survival until they lose.
+> 3. ⚠️⚠️ **A DELIBERATE LOSS — sit still.** City falls, lesson stays
+>    **unpassed**, time still banked. **The single most important check.**
+> 4. The run picker mid-lesson; a mid-game quit; a tab-hide mid-game.
+> 5. Escape Key in `tools/game-lab.html` with a logging `onSecond`: ticks during
+>    play, none before the first keystroke, none while paused, and a restart
+>    that does not swallow its opening seconds.
+>
+> ---
+>
+> ## 7. OPEN — in the order I would take them
+>
+> 1. ⚠️⚠️ **RECONCILE THE `learn2` FORK.** Promote or fold back, **and delete
+>    the loser.** `HANDOFF-learn2.md` §0.
+> 2. **Wire `word-banks.js` into Escape Key.** `bankForRound()` /
+>    `wordsForRound()` are ready; it still calls `makeArcadeTargets()`. This is
+>    what fixes the two-letter arcade for a third of the school.
+> 3. **Length-scaled cell font** in `game-escape.js` before the 9/10 banks are
+>    used.
+> 4. **Escape Key has no student-facing surface** — `arcade.html` mounts only
+>    Deadline.
+> 5. **Eight secretly-four-part Shatter words** — `un+doubted+ly` is really
+>    `un+doubt+ed+ly`; likewise `un+expected+ly`, `un+willing+ly`,
+>    `re+assuring+ly`, `mis+giving+s`, `pre+caution+s`, `re+collection+s`,
+>    `re+solution+s`. A short second pass over just those yields the genuine
+>    four-part tier Jake originally wanted from Asteroids. ⚠️ Use the **saved
+>    reply** at `tools/wordbank/gemini-shatter-reply.json` — it is the one file
+>    in this round that **cannot be regenerated**, which is why it is committed
+>    rather than left in a Downloads folder.
+> 6. **Two duplicate books on disk** (Oz, The Half-Back) inflate every book
+>    count for words in those titles.
+> 7. ⚠️ **A PEDAGOGY QUESTION, NOT A WIRING ONE.** Every lesson in Units 1, 2
+>    and 5 is graded on a `key_random` final run, which `DRILL_TYPES` forces to
+>    `minWPM: null` — so **a student can pass all fifteen at 2 WPM** with clean
+>    accuracy, today, typed, with or without any of this. Jake believed the
+>    opposite and was told. Excluding the game from those lessons avoided an
+>    incoherence; **it did not fix this.** His call, not a round's.
 
 > ## ▶ START HERE — written 2026-09-09 by Round 101 (Wellington), for whoever is next
 >
