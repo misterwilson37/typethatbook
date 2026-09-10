@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.15.0 — THE ARCADE FLOOR: three clickable cabinets, a marquee
+<!-- arcade.html v3.16.0 — THE MARQUEE WORKS, NAMES THE PLAYER, AND THE PROSE
+     UNDER THE FRAME IS GONE. Round 115 (Tower). Jake, 2026-09-10, with a
+     screenshot showing TODAY and WEEK as dashes: *"arcade needs to lose the
+     gratuitous description at the bottom, and the header needs to actually show
+     today and week minutes, as well as the user currently logged in."*
+     ⚠️⚠️ THE DASHES WERE AN ORDERING BUG, NOT A READ FAILURE. load() painted
+     the marquee and THEN started loadMinutes() un-awaited, and nothing painted
+     it again until bankSecond() — so the clocks stayed dashes until a student
+     had already started playing. loadMinutes() now ends by painting.
+     ⚠️ THE #game-title / BETA / #game-note BLOCK IS DELETED, NOT HIDDEN. The
+     cabinets already name each game and carry its tagline; the gates panel
+     already says what is saved. applyPageChrome() still sets the tab title.
+
+     arcade.html v3.15.0 — THE ARCADE FLOOR: three clickable cabinets, a marquee
      carrying the same daily/weekly clocks as the lesson HUD, and the options
      panel demoted to step two. Round 114 (Carriage). Jake: *"they should be able
      to click on the three games like they're looking at an arcade... Do your best
@@ -124,7 +137,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
-<title>Arcade — Deadline (beta) — TypeThatBook</title>
+<title>Arcade — TypeThatBook</title>
 <style>
     :root {
         color-scheme: dark;
@@ -266,12 +279,8 @@
         .stage-grid { grid-template-columns: minmax(0, 1fr); }
         #radar-col { display: none; }
     }
-    h1 { font-size: 1.3rem; margin: 0 0 2px; color: var(--accent); letter-spacing: 1px; }
-    .beta {
-        display: inline-block; font-size: .68rem; letter-spacing: 1px;
-        border: 1px solid var(--accent-line); border-radius: 999px;
-        padding: 2px 9px; color: var(--good);
-    }
+    /* ⚠️ Round 115: the h1 and .beta rules went with the #game-title block
+       they styled. Nothing else on this page is an h1 or a .beta. */
     .note { font-size: .8rem; color: var(--ink-dim); line-height: 1.55; margin: 12px 0 18px; }
     .panel {
         background: var(--panel); border: 1px solid var(--rule);
@@ -343,6 +352,13 @@
     .mq-clock b {
         display: block; font-size: 1.15rem; letter-spacing: 2px;
         color: var(--accent); font-weight: 400;
+    }
+    /* ⭐ Round 115 — WHO IS PLAYING. Same shape as the two clocks so all three
+       sit on one baseline; ellipsised because a school email is long and a
+       marquee that wraps is not a marquee. */
+    .mq-player b {
+        max-width: 240px; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; color: var(--ink);
     }
     .mq-home { font-size: .74rem; color: var(--ink-dim); text-decoration: none; }
     .mq-home:hover { color: var(--accent); }
@@ -440,6 +456,9 @@
                  went; renaming them here would make the arcade look like a
                  separate scoreboard. Filled by renderMarquee() once MINUTES
                  loads, and left blank rather than showing 0:00 before then. -->
+            <!-- ⭐ Round 115 — the signed-in student, painted by renderPlayer()
+                 the moment auth reports, before any read. -->
+            <div class="mq-clock mq-player">PLAYER<b id="mq-who">—</b></div>
             <div class="mq-clock">TODAY<b id="mq-today">—</b></div>
             <div class="mq-clock">WEEK<b id="mq-week">—</b></div>
             <a class="mq-home" href="./index.html">&larr; Library</a>
@@ -602,39 +621,13 @@
         </div>
     </div>
 
-    <!-- ⚠️⚠️ BELOW THE FRAME, ON PURPOSE. Students, via Jake 2026-09-08: *"The
-         block of text outside of the game (DEADLINE [Beta]...Play a lesson...)
-         should be below the frame to again maximize screen space."* On a
-         Chromebook the title and blurb pushed the canvas down far enough that
-         the top of the sky — where every target enters — was the first thing
-         scrolled off. It is orientation text: needed once, re-read never, so it
-         belongs after the thing it orients. -->
-    <!-- ⚠️⚠️ THE TITLE TRACKS THE PICKER. It read a hardcoded DEADLINE for
-         thirty rounds, which was true while Deadline was the only game and
-         became a lie the moment a second one shipped: a student playing Escape
-         Key read ESCAPE KEY in the dropdown and DEADLINE under the frame.
-         ⭐ THE STRING COMES FROM game-names.js VIA titleOf(), so a rename is
-         still the one line that file exists to make it. -->
-    <h1 id="game-title">DEADLINE</h1>
-    <div class="beta">BETA</div>
-
-    <!-- ⚠️⚠️ THE "NOT SAVED" LINE USED TO LIVE HERE AND IT SAID SOMETHING FALSE.
-         It read *"your time, score and grade don't count toward your lessons"* —
-         but bankSecond() and flushArcadeSeconds() write arcade seconds into
-         `typing_logs` and the ledger, so the TIME has counted since Round 102.
-         ⭐ AND THE PAGE CONTRADICTED ITSELF ABOUT IT: the gates panel above the
-         button already said *"the time you spend typing counts toward your day
-         and your week, exactly like School"*. Two records of one claim, on one
-         screen, disagreeing — Rule 9, in the copy rather than in the code.
-         ⚠️ RESOLVED BY DELETING THIS COPY, NOT BY CORRECTING IT. Jake's standing
-         ruling is that the not-saved line comes BEFORE they play, and the gates
-         panel is before they play; this paragraph sits under the frame and is
-         read after. savedNote() is now the one writer of that sentence and both
-         gate panels call it.
-         ⚠️ DO NOT RE-ADD A SAVED/NOT-SAVED CLAIM TO THIS PARAGRAPH. -->
-    <p class="note" id="game-note"></p>
-
-
+    <!-- ⚠️⚠️ Round 115 (Tower): THE TITLE, BETA PILL AND BLURB THAT SAT HERE ARE
+         DELETED. Jake, 2026-09-10: *"arcade needs to lose the gratuitous
+         description at the bottom."* On the floor they repeated the last-picked
+         cabinet's name under three cabinets that already name themselves, and
+         the blurb restated what the gates panel says before play. ⚠️ DO NOT
+         RE-ADD PROSE UNDER THE FRAME; savedNote() in the gates panel is the one
+         place this page says what it keeps. -->
 
     <div class="panel" id="result" style="display:none">
         <div id="verdict"></div>
@@ -669,7 +662,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.15.0';
+const ARCADE_PAGE_VERSION = '3.16.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1299,25 +1292,19 @@ function savedNote() {
 }
 
 /**
- * Point the title and the blurb under the frame at the chosen game.
+ * Point the browser tab at the chosen game.
  *
- * ⚠️ THE BLURB IS PER-GAME PROSE, NOT THE REGISTRY TAGLINE. `g.tagline` is
- * already printed in the gates panel, and printing it twice on one screen would
- * be the shape this round has spent its whole length removing. This paragraph
- * answers a different question — what the student is being asked to DO — and
- * only Deadline has a School run to be compared against.
+ * ⚠️ Round 115: this used to write a title and a per-game blurb under the
+ * frame as well. Both elements are gone (Jake: "gratuitous"); the tab title is
+ * the only chrome left, and it still comes from titleOf() so a rename stays one
+ * line in game-names.js.
  */
 function applyPageChrome() {
     const g = currentGame();
-    $('game-title').textContent = titleOf(g.id).toUpperCase();
-    document.title = 'Arcade \u2014 ' + titleOf(g.id) + ' (beta) \u2014 TypeThatBook';
-    $('game-note').innerHTML = (g.id === 'deadline' && !isFreePlay())
-        ? 'Play a lesson you\u2019ve already reached, at that lesson\u2019s own ' +
-          'speed and accuracy targets. Then type the same run in School and see ' +
-          'whether the numbers line up. You need a keyboard to play.'
-        : 'Play for as long as you like. The words come from the letters you ' +
-          'have learned so far, or from the whole pool if you pick it. You need ' +
-          'a keyboard to play.';
+    // ⚠️ Round 115: THE TAB TITLE IS ALL THAT IS LEFT. The #game-title and
+    // #game-note elements are deleted (see the markup); writing to them would
+    // throw on a null and take applyGameMode() down with it.
+    document.title = 'Arcade \u2014 ' + titleOf(g.id) + ' \u2014 TypeThatBook';
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1469,6 +1456,17 @@ function showFloor() {
  * ⚠️ AND IT SHOWS AN EM DASH, NOT 0:00, BEFORE MINUTES LOADS. A confident zero on
  * a student who has typed all week is worse than an obvious blank.
  */
+function renderPlayer(user) {
+    const el = $('mq-who');
+    if (!el) return;
+    // ⚠️ displayName FIRST, email as fallback — the same order index.html and
+    // the School header use, so a student reads the same name on every page.
+    el.textContent = (user && !user.isAnonymous)
+        ? (user.displayName || user.email || 'signed in')
+        : 'not signed in';
+    el.title = (user && user.email) || '';
+}
+
 function renderMarquee() {
     const m = liveMinutes();
     $('mq-today').textContent = m ? m.todayClock : '\u2014';
@@ -2077,6 +2075,8 @@ function withTimeout(promise, what) {
 }
 
 async function load(user) {
+    // ⭐ Round 115 — the name costs no read, so it goes up before any read does.
+    renderPlayer(user);
     try {
         const lessonSnap = await withTimeout(getDocs(collection(db, 'lessons')), 'lessons');
         LESSONS = lessonSnap.docs
@@ -2152,7 +2152,12 @@ async function load(user) {
         // ⚠️ NOT AWAITED. The minutes are decoration on a strip the student has
         // not reached yet; making the lesson picker wait on a week read would
         // trade the thing they came for against a number in a corner.
-        loadMinutes(user);
+        // ⚠️⚠️ Round 115 — AND IT PAINTS WHEN IT LANDS. renderMarquee() above
+        // runs while MINUTES is still null, and until this line nothing called
+        // it again until bankSecond() — so the clocks read as dashes on the
+        // floor, which is the one screen they exist for. `finally`, because a
+        // failed read must still leave the dashes painted rather than stale.
+        loadMinutes(user).finally(renderMarquee);
     } catch (e) {
         $('loading').style.display = 'none';
         $('err').style.display = 'block';

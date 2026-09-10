@@ -450,9 +450,23 @@
         }
         .landing-hero p { color: var(--text-muted); font-size: 1rem; }
 
+        /* ⭐ v3.24.0 — A 2x2 GRID, NOT A WRAPPING FLEX ROW. Jake, 2026-09-10:
+           "I'm picturing a 2x2 grid - school and library at the top, and school
+           BETA (learn2.html) and arcade (alpha) in the second grid."
+           ⚠️ WHY GRID: four cards in the old `flex-wrap` row laid out 4-across on
+           a wide screen and 3+1 on a medium one — the order Jake asked for (the
+           two real modes on top, the two trials below) only held at one width.
+           Two fixed columns hold it at every width above the phone break.
+           ⚠️ ALL FOUR CARDS ARE THE SAME .landing-card AT THE SAME SIZE. The trial
+           cards say what they are with a .lc-badge, not by being smaller — a card
+           that is only slightly different reads as a mistake. */
         .landing-cards {
-            display: flex; gap: 24px; justify-content: center;
-            padding: 0 24px 60px; flex-wrap: wrap;
+            display: grid; gap: 24px; justify-content: center;
+            grid-template-columns: repeat(2, minmax(0, 280px));
+            padding: 0 24px 60px;
+        }
+        @media (max-width: 640px) {
+            .landing-cards { grid-template-columns: minmax(0, 280px); }
         }
         .landing-card {
             background: var(--card-bg);
@@ -461,6 +475,9 @@
             padding: 36px 32px;
             max-width: 280px; width: 100%;
             cursor: pointer; text-align: center;
+            /* The two trial cards are real <a> elements (they navigate and need
+               no script); these keep them indistinguishable from the two divs. */
+            display: block; text-decoration: none; color: inherit;
             transition: transform 0.2s, box-shadow 0.2s;
             border: 2px solid transparent;
         }
@@ -472,6 +489,15 @@
         .lc-icon  { font-size: 2.8rem; margin-bottom: 12px; line-height: 1; }
         .lc-title { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
         .lc-desc  { font-size: 0.88rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
+        /* ⭐ v3.24.0 — THE ONLY THING THAT MARKS A TRIAL CARD. Beside the title,
+           not above it, so all four titles sit on the same line across a row. */
+        .lc-badge {
+            display: inline-block; vertical-align: middle; margin-left: 8px;
+            font-family: 'Courier Prime', monospace; font-size: 0.65rem;
+            font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+            padding: 2px 8px; border-radius: 999px;
+            border: 1px solid #c0842b; color: #c0842b;
+        }
         .lc-action {
             display: inline-block;
             background: var(--accent); color: white;
@@ -550,6 +576,24 @@
                 <div class="lc-desc">Type through real books.<br>Track your speed and accuracy<br>chapter by chapter.</div>
                 <div class="lc-action">Browse Books →</div>
             </div>
+            <!-- ⭐ v3.24.0 — THE TWO TRIALS, SECOND ROW. Plain links: they leave
+                 this page and need no script, so they still work if the module
+                 below fails to load. ⚠️ learn2.html IS THE DEADLINE LESSON-GATE
+                 STAGING FORK (HANDOFF-learn2.md) and grades into the same
+                 lessonProgress as learn.html — linking it here is Jake's
+                 2026-09-10 ruling, made knowing that. -->
+            <a class="landing-card" id="go-school-beta" href="learn2.html">
+                <div class="lc-icon">🧪</div>
+                <div class="lc-title">School<span class="lc-badge">Beta</span></div>
+                <div class="lc-desc">The same lessons, with a game<br>as the final run.<br>Help us test it.</div>
+                <div class="lc-action">Try the Beta →</div>
+            </a>
+            <a class="landing-card" id="go-arcade" href="arcade.html">
+                <div class="lc-icon">🕹</div>
+                <div class="lc-title">Arcade<span class="lc-badge">Alpha</span></div>
+                <div class="lc-desc">Typing games.<br>Your time counts toward<br>your day and your week.</div>
+                <div class="lc-action">Play →</div>
+            </a>
         </div>
     </div>
 
@@ -670,6 +714,18 @@
         // This page's own version. The <title> and footer are both written from
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.24.0: ⭐ THE LANDING PAGE IS A 2x2 GRID WITH THE TWO TRIALS ON IT.
+        //         Round 115 (Tower). Jake, 2026-09-10: "I very much want to make
+        //         arcade available to students tomorrow... a 2x2 grid - school
+        //         and library at the top, and school BETA (learn2.html) and
+        //         arcade (alpha) in the second grid." Markup and CSS only; no
+        //         script changed. The two new cards are plain <a> links so they
+        //         work even if this module fails. ⚠️ .landing-cards became a
+        //         two-column GRID — the old flex-wrap row put four cards 4-across
+        //         or 3+1 depending on width, never the order asked for.
+        //         ⚠️ This ends the "arcade stays unlinked" ruling (ROADMAP/memory,
+        //         Sept 2026) — superseded by Jake the same day he asked for it.
         //
         // v3.23.0: ⭐ ROADMAP 69 — THE TWO SPECIAL ROWS ARE ONE ROW, THEY NAME THE
         //         AUTHOR, AND "FEATURED" MOVES. Jake, 2026-09-08, with a
@@ -864,7 +920,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.23.0";
+        const INDEX_VERSION = "3.24.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');

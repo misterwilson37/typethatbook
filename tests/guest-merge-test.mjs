@@ -1,4 +1,7 @@
-// guest-merge-test.mjs v1.2.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+// guest-merge-test.mjs v1.3.0 — THE MINUTE A CHILD TYPES BEFORE SIGNING IN.
+//
+// v1.3.0 — Round 115 (Tower): Date.now() pinned; the 2026-08-20 fixtures had aged past
+//          session-log.js STALE_DAYS (21). ROADMAP 114a, closed. No assertion changed.
 //
 // v1.2.0 — VERSION PIN / MOCK ONLY. session-log.js is v1.7.0 (Round 46, the
 //          writer) — Part D's real-module mock gains `doc`/`setDoc`, required
@@ -47,6 +50,21 @@
 // harness reports 7 failing across Parts B, C and D.
 
 import { readFileSync } from 'fs';
+
+// ⚠️⚠️ Round 115 (Tower): THE CLOCK IS PINNED, AND THAT IS THE WHOLE FIX FOR
+// ROADMAP 114a. Every fixture here is dated 2026-08-20, and session-log.js drops
+// queue records older than STALE_DAYS (21) at load, measured from Date.now(). So
+// this harness passed for exactly 21 days and then failed forever — the same
+// time bomb Round 111 found in queue-owner-test.mjs. Confirmed by running it with
+// Date.now pinned: all green, no production change. ⚠️ THE PRODUCTION RULE IS
+// CORRECT; A THREE-WEEK-OLD FIXTURE REALLY IS STALE. Pinned rather than
+// re-derived because every expected date string in the assertions is literal.
+// ⚠️ Pinned five days after the fixtures, inside the window with room either
+// side. Do not move it past 2026-09-10.
+const __PINNED_NOW = Date.parse('2026-08-25T12:00:00Z');
+Date.now = () => __PINNED_NOW;
+
+
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };

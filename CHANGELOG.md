@@ -1,5 +1,55 @@
 # CHANGELOG — TypeThatBook
 
+## Round 115 (Tower) — the front door opens on the arcade
+
+Instance name: **Tower** — Sears's typewriter brand (built by Smith-Corona), and an
+arcade cabinet. Checked against CHANGELOG, HANDOFF and ROADMAP: no hits.
+
+Jake, 2026-09-10: *"I very much want to make arcade available to students
+tomorrow, which means that I need to add two cards to the index choice page. I'm
+picturing a 2x2 grid - school and library at the top, and school BETA
+(learn2.html) and arcade (alpha) in the second grid. arcade needs to lose the
+gratuitous description at the bottom, and the header needs to actually show today
+and week minutes, as well as the user currently logged in."*
+
+* **`index.html` 3.23.0 → 3.24.0.** The landing page is a two-column grid:
+  School and Library on top, **School (Beta)** → `learn2.html` and **Arcade
+  (Alpha)** → `arcade.html` below. ⚠️ `.landing-cards` was `flex-wrap`, which put
+  four cards 4-across or 3+1 depending on width — never the order asked for. The
+  two new cards are plain `<a>` links (work even if the module dies) and are the
+  same size as the others; a `.lc-badge` is the only thing marking them as trials.
+  ⚠️ **This supersedes the "arcade stays unlinked" ruling**, by Jake, same day.
+* **`arcade.html` 3.15.0 → 3.16.0.**
+  * ⚠️⚠️ **THE MARQUEE CLOCKS WERE DASHES UNTIL A GAME STARTED.** `load()` called
+    `renderMarquee()` and *then* fired `loadMinutes()` un-awaited; the next paint
+    was `bankSecond()`'s, after play began. Round 114's harness checked that the
+    marquee refreshes as seconds bank and was green through it. Now
+    `loadMinutes(user).finally(renderMarquee)`.
+  * **PLAYER slot** in the marquee, `displayName` then email (the order index.html
+    uses), painted by `renderPlayer()` from auth before any read.
+  * **The `#game-title` / BETA / `#game-note` block under the frame is deleted**,
+    with its `h1` and `.beta` CSS. `applyPageChrome()` now only sets the tab title
+    (and drops "(beta)" from it; the static `<title>` too).
+* **`tests/arcade-panels-test.mjs` 1.4.0 → 1.5.0.** Pins the paint-after-load
+  (mutation-verified: removing `.finally(renderMarquee)` goes red), the PLAYER
+  slot, and the deletion — including that nothing still *writes* to the deleted
+  ids, since a null write would kill `applyGameMode()`.
+* ⭐ **ROADMAP 114a CLOSED — IT WAS A TIME BOMB.** `guest-merge-test.mjs` Part D
+  and, mid-session, `adopt-date-test.mjs` both use fixtures dated 2026-08-20;
+  `session-log.js` drops queue records older than `STALE_DAYS` (21) measured from
+  `Date.now()`. 2026-08-20 + 21 days = the day of this round. Confirmed by running
+  both with the clock pinned: all green, **no production change** — the 21-day
+  rule is right. Both harnesses now pin `Date.now()` to 2026-08-25
+  (`guest-merge-test.mjs` 1.3.0, `adopt-date-test.mjs` 1.1.0). Same shape as Round
+  111's `queue-owner-test.mjs`.
+* **Suite: 96 of 97 after `npm install`.** The one red is `docs-vs-repo-test.mjs`
+  A3, and it is not a code defect: the eight documents Round 114 folded into
+  HANDOFF §§10–14 are **still in the repo**, because GitHub web uploads never
+  delete. Jake must delete them by hand — see HANDOFF START HERE.
+* Verified rendered with Playwright: landing at 1400/900/420px; arcade with
+  Firebase stubbed to a signed-in student (name and both clocks filled on the
+  floor; picking a cabinet still opens the panel; no page errors).
+
 ## Round 114 (Carriage) — continued — the arcade floor
 
 ### ⭐ THREE CABINETS, A MARQUEE, AND THE OPTIONS PANEL DEMOTED TO STEP TWO

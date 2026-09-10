@@ -1,4 +1,5 @@
-// arcade-panels-test.mjs v1.4.0 — Round 114 (Carriage): Part I. ⚠️⚠️ ITS FIRST
+// arcade-panels-test.mjs v1.5.0 — Round 115 (Tower): the marquee paints when minutes land, names the player, and the prose under the frame is pinned as deleted.
+// v1.4.0 — Round 114 (Carriage): Part I. ⚠️⚠️ ITS FIRST
 // DRAFT PASSED ITS OWN MUTATION TEST AND WAS THEREFORE WORTHLESS — it counted
 // `gaugeCanvas:` in arcade.html's source, and reinstating the exact shipped bug
 // (Deadline receiving no console on the free-play path) left that count at one.
@@ -1141,10 +1142,17 @@ console.log('\nI — ROUND 114: EVERY GAME GETS A CONSOLE, AND NO PANEL IS RESER
     // copy anywhere is the thing that goes stale when the wiring lands.
     ok(!/your time, score and grade/.test(code),
        '\u26a0\u26a0 the old paragraph\u2019s "time doesn\u2019t count" claim is gone entirely');
-    ok(/<p class="note" id="game-note"><\/p>/.test(code),
-       'and that paragraph is filled from applyPageChrome(), not hardcoded');
-    ok(/\$\('game-title'\)\.textContent = titleOf\(g\.id\)\.toUpperCase\(\)/.test(code),
-       '\u26a0 the page title tracks the chosen game via titleOf(), not a literal');
+    // ⚠️⚠️ Round 115 (Tower): THE PROSE UNDER THE FRAME IS DELETED, NOT HIDDEN.
+    // Jake: "arcade needs to lose the gratuitous description at the bottom."
+    // A leftover $('game-title') write would throw on null and kill
+    // applyGameMode() — which is why the absence of the WRITES is pinned, not
+    // just the absence of the elements.
+    ok(!/id="game-note"/.test(code) && !/id="game-title"/.test(code),
+       '\u26a0\u26a0 the title and blurb under the frame are gone from the markup');
+    ok(!/\$\('game-(title|note)'\)/.test(code),
+       '\u26a0\u26a0 and nothing still writes to them (a null write would kill applyGameMode)');
+    ok(/document\.title = 'Arcade \\u2014 ' \+ titleOf\(g\.id\)/.test(code),
+       '\u26a0 the tab title still tracks the chosen game via titleOf(), not a literal');
 }
 
 {
@@ -1297,6 +1305,21 @@ console.log('\nJ — ROUND 114: THE ARCADE FLOOR, AND ONE RECORD OF WHICH GAME')
                                              code.indexOf('MINUTES.weeklySeconds++') + 500)),
        '⚠⚠ and it refreshes as seconds bank, so a student never returns to a ' +
        'marquee frozen at page load');
+
+    // ⚠️⚠️ Round 115 (Tower): THE MARQUEE MUST PAINT WHEN MINUTES ARRIVE. Jake
+    // saw TODAY and WEEK as dashes on the floor: load() painted, then fired
+    // loadMinutes() un-awaited, and the next paint was bankSecond()'s — after
+    // play had begun. Every assertion above was green through that.
+    ok(/loadMinutes\(user\)\.(then|finally)\(renderMarquee\)/.test(code),
+       '\u26a0\u26a0 loadMinutes() is followed by a marquee paint, so the clocks ' +
+       'fill on the floor and not only once a game has started');
+    // ⭐ AND IT NAMES THE PLAYER, from auth, before any read.
+    ok(/id="mq-who"/.test(code) && /function renderPlayer\(user\)/.test(code),
+       '\u2b50 the marquee has a PLAYER slot and a renderPlayer()');
+    const ld = code.slice(code.indexOf('async function load(user)'),
+                          code.indexOf('async function load(user)') + 200);
+    ok(/renderPlayer\(user\);/.test(ld),
+       '\u26a0 and load() paints the name first, before the lessons read');
 
     // ⭐ AND THE PLAY STAGE IS UNTOUCHED. The floor is narrower; the playfield
     // must not be, or every gate is retuned by accident.

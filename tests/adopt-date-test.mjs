@@ -1,5 +1,8 @@
-// adopt-date-test.mjs v1.0.0 — THE EVENING GUEST: an adopted sprint must keep
+// adopt-date-test.mjs v1.1.0 — THE EVENING GUEST: an adopted sprint must keep
 // the date the student typed it on.
+//
+// v1.1.0 — Round 115 (Tower): Date.now() pinned; the 2026-08-20 fixtures had aged past
+//          session-log.js STALE_DAYS (21). ROADMAP 114a, closed. No assertion changed.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // THE DEFECT THIS WAS WRITTEN AGAINST — session-log.js v1.5.0 and earlier
@@ -74,6 +77,19 @@ const queued = uid => {
     const slot = JSON.parse(raw).owners[uid];
     return (slot && slot.records) ? slot.records : [];
 };
+
+// ⚠️⚠️ Round 115 (Tower): THE CLOCK IS PINNED, AND THAT IS THE WHOLE FIX FOR
+// ROADMAP 114a. Every fixture here is dated 2026-08-20, and session-log.js drops
+// queue records older than STALE_DAYS (21) at load, measured from Date.now(). So
+// this harness passed for exactly 21 days and then failed forever — the same
+// time bomb Round 111 found in queue-owner-test.mjs. Confirmed by running it with
+// Date.now pinned: all green, no production change. ⚠️ THE PRODUCTION RULE IS
+// CORRECT; A THREE-WEEK-OLD FIXTURE REALLY IS STALE. Pinned rather than
+// re-derived because every expected date string in the assertions is literal.
+// ⚠️ Pinned five days after the fixtures, inside the window with room either
+// side. Do not move it past 2026-09-10.
+const __PINNED_NOW = Date.parse('2026-08-25T12:00:00Z');
+Date.now = () => __PINNED_NOW;
 
 const mod = await import('../session-log.js');
 

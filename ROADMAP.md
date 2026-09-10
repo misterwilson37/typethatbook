@@ -1,8 +1,15 @@
 # TYPETHATBOOK — ROADMAP
 
-### 114a — `guest-merge-test.mjs` Part D fails, and nobody knows why yet
+### 114a — ✅ CLOSED (Round 115, Tower) — `guest-merge-test.mjs` Part D was a fixture time bomb
 
-⚠️ **STATUS: OPEN, UNDIAGNOSED, AND DELIBERATELY NOT GUESSED AT.**
+✅ **DIAGNOSED AND FIXED IN THE HARNESS; NO PRODUCTION CHANGE.** Fixtures dated
+2026-08-20 aged past `session-log.js`'s `STALE_DAYS` (21) on 2026-09-10, and the
+real module correctly discarded them — hence *"got 0, want 2"*. `adopt-date-test.mjs`
+tripped the same way hours later. Both now pin `Date.now()`; run with the clock
+pinned, every assertion passed. A guest's minutes are NOT being dropped. The
+original text is kept below as the record.
+
+⚠️ ~~**STATUS: OPEN, UNDIAGNOSED, AND DELIBERATELY NOT GUESSED AT.**~~
 
 Seven assertions in Part D, all cascading from D1 (*"the guest slot holds both
 records — got 0, want 2"*). Parts A–C pass, **including** *"a guest's records are

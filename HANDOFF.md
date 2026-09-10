@@ -1,6 +1,35 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-10 by Round 113 (Bar-Let), for whoever is next
+> ## ▶ START HERE — written 2026-09-10 by Round 115 (Tower), for whoever is next
+>
+> **Instance name: Tower** — Sears's typewriter brand, and an arcade cabinet.
+> Checked against CHANGELOG, HANDOFF and ROADMAP. Full record: §15.
+>
+> **What shipped:** the index landing page is a 2x2 grid (School, Library /
+> School Beta → `learn2.html`, Arcade Alpha → `arcade.html`) — **the arcade is
+> linked to students now, by Jake's ruling**. The arcade marquee shows PLAYER,
+> TODAY and WEEK on the floor (the clocks were dashes until play began — an
+> ordering bug), and the prose under the frame is gone.
+>
+> **Expected stamps:** `index.html` **v3.24.0**, `arcade.html` **v3.16.0**
+> (the arcade badge reads `arcade v3.16.0`).
+>
+> ⚠️⚠️ **JAKE MUST DELETE EIGHT FILES IN GITHUB BY HAND:** `HANDOFF-games.md`,
+> `HANDOFF-learn2.md`, `HANDOFF-round114.md`, `INTEGRATION.md`, `NEXT-STEPS.md`,
+> `README-games.md`, `README-round114.md`, `ROUND114-doc-entries.md`. Round 114
+> folded them into §§10–14 and recorded them deleted, but web uploads never
+> delete, so they are still live and `docs-vs-repo-test.mjs` A3 is red on them.
+> That is the suite's only failure (96 of 97). Anything else red is yours.
+>
+> ⚠️ **ROADMAP 114a is closed** — a 21-day fixture time bomb, not lost minutes.
+>
+> ⚠️ **The School Beta card sends real students to the `learn2` fork (§11)**,
+> which grades into the same `lessonProgress` with its own copy of the engine.
+> Reconciling the fork is now more urgent than it was, not less.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-09-10 by Round 113 (Bar-Let), for whoever is next
 >
 > **Instance name: Bar-Let** (`bar` + `let` — a name that is itself two morphemes,
 > which is Shatter's mechanic). ⚠️ Checked against all five doc files. ⚠️ **THE
@@ -85,9 +114,10 @@
 > `game-layout.js` **v1.5.0**, `game-deadline.js` **v1.11.0**.
 >
 > * **97 harnesses pass** after `npm install` — ⚠️ see rule 1; without it
->   nine more fail on a missing package and look like defects. ⚠️ **ONE REAL
->   FAILURE STANDS**: `guest-merge-test.mjs` Part D — open, undiagnosed, ROADMAP
->   114a. Treat any second failure as yours.
+>   nine more fail on a missing package and look like defects. ⚠️ **ROUND 115: THE
+>   ONE STANDING FAILURE IS `docs-vs-repo-test.mjs` A3** (eight stale documents
+>   still in the repo; see the block above). ROADMAP 114a, the guest-merge
+>   failure, was a fixture time bomb and is closed. Treat any second failure as yours.
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
 >   `docs-vs-repo-test.mjs` C2 matches it by regex and reads the FIRST hit in this
 >   file — and §§1–8 are full of historical round records saying "57 harnesses
@@ -7844,3 +7874,41 @@ badge **before** reporting anything. `?lab=1` adds the gate override.
   and does **not** close that gap.
 * **`CHANGELOG.md` / `ROADMAP.md` entries** are drafted separately for pasting;
   I did not edit those two files.
+
+---
+
+## §15. Round 115 (Tower) — the front door opens on the arcade
+
+**2026-09-10.** Jake wanted the arcade in front of students the next day.
+
+**`index.html` v3.24.0.** `.landing-cards` is a grid, `repeat(2, minmax(0,
+280px))`, one column under 640px. Row 1: School (`#go-school`, div + handler),
+Library (`#go-library`). Row 2: `#go-school-beta` → `learn2.html`, `#go-arcade` →
+`arcade.html`, both plain `<a class="landing-card">`, badged with `.lc-badge`
+(Beta / Alpha). No script change. ⚠️ Do not shrink the trial cards to mark them —
+same size, badge only (Jake's "slightly off" rule).
+
+**`arcade.html` v3.16.0.**
+* `renderPlayer(user)` fills `#mq-who` from auth at the top of `load()`: displayName,
+  else email, else "not signed in". No read.
+* ⚠️⚠️ `loadMinutes(user).finally(renderMarquee)`. Before this the marquee was
+  painted once while `MINUTES` was null and not again until `bankSecond()`. Rule 4's
+  shape in time rather than space: the data arrived and nobody was listening.
+* `#game-title`, `.beta`, `#game-note` and their CSS are deleted.
+  `applyPageChrome()` sets `document.title` only. ⚠️ Do not re-add prose under the
+  frame; `savedNote()` in the gates panel is the one place the page says what it keeps.
+
+**Harnesses.** `arcade-panels-test.mjs` v1.5.0 (paint-after-load mutation-verified).
+`guest-merge-test.mjs` v1.3.0 and `adopt-date-test.mjs` v1.1.0 pin `Date.now()` to
+2026-08-25 — their 2026-08-20 fixtures had aged past `STALE_DAYS` (21).
+⚠️ **A pinned clock must stay inside 21 days of the fixtures**; better still, a
+future round should derive fixture dates from `Date.now()` as Round 111 advised.
+
+**Verified rendered** with Playwright and a stubbed Firebase (signed-in student):
+the name and clocks fill in on the floor, cabinets still open the picker, no page
+errors. ⚠️ **Not verified against real Firestore** — ask Jake for the badge
+version and a screenshot of the marquee after deploy.
+
+**Open, in order:** Jake deletes the eight stale documents (START HERE); reconcile
+the `learn2` fork (§11) now that students can reach it; ROADMAP 114b–d unchanged.
+
