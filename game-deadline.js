@@ -1,4 +1,10 @@
-// game-deadline.js v1.11.0
+// game-deadline.js v1.12.0
+//
+// v1.12.0 — Round 115 (Tower). Quit/Escape after the survival pass ENDS the
+//   session through onEnd (with `pass`) instead of reporting a quit, so a host
+//   cannot mistake a won run for an abandoned one. Nothing else changed.
+//
+// (v1.11.0 and earlier follow.)
 //
 // v1.11.0 — ⭐ SURVIVAL MODE, AND THE FROZEN GRADE THAT MAKES IT SAFE. Jake,
 //   2026-09-09: *"if they pass the game and enter survival mode, then they get
@@ -292,7 +298,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.11.0';
+export const GAME_DEADLINE_VERSION = '1.12.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -1967,7 +1973,17 @@ export function mount(container, opts) {
             // is nothing on screen to type at while the panel is up.
             if (on) d.pause(now); else { d.resume(now); lastFrame = null; }
         },
-        onQuit() { onQuit(d.report(performance.now())); },
+        onQuit() {
+            // ⚠️⚠️ v1.12.0 — QUITTING AFTER THE PASS IS NOT ABANDONING THE RUN.
+            // Once passReport exists the student has WON (see the survival
+            // branch: "A PASS CANNOT BE UNDONE"). Handing the host a plain quit
+            // here let learn2.js treat a defended city as an abandoned run —
+            // straight to the map, no grade, no way forward. Ending the session
+            // instead sends the frozen pass through onEnd exactly as a death in
+            // survival does. Round 115 (Tower).
+            if (passReport && !ended) { finish(performance.now(), false); return; }
+            onQuit(d.report(performance.now()));
+        },
         onRestart() { restart(); },
         onMute(m) { setMuted(m); },
     });

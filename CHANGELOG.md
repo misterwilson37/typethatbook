@@ -1,5 +1,32 @@
 # CHANGELOG — TypeThatBook
 
+## Round 115 (Tower) — continued — a defended city moves you forward
+
+Students on `learn2` reported saving the city, playing survival, and then being
+offered a replay instead of the next lesson. Jake, 2026-09-10: *"If you pass, you
+move forward (after some celebration, of course). To go back, you have to go back
+to the map, the lesson, and then the run. Not just hit replay - or even worse, not
+have the option of moving forward."*
+
+* ⚠️⚠️ **TWO DEFINITIONS OF "PASS" ON ONE SCREEN.** `game-deadline.js` declares
+  CITY DEFENDED on the quota alone; `learn2.js`'s `showLessonResultModal()`
+  re-graded the frozen snapshot with `calculateGrade()`, which returns D/F when
+  accuracy is under the gate — so the game said "you won" and the modal said "Not
+  Yet · Try Again". **Resolved in the game's favour** (Jake's v0.4.0 framing: the
+  game run is the victory lap, "once they pass 1/4, they win").
+* **`learn2.js` 0.7.0 → 0.8.0-staging.** `finishGameStep()` passes
+  `{ gamePassed: true }`; the modal then advances, floors the stored grade at C,
+  titles itself "City Defended!", fires fireworks + confetti, and shows **one
+  button: Next Lesson** (Enter). No Map, no retry — going back is Map → lesson →
+  run from the header. Typed runs are untouched.
+* **`game-deadline.js` 1.11.0 → 1.12.0.** ⚠️ The second way to lose a pass:
+  Quit/Escape during survival reported a plain quit, and `learn2` treated it as an
+  abandoned run — map, no grade. Quitting after the pass now ends the session
+  through `onEnd` with the pass, exactly like dying in survival.
+* **`tests/game-slot-test.mjs` 1.0.0 → 1.1.0**, Part T (6 assertions). T4 (no
+  way back on the passed modal) and T6 (quit-after-pass) mutation-verified.
+* ⚠️ Not browser-verified end to end — the learn2 flow needs real lessons.
+
 ## Round 115 (Tower) — the front door opens on the arcade
 
 Instance name: **Tower** — Sears's typewriter brand (built by Smith-Corona), and an

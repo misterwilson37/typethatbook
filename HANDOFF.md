@@ -12,7 +12,13 @@
 > ordering bug), and the prose under the frame is gone.
 >
 > **Expected stamps:** `index.html` **v3.24.0**, `arcade.html` **v3.16.0**
-> (the arcade badge reads `arcade v3.16.0`).
+> (the arcade badge reads `arcade v3.16.0`), `game-deadline.js` **v1.12.0**,
+> `learn2.js` **v0.8.0-staging**.
+>
+> **Second fix this round:** on `learn2`, a defended city now ALWAYS moves the
+> student forward — the modal no longer re-grades accuracy against the game's
+> verdict, offers only "Next Lesson", and quitting during survival keeps the pass.
+> §15 has the detail.
 >
 > ⚠️⚠️ **JAKE MUST DELETE EIGHT FILES IN GITHUB BY HAND:** `HANDOFF-games.md`,
 > `HANDOFF-learn2.md`, `HANDOFF-round114.md`, `INTEGRATION.md`, `NEXT-STEPS.md`,
@@ -7911,4 +7917,18 @@ version and a screenshot of the marquee after deploy.
 
 **Open, in order:** Jake deletes the eight stale documents (START HERE); reconcile
 the `learn2` fork (§11) now that students can reach it; ROADMAP 114b–d unchanged.
+
+### §15.1 A defended city moves you forward (learn2)
+
+Students saved the city, played survival, then got "Try Again". ⚠️⚠️ **Cause:**
+the game passes on `quotaMet`; `showLessonResultModal()` re-graded the snapshot
+and `calculateGrade()` returns D/F under the accuracy gate. Jake ruled the game's
+verdict stands on the game run. `finishGameStep()` → `{ gamePassed: true }` →
+advance, grade floored at C (`betterGrade`), "City Defended!", fireworks, **one
+button (Next Lesson)**. ⚠️ Second leak: Quit during survival was reported as a
+plain quit and discarded the pass; `game-deadline.js` v1.12.0 now `finish()`es
+instead when `passReport` exists (arcade sees this as a normal game end).
+`game-slot-test.mjs` Part T pins all of it. ⚠️ **The same fix is needed in
+`learn.js` whenever the fork is folded back** — §11; do not lose it in the merge.
+⚠️ Not browser-verified end to end.
 

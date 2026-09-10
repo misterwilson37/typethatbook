@@ -1,4 +1,30 @@
-// learn2.js v0.4.0-staging
+// learn2.js v0.8.0-staging
+//
+// v0.8.0 — ⚠️⚠️ A DEFENDED CITY MOVES YOU FORWARD, AND FORWARD IS THE ONLY BUTTON.
+//   Round 115 (Tower). Students reported saving the city, playing survival,
+//   and then being offered "Try Again" instead of the next lesson. Jake,
+//   2026-09-10: *"If you pass, you move forward (after some celebration, of
+//   course). To go back, you have to go back to the map, the lesson, and then
+//   the run. Not just hit replay - or even worse, not have the option of moving
+//   forward."*
+//   ⚠️⚠️ THE CAUSE WAS TWO DEFINITIONS OF "PASS" ON ONE SCREEN. game-deadline.js
+//   declares CITY DEFENDED on the QUOTA alone (game-shell `quotaMet`), while
+//   showLessonResultModal() re-graded the frozen snapshot with calculateGrade(),
+//   which returns D/F whenever accuracy is under the lesson's gate — so a child
+//   the game had just told they won was handed "Not Yet" and a replay. Rule 11,
+//   between a view and a modal.
+//   ⭐ RESOLVED IN THE GAME'S FAVOUR, on Jake's own framing of this run as the
+//   victory lap (v0.4.0: *"Once they pass 1/4, they win, and the next lesson is
+//   unlocked"*) and today's *"If you pass, you move forward."* The typed chunks
+//   before it are graded exactly as before; this run's test is the quota.
+//   finishGameStep() passes `{ gamePassed: true }`, and the modal then advances
+//   and floors the recorded grade at C (betterGrade) — ⚠️ a pass stored with a
+//   D beside it would read as a contradiction in every report and star count.
+//   ⚠️ THE PASSED GAME MODAL HAS ONE BUTTON. No "← Map", no retry: going back
+//   is Map → lesson → run, from the header, on purpose. Fireworks and confetti
+//   from celebrate.js — the shared copy, not a fifth twin.
+//
+// (v0.4.0 entry follows, original first line: learn2.js v0.4.0-staging)
 //
 // v0.4.0 — ⭐⭐ THE VICTORY LAP. Jake, correcting me a second time and settling
 //   the shape: *"kids do 1/4 as they did originally, then 2/4, then 3/4, then
@@ -364,7 +390,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.7.0-staging";
+const LEARN_VERSION = "0.8.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3273,7 +3299,9 @@ function finishGameStep(rep) {
 
     if (!graded) { renderGameLostResult(rep); return; }
 
-    showLessonResultModal(graded.wpm, graded.acc);
+    // ⚠️⚠️ v0.8.0 — A MET QUOTA IS A PASS. The game already told the student
+    // CITY DEFENDED; the modal must not contradict it. See the v0.8.0 header.
+    showLessonResultModal(graded.wpm, graded.acc, { gamePassed: true });
 }
 
 // The lost-game screen. ⚠️ IT IS NOT renderPracticeResult() AND IT IS NOT THE
@@ -4506,13 +4534,20 @@ function renderPracticeResult(wpm, acc, grade) {
     drillModal.classList.remove('hidden');
 }
 
-function showLessonResultModal(wpm, acc) {
+function showLessonResultModal(wpm, acc, opts) {
+    const gamePassed = !!(opts && opts.gamePassed);
     const gates  = gatesForRun(currentStep, currentLesson && currentLesson.gates);
     const minWPM = gates.minWPM;
     const minAcc = gates.minAccuracy;
 
-    const grade  = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
-    const passed = gradeAdvances(grade, gates);
+    let grade    = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
+    let passed   = gradeAdvances(grade, gates);
+    // ⚠️⚠️ v0.8.0 — THE GAME'S VERDICT WINS ON THE GAME RUN. The quota was met
+    // (finishGameStep() only sets this from `rep.pass`), so this run is passed
+    // whatever calculateGrade() says about the snapshot's accuracy, and the
+    // grade is floored at C so the record does not say "passed" beside a D.
+    // ⚠️ ONLY THE GAME RUN. A typed run never sets gamePassed.
+    if (gamePassed && !passed) { grade = betterGrade(grade, 'C') || 'C'; passed = true; }
 
     // ⚠️⚠️ v2.32.0 — ROADMAP 10. A PRACTICE RUN WRITES NOTHING, ANYWHERE.
     //
@@ -4581,7 +4616,8 @@ function showLessonResultModal(wpm, acc) {
     titleMap['C']     = '\u2713 Lesson Complete!';
     titleMap['D']     = 'Almost \u2014 Try Once More';
     titleMap['F']     = 'Not Yet';
-    document.getElementById('dm-title').textContent = titleMap[grade] || 'Done';
+    document.getElementById('dm-title').textContent =
+        (gamePassed ? '\uD83C\uDFD9\uFE0F City Defended!' : (titleMap[grade] || 'Done'));
     document.getElementById('dm-stars').innerHTML = gradeHTML(grade) + runScorePill(currentStepIdx);
     const rdBadge = (goals.dailySeconds > 0 && statsData.secondsToday >= goals.dailySeconds)
         ? '<span class="goal-badge goal-blue" title="Daily goal!">✓</span>' : '';
@@ -4650,8 +4686,18 @@ function showLessonResultModal(wpm, acc) {
             document.removeEventListener('keydown', enterResultHandler);
             stopLesson();
         };
-        btns.appendChild(mapBtnP); // left
-        btns.appendChild(nextBtn); // right
+        // ⚠️⚠️ v0.8.0 — AFTER A DEFENDED CITY, FORWARD IS THE ONLY BUTTON. Jake:
+        // "To go back, you have to go back to the map, the lesson, and then the
+        // run." The header's own Map control is still there for a student who
+        // really means it; the modal does not offer a way back.
+        if (gamePassed) {
+            btns.appendChild(nextBtn);
+            try { launchFireworks(); launchConfetti(); } catch (_) { /* decoration */ }
+            nextBtn.focus();
+        } else {
+            btns.appendChild(mapBtnP); // left
+            btns.appendChild(nextBtn); // right
+        }
     } else {
         // v2.0.0: retry THIS run. The old code called startLesson(), which reset
         // currentStepIdx to 0 and replayed the intro \u2014 so missing the gate on the

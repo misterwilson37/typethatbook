@@ -1,4 +1,5 @@
-// game-slot-test.mjs v1.0.0 — DEADLINE REACHES EVERY LESSON IT SHOULD, PROVED
+// game-slot-test.mjs v1.1.0 — Round 115 (Tower): Part T, a defended city moves you forward.
+// v1.0.0 — DEADLINE REACHES EVERY LESSON IT SHOULD, PROVED
 // AGAINST THE REAL CORPUS. Round 114 (Carriage).
 //
 // ⚠️⚠️ THIS IS A RULE 10 HARNESS IN THE STRICT SENSE. It drives the real
@@ -246,6 +247,38 @@ console.log('\nE — REFUSALS ARE EXPLICIT, AND NOTHING THROWS');
                                { cumulativeKeys: 10 });
     ok(noDep.mode === 'none',
        '\u26a0 a missing gatesForRun refuses rather than guessing the grade');
+}
+
+// ═══ Round 115 (Tower): A DEFENDED CITY MOVES YOU FORWARD ═══════════════════
+// Students saved the city, played survival, and were offered "Try Again": the
+// game passes on the QUOTA and the modal re-graded ACCURACY. Jake: "If you pass,
+// you move forward." Source checks, brace-scoped to the functions that matter.
+{
+    const L = readFileSync(new URL('../learn2.js', import.meta.url), 'utf8');
+    const G = readFileSync(new URL('../game-deadline.js', import.meta.url), 'utf8');
+    const body = (src, sig) => {
+        const i = src.indexOf(sig); if (i < 0) return '';
+        let d = 0, j = src.indexOf('{', i);
+        for (let k = j; k < src.length; k++) {
+            if (src[k] === '{') d++; else if (src[k] === '}') { d--; if (!d) return src.slice(i, k + 1); }
+        }
+        return '';
+    };
+    const fin = body(L, 'function finishGameStep(rep)');
+    ok(/showLessonResultModal\(graded\.wpm, graded\.acc, \{ gamePassed: true \}\)/.test(fin),
+       '\u26a0\u26a0 T1 a met quota reaches the modal flagged gamePassed');
+    const modal = body(L, 'function showLessonResultModal(wpm, acc, opts)');
+    ok(/if \(gamePassed && !passed\) \{[^}]*passed = true;/.test(modal),
+       '\u26a0\u26a0 T2 gamePassed overrides a D/F from calculateGrade \u2014 the game\u2019s verdict wins');
+    ok(/betterGrade\(grade, 'C'\)/.test(modal),
+       '\u26a0 T3 and the stored grade is floored at C, never "passed" beside a D');
+    const gp = modal.slice(modal.indexOf('if (gamePassed) {'), modal.indexOf('} else {', modal.indexOf('if (gamePassed) {')));
+    ok(gp.length > 0 && /btns\.appendChild\(nextBtn\)/.test(gp) && !/mapBtnP|retry/i.test(gp),
+       '\u26a0\u26a0 T4 the passed-game modal offers ONLY the way forward \u2014 no Map, no retry');
+    ok(/launchFireworks\(\)/.test(gp), '\u2b50 T5 and it celebrates');
+    const q = G.slice(G.indexOf('onQuit() {'), G.indexOf('onQuit() {') + 900);
+    ok(/if \(passReport && !ended\) \{ finish\(/.test(q),
+       '\u26a0\u26a0 T6 quitting after the pass ENDS the run with the pass, not as an abandon');
 }
 
 console.log(fail
