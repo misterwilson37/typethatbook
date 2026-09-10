@@ -71,15 +71,59 @@
             --ink: #cfe0ea; --ink-dim: #8aa2b4; --ink-ghost: #5f7387;
             --accent: #bfe9ff; --accent-line: #2b6c8a; --accent-fill: #164055;
             --good: #8fe8c8; --warn: #ffd27d; --bad: #ff8f8f;
-            max-width: 1320px; margin: 0 auto; padding: 0 18px 12px;
+            /* ⚠️⚠️ THE ARCADE'S VOID, SET EXPLICITLY. Jake, 2026-09-10: *"the
+               background should probably be black instead of white."* style.css
+               is a LIGHT theme, so every pixel of this game area that was not
+               covered by a card or the play canvas came out white — around the
+               grid, in the gutters, and in the band under the frame. The arcade
+               never had this because its own body sets --bg: #06090f.
+               ⚠️ SET HERE RATHER THAN ON body: this is the only part of the
+               lesson that is a dark console, and painting the whole page black
+               would take the typed runs and the result modal with it. */
+            background: #06090f;
+            max-width: 1320px; margin: 0 auto; padding: 12px 18px;
             font-family: "Courier Prime", ui-monospace, monospace;
+            /* ═══════════════════════════════════════════════════════════════
+               ⚠️⚠️ THE FLANKS ARE SIZED BY WHAT IS LEFT, NOT BY A vh FRACTION.
+               ═══════════════════════════════════════════════════════════════
+               Jake, 2026-09-10: *"the side panels are loading too tall."*
+
+               ⭐ AND THE CAUSE IS THAT arcade.html HAS NOTHING ABOVE ITS STAGE
+               AND THIS PAGE HAS 285px OF IT — the lesson HUD, two progress bars
+               and the FINAL RUN label. So `78vh` copied straight across meant
+               285 + 1158 = 1443px of a 1484px window before the cards added
+               their own min-content on top, and the flanks ran off the bottom
+               of the screen.
+               ⚠️ A vh FRACTION CANNOT KNOW THE HUD EXISTS. That is the whole
+               defect: it is measured against the viewport, and the box actually
+               available is the viewport minus whatever chrome the lesson is
+               already showing — which changes with the lesson title wrapping.
+
+               ⭐ SO THE HEIGHT COMES FROM FLEX INSTEAD. #drill-view is already
+               `flex: 1; display: flex; flex-direction: column` (style.css), so
+               claiming the remaining main-axis space is exact, self-adjusting,
+               and needs no magic number. ⚠️ `min-height: 0` IS LOAD-BEARING —
+               without it a flex item refuses to shrink below its content's
+               min-content size, which is precisely the overflow being fixed. */
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
         #game-wrap.hidden { display: none; }
         #game-wrap .stage-grid {
             display: grid;
             grid-template-columns: 200px minmax(724px, 1fr) 240px;
+            /* ⚠️ ONE ROW, CAPPED AT THE CONTAINER. `minmax(0, 1fr)` is what stops
+               the row growing to its tallest item's min-content — which is how
+               the cards outgrew the play frame. The stage owns the row; the
+               flanks fit inside it, which is arcade.html's stated principle made
+               explicit rather than emergent. */
+            grid-template-rows: minmax(0, 1fr);
             gap: 14px;
             align-items: stretch;
+            flex: 1 1 auto;
+            min-height: 0;
         }
         #game-wrap .side-card {
             background: linear-gradient(180deg, #0d141d 0%, #0a1017 100%);
@@ -95,16 +139,42 @@
             margin: 0 0 10px; font-weight: 400;
         }
         #game-wrap .panel-canvas { display: block; width: 100%; margin-bottom: 12px; }
-        #game-mount { position: relative; width: 100%; height: 78vh; min-height: 420px; }
+        /* ⚠️ 100% OF THE GRID ROW, NOT 78vh. See #game-wrap's note: the row is
+           now the space left under the lesson chrome, so the play canvas and both
+           flanks are the same definite height by construction and none of them
+           can push the others past the fold.
+           ⚠️ THE 420px FLOOR STAYS, and it is a MIN on the wrap rather than here
+           — a floor on the cell alone would let the cell outgrow its own row. */
+        #game-mount { position: relative; width: 100%; height: 100%; min-height: 0; }
         #game-mount.hidden { display: none; }
-        #game-wrap #radar-canvas { flex: 1 1 auto; min-height: 200px; margin-bottom: 8px; }
+        #game-wrap .stage-grid { min-height: 420px; }
+        /* ⚠️ 200 → 120 for the same reason as the gauge below: the radar shares a
+           card with the 104px threat board, and the two floors together were more
+           than the shorter card could give. */
+        #game-wrap #radar-canvas { flex: 1 1 auto; min-height: 120px; margin-bottom: 8px; }
         #game-wrap #threat-canvas { flex: 0 0 auto; height: 104px; margin-bottom: 0; }
         /* ⚠️ SAME COLLAPSE RULE AS arcade.html: only Deadline draws a threat
            board, and an unpainted 104px canvas is 104px of dead space. Deadline
            is the ONLY game a lesson ever mounts, so this never fires today —
            it is here so the two pages cannot drift. */
         #game-wrap #radar-col.no-threat #threat-canvas { display: none; }
-        #game-wrap #gauge-canvas { flex: 1 1 auto; min-height: 260px; max-height: 420px; }
+        /* ⚠️⚠️ A LOWER FLOOR THAN arcade.html's 260px, DELIBERATELY, AND THIS IS
+           THE ONE PLACE THE TWO PAGES SHOULD DIFFER. The console card here is as
+           tall as the space left under the lesson HUD rather than 78vh, so the
+           arcade's floor plus four buttons plus game-chrome.js's own 34px-each
+           minimum added up to more than the card had — and game-chrome.js's
+           header records Round 101 hitting exactly this: *"Four 40px buttons plus
+           the canvas floor was contributing more min-content height than #stage
+           gives the row, which pushed the flanks past the play frame."*
+           ⚠️ THE FLOOR IS NOT A TARGET SIZE. On a real screen the gauge is
+           whatever the card leaves it; this only decides what happens when there
+           is no room to spare, and DONE must never be the thing that gets
+           clipped — it is the only way off this page for a student on an iPad
+           with no keyboard.
+           ⭐ THIS DOES NOT AFFECT DIFFICULTY. Deadline's lanes, dome radii and
+           spawn spread all come from the PLAY canvas's own W, which Part A and B
+           of tests/lesson-game-layout-test.mjs pin to the arcade exactly. */
+        #game-wrap #gauge-canvas { flex: 1 1 auto; min-height: 150px; max-height: 420px; }
         #game-wrap #controls-col .panel-canvas { margin-bottom: 4px; }
         #game-wrap #controls-col .gc-bar-card { flex: 1 1 auto; min-height: 0; }
         #game-wrap #controls-col .gc-bar-card .gc-btn { flex: 1 1 auto; max-height: 68px; }

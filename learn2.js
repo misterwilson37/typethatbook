@@ -364,7 +364,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.6.0-staging";
+const LEARN_VERSION = "0.7.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.

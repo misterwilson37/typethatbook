@@ -1,5 +1,74 @@
 # CHANGELOG — TypeThatBook
 
+## Round 114 (Carriage) — continued — the flanks fit, and the void is painted
+
+### ⚠️⚠️ THE SIDE PANELS RAN OFF THE BOTTOM, BECAUSE `78vh` CANNOT SEE THE HUD
+
+Jake, 2026-09-10, on the new lesson-game layout: *"It's certainly better, but the
+side panels are loading too tall and the background should probably be black
+instead of white."*
+
+⭐ **`78vh` WAS COPIED FROM `arcade.html`, AND `arcade.html` HAS NOTHING ABOVE ITS
+STAGE.** This page has **~285px** of it — the lesson HUD, two progress bars and
+the FINAL RUN label. So 285 + 78vh of a 1484px window is **1443px** before the
+flank cards contribute their own min-content on top, and the cards ran past the
+fold.
+
+⚠️⚠️ **A vh FRACTION CANNOT KNOW THE CHROME EXISTS.** It is measured against the
+viewport; the box actually available is the viewport minus whatever the lesson
+happens to be showing, **which changes when a lesson title wraps**. ⭐ SO THE
+HEIGHT NOW COMES FROM FLEX: `#drill-view` is already `flex: 1; display: flex;
+flex-direction: column` in `style.css`, so claiming the remaining main-axis space
+is exact, self-adjusting and needs no magic number. `min-height: 0` is
+load-bearing — without it a flex item refuses to shrink below its content's
+min-content, **which is the overflow itself** — and `grid-template-rows: minmax(0,
+1fr)` stops the row growing to its tallest item. ⭐ *"The stage owns the row; the
+flanks fit inside it"* is `arcade.html`'s stated principle, made explicit here
+rather than emergent.
+
+⚠️ **AND THE FLANK CANVAS FLOORS ARE LOWER HERE ON PURPOSE** (gauge 260→150,
+radar 200→120). `game-chrome.js`'s own header records Round 101 hitting exactly
+this in the arcade: *"Four 40px buttons plus the canvas floor was contributing
+more min-content height than #stage gives the row, which pushed the flanks past
+the play frame."* The card here is shorter, so the floors must be too, or **DONE
+gets clipped — and DONE is the only way off this page for a student on an iPad
+with no keyboard.** ⭐ THIS DOES NOT AFFECT DIFFICULTY: Deadline's lanes, dome
+radii and spawn spread all come from the PLAY canvas's own `W`, which the harness
+still pins to the arcade exactly.
+
+### ⭐ THE BACKGROUND IS THE ARCADE'S VOID, SET EXPLICITLY
+
+`style.css` is a **light theme**, so every pixel of the game area not covered by a
+card or the play canvas came out white — the gutters between columns, the padding,
+the band under the frame. `arcade.html` never had this because its own `body`
+sets `--bg: #06090f`. ⚠️ **SCOPED TO `#game-wrap`, NOT `body`**: this is the only
+part of a lesson that is a dark console, and painting the whole page would take
+the typed runs and the result modal with it.
+
+### ⚠️⚠️ AND THREE OF MY OWN ASSERTIONS WERE BROKEN, ONE OF THEM TWICE
+
+The mutation pass on this change caught five deliberate breakages and **missed
+two**, both because the check was wrong rather than the code:
+
+1. ⚠️ **A CHECK MEASURED ITS OWN COMMENT.** `min-height: 0` appears in the CSS
+   prose explaining why `min-height: 0` is load-bearing, so deleting the real
+   declaration left the assertion green. ⭐ **SECOND TIME THIS ROUND** — see
+   `arcade-panels-test.mjs`'s `stripHtml()`. There is now a `noCss()` alongside it.
+2. ⚠️⚠️ **THE BACKGROUND HAD NO ASSERTION AT ALL.** I wrote the CSS and forgot the
+   check. Then I wrote the check with a **mis-escaped anchor**, so the insert
+   silently did nothing — `str.replace()` does not complain when it matches
+   nothing — and **two consecutive mutation passes reported green on code with
+   the declaration deleted.** ⭐ ASSERT THE ANCHOR BEFORE EDITING, AND RE-RUN THE
+   MUTATION AFTER; a fix with no assertion behind it is a fix that comes back.
+3. ⚠️ **AND THE PARITY CHECK ASSERTED THE WRONG THING TO BEGIN WITH.** Part B
+   demanded both pages use `78vh` — which is what made copying it look correct.
+   ⭐ THE HEIGHTS SHOULD DIFFER, FOR A REASON; what must match is the play
+   COLUMN. Part B now pins the MECHANISM (both definite, neither viewport-relative
+   under chrome) instead of the number.
+
+`tests/lesson-game-layout-test.mjs` is at 54 assertions, mutation-verified nine
+ways.
+
 ## Round 114 (Carriage) — continued — the lesson game's playfield, and Rule 11 on screen
 
 ### ⭐⭐ THE LESSON GAME WAS NOT TOO HARD. IT WAS THE WRONG SHAPE.

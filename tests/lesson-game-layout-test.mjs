@@ -36,6 +36,17 @@ const failures = [];
 const ok = (c, l) => { if (c) pass++; else { fail++; failures.push(l); } };
 
 const rd = f => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+
+/**
+ * ⚠️⚠️ CSS COMMENTS OUT BEFORE ANY DECLARATION CHECK. This repo comments its CSS
+ * as heavily as its code, INCLUDING by quoting the exact declaration a check is
+ * asserting — `min-height: 0` appears in the prose explaining why `min-height: 0`
+ * is load-bearing. ⭐ SO A MUTATION THAT DELETED THE REAL DECLARATION LEFT THE
+ * ASSERTION GREEN, because the comment still matched. Second time this round a
+ * check of mine measured prose instead of code (see arcade-panels-test.mjs's
+ * stripHtml).
+ */
+const noCss = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ');
 const arcade = rd('arcade.html');
 const learn2 = rd('learn2.html');
 const learn2js = rd('learn2.js');
@@ -88,17 +99,85 @@ console.log('\nB — THE STAGE IS CAPPED, WHICH IS THE WHOLE FIX');
        '\u26a0\u26a0 learn2.html caps #game-wrap at THE SAME 1320px \u2014 uncapped is the ' +
        'defect: ~2380x521 on Jake\u2019s screen, a 4.6:1 strip against the arcade\u2019s 1.4:1');
 
-    // ⚠️ AND THE HEIGHT MATCHES TOO. It always nearly did — the OLD learn2 rule
-    // was 70vh and called itself "close to arcade.html's #stage (78vh)". ⭐ THAT
-    // COMMENT WAS TRUE ABOUT THE HEIGHT AND THE HEIGHT WAS NEVER THE PROBLEM:
-    // matching one dimension of a two-dimensional playfield is not matching it.
-    const h = src => (src.match(/#game-mount\s*\{[^}]*\}|#stage\s*\{[^}]*\}/s) || [''])[0];
-    ok(/78vh/.test(h(arcade)), 'arcade.html\u2019s stage is 78vh');
-    ok(/78vh/.test(h(learn2)),
-       '\u26a0 learn2.html\u2019s mount is 78vh as well, not 70 (' +
-       (h(learn2).match(/\d+vh/) || ['none'])[0] + ')');
-    ok(/min-height:\s*420px/.test(h(arcade)) && /min-height:\s*420px/.test(h(learn2)),
-       'and both carry the same 420px floor');
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE HEIGHTS LEGITIMATELY DIFFER, AND AN EARLIER DRAFT OF THIS PART
+    // ASSERTED THEY MUST MATCH — WHICH IS HOW THE PANELS ENDED UP TOO TALL.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-10: *"the side panels are loading too tall."*
+    //
+    // ⭐ `78vh` WAS COPIED FROM arcade.html AND arcade.html HAS NOTHING ABOVE
+    // ITS STAGE. This page has ~285px of it — the lesson HUD, two progress bars
+    // and the FINAL RUN label — so 285 + 78vh of a 1484px window is 1443px
+    // before the cards contribute their own min-content, and the flanks ran off
+    // the bottom of the screen.
+    //
+    // ⚠️ A vh FRACTION CANNOT KNOW THE HUD EXISTS. It is measured against the
+    // viewport; the box actually available is the viewport minus whatever chrome
+    // the lesson happens to be showing, which changes when a lesson title wraps.
+    // ⭐ SO WHAT IS PINNED HERE IS THE MECHANISM, NOT THE NUMBER: learn2 takes
+    // the remaining flex space, arcade takes 78vh, and BOTH ARE DEFINITE — which
+    // is the property the canvases actually need, because fitCanvas() measures
+    // getBoundingClientRect() and an indefinite height resolves to zero on the
+    // first frame and renders the panel blank.
+    // ⚠️ THE HEIGHT WAS NEVER THE PART THAT AFFECTED DIFFICULTY. Part A pins the
+    // play COLUMN, which is where Deadline's lanes, dome radii and spawn spread
+    // come from.
+    ok(/78vh/.test(arcade), 'arcade.html’s stage is 78vh — it has no chrome above it');
+    const wrap = (noCss(learn2).match(/#game-wrap\s*\{[^}]*\}/s) || [''])[0];
+    ok(/flex:\s*1 1 auto/.test(wrap),
+       '⚠⚠ learn2’s game area claims the REMAINING space instead (flex: 1 1 auto)');
+    ok(/min-height:\s*0/.test(wrap),
+       '⚠⚠ with min-height: 0 — LOAD-BEARING: without it a flex item refuses ' +
+       'to shrink below its content’s min-content, which is the overflow itself');
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE VOID IS PAINTED, AND THIS ASSERTION WAS MISSING ENTIRELY.
+    // ═════════════════════════════════════════════════════════════════════
+    // Jake, 2026-09-10: *"the background should probably be black instead of
+    // white."* style.css is a LIGHT theme, so every pixel of the game area not
+    // covered by a card or the play canvas came out white — the gutters between
+    // the columns, the padding, the band under the frame. ⭐ arcade.html never
+    // had this because its own body sets --bg: #06090f.
+    // ⚠️⚠️ I WROTE THE CSS AND FORGOT THE CHECK, AND THEN WROTE THE CHECK WITH A
+    // MIS-ESCAPED ANCHOR SO THE INSERT SILENTLY DID NOTHING — Python's
+    // str.replace() does not complain when it matches nothing. TWO passes of the
+    // mutation test reported green on code with the declaration deleted.
+    // ⭐ ASSERT THE ANCHOR BEFORE EDITING, AND RE-RUN THE MUTATION AFTER.
+    ok(/background:\s*#06090f/.test(wrap),
+       '⚠️⚠️ the game area paints the arcade’s void (#06090f) rather than ' +
+       'inheriting style.css’s light theme');
+    ok(!/#game-wrap[^{]*\{[^}]*background:\s*(#fff|white)/is.test(noCss(learn2)),
+       'and never white');
+    // ⚠️ ON THE WRAP, NOT ON body. This is the only part of a lesson that is a
+    // dark console; painting the whole page would take the typed runs and the
+    // result modal with it.
+    ok(!/body\s*\{[^}]*#06090f/s.test(noCss(learn2)),
+       '⚠️ scoped to the game area, so typed runs keep the light theme');
+    ok(!/#game-mount\s*\{[^}]*\dvh/s.test(noCss(learn2)),
+       '⚠⚠ and the play cell carries NO vh height at all — a viewport fraction ' +
+       'under 285px of lesson chrome is what pushed the flanks off the fold');
+    ok(/grid-template-rows:\s*minmax\(0, 1fr\)/.test(noCss(learn2)),
+       '⭐ the grid row is capped at minmax(0, 1fr), so the row cannot grow to ' +
+       'its tallest item’s min-content — the stage owns the row, the flanks fit');
+    ok(/#game-mount\s*\{[^}]*height:\s*100%/s.test(noCss(learn2)),
+       'the play cell fills that row exactly');
+    // ⚠️ AND A FLOOR STILL EXISTS, or a short window collapses the game to
+    // nothing and fitCanvas() measures a zero-height box.
+    ok(/min-height:\s*420px/.test(arcade) && /min-height:\s*420px/.test(learn2),
+       'both pages keep a 420px floor on the game area');
+    // ⚠️ THE FLANK CANVAS FLOORS ARE LOWER HERE, ON PURPOSE. game-chrome.js's own
+    // header records Round 101 hitting this in the arcade: four buttons plus the
+    // canvas floor contributed more min-content than the row had. The card here
+    // is shorter than the arcade's, so the floors have to be too, or DONE gets
+    // clipped — and DONE is the only way off this page for a student on an iPad.
+    for (const [id, cap] of [['gauge-canvas', 260], ['radar-canvas', 200]]) {
+        const rule = (noCss(learn2).match(new RegExp('#' + id + '\\s*\\{[^}]*\\}', 's')) || [''])[0];
+        const floor = +((rule.match(/min-height:\s*(\d+)px/) || [0, 9999])[1]);
+        ok(floor < cap,
+           '⚠ learn2’s #' + id + ' floor (' + floor + 'px) is below the arcade’s ' +
+           cap + 'px, because its card is shorter');
+        ok(floor > 0, 'but still non-zero, so fitCanvas() never measures a zero box');
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
