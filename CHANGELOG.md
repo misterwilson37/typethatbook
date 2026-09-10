@@ -1,5 +1,168 @@
 # CHANGELOG — TypeThatBook
 
+## Round 103 (Bar-Let) — 2026-09-09 — Shatter is real, and the split cost twice what it looked like
+
+**Instance name: Bar-Let**, the Swiss portable. Not present in `CHANGELOG.md`,
+`HANDOFF.md`, `HANDOFF-games.md`, `ROADMAP.md` or `HANDOFF-learn2.md` — ⚠️ **all
+five checked**. ⚠️ **THE CHECK EARNED ITS KEEP AGAIN**: my first choice was
+*Yost*, which I had already written into four file headers before grepping. It
+is **Round 8**. Grep first, write second.
+
+*On the name:* Bar-Let is `bar` + `let`, a word that is itself two morphemes
+stuck together — which is the entire mechanic this round built.
+
+---
+
+### What shipped
+
+| file | version | state |
+|---|---|---|
+| `shatter-board.js` | **1.0.0** | 🆕 the split ladder, rock travel, the lock, the warp. Pure |
+| `game-shatter.js` | **1.0.0** | 🆕 the view |
+| `tests/shatter-board-test.mjs` | **1.0.0** | 🆕 55 assertions, green |
+| `game-shell.js` | **1.6.0** | `costFactor`, and a ramp opt-out on `cleared()` |
+| `tests/run-all-tests.mjs` | **1.26.0** | registers the above |
+| `arcade.html` | **3.8.0** | a GAME picker; free play for Shatter and Escape Key |
+| `tools/game-lab.html` | **1.4.0** | Shatter on the bench, with a banked-seconds counter |
+| `HANDOFF.md` | — | §9 document map repaired; harness count 92 |
+
+⭐ **JAKE'S RULING SET THE SHAPE OF ALL OF IT** (2026-09-09): *"Shatter and Escape
+Key are just games. They're not quizzes. Kids can choose to play them or not...
+They're graded on time, and time spent typing is time spent well."* So
+`game-shatter.js` has **no quota path, no frozen-pass snapshot and no grade**, and
+`arcade.html` shows **no comparison table** for either free-play game. ⚠️ **DO NOT
+COPY THOSE THREE ACROSS FROM `game-deadline.js`** because the files otherwise look
+alike — Deadline has them because Deadline replaces a graded run.
+
+---
+
+### ⚠️⚠️ 1. ONE SHATTER TARGET COSTS TWICE ITS OWN CHARACTERS
+
+A student types `unusually` — nine characters — to break the rock. It becomes
+`un` + `usual` + `ly`, which is nine more, **because the pieces spell the word**.
+⭐ **ONE SPAWNED TARGET IS 2N KEYSTROKES, ALWAYS**, for a two-part word and a
+three-part word alike.
+
+⚠️⚠️ **PRICED AT N, THAT ROCK DEMANDS 30 WPM OF A CHILD ON A 15 WPM GATE.** It is
+the same shape as Round 82's `MISSION_PRESSURE = 0.75` — the draft that made every
+gate in the building mathematically unreachable — and it reads just as correct.
+
+⭐ Fixed in `game-shell.js`, not in the view: `costFactor` multiplies the
+character count feeding `intervalMs`, `lifetimeFor()` and the **defaulted** quota.
+⚠️ **THE DEFAULT IS 1 AND THAT IS THE OLD BEHAVIOUR EXACTLY** — Deadline, Escape
+Key, the lab and every mission are byte-for-byte unchanged, and all 120
+`game-shell-test.mjs` assertions stayed green through the change.
+
+---
+
+### ⚠️⚠️ 2. SPLITTING IS A NEW WAY TO MAKE A BLOCKED WORD OUT OF A SAFE ONE
+
+`reassuringly` is a perfectly good library word. Its morphemes are
+`re | assuring | ly`, and **`assuring` trips `drill-filter.js`'s `LEADING` list**
+— so the split would have put that piece on a classroom screen, in a font sized
+for a projector.
+
+⚠️ **EVERY FILTER THIS APP OWNS HAD ONLY EVER LOOKED AT THE WHOLE WORD.** Nothing
+was wrong with the word bank, nothing was wrong with the filter, and no existing
+harness could have caught it, because the short string did not exist until this
+round created it. Every rung of the split ladder is now screened, and a refused
+rung **falls to the next one rather than being repaired** — repairing would mean
+`shatter-board.js` deciding what a morpheme is, the one thing `shatter-words.js`
+exists because no algorithm can do.
+
+---
+
+### ⚠️⚠️ 3. THE ARCADE RAMP FIRED THREE TIMES PER SPAWN
+
+Every piece is a real `cleared()` — it is real typing and must reach
+`clearedChars`, the quota and the survival score. But `RAMP_PER_TARGET` is priced
+per **target**, and a Shatter target becomes three or four rocks.
+
+⚠️ **A CHILD TYPING AT EXACTLY THE GATE WITH 100% ACCURACY LOST ALL THREE SHIELDS
+AT 79 SECONDS**, because pressure had climbed to 1.72 on their own success. ⭐
+Found by simulation and by nothing else; it is invisible in review. `cleared()`
+now takes `{ ramp: false }`, which Shatter passes for pieces only. ⚠️ A caller
+that says nothing ramps, so the other two games are untouched.
+
+---
+
+### ⚠️ 4. TWO OF THE THREE PIECES OF `unusually` START WITH `u`
+
+They are born from one rock in one instant, so they sit at the same distance and
+**nearest-to-impact cannot break the tie**. The lock goes to `un`, and a student
+who meant `usual` types `u` `s` and is charged a mistake for the game's ambiguity.
+
+⚠️ **ESCAPE KEY PREVENTS THIS AND SHATTER CANNOT.** `escape-board.js` enforces
+distinct first characters across the four cells it offers; here the pieces come
+from English morphology and there is nothing to enforce. ⭐ So the tie is **undone
+after the fact**: if the keys already spent on the lock, plus this one, are the
+opening of some other rock, the student meant that rock and always did. It cannot
+inflate anything — the transferred keystrokes were counted once and are the same
+characters the new rock needed.
+
+---
+
+### ⚠️ 5. AND ONE ASSERTION I GOT WRONG, IN A DOCUMENTED WAY
+
+Part G's first draft demanded a gate-speed child survive **three minutes of
+endless arcade**. They do not, and they should not: an endless run has no quota,
+so the ramp climbs forever and **is supposed to win**. "Survives N seconds"
+measures the ramp, not the game.
+
+⚠️ **THIS IS EXACTLY THE MISTAKE `escape-board-test.mjs`'s MOVER TEST MADE TWICE**,
+and it is written down in `HANDOFF-games.md` §1b. I made it anyway. ⭐ The claim
+is now comparative and falsifiable: **the split never shortens a gate-speed
+child's run** against the same board with splitting turned off — 20 of 20 seeds,
+mean 2.23×. A second assertion stops `costFactor` satisfying that by making both
+arms trivially short: every gate-speed run lasts at least 90 seconds.
+
+---
+
+### The warp, and why its key needed three guards
+
+`HANDOFF-games.md` §6: free unlimited spacebar warp means the prototype is beaten
+without typing at all. So the meter — filled by clearing rocks.
+
+⚠️⚠️ **AND THEN THE KEY ITSELF IS A TRAP THAT ROUND 101 ALREADY WALKED INTO FROM
+THE OTHER SIDE.** Jake, on Deadline: *"I don't want spaces at the end of words to
+count against me, as it's the logical key to hit."* Deadline had to stop
+**charging** for that reflex space. Shatter would be **spending a full warp meter**
+on it — the student punished for typing correctly, invisibly. A warp needs all
+three: meter full, nothing half-typed (Round 101's test verbatim), and
+`WARP_GRACE_MS` since the last rock broke. ⚠️ **THE THIRD LOOKS OPTIONAL AND IS
+NOT** — the habit space arrives *after* the lock has cleared and sails straight
+past the second.
+
+---
+
+### arcade.html — a hole that only opened when a second kind of game arrived
+
+The page returned early when no lesson had a speed target. ⚠️ **THAT HID SHATTER
+AND ESCAPE KEY FROM EXACTLY THE STUDENTS WITH NO PROGRESS**, who need neither —
+`arcadeConfig()` falls back to a 15 WPM home-row set. The picker now opens for any
+signed-in student, and **removes the assessed game from the list** rather than
+leaving a button that returns silently. ⚠️ A signed-out user still stops, because
+`bankSecond()` has nowhere to put the time.
+
+---
+
+### ⚠️ `docs-vs-repo-test.mjs` WAS ALREADY RED BEFORE THIS ROUND
+
+Round 102's START HERE block reports it green at 21 assertions. It was failing on
+an untouched copy of the repo: `HANDOFF-learn2.md` and
+`tools/wordbank/shatter-gemini-prompt.md` were **missing from §9's document map
+from the moment they were created**, by the same round that declared the harness
+green. Both rows added; the count moved to 92. ⚠️ **A GREEN CLAIM IN A HANDOFF IS
+NOT A HARNESS RUN**, and this is the second time in two rounds that a START HERE
+block described a state that was not the state.
+
+**Nine pre-existing failures remain and are NOT from this round** — verified
+identical on an untouched copy: `undefined-calls`, `credits`, `credit`,
+`card-markup`, `about`, `about-render`, `metadata-map`, `drill-filter`,
+`continue-reading`. Nobody has looked at them yet.
+
+⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
+
 ## Round 101 (Wellington) — 2026-09-09 — the console fills its card, and an error becomes visible
 
 **Instance name: Wellington**, an 1890s typewriter. Not present in `CHANGELOG.md`,

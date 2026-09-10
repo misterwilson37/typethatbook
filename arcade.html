@@ -274,15 +274,24 @@
     <div class="panel" id="picker">
         <div id="loading" class="note" style="margin:0">Loading your lessons…</div>
         <div id="pickerBody" style="display:none">
+            <!-- ⚠️⚠️ THE GAME ROW IS FIRST BECAUSE IT CHANGES WHAT THE REST OF
+                 THE PANEL MEANS. Deadline is played against a specific lesson
+                 run and compared to it; Shatter and Escape Key are not measured
+                 against anything, so their rows are hidden rather than left on
+                 screen answering a question nobody asked. -->
             <div class="row">
+                <label for="game">GAME</label>
+                <select id="game"></select>
+            </div>
+            <div class="row" id="row-lesson">
                 <label for="lesson">LESSON</label>
                 <select id="lesson"></select>
             </div>
-            <div class="row">
+            <div class="row" id="row-run">
                 <label for="run">RUN</label>
                 <select id="run"></select>
             </div>
-            <div class="row">
+            <div class="row" id="row-speed">
                 <label for="speed">SPEED &mdash; the pace words arrive at</label>
                 <select id="speed"></select>
             </div>
@@ -378,11 +387,14 @@
      row for a module that does would silently re-couple it. -->
 <script type="module">
 import { GAME_DEADLINE_VERSION } from './game-deadline.js';
+import { GAME_ESCAPE_VERSION } from './game-escape.js';
+import { GAME_SHATTER_VERSION } from './game-shatter.js';
+import { SHATTER_BOARD_VERSION } from './shatter-board.js';
 import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.7.0';
+const ARCADE_PAGE_VERSION = '3.8.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -394,6 +406,13 @@ function buildBadge() {
     const rows = [
         ['arcade.html', ARCADE_PAGE_VERSION],
         ['game-deadline.js', GAME_DEADLINE_VERSION],
+        // ⚠️ THE PANEL LISTS WHAT THE PAGE CAN MOUNT, and as of Round 103 that is
+        // three views, not one. A game the student can launch whose version the
+        // build footer cannot report is a machine nobody can diagnose from the
+        // classroom, which is the only reason this panel exists.
+        ['game-escape.js', GAME_ESCAPE_VERSION],
+        ['game-shatter.js', GAME_SHATTER_VERSION],
+        ['shatter-board.js', SHATTER_BOARD_VERSION],
         ['game-shell.js', GAME_SHELL_VERSION],
         ['game-draw.js', GAME_DRAW_VERSION],
         ['game-chrome.js', GAME_CHROME_VERSION],
@@ -439,6 +458,13 @@ import { missionConfigFromRun, targetsFromSequence, arcadeKeySet,
          makeArcadeTargets, ARCADE_GROUP_SIZE,
          survivalCeilingFor } from './game-shell.js';
 import { mount as mountDeadline } from './game-deadline.js';
+import { mount as mountEscape } from './game-escape.js';
+import { mount as mountShatter } from './game-shatter.js';
+// ⚠️ THE TITLES COME FROM THE REGISTRY, NEVER FROM A STRING IN THIS FILE.
+// game-names.js's whole reason for existing is that a rename must be one line;
+// a title spelled into this picker would be the copy nobody finds.
+import { GAMES, GAME_ORDER, titleOf } from './game-names.js';
+import { arcadeConfig } from './game-shell.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
 // and telling those apart is the entire reason this panel exists. HANDOFF §2:
@@ -858,6 +884,81 @@ function fillSpeeds() {
     sel.disabled = false;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ TWO KINDS OF GAME ON ONE PAGE, AND THE DIFFERENCE IS NOT COSMETIC
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake's ruling, 2026-09-09: *"Shatter and Escape Key are just games. They're
+// not quizzes. Kids can choose to play them or not... They're graded on time,
+// and time spent typing is time spent well."*
+//
+// ⭐ SO FREE PLAY HAS NO RUN, NO GATES AND NO COMPARISON TABLE. The whole point
+// of this page for Deadline is putting a game result beside the SAME gate the
+// typed run is graded against; showing that table for a game that is not
+// measuring anything would invent a verdict out of nothing. ⚠️ THE ONLY THING
+// FREE PLAY PRODUCES IS BANKED TIME, and bankSecond() already carries it.
+//
+// ⚠️ THE FLAG IS `assessed` FROM THE REGISTRY, NOT A LIST OF IDS HERE. A second
+// list would be the copy that disagrees the first time a game's status changes.
+function currentGame() { return GAMES[$('game').value] || GAMES.deadline; }
+function isFreePlay() { return !currentGame().assessed; }
+
+function fillGames() {
+    const sel = $('game');
+    sel.innerHTML = '';
+    // ⚠️ builtGames() IS NOT USED HERE ON PURPOSE — it filters on `unbuilt`, and
+    // every game in GAME_ORDER is built as of Round 103. Reading the flag keeps
+    // that true automatically if a fourth is ever registered ahead of its view.
+    for (const id of GAME_ORDER) {
+        const g = GAMES[id];
+        if (!g || g.unbuilt) continue;
+        const o = document.createElement('option');
+        o.value = id;
+        o.textContent = titleOf(id) + (g.assessed ? '' : ' \u2014 just for fun');
+        sel.appendChild(o);
+    }
+    sel.value = 'deadline';
+}
+
+/**
+ * Show or hide the run picker for the selected game.
+ *
+ * ⚠️ HIDDEN, NOT DISABLED. A greyed-out LESSON row beside Shatter still tells a
+ * twelve-year-old that Shatter is somehow about a lesson they have not chosen.
+ */
+function applyGameMode() {
+    const free = isFreePlay();
+    for (const id of ['row-lesson', 'row-run', 'row-speed']) {
+        $(id).style.display = free ? 'none' : '';
+    }
+    if (free) {
+        const g = currentGame();
+        $('gates').innerHTML =
+            `<span>${g.tagline}</span>` +
+            // ⚠️ SAYS PLAINLY THAT NOTHING IS GRADED, because the panel directly
+            // above it grades things for the other game on the same page.
+            '<span><i>Nothing here is graded \u2014 but the time you spend typing ' +
+            'counts toward your day and your week, exactly like School.</i></span>';
+        $('play').disabled = false;
+    } else {
+        showGates();
+    }
+}
+
+/**
+ * The config for a free-play run.
+ *
+ * ⚠️⚠️ arcadeConfig() DECIDES THE SPEED, NOT THIS PAGE. It targets the minWPM
+ * gate of the furthest lesson the student has reached, which is Jake's 4c
+ * ruling, and it reads that from the same window arcadeKeySet() uses so the
+ * arcade's letters and its speed come from one place. ⚠️ DO NOT PASS bestWPM —
+ * game-shell.js is explicit that it may only be supplied by a caller that
+ * ALREADY holds the leaderboard document, and this page does not.
+ */
+function freePlayConfig() {
+    return arcadeConfig({ lessons: LESSONS, progress: PROGRESS });
+}
+
 function chosenWPM() {
     const v = parseInt($('speed').value, 10);
     return v > 0 ? v : (currentRun() || { gates: {} }).gates.minWPM;
@@ -882,6 +983,7 @@ function showGates() {
 }
 
 function play() {
+    if (isFreePlay()) { playFree(); return; }
     const r = currentRun();
     if (!r) return;
     // ⚠️ THE SAME missionConfigFromRun() THE REAL WIRING WILL CALL, given the
@@ -943,6 +1045,63 @@ function play() {
         onEnd:  rep => { flushArcadeSeconds(); finish(rep, r); },
     });
     $('stage').scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * Mount Shatter or Escape Key.
+ *
+ * ⚠️ NO `survival`, NO `barHost`, NO SIDE CANVASES. Those are Deadline's console
+ * panels and neither of these views accepts them — game-escape.js's v1.1.0
+ * header is explicit that a silently-ignored option is worse than an absent one,
+ * and passing one here would be this page asserting a contract that does not
+ * exist.
+ */
+function playFree() {
+    const g = currentGame();
+    const mountGame = g.id === 'shatter' ? mountShatter : mountEscape;
+    lastPlayedWPM = null;
+    $('picker').style.display = 'none';
+    $('result').style.display = 'none';
+    $('stageWrap').style.display = 'block';
+    if (handle) { handle.destroy(); handle = null; }
+    handle = mountGame($('stage'), {
+        config: freePlayConfig(),
+        // ⚠️⚠️ THE WHOLE REASON THIS PATH EXISTS. `countsTime: true` in the
+        // registry is a promise, and for twenty rounds Escape Key had no way to
+        // keep it because its view emitted no seconds at all. The date is
+        // stamped HERE, at the moment of the tick, so a run through midnight
+        // splits across two day documents exactly as a lesson does.
+        onSecond: () => bankSecond(),
+        onQuit: () => { flushArcadeSeconds(); finishFree(null); },
+        onEnd:  rep => { flushArcadeSeconds(); finishFree(rep); },
+    });
+    $('stage').scrollIntoView({ block: 'nearest' });
+}
+
+/**
+ * ⚠️⚠️ NO COMPARISON TABLE AND NO VERDICT. There is no gate to have met, so
+ * every line here is a description of what happened rather than a judgement of
+ * it. ⭐ THE TIME IS FIRST, because time is the only thing this run produced that
+ * the app kept, and Jake's ruling is that time spent typing is time spent well.
+ */
+function finishFree(rep) {
+    if (handle) { handle.destroy(); handle = null; }
+    $('stageWrap').style.display = 'none';
+    $('result').style.display = 'block';
+    $('compare').innerHTML = '';
+    if (!rep) {
+        $('verdict').innerHTML =
+            '<span class="big">Stopped</span><br>Whatever you typed still counts toward your day.';
+        return;
+    }
+    const mins = Math.floor(rep.seconds / 60);
+    const secs = Math.round(rep.seconds % 60);
+    $('verdict').innerHTML =
+        `<span class="big">${mins}:${String(secs).padStart(2, '0')} typing</span><br>` +
+        `${rep.wpm} WPM &middot; ${rep.acc}% accurate &middot; ` +
+        `${rep.targetsCleared} cleared &middot; score ${rep.score}<br>` +
+        '<span class="met">That time is banked toward your day and your week.</span>';
+    console.log('[arcade] free-play report', rep);
 }
 
 function finish(rep, r) {
@@ -1128,15 +1287,38 @@ async function load(user) {
         }).filter(p => p.runs.length);
 
         $('loading').style.display = 'none';
-        if (!PLAYABLE.length) {
+        // ⚠️⚠️ AN EMPTY PLAYABLE LIST NO LONGER CLOSES THE WHOLE PAGE, AND THAT
+        // WAS A REAL HOLE THE MOMENT A SECOND KIND OF GAME ARRIVED. Deadline
+        // needs a lesson run with a speed target; Shatter and Escape Key need
+        // NOTHING — arcadeConfig() falls back to a 15 WPM home-row set for a
+        // student who has passed nothing. Returning here hid the two games that
+        // require no progress from precisely the students with none, which is
+        // backwards: they are the ones who most need a reason to type.
+        // ⚠️ A SIGNED-OUT USER STILL STOPS, because bankSecond() has nowhere to
+        // put the time and a game whose only product is unbankable is a game
+        // that does nothing.
+        if (!user) {
             $('err').style.display = 'block';
-            $('err').textContent = user
-                ? 'No lessons with a speed target are open to you yet \u2014 finish a lesson in School first.'
-                : 'Sign in on the School page first, then come back.';
+            $('err').textContent = 'Sign in on the School page first, then come back.';
             return;
         }
         $('pickerBody').style.display = 'block';
-        fillLessons();
+        fillGames();
+        if (!PLAYABLE.length) {
+            // ⚠️ THE ASSESSED GAME IS REMOVED FROM THE PICKER, NOT LEFT TO FAIL
+            // ON PLAY. currentRun() would return null and play() would return
+            // silently, which reads as a dead button.
+            for (const opt of Array.from($('game').options)) {
+                if (GAMES[opt.value] && GAMES[opt.value].assessed) opt.remove();
+            }
+            $('game').value = $('game').options.length ? $('game').options[0].value : '';
+            $('err').style.display = 'block';
+            $('err').textContent = 'Finish a lesson in School to unlock '
+                + titleOf('deadline') + ' \u2014 the games below are open to you now.';
+        } else {
+            fillLessons();
+        }
+        applyGameMode();
         // ⚠️ NOT AWAITED. The minutes are decoration on a strip the student has
         // not reached yet; making the lesson picker wait on a week read would
         // trade the thing they came for against a number in a corner.
@@ -1148,6 +1330,7 @@ async function load(user) {
     }
 }
 
+$('game').addEventListener('change', applyGameMode);
 $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);

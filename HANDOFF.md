@@ -1,5 +1,163 @@
 # HANDOFF — TypeThatBook
 
+> ## ▶ START HERE — written 2026-09-09 by Round 103 (Bar-Let), for whoever is next
+>
+> **Instance name: Bar-Let**, the Swiss portable. ⚠️ Checked against
+> `CHANGELOG.md`, `HANDOFF.md`, `HANDOFF-games.md`, `ROADMAP.md` **and
+> `HANDOFF-learn2.md`** — five files now, because Round 102 created a fifth and
+> the old four-file instruction would have missed it. ⚠️ **THE CHECK EARNED ITS
+> KEEP**: my first choice was *Yost*, already written into four file headers
+> before I grepped. It is **Round 8**.
+>
+> *On the name:* Bar-Let is `bar` + `let` — a name that is itself two morphemes
+> stuck together, which is the whole mechanic this round built.
+>
+> ⚠️⚠️ **THIS BLOCK WAS WRITTEN LAST, WHICH IS THE RULE ROUND 102 WROTE DOWN AND
+> THEN BROKE.** Its own START HERE was drafted at a milestone and never rewritten,
+> and it cost the next instance a session. It also claimed
+> `docs-vs-repo-test.mjs` was green when it was red on an untouched repo. ⭐ **A
+> HANDOFF'S CONFIDENT TONE HIDES EVERYTHING IT DOES NOT MENTION — and a green
+> claim in a document is not a harness run.**
+>
+> ---
+>
+> ## WHAT THIS ROUND SHIPPED — Shatter exists and is reachable
+>
+> | file | version | state |
+> |---|---|---|
+> | `shatter-board.js` | **1.0.0** | 🆕 the split ladder, rock travel, the lock, the warp. **Pure** |
+> | `game-shatter.js` | **1.0.0** | 🆕 the view. Arcade-only by ruling — no quota, no grade |
+> | `tests/shatter-board-test.mjs` | **1.0.0** | 🆕 **55 assertions, green.** Read Part B first |
+> | `game-shell.js` | **1.6.0** | `costFactor`; `cleared()` takes `{ ramp }` |
+> | `tests/run-all-tests.mjs` | **1.26.0** | registers the above — **92 harnesses** |
+> | `arcade.html` | **3.8.0** | a GAME picker; **free play for Shatter AND Escape Key** |
+> | `tools/game-lab.html` | **1.4.0** | Shatter on the bench, with a banked-seconds counter |
+>
+> ⚠️ `shatter-words.js` is now **read** — by `shatter-board.js`. It was DATA ONLY
+> for exactly one round. `word-banks.js` is **still data only**; see §7 item 2.
+>
+> ---
+>
+> ## 1. ⭐⭐ THE RULING THAT SHAPED EVERY FILE — Jake, 2026-09-09
+>
+> *"Shatter and Escape Key are just games. They're not quizzes. Kids can choose to
+> play them or not. They can choose to use them as lesson practice or they can
+> just do the lessons. I'm not saying that they shouldn't be **good**, but we
+> aren't grading them in the same way as a gated, end of lesson assessment.
+> They're graded on time, and time spent typing is time spent well."*
+>
+> ⚠️⚠️ **SO `game-shatter.js` HAS NO QUOTA PATH, NO FROZEN-PASS SNAPSHOT AND NO
+> GRADE**, and `arcade.html` shows no comparison table for either free-play game.
+> `d.quotaMet` is not consulted anywhere in the view. ⚠️ **DO NOT COPY THOSE THREE
+> ACROSS FROM `game-deadline.js`** because the files otherwise look alike —
+> Deadline has them because Deadline replaces a graded run, and Shatter replaces
+> nothing.
+>
+> ⚠️⚠️ **AND THEREFORE `onSecond` IS THE LOAD-BEARING SEAM OF THE WHOLE FEATURE.**
+> Time is the only thing Shatter produces that the app keeps. A view that draws
+> beautifully and emits no second does nothing at all — which is precisely what
+> Escape Key was for twenty rounds while the registry promised `countsTime: true`.
+> `bankWholeSeconds()` mirrors `game-escape.js` v1.1.0 statement for statement,
+> including the two things that were wrong in Deadline first: it is called from
+> the frame loop **as well as** `finish()`, and in `finish()` it sits **above**
+> `ended = true` and **above** `d.end()`.
+>
+> ---
+>
+> ## 2. ⚠️⚠️ THE FOUR DEFECTS THE HARNESS CAUGHT, AND A REVIEW WOULD NOT HAVE
+>
+> Full narrative in `CHANGELOG.md` Round 103. In one line each, because each one
+> is a *class* of mistake this project keeps re-finding:
+>
+> 1. **The factor of two.** `unusually` is 9 characters on screen and **18
+>    keystrokes to clear**, because the pieces spell the word. Priced at 9 it
+>    demands 30 WPM of a child on a 15 WPM gate — the same shape as Round 82's
+>    `MISSION_PRESSURE = 0.75`. Fixed by `costFactor` in the shell, **not** in the
+>    view. ⚠️ **Part B of the harness pins the arithmetic so it cannot come back as
+>    a readability tweak.**
+> 2. **`reassuringly` → `re | assuring | ly`, and `assuring` trips
+>    `drill-filter.js`.** ⚠️⚠️ **SPLITTING IS A NEW WAY TO MAKE A SHORT STRING OUT
+>    OF A SAFE LONG ONE, AND EVERY FILTER THIS APP OWNS HAD ONLY EVER SEEN THE
+>    WHOLE WORD.** Every rung is screened now; a refused rung falls to the next
+>    rather than being repaired.
+> 3. **The ramp fired per ROCK where `RAMP_PER_TARGET` is priced per TARGET.** A
+>    child at exactly the gate with 100% accuracy lost every shield at 79 seconds,
+>    **on their own success.** Found by simulation only.
+> 4. **Two of `unusually`'s three pieces start with `u`, at the same distance**, so
+>    nearest-to-impact cannot break the tie and the student is charged for the
+>    game's ambiguity. Escape Key prevents this; Shatter cannot. Resolved by an
+>    after-the-fact re-lock.
+>
+> ### ⚠️ AND ONE MISTAKE OF MY OWN, WHICH WAS ALREADY WRITTEN DOWN
+>
+> Part G first demanded a gate-speed child survive three minutes of **endless**
+> arcade. An endless run has no quota, so the ramp climbs forever and **is supposed
+> to win**. ⚠️ **THIS IS THE EXACT MISTAKE `escape-board-test.mjs`'s MOVER TEST
+> MADE TWICE**, recorded in `HANDOFF-games.md` §1b, and I made it anyway. ⭐ The
+> claim is now comparative: the split never *shortens* a run against the same board
+> with splitting off (20/20 seeds, mean 2.23×), plus a floor so `costFactor` cannot
+> satisfy that by making both arms trivially short.
+>
+> ---
+>
+> ## 3. STATE OF PLAY
+>
+> * **Green**: shatter-board 55, game-shell 120, escape-board 39, escape-seconds
+>   19, game-assumptions 59, arcade-lesson 103, arcade-versions 29, arcade-panels,
+>   docs-vs-repo 21, all 39 modules parse.
+> * ⚠️ **Nine pre-existing failures, NOT from this round** — verified identical on
+>   an untouched copy: `undefined-calls`, `credits`, `credit`, `card-markup`,
+>   `about`, `about-render`, `metadata-map`, `drill-filter`, `continue-reading`.
+>   **Do not assume they are yours. Do not assume they are fine.** Nobody has
+>   looked, across three rounds now.
+> * ⚠️ **`docs-vs-repo-test.mjs` was RED at the start of this round**, while Round
+>   102's block said 21 green. Two documents had been missing from §9's map since
+>   the round that created them. Repaired.
+> * ⚠️⚠️ **NOTHING THIS ROUND IS BROWSER-VERIFIED.**
+>
+> ### What to confirm in a browser, in order
+>
+> 1. `tools/game-lab.html` → game **Shatter**, gate 15, Start. Rocks arrive, a
+>    typed rock **breaks into pieces that spell it**, and the pieces must be typed.
+> 2. ⚠️⚠️ **THE BANKED COUNTER IN THE LAB READOUT RISES.** It is the only thing
+>    Shatter produces. If it stays at 0, `onSecond` is dead and the game is
+>    decorative — the Escape Key defect, reproduced.
+> 3. Fill the WARP meter, then **hit space right after clearing a word**: it must
+>    NOT fire. Wait half a second and it must.
+> 4. `arcade.html` → the GAME picker offers three; picking Shatter hides the
+>    LESSON/RUN/SPEED rows and the result panel shows **no comparison table**.
+> 5. ⚠️ A student with **no passed lessons**: the picker must still open, with
+>    Deadline removed and a note, not the old dead end.
+> 6. Deadline itself, unchanged — `costFactor` defaults to 1 and must have moved
+>    nothing.
+>
+> ---
+>
+> ## 4. OPEN — in the order I would take them
+>
+> 1. ⚠️⚠️ **RECONCILE THE `learn2` FORK.** Promote or fold back, **and delete the
+>    loser.** `HANDOFF-learn2.md` §0. Unchanged from Round 102 and still first.
+> 2. **Wire `word-banks.js` into Escape Key AND Shatter.** `bankForRound()` /
+>    `wordsForRound()` are ready; both still take `makeArcadeTargets()` letter
+>    groups. ⚠️ **FOR SHATTER THIS IS MORE THAN A POOL SWAP**: real words hit the
+>    morpheme rung instead of the halves rung, so the split becomes meaningful
+>    rather than mechanical — which is the pedagogy Jake asked for. Re-run
+>    `shatter-board-test.mjs` Part A's filter sweep against the new pool.
+> 3. **Length-scaled cell font** in `game-escape.js` before the 9/10 banks are used.
+> 4. **The nine pre-existing failures.** Three rounds of "nobody has looked."
+> 5. **Eight secretly-four-part Shatter words** — `un+doubted+ly` is really
+>    `un+doubt+ed+ly`; likewise `un+expected+ly`, `un+willing+ly`, `re+assuring+ly`,
+>    `mis+giving+s`, `pre+caution+s`, `re+collection+s`, `re+solution+s`. ⚠️ Use the
+>    **saved reply** at `tools/wordbank/gemini-shatter-reply.json` — the one file
+>    that **cannot be regenerated**. ⚠️ **AND `re+assuring+ly` IS NOW ALSO THE
+>    FILTER CASE FROM §2.2** — a four-part pass would give `re|assur|ing|ly`, which
+>    is clean, and would fix it at the source rather than at the ladder.
+> 6. **Two duplicate books on disk** (Oz, The Half-Back) inflate every book count.
+> 7. ⚠️ **A PEDAGOGY QUESTION, NOT A WIRING ONE.** Every lesson in Units 1, 2 and 5
+>    is graded on a `key_random` final run, which `DRILL_TYPES` forces to
+>    `minWPM: null` — so **a student can pass all fifteen at 2 WPM** with clean
+>    accuracy, today, typed. Jake believed the opposite and was told. His call.
+
 > ## ▶ START HERE — written 2026-09-09 by Round 102 (Pittsburg), for whoever is next
 >
 > **Instance name: Pittsburg**, the Pittsburg Visible Typewriter. ⚠️ **One name
@@ -557,8 +715,8 @@
 >
 > ### THE STATE OF PLAY
 >
-> * **91 harnesses pass** (122 assertions in the panels harness), `audit:versions`
->   0 problems, all 35 modules parse. ⚠️ **91, not 90, as of Round 102** —
+> * **92 harnesses pass** (122 assertions in the panels harness), `audit:versions`
+>   0 problems, all 35 modules parse. ⚠️ **92, not 91, as of Round 103** —
 >   `escape-seconds-test.mjs` joined the registry. docs-vs-repo-test C2 reads
 >   THIS line and only this line, so it is the one that has to move.
 > * ⚠️ **STILL NOT BROWSER-VERIFIED.** What to confirm: the flanks fit the play
@@ -10778,6 +10936,8 @@ a pointer to a file you should go and read.**
 | `INTEGRATION.md` | 🆕 the seam map for folding the games in: what touches what, the three version mirrors, and why the games must NOT be registered in `versions.js` until the deploy that wires them |
 | `NEXT-STEPS.md` | 🆕 Round 82's ordered action list and the record of Jake's five product rulings, with his quotes. ⚠️ Read as a record, not a queue — all five are answered and applied |
 | `firebase/APPROVED-game-scores.md` | 🆕 the game leaderboard shape. ⚠️⚠️ **APPROVED IS NOT DEPLOYED.** The shape is settled; the rules TEXT has never been executed and must pass `npm run test:rules` against the emulator before it goes near the console |
+| `HANDOFF-learn2.md` | 🆕 **Round 102's fork handoff.** The `learn2.*` staging fork where Deadline is the lesson gate. ⚠️ **READ BEFORE TOUCHING EITHER LEARN PAGE**, and see §7 item 1 — the fork must be promoted or folded back, and the loser deleted. ⚠️ **Missing from this table from the moment it was created**, which `docs-vs-repo-test.mjs` reported and Round 102's own START HERE block claimed was green |
+| `tools/wordbank/shatter-gemini-prompt.md` | 🆕 **Round 102.** The model prompt that classified Shatter's 300 words against a closed list. ⚠️ Belongs beside `tools/wordbank/gemini-shatter-reply.json`, the one file in that round that **cannot be regenerated**. Also missing from this table since it was created |
 | `tests/README.md` | 🆕 the suite: what is registered, what is deliberately not, and the standing failure |
 | ~~`tests/reconcile-test.mjs`~~ | ⚠️⚠️ **THIS FILE DOES NOT EXIST AND THIS ROW POINTED AT NOTHING.** It was listed for its header, which stated what the reconciliation harness did *not* cover. The file is gone — renamed or absorbed — and the row outlived it, sending anyone who took the map seriously looking for something that is not there. **Caught by `docs-vs-repo-test.mjs` on its first run.** Row kept, struck through, because a silently deleted row teaches nothing |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |

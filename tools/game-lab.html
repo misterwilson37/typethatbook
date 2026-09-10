@@ -1,7 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- tools/game-lab.html v1.3.0 — NOT DEPLOYED. Round 82 (Victor).
+<!-- tools/game-lab.html v1.4.0 — Round 103 (Bar-Let): Shatter joins the bench, and
+     the readout counts BANKED SECONDS.
+     ⚠️⚠️ THE COUNTER IS NOT DECORATION. Shatter and Escape Key are graded on time
+     alone (Jake, 2026-09-09), so the per-second tick is the only thing either one
+     produces — and Escape Key shipped with `countsTime: true` in the registry and
+     NO WAY TO EMIT A SECOND for twenty rounds, with arcade-lesson-test.mjs green
+     the whole time because it pinned the PAGE's listener while nothing emitted.
+     A visible counter here is the cheapest end of that seam to check.
+     ⚠️ THE "NOT DEPLOYED" NOTE BELOW IS WRONG AND HAS BEEN SINCE ROUND 82: this
+     repo is served by GitHub Pages from its root (see CNAME), so every file in it
+     is reachable, including this one. It is UNLINKED, which is a different thing.
+     tools/game-lab.html v1.3.0 — Round 82 (Victor).
 
      A bench for feeling the arcade views at a chosen gate, the way
      tools/tier-ab.html is a bench for a render. It mounts game-missile.js
@@ -61,6 +72,7 @@
     <select id="game">
       <option value="deadline" selected>Deadline</option>
       <option value="escape">Escape Key</option>
+      <option value="shatter">Shatter</option>
     </select>
   </label>
   <label>mode
@@ -75,11 +87,13 @@
 </header>
 
 <div id="stage"></div>
-<div id="readout">Set a gate, press Start, then Start again on the get-ready panel. Sound is off by default — the Sound button turns it on. Escape clears the current word. Deadline: type the word nearest the ground. Escape Key: type an adjacent word to move onto it — your row and column are tinted, because that is where creatures arrive.</div>
+<div id="readout">Set a gate, press Start, then Start again on the get-ready panel. Sound is off by default — the Sound button turns it on. Escape clears the current word. Deadline: type the word nearest the ground. Escape Key: type an adjacent word to move onto it — your row and column are tinted, because that is where creatures arrive. Shatter: type the rock nearest your ship; it breaks into pieces that spell it, and you have to type those too. Clearing rocks fills the WARP meter — Space pushes everything back. The readout counts banked seconds, which is the only thing Shatter and Escape Key save.</div>
 
 <script type="module">
 import { mount as mountDeadline } from '../game-deadline.js';
 import { mount as mountEscape } from '../game-escape.js';
+import { mount as mountShatter } from '../game-shatter.js';
+import { SHATTER_COST_FACTOR } from '../shatter-board.js';
 import { GAMES, titleOf } from '../game-names.js';
 import {
     targetsFromSequence, avgTargetChars, spawnIntervalMs, travelMs,
@@ -107,19 +121,32 @@ function sequenceFor(kind) {
 }
 
 function describe(cfg) {
+    const which = document.getElementById('game').value;
     const avg = avgTargetChars(cfg.targets);
-    const iv = spawnIntervalMs(avg, cfg.targetWPM, MISSION_PRESSURE);
+    // ⚠️⚠️ THE BENCH MUST PRICE SHATTER THE WAY THE DIRECTOR DOES OR IT LIES.
+    // One Shatter target is 2N keystrokes — the word, then the pieces that spell
+    // it — so a readout showing the unpriced interval would show a number no
+    // rock on screen is actually using. See game-shell.js v1.6.0.
+    const cost = which === 'shatter' ? SHATTER_COST_FACTOR : 1;
+    const iv = spawnIntervalMs(avg * cost, cfg.targetWPM, MISSION_PRESSURE);
     const life = travelMs(iv, queueDepthFor(MISSION_PRESSURE));
-    const muncher = document.getElementById('game').value === 'escape';
+    const cadence = which === 'escape';
     return `shell v${GAME_SHELL_VERSION} · ${cfg.targets.length} targets · avg ${avg.toFixed(1)} chars`
-         + (muncher ? ` · enemy step ${(iv / 1000).toFixed(2)}s`
+         + (cost > 1 ? ` · cost ×${cost} (${(avg * cost).toFixed(1)} keys/target)` : '')
+         + (cadence ? ` · enemy step ${(iv / 1000).toFixed(2)}s`
                     : ` · push ${(iv / 1000).toFixed(2)}s · lifetime ${(life / 1000).toFixed(1)}s`)
          + ` · quota ${cfg.endless ? '∞' : cfg.quotaChars} chars`;
 }
 
 function start() {
     if (handle) { handle.destroy(); handle = null; }
-    const endless = document.getElementById('mode').value === 'arcade';
+    const which = document.getElementById('game').value;
+    // ⚠️ SHATTER HAS NO MISSION MODE, AND THE PICKER MUST SAY SO RATHER THAN
+    // SILENTLY IGNORING IT. Jake's ruling, 2026-09-09: *"Shatter and Escape Key
+    // are just games. They're not quizzes."* The view forces `endless: true`
+    // itself; this only stops the bench from claiming otherwise on screen.
+    const endless = which === 'shatter'
+        || document.getElementById('mode').value === 'arcade';
     const targets = targetsFromSequence(sequenceFor(document.getElementById('src').value));
     const cfg = {
         targets,
@@ -134,12 +161,23 @@ function start() {
 
     // ⚠️ ONE CONFIG, EITHER VIEW. That the same object drives a push game and a
     // cadence game with no per-game branching here is the point of the shell.
-    const mount = document.getElementById('game').value === 'escape' ? mountEscape : mountDeadline;
+    const mount = which === 'shatter' ? mountShatter
+                : which === 'escape' ? mountEscape
+                : mountDeadline;
+    // ⚠️⚠️ THE BENCH COUNTS TICKS, BECAUSE THE TICK IS THE ONLY THING A GAME
+    // GRADED ON TIME ACTUALLY PRODUCES. Escape Key shipped with `countsTime:
+    // true` in the registry and NO WAY TO EMIT A SECOND for twenty rounds, and
+    // arcade-lesson-test.mjs stayed green the whole time because it pinned the
+    // PAGE's listener while nothing was emitting. A visible counter here is the
+    // cheapest end of that seam to check.
+    let ticks = 0;
     handle = mount(stage, {
         config: cfg,
+        onSecond: () => { ticks++; },
         onTick: r => {
             out.textContent = `live · ${r.wpm} WPM · ${r.acc}% · ${r.seconds.toFixed(0)}s`
-                + ` · cleared ${r.targetsCleared} · leaks ${r.hits} · score ${r.score}`;
+                + ` · cleared ${r.targetsCleared} · leaks ${r.hits} · score ${r.score}`
+                + ` · banked ${ticks}s`;
         },
         onQuit: r => {
             // ⚠️ THE "Done" BUTTON. A real host would unmount here; the lab just

@@ -13,7 +13,7 @@ from whatever keys a student has unlocked (arcade). Two of three are built.
 |---|---|---|---|
 | `deadline` | **Deadline** | `game-deadline.js` | built — **assessed** |
 | `escape` | **Escape Key** | `game-escape.js` | built — **arcade-only** |
-| `shatter` | **Shatter** | — | not built |
+| `shatter` | **Shatter** | `game-shatter.js` | ✅ built (Round 103) — arcade only |
 
 **Every game's time counts toward the student's totals.** Only Deadline produces a
 grade. Escape Key is arcade-only by Jake's ruling (2026-09-07) — ⚠️ a product

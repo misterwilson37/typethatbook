@@ -1,3 +1,13 @@
+// game-shell.js v1.6.0 — Round 103 (Bar-Let): `costFactor`, and it exists because
+// SHATTER'S TARGETS COST TWICE THEIR OWN CHARACTERS. A student types `unusually`
+// to break the rock and then types `un`, `usual` and `ly` — the pieces spell the
+// word, so one spawned target is 2N keystrokes, for a two-part word and a
+// three-part word alike. ⚠️⚠️ PRICING THAT ROCK AT `unusually`'s INTERVAL WOULD
+// DEMAND 30 WPM OF A STUDENT ON A 15 WPM GATE — the same class of defect as the
+// MISSION_PRESSURE = 0.75 draft that made every gate unreachable, and it looks
+// just as correct. ⭐ `intervalMs`, `lifetimeFor()` and the DEFAULTED quota all
+// multiply by it. ⚠️ THE DEFAULT IS 1 AND THAT IS THE OLD BEHAVIOUR EXACTLY:
+// Deadline, Escape Key, the lab and every mission are byte-for-byte unchanged.
 // game-shell.js v1.5.0 — Round 101 (Wellington): the survival wall is an ABSOLUTE
 // 100 WPM (survivalCeilingFor), not a multiple of the lesson's gate — a flat
 // multiplier walled two students at 60 and 150 WPM for no visible reason. The
@@ -125,7 +135,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.5.0';
+export const GAME_SHELL_VERSION = '1.6.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -530,11 +540,27 @@ export class GameDirector {
         // says nothing gets PRESSURE_CEILING, so missions, the lab and Escape Key
         // are byte-for-byte what they were.
         this.pressureCeiling = c.pressureCeiling > 0 ? c.pressureCeiling : PRESSURE_CEILING;
+        // ⚠️⚠️ KEYSTROKES THE STUDENT MUST TYPE PER CHARACTER OF TARGET TEXT.
+        // 1 for Deadline and Escape Key — you type the word, the target dies.
+        // 2 for Shatter, where the word breaks into pieces that spell the word
+        // and must be typed again. ⚠️ IT IS A PACING INPUT AND NOTHING ELSE: it
+        // does not touch `chars`, `mistakes`, netWPM() or accuracyPct(), which
+        // stay honest keystroke counts. See the v1.6.0 note at the top.
+        // ⚠️ DEFAULT 1 = THE OLD BEHAVIOUR EXACTLY, like pressureCeiling above.
+        this.costFactor = c.costFactor > 0 ? c.costFactor : 1;
         this.rand = c.rand || Math.random;
 
         this.avgChars = avgTargetChars(this.targets) || ARCADE_GROUP_SIZE;
+        // ⚠️⚠️ THE DEFAULTED QUOTA IS IN KEYSTROKES, SO IT SCALES WITH THE COST
+        // TOO. `cleared()` is called once per rock — parent AND piece — so a
+        // Shatter mission whose quota were the raw target sum would end at half
+        // its intended length, and "the game is the same size as the run it
+        // replaced" would quietly stop being true. ⚠️ AN EXPLICIT `quotaChars`
+        // FROM THE CALLER IS TAKEN AS GIVEN: a host that states a number has
+        // already decided what it means.
         this.quotaChars = this.endless ? Infinity
-            : (c.quotaChars > 0 ? c.quotaChars : this.targets.reduce((n, t) => n + t.length, 0));
+            : (c.quotaChars > 0 ? c.quotaChars
+               : this.targets.reduce((n, t) => n + t.length, 0) * this.costFactor);
 
         this.clock = new GameClock();
         this.chars = 0;          // keystrokes that were part of a target
@@ -609,7 +635,7 @@ export class GameDirector {
      */
     get intervalMs() {
         const chars = this._lastInterval != null ? this._lastInterval : this.avgChars;
-        return spawnIntervalMs(chars, this.targetWPM, this.pressure);
+        return spawnIntervalMs(chars * this.costFactor, this.targetWPM, this.pressure);
     }
 
     /**
@@ -618,7 +644,7 @@ export class GameDirector {
      * far ahead the student is.
      */
     lifetimeFor(text) {
-        const chars = (text || '').length || this.avgChars;
+        const chars = ((text || '').length || this.avgChars) * this.costFactor;
         return travelMs(spawnIntervalMs(chars, this.targetWPM, this.pressure),
                         queueDepthFor(this.pressure));
     }
@@ -792,12 +818,36 @@ export class GameDirector {
      * board, and a board with no curve has one score, reached by everyone with
      * patience.
      */
-    cleared(text, nowMs) {
+    /**
+     * @param {object} [opts]
+     *   ramp {boolean}  ⚠️⚠️ WHETHER THIS CLEAR ADVANCES THE DIFFICULTY CURVE.
+     *
+     * ⚠️⚠️ v1.6.0, AND IT IS THE SECOND HALF OF THE SPLIT PROBLEM. A Shatter
+     * target becomes three or four rocks, and every one of them is a `cleared()`
+     * — correctly, because each is real typing that must reach `clearedChars`,
+     * the quota and the survival score. ⭐ BUT `RAMP_PER_TARGET` IS PRICED PER
+     * *TARGET*, so Shatter was ramping THREE TIMES per spawn where Deadline ramps
+     * once. Found by simulation, not by reading: a child typing at exactly the
+     * gate with 100% accuracy lost all three shields at 79 seconds, because
+     * pressure had climbed to 1.72 on their own success. ⚠️ IT IS THE SAME SHAPE
+     * AS THE costFactor DEFECT ABOVE — a per-target number applied to a game
+     * whose targets multiply — and neither is visible in a code review.
+     *
+     * ⚠️ A CALLER THAT SAYS NOTHING RAMPS, so Deadline and Escape Key are
+     * unchanged. Shatter passes `{ ramp: false }` for pieces only.
+     * ⚠️ `_extraChars` IS NOT GATED: the survival score is a count of real
+     * keystrokes and a piece is real typing.
+     */
+    cleared(text, nowMs, opts) {
         if (this.over) return;
         const len = (text || '').length;
+        const ramps = !opts || opts.ramp !== false;
         this.clearedChars += len;
         this.clearedCount++;
-        if (this.endless || this.quotaMet) { this._extraCleared++; this._extraChars += len; }
+        if (this.endless || this.quotaMet) {
+            if (ramps) this._extraCleared++;
+            this._extraChars += len;
+        }
         if (!this.quotaMet && this.clearedChars >= this.quotaChars) {
             this.quotaMet = true;
         }

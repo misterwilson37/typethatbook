@@ -35,7 +35,10 @@ assumes the standing rules, the deploy table and §5's invariants.
 | `tests/game-shell-test.mjs` | 1.2.0 | **new.** 91 assertions, green |
 | `tests/escape-board-test.mjs` | 1.2.0 | **new.** 39 assertions, green |
 | `tests/game-assumptions-test.mjs` | 1.0.0 | **new.** 59 assertions, green — the seam |
-| `tools/game-lab.html` | 1.3.0 | **new. NOT DEPLOYED.** Play bench, both games |
+| `tools/game-lab.html` | 1.4.0 | Play bench, **all three games**, with a banked-seconds counter |
+| `shatter-board.js` | 1.0.0 | 🆕 **Round 103.** Pure. The split ladder, rock travel, the lock, the warp |
+| `game-shatter.js` | 1.0.0 | 🆕 **Round 103.** Shatter view. Arcade-only by ruling |
+| `tests/shatter-board-test.mjs` | 1.0.0 | 🆕 **Round 103.** 55 assertions, green |
 
 ⚠️ **`keyboard.js` IS NOW IMPORTED BY `game-deadline.js`** and was not touched.
 It is the source of truth for the finger map and the finger colours; see §1c.
@@ -51,7 +54,7 @@ finding. Nothing imports the old names.
 |---|---|---|
 | `deadline` | **Deadline** | "Missile Command" — an active Atari trademark |
 | `escape` | **Escape Key** | "Word Muncher" |
-| `shatter` | **Shatter** | "Asteroids" — not built yet |
+| `shatter` | **Shatter** | "Asteroids" — ✅ **BUILT, Round 103 (Bar-Let)** |
 
 ⚠️ **THE ID AND THE TITLE ARE DIFFERENT THINGS AND `game-names.js` IS WHY.** The
 id goes into Firestore, the composite index and every leaderboard query, and must
@@ -86,8 +89,9 @@ the part with value — the numbers were never real.
 ⚠️ **THE NEXT CHANGE TO ANY OF THESE IS A NORMAL BUMP FROM 1.0.0**, and from here
 the version log means what it says everywhere else in this repo.
 
-**Not done, and deliberately not started:** the wiring into `learn.js`, the
-leaderboard write, and Shatter. Reasons in §4 and §6.
+**Not done, and deliberately not started:** the wiring into `learn.js` and the
+leaderboard write. ⚠️ **SHATTER IS NO LONGER ON THIS LIST — Round 103 built it.**
+Reasons for the other two in §4 and §6.
 
 ⚠️ **v1.1.0 of the shell is a breaking change to the report object and it is
 taken deliberately while nothing consumes it.** `report().leaks` is now
@@ -630,7 +634,19 @@ three files). Words-as-movement (Muncher). The wireframe vector art (Asteroids).
 * **Respawn goes to the cell farthest from any enemy**, not a fixed centre —
   dropping the player back onto a hunter would spend two shields for one mistake.
 
-**Shatter** (still to do). Was "Asteroids".
+**Shatter** — ✅ **BUILT IN ROUND 103 (Bar-Let).** Was "Asteroids". `shatter-board.js`
+v1.0.0 + `game-shatter.js` v1.0.0 + `tests/shatter-board-test.mjs` (55 assertions).
+⚠️ **THE FOUR BULLETS BELOW WERE THE PLAN AND ALL FOUR SURVIVED CONTACT** — but
+three defects nobody predicted were found by the harness, and they are in
+`CHANGELOG.md` Round 103 and `HANDOFF.md` §2. ⚠️⚠️ **THE BIGGEST ONE IS NOT IN THIS
+LIST AND COULD NOT HAVE BEEN**: a split target costs **2N keystrokes**, so priced
+at N it demands 30 WPM of a child on a 15 WPM gate. `game-shell.js` v1.6.0's
+`costFactor` is the fix, and Part B of the harness pins it.
+⚠️ **ONE DEVIATION FROM THIS SECTION, DELIBERATE**: `splitTarget()` lives in
+`shatter-board.js`, not in `game-shell.js` as written below. The shell is shared
+arithmetic for all three games and would have had to import a 300-word morphology
+bank plus the drill filter to host it; `escape-board.js` is the precedent for a
+per-game pure module. ⚠️ **Jake was told and it is his to overturn.**
 
 * Free unlimited spacebar warp means the prototype is beaten without typing at
   all — warp goes on a charge meter earned by clearing words.
@@ -672,6 +688,7 @@ open. Full quotes and consequences in `NEXT-STEPS.md` §4.
 | 4c | assessed → lesson gates; arcade → **furthest gate reached** | `arcadeTargetWPM()` |
 | 4d | **both** entry points, quiet, **no day gate** | `game-names.js` `ARCADE_ENTRY` |
 | 4e | Escape Key **arcade-only**, time still counts | `game-names.js` `assessed`/`countsTime` |
+| 4f | ⭐ **RESTATED AND WIDENED 2026-09-09**: *"Shatter and Escape Key are just games. They're not quizzes... They're graded on time, and time spent typing is time spent well."* ⚠️ This closes the question 4e left half-open and applies to BOTH — no quota, no grade, no comparison table; the tick is the whole product | `game-shatter.js` header, `arcade.html` free-play path |
 
 ### ⚠️ THE TWO THAT CARRY A COST WORTH RE-READING
 
