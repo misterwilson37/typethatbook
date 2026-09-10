@@ -366,7 +366,7 @@ console.log('\nPART G — ⚠️⚠️ CAN A CHILD AT THE GATE ACTUALLY SURVIVE 
 
 const STEP_MS = 20;
 
-function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = true }) {
+function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = true, cap = false }) {
     const rand = mulberry(seed);
     const pool = makeArcadeTargets(HOME, 400, 4, mulberry(seed + 500))
         .filter(splittable);
@@ -379,7 +379,8 @@ function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = tr
         targets: pool, targetWPM: gate, minAccuracy: 85, shields,
         endless: true, costFactor: split ? SHATTER_COST_FACTOR : 1, rand,
     });
-    const b = new ShatterBoard({ rand });
+    // ⭐ v1.2.0 — `cap` turns on the TRAVEL_SLACK journey cap (Part S).
+    const b = new ShatterBoard({ rand, targetWPM: cap ? gate : 0 });
 
     const perKeyMs = 1000 / charsPerSecondFor(wpm);
     let nextKeyAt = 0;
@@ -483,6 +484,40 @@ function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = tr
     // exceeded its spawn count would mean splits were being dropped silently.
     ok(quick.d.clearedCount > quick.d._cursor,
        'more rocks are cleared than spawned, because every target becomes several');
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+console.log('\nPART S   v1.2.0: THE ROCKS COME FASTER, AND A GATE-SPEED CHILD STILL LIVES');
+// ════════════════════════════════════════════════════════════════════════════
+// Jake: "they were sooooo slow". The cap shortens journeys; this is the proof it
+// did not make the game unfair. Same typist, same seeds, cap ON.
+{
+    const { TRAVEL_SLACK, SPLIT_KICK } = await import('../shatter-board.js');
+    const b0 = new ShatterBoard({ rand: mulberry(9) });
+    const b1 = new ShatterBoard({ rand: mulberry(9), targetWPM: 15 });
+    const slowR = b0.spawn('railway', 50000, 0), fastR = b1.spawn('railway', 50000, 0);
+    ok(fastR.dr > slowR.dr * 2,
+       `S1 at 15 WPM a 7-letter rock crosses ${(fastR.dr / slowR.dr).toFixed(1)}x faster than the old 50 s journey`);
+    ok(Math.abs(1 / fastR.dr - TRAVEL_SLACK * 7 / (15 * 5 / 60) * 1000) < 1,
+       'S2 and the cap is exactly TRAVEL_SLACK x the time to type its own word at the gate');
+    const b2 = new ShatterBoard({ rand: mulberry(9), targetWPM: 15 });
+    const quick = b2.spawn('railway', 3000, 0);
+    ok(Math.abs(1 / quick.dr - 3000) < 1e-6, 'S3 a SHORTER shell lifetime still wins \u2014 the late ramp is untouched');
+
+    let brief = 0, worst = Infinity;
+    for (let s = 1; s <= 20; s++) {
+        const r = play({ wpm: 15, gate: 15, seed: s, seconds: 600, cap: true });
+        worst = Math.min(worst, r.lasted);
+        if (r.lasted < 90) brief++;
+    }
+    ok(brief === 0, `S4 with the cap on, every gate-speed run still lasts 90 s+ (worst ${Math.round(worst)} s)`);
+    let camper = 0;
+    for (let s = 1; s <= 20; s++) if (play({ wpm: 15, gate: 15, seed: s, seconds: 300, typist: false, cap: true }).d.over) camper++;
+    ok(camper === 20, 'S5 and a student who types nothing still loses, 20 of 20');
+    const a = play({ wpm: 15, gate: 15, seed: 4, seconds: 600, cap: true });
+    const z = play({ wpm: 30, gate: 15, seed: 4, seconds: 600, cap: true });
+    ok(z.lasted > a.lasted, `S6 a faster typist still outlasts a gate-speed one (${Math.round(z.lasted)} vs ${Math.round(a.lasted)} s)`);
+    ok(SPLIT_KICK > 0, 'S7 pieces are knocked outward on a break');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

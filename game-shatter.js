@@ -1,3 +1,27 @@
+// game-shatter.js v1.3.0 — Round 115 (Tower): THE ROCKS BREAK, THE SHIP TURNS,
+//   AND EVERY KEY IS A COLOURED SHOT. Jake, 2026-09-10, sending the Gemini
+//   prototype back as the baseline: *"Ship should rotate, and rocks should
+//   literally break... Adding more color would help - perhaps mimicking what you
+//   did with deadline and the ufos, where the colors of the keys were each
+//   represented in the art of the rock itself. No projectiles come out of the
+//   ship itself, and having the colors of the letters come out would at least
+//   have something happen. Maybe it can shimmer..."*
+//   • ROCK ART: each edge of a rock is coloured by one of its letters' finger
+//     colours (keyboard.js, via fingerColorOf — the Deadline UFO idea). A typed
+//     letter's edges go dark, so a rock visibly drains as you type it.
+//   • BOLTS: every correct key fires a bolt in THAT KEY'S colour from the ship's
+//     nose; on arrival the rock shimmers in the colour and chips sparks.
+//   • BREAKING: a cleared rock's own outline is cut into wedges that fly apart
+//     and tumble (Gemini's ShipDebris idea, applied to rocks). Pieces are thrown
+//     OUT from the break point (shatter-board.js v1.2.0's SPLIT_KICK) and the
+//     view flies them there instead of teleporting them.
+//   • THE SHIP TURNS at a capped rate and tracks its orbiting target; with no
+//     lock it holds its heading instead of snapping up.
+//   • SPEED lives in shatter-board.js v1.2.0 (targetWPM passed in below).
+//   ⚠️ ALL OF THIS IS VIEW-ONLY except the board options. No grading, no key
+//   accounting and no timing changed here.
+//
+// (v1.2.0 and earlier follow.)
 // game-shatter.js v1.2.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let).
 //
 // v1.2.0 — ⭐ BOTH SIDE PANELS, STACKED WARPS, AND THE IDLE-AWARE BANKED CLOCK.
@@ -86,7 +110,7 @@ import { rockOutline, drawRock, drawShip as drawShipArt, drawTargetWord }
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.2.0';
+export const GAME_SHATTER_VERSION = '1.3.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -167,7 +191,7 @@ export function mount(container, opts) {
     });
 
     let d = new GameDirector(baseCfg);
-    let board = new ShatterBoard({ rand });
+    let board = new ShatterBoard({ rand, targetWPM: d.targetWPM });
     let capsOn = false;
     let started = false;   // set by the countdown; spawns wait for it
 
@@ -225,6 +249,161 @@ export function mount(container, opts) {
     // ── view-only state ─────────────────────────────────────────────────────
     // ⚠️ EVERYTHING HERE IS COSMETIC. Board truth lives on `board`; game truth
     // lives on `d`. Nothing below is read to decide an outcome.
+    // ⭐ v1.3.0 — view-only effects. See the header.
+    let bolts = [];    // { x0,y0, rock, at, color, born }
+    let shards = [];   // { pts, x,y, vx,vy, rot, vrot, color, life }
+    let shipAngle = -Math.PI / 2;
+    const BOLT_MS = 130, SHIMMER_MS = 260, FLY_MS = 420, SHARD_S = 1.1;
+
+    function rockSize() { return Math.max(14, Math.round(ringR * 0.07)); }
+    function rockRadius(rock) {
+        const size = rockSize();
+        return Math.max(size * 1.4, rock.text.length * size * 0.42);
+    }
+    function ease(t) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3); }
+    /** Where a rock is DRAWN: a fresh piece flies out from its break point. */
+    function drawPos(rock, now) {
+        const p = px(rock);
+        if (rock.bornR == null || rock.bornAt == null) return p;
+        const t = ease((now - rock.bornAt) / FLY_MS);
+        if (t >= 1) return p;
+        const q = px({ r: rock.bornR, angle: rock.bornAngle });
+        return { x: q.x + (p.x - q.x) * t, y: q.y + (p.y - q.y) * t };
+    }
+    function shipNose() {
+        return { x: cx + Math.cos(shipAngle) * SHIP_R * 0.8,
+                 y: cy + Math.sin(shipAngle) * SHIP_R * 0.8 };
+    }
+    /** Cut the rock's own outline into tumbling wedges, one colour per letter. */
+    function shatterArt(rock, now) {
+        if (!rock.outline) return;
+        const p = drawPos(rock, now), rr = rockRadius(rock);
+        const n = rock.outline.length;
+        const spin = (rock.spin || 0) + (now / 1000) * (rock.spinRate || 0);
+        const away = Math.atan2(p.y - cy, p.x - cx);
+        const step = 2;
+        for (let i = 0, w = 0; i < n; i += step, w++) {
+            const pts = [[0, 0]];
+            for (let k = 0; k <= step; k++) {
+                const j = (i + k) % n, a = (j / n) * Math.PI * 2 + spin;
+                const R = rr * rock.outline[j];
+                pts.push([Math.cos(a) * R, Math.sin(a) * R]);
+            }
+            const mid = ((i + step / 2) / n) * Math.PI * 2 + spin;
+            const v = (70 + rand() * 90) * motionScale();
+            shards.push({
+                pts, x: p.x, y: p.y,
+                vx: Math.cos(mid) * v + Math.cos(away) * 40,
+                vy: Math.sin(mid) * v + Math.sin(away) * 40,
+                rot: 0, vrot: (rand() - 0.5) * 6 * motionScale(),
+                color: fingerColorOf(rock.text[w % rock.text.length] || 'a', '#ffffff'),
+                life: SHARD_S,
+            });
+        }
+    }
+    function updateEffects(dt, now) {
+        for (const sh of shards) {
+            sh.x += sh.vx * dt; sh.y += sh.vy * dt;
+            sh.vx *= 0.985; sh.vy *= 0.985;
+            sh.rot += sh.vrot * dt; sh.life -= dt;
+        }
+        shards = shards.filter(sh => sh.life > 0);
+        for (const b of bolts) if (board.rocks.includes(b.rock)) b.at = drawPos(b.rock, now);
+        const keep = [];
+        for (const b of bolts) {
+            if (now - b.born < BOLT_MS) { keep.push(b); continue; }
+            // ARRIVED: the rock shimmers in the bolt's colour and chips sparks.
+            b.rock.shimmer = { color: b.color, until: now + SHIMMER_MS };
+            burst(particles, b.at.x, b.at.y, b.color, Math.round(6 * motionScale()), 120);
+        }
+        bolts = keep;
+        // ⭐ THE SHIP TURNS, IT DOES NOT SNAP: capped turn rate toward the lock,
+        // and with no lock it holds its heading.
+        const lk = board.locked && board.rocks.includes(board.locked) ? board.locked : null;
+        if (lk) {
+            const p = drawPos(lk, now);
+            let dA = Math.atan2(p.y - cy, p.x - cx) - shipAngle;
+            dA = Math.atan2(Math.sin(dA), Math.cos(dA));
+            const maxTurn = 10 * dt;
+            shipAngle += Math.max(-maxTurn, Math.min(maxTurn, dA));
+        }
+    }
+    function drawEffects(now) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        for (const b of bolts) {
+            const t = Math.min(1, (now - b.born) / BOLT_MS);
+            const tt = Math.max(0, t - 0.4);
+            ctx.strokeStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 10;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(b.x0 + (b.at.x - b.x0) * tt, b.y0 + (b.at.y - b.y0) * tt);
+            ctx.lineTo(b.x0 + (b.at.x - b.x0) * t, b.y0 + (b.at.y - b.y0) * t);
+            ctx.stroke();
+        }
+        ctx.shadowBlur = 0;
+        for (const sh of shards) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, sh.life / SHARD_S);
+            ctx.translate(sh.x, sh.y); ctx.rotate(sh.rot);
+            ctx.beginPath();
+            sh.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(8,12,22,0.7)'; ctx.fill();
+            ctx.strokeStyle = sh.color; ctx.lineWidth = 1.6; ctx.stroke();
+            ctx.restore();
+        }
+        ctx.restore();
+    }
+
+    /**
+     * ⭐ v1.3.0 — THE ROCK'S ART IS ITS LETTERS. Each edge takes the finger colour
+     * of one letter (cycling); an edge whose letter is typed goes dark, so the
+     * rock drains as it is typed. Danger and lock are a GLOW, not a recolour, so
+     * the letters stay readable in both states. A shimmer is the last bolt's
+     * colour washing over the whole outline.
+     */
+    function drawLetterRock(rock, x, y, rr, spin, isLocked, near, now) {
+        const o = rock.outline, n = o.length, L = rock.text.length || 1;
+        const pt = j => {
+            const a = (j / n) * Math.PI * 2 + spin, R = rr * o[j % n];
+            return [x + Math.cos(a) * R, y + Math.sin(a) * R];
+        };
+        ctx.save();
+        ctx.beginPath();
+        for (let j = 0; j < n; j++) { const [a, b] = pt(j); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }
+        ctx.closePath();
+        ctx.fillStyle = rock.parent != null ? 'rgba(40,30,10,0.6)' : 'rgba(4,7,14,0.6)';
+        ctx.fill();
+        // ⚠️ A HALO STROKE, NOT A GLOWING FILL — a blurred fill washed the whole
+        // rock yellow and buried the letter colours (seen rendered, Round 115).
+        if (near || isLocked) {
+            ctx.strokeStyle = near ? 'rgba(255,85,102,0.30)' : 'rgba(255,255,0,0.22)';
+            ctx.lineWidth = 6; ctx.lineJoin = 'round'; ctx.stroke();
+        }
+        ctx.lineWidth = isLocked ? 2.8 : 2;
+        ctx.lineCap = 'round';
+        for (let j = 0; j < n; j++) {
+            const li = Math.floor(j * L / n);
+            const [a, b] = pt(j), [c, e] = pt(j + 1);
+            ctx.globalAlpha = li < rock.typed ? 0.22 : 1;
+            ctx.strokeStyle = fingerColorOf(rock.text[li], '#ffffff');
+            ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, e); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        const sh = rock.shimmer;
+        if (sh && now < sh.until) {
+            const k = (sh.until - now) / SHIMMER_MS;
+            ctx.globalAlpha = k;
+            ctx.strokeStyle = sh.color; ctx.shadowColor = sh.color; ctx.shadowBlur = 18;
+            ctx.lineWidth = 3 + 3 * k;
+            ctx.beginPath();
+            for (let j = 0; j < n; j++) { const [a, b] = pt(j); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }
+            ctx.closePath(); ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     let particles = [];
     let banner = null;
     let flash = 0;
@@ -264,6 +443,7 @@ export function mount(container, opts) {
         }
 
         const wasPiece = board.locked && board.locked.parent != null;
+        const before = board.rocks.slice();
         const r = board.tryKey(e.key, now);
 
         // ⚠️⚠️ IGNORED IS NOT CORRECT AND NOT WRONG. A space at a word boundary
@@ -283,7 +463,19 @@ export function mount(container, opts) {
             return;
         }
 
+        // ⭐ v1.3.0 — THE SHOT, in the colour of the key just typed, at the rock
+        // that took it (the lock, or on the finishing key the rock that left).
+        const gone = before.find(x => !board.rocks.includes(x)) || null;
+        const hitRock = (board.locked && board.rocks.includes(board.locked)) ? board.locked : gone;
+        if (hitRock) {
+            const nose = shipNose();
+            bolts.push({ x0: nose.x, y0: nose.y, rock: hitRock, at: drawPos(hitRock, now),
+                         color: fingerColorOf(e.key, '#ffffff'), born: now });
+        }
+
         if (r.cleared) {
+            if (gone) shatterArt(gone, now);
+            r.pieces.forEach(pc => { decorate(pc); pc.bornAt = now; });
             // ⚠️⚠️ ONE SPAWNED TARGET, ONE RAMP STEP. Every piece is a real
             // `cleared()` — it is real typing and must reach clearedChars and the
             // score — but `RAMP_PER_TARGET` is priced per TARGET, and a Shatter
@@ -359,7 +551,8 @@ export function mount(container, opts) {
      */
     function restart() {
         d = new GameDirector(baseCfg);
-        board = new ShatterBoard({ rand });
+        board = new ShatterBoard({ rand, targetWPM: d.targetWPM });
+        bolts = []; shards = []; shipAngle = -Math.PI / 2;
         particles = [];
         banner = null; flash = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
@@ -411,6 +604,7 @@ export function mount(container, opts) {
         }
 
         updateParticles(particles, dt);
+        updateEffects(dt, now);
         if (flash > 0) flash = Math.max(0, flash - dt);
         // ⚠️ IN THE FRAME LOOP, NOT ONLY IN finish() — the host's daily total has
         // to move WHILE the student plays, because that is when they are looking
@@ -497,6 +691,7 @@ export function mount(container, opts) {
 
         drawRings();
         drawRocks(now, tSec);
+        drawEffects(now);
         drawShip();
         drawParticles(ctx, particles);
         drawHud(d.report(now));
@@ -538,38 +733,15 @@ export function mount(container, opts) {
     }
 
     function drawRocks(now, tSec) {
-        // ⚠️ FARTHEST FIRST, so a near rock is never drawn under a far one. The
-        // near rock is the one the lock is pointing at.
         const sorted = board.rocks.slice().sort((a, b) => b.r - a.r);
-        const size = Math.max(14, Math.round(ringR * 0.07));
+        const size = rockSize();
         for (const rock of sorted) {
             decorate(rock);
-            const p = px(rock);
+            const p = drawPos(rock, now);
             const near = rock.r <= DANGER_R;
             const isLocked = rock === board.locked;
-            // ⭐ THE ROCK IS SIZED TO ITS OWN WORD, because the word sits inside
-            // it. That is legitimate here in a way it was not on Escape Key's
-            // grid: these are objects at different distances, so plainly
-            // different sizes read as depth rather than as sloppy alignment.
-            const rr = Math.max(size * 1.4, rock.text.length * size * 0.42);
-            // ⚠️ THE OUTLINE CARRIES STATE AND NOTHING ELSE DOES: red when it is
-            // about to land, yellow when locked, otherwise the colour of the
-            // finger that types its next key — the same finger map keyboard.js
-            // uses everywhere else in this app.
-            const nextCh = rock.text[rock.typed] || rock.text[0];
-            const stroke = near ? '#ff5566'
-                : isLocked ? '#ffff00'
-                : fingerColorOf(nextCh, '#ffffff');
-            drawRock(ctx, p.x, p.y, rr, rock.outline, {
-                spin: rock.spin + tSec * rock.spinRate,
-                stroke,
-                lineWidth: isLocked ? 2.6 : 1.8,
-                glow: near ? '#ff5566' : (isLocked ? '#ffff00' : null),
-                // ⚠️ A PIECE IS FILLED, A PARENT IS HOLLOW — a difference of KIND
-                // rather than of degree. A slightly smaller hollow rock would be
-                // exactly the "slightly off" that reads as a mistake.
-                fill: rock.parent != null ? 'rgba(60,44,10,0.55)' : 'rgba(4,7,14,0.55)',
-            });
+            drawLetterRock(rock, p.x, p.y, rockRadius(rock),
+                           rock.spin + tSec * rock.spinRate, isLocked, near, now);
             drawTargetWord(ctx, p.x, p.y, rock.text, rock.typed, size, isLocked);
         }
     }
@@ -583,12 +755,8 @@ export function mount(container, opts) {
      * telling the student about a target that does not exist.
      */
     function drawShip() {
-        let angle = null;
-        if (board.locked && board.rocks.includes(board.locked)) {
-            const p = px(board.locked);
-            angle = Math.atan2(p.y - cy, p.x - cx);
-        }
-        drawShipArt(ctx, cx, cy, SHIP_R * 0.8, angle);
+        // ⭐ v1.3.0 — the heading is shipAngle, turned in updateEffects().
+        drawShipArt(ctx, cx, cy, SHIP_R * 0.8, shipAngle);
     }
 
     function drawHud(rep) {

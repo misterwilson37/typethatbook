@@ -13,7 +13,12 @@
 >
 > **Expected stamps:** `index.html` **v3.24.0**, `arcade.html` **v3.16.0**
 > (the arcade badge reads `arcade v3.16.0`), `game-deadline.js` **v1.12.0**,
-> `learn2.js` **v0.8.0-staging**.
+> `learn2.js` **v0.8.0-staging**, `shatter-board.js` **v1.2.0**,
+> `game-shatter.js` **v1.3.0**.
+>
+> **Third change this round:** Shatter's rocks come ~3.7× faster early (new
+> speed rule, fairness re-swept), spiral in, break into tumbling letter-coloured
+> shards, and every key fires a bolt in its finger colour. §15.2.
 >
 > **Second fix this round:** on `learn2`, a defended city now ALWAYS moves the
 > student forward — the modal no longer re-grades accuracy against the game's
@@ -7931,4 +7936,25 @@ instead when `passReport` exists (arcade sees this as a normal game end).
 `game-slot-test.mjs` Part T pins all of it. ⚠️ **The same fix is needed in
 `learn.js` whenever the fork is folded back** — §11; do not lose it in the merge.
 ⚠️ Not browser-verified end to end.
+
+### §15.2 Shatter: speed rethink, breaking, colour
+
+⚠️⚠️ **The old speed rule** was depth 4 × 2N chars at the gate — ~50 s per rock at
+15 WPM. `shatter-board.js` v1.2.0: journey capped at `TRAVEL_SLACK` (2.4) × own-word
+typing time (board takes `targetWPM`; the shell's shorter lifetime still wins, so
+the ramp is intact); pieces kicked outward by `SPLIT_KICK` (pays for them; only
+lengthens); rocks orbit (`ORBIT`, angular only — **never let it feed `r`**). Part S
+of `shatter-board-test.mjs` is the fairness proof; re-run it after touching any
+of the three constants. ⚠️ SLACK below ~2.2 makes pieces unclearable at the gate.
+
+`game-shatter.js` v1.3.0 is view-only: per-letter coloured edges, colour bolts +
+shimmer, wedge shards, fly-out pieces, capped-rate ship turning. `drawRock` is
+now unused in this file (still exported by `game-sprites.js`). Known: long words
+at the ring overhang the playfield edge.
+
+**Open ideas offered to Jake for Shatter's own personality** (not built): the
+ship as a gravity well / "the words are falling into you" vortex (the orbit is a
+first step), breaking a rock into its morpheme pieces with the piece meanings
+shown (data exists in `shatter-words.js`), chain reactions when shards hit other
+rocks of the same finger colour.
 

@@ -1,5 +1,42 @@
 # CHANGELOG — TypeThatBook
 
+## Round 115 (Tower) — continued — Shatter breaks, turns, and shoots colour
+
+Jake sent the Gemini prototype back as the baseline: *"Ship should rotate, and
+rocks should literally break. Rocks should come in a little faster, too - they
+were sooooo slow (I'm not sure what the math is based on, but it needs to be
+rethought)... having the colors of the letters come out would at least have
+something happen."*
+
+* ⚠️⚠️ **THE SPEED MATH, AND WHY IT WAS GLACIAL.** A rock's journey was
+  `QUEUE_DEPTH (4) × time to type the word AND its pieces (2N) at the gate` — about
+  50 s for an 8-letter rock at 15 WPM. **`shatter-board.js` 1.1.0 → 1.2.0:**
+  * `TRAVEL_SLACK = 2.4` caps a journey at 2.4 × the time to type *its own* word
+    at the gate (the board now takes `targetWPM`). The shell's lifetime still wins
+    when shorter, so the late-game ramp is untouched. ~3.7× faster early.
+  * `SPLIT_KICK = 0.25` — a break throws its pieces outward (max 0.95). That is
+    what pays for the pieces now, and it only ever lengthens a journey.
+  * `ORBIT` — rocks **spiral in**, faster as they close. Angular only; it never
+    touches `r`, which is still the fair rule.
+  * `tests/shatter-board-test.mjs` Part S (7 new, 66 total): with the cap on,
+    every gate-speed run still lasts 90 s+ on 20 seeds (worst 97 s), a camper
+    still dies 20/20, a faster typist still outlasts a slower one.
+* **`game-shatter.js` 1.2.0 → 1.3.0 (view only):**
+  * **Letter-coloured rocks** — each edge takes a letter's finger colour (the
+    Deadline UFO idea); typed letters' edges go dark, so a rock drains.
+  * **Colour bolts** from the ship's nose on every correct key, in that key's
+    colour; the rock **shimmers** in it on arrival and chips sparks.
+  * **Rocks literally break** — the outline is cut into wedges that tumble apart;
+    pieces fly out from the break point rather than teleporting.
+  * **The ship turns** at a capped rate, tracks its orbiting target, and holds its
+    heading with no lock.
+  * Lock/danger is a soft halo stroke — a glowing fill buried the letter colours
+    (seen in the render, fixed).
+* Verified in Chromium with a scripted correct typist: breaks, bolts, shimmer,
+  flying pieces and turning all render; no page errors. ⚠️ Known: a long word at
+  the ring can overhang the playfield edge (pre-existing, slightly worse with the
+  kick).
+
 ## Round 115 (Tower) — continued — a defended city moves you forward
 
 Students on `learn2` reported saving the city, playing survival, and then being
