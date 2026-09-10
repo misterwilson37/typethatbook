@@ -1554,56 +1554,98 @@ export function drawWavePreview(ctx, o) {
     ctx.fillStyle = '#ffd700';
     ctx.fillText('WAVE ' + (o.round || 1), W - pad, pad);
 
-    const waves = (o.waves || []).slice(0, 3);
+    const waves = (o.waves || []).slice(0, 4);
     if (!waves.length) { ctx.restore(); return; }
 
-    const top = pad + 24;
-    const rowH = Math.max(46, Math.min(96, (H - top - pad) / 3));
-    // ⚠️ THE SPRITE IS SIZED TO THE ROW, NOT TO A CONSTANT. This panel is a flex
-    // child between GAUGE_MIN_H and GAUGE_MAX_H on the real page and a fixed
-    // sprite size would overflow it on a short window — the Round 101 defect,
-    // one panel over.
-    const sprite = Math.min(rowH * 0.78, W - pad * 2 - 70);
+    const top = pad + 22;
+    const rowH = Math.max(52, (H - top - pad) / waves.length);
 
     waves.forEach((w, i) => {
         const y = top + i * rowH;
-        // ⭐ THE NEXT ONE IS FULL STRENGTH AND THE OTHERS FADE BACK. Three equal
-        // rows read as a list; a fading queue reads as an order of arrival, which
-        // is the fact the student actually needs.
-        ctx.globalAlpha = i === 0 ? 1 : (i === 1 ? 0.62 : 0.38);
+        ctx.globalAlpha = i === 0 ? 1 : (i === 1 ? 0.66 : i === 2 ? 0.46 : 0.32);
 
+        // ⭐⭐ THE TIMING LINE SITS ABOVE THE CREATURE, FULL WIDTH. Jake:
+        // *"I like the 'when the board clears' descriptor, but it's truncated. I
+        // also wonder if that text should go above the creature."*
+        // ⚠️ IT WAS TRUNCATED BECAUSE IT WAS BESIDE THE SPRITE, sharing the row
+        // with it and with the name — three things in one 210px column. Above the
+        // creature it has the whole panel width and cannot clip.
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.font = 'bold 10px "Courier Prime", monospace';
+        ctx.fillStyle = i === 0 ? '#ffd700' : '#7f97b8';
+        // ⚠️ ONLY THE NEXT WAVE GETS A TIME. The ones behind it depend on when
+        // this one lands, so a number there would be a guess presented as a fact.
+        const note = i > 0 ? 'then'
+            : w.gap == null ? 'when the board clears'
+            : 'in ' + w.gap + ' square' + (w.gap === 1 ? '' : 's');
+        ctx.fillText(note, pad, y);
+
+        const bodyY = y + 14;
+        const bodyH = rowH - 18;
+        const sprite = Math.min(bodyH * 0.92, 46);
         const s = ENEMY_SPRITES[w.kind];
         if (s) {
             drawPixelSprite(ctx, s, ENEMY_PALETTES[w.kind],
-                            pad + sprite / 2, y + rowH / 2, sprite);
+                            pad + sprite / 2, bodyY + bodyH / 2, sprite);
         }
 
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.font = 'bold 12px "Courier Prime", monospace';
         ctx.fillStyle = '#e8f2fa';
-        ctx.fillText(String(w.kind || '').toUpperCase(), pad + sprite + 10, y + rowH / 2 - 8);
+        ctx.fillText(String(w.kind || '').toUpperCase(), pad + sprite + 10, bodyY + bodyH / 2);
 
-        ctx.font = 'bold 10px "Courier Prime", monospace';
-        ctx.fillStyle = '#7f97b8';
-        // ⚠️ ONLY THE NEXT WAVE GETS A COUNTDOWN. The two behind it depend on when
-        // this one lands, so a number on them would be a guess presented as a
-        // fact — and a preview that is sometimes wrong is worse than one that
-        // says less.
-        const note = i > 0 ? 'then'
-            : w.gap == null ? 'when the board clears'
-            : 'in ' + w.gap + ' square' + (w.gap === 1 ? '' : 's');
-        ctx.fillText(note, pad + sprite + 10, y + rowH / 2 + 8);
+        // ⭐⭐ THE MOVEMENT GLYPH, WHERE THE TIMING TEXT USED TO CROWD. Jake:
+        // *"the space to the right could instead be arrows showing how they move.
+        // Up down arrows for the spider/left right for the kaiju/target for the
+        // hunter."*
+        // ⚠️ THIS IS THE ONLY THING IN THE PANEL THAT TEACHES A BEHAVIOUR, and it
+        // teaches the one fact that decides what the student should do: an axis.
+        // ⚠️ IT SAYS HOW, NEVER WHERE — the panel still refuses to show the spawn
+        // edge. An axis is a rule about the creature; an edge is a fact about
+        // this particular arrival, and giving that away removes the read-the-board
+        // skill the game is built on.
+        drawMoveGlyph(ctx, W - pad - 13, bodyY + bodyH / 2, 13, w.kind);
         ctx.globalAlpha = 1;
     });
 
-    // The countdown bar for the next wave only, and only when it is measurable.
-    if (o.progress != null && waves.length) {
-        const bw = W - pad * 2, by = top + rowH - 8;
-        roundRect(ctx, pad, by, bw, 5, 2.5);
+    if (o.progress != null) {
+        const bw = W - pad * 2, by = top + rowH - 6;
+        roundRect(ctx, pad, by, bw, 4, 2);
         ctx.fillStyle = 'rgba(12,20,34,0.95)'; ctx.fill();
-        roundRect(ctx, pad, by, bw * Math.max(0, Math.min(1, o.progress)), 5, 2.5);
+        roundRect(ctx, pad, by, bw * Math.max(0, Math.min(1, o.progress)), 4, 2);
         ctx.fillStyle = '#a32cc4'; ctx.fill();
+    }
+    ctx.restore();
+}
+
+/** Up/down for the spider, left/right for the kaiju, a target for the hunter. */
+function drawMoveGlyph(ctx, x, y, r, kind) {
+    ctx.save();
+    ctx.strokeStyle = '#7f97b8';
+    ctx.fillStyle = '#7f97b8';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    const arrow = (dx, dy) => {
+        ctx.beginPath();
+        ctx.moveTo(x, y); ctx.lineTo(x + dx * r, y + dy * r); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + dx * r, y + dy * r);
+        ctx.lineTo(x + dx * r * 0.55 - dy * r * 0.35, y + dy * r * 0.55 - dx * r * 0.35);
+        ctx.lineTo(x + dx * r * 0.55 + dy * r * 0.35, y + dy * r * 0.55 + dx * r * 0.35);
+        ctx.closePath(); ctx.fill();
+    };
+    if (kind === 'spider') { arrow(0, -1); arrow(0, 1); }
+    else if (kind === 'kaiju') { arrow(-1, 0); arrow(1, 0); }
+    else {
+        // ⚠️ A TARGET, NOT AN ARROW. The hunter has no axis — it comes for the
+        // student — and a four-way arrow would say "moves any direction", which
+        // is true of nothing else on the board and misses the point entirely.
+        for (const k of [1, 0.6]) {
+            ctx.beginPath(); ctx.arc(x, y, r * k, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.beginPath(); ctx.arc(x, y, r * 0.18, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
 }

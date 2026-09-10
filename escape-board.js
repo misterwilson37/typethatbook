@@ -284,6 +284,30 @@ export class EscapeBoard {
      * drill-filter.js's exhausted budget — a board that appears beats a board
      * that is perfect, and a game that hangs beats nothing.
      */
+    /**
+     * Draw a word for one cell.
+     *
+     * @param {string[]} avoid  words whose FIRST CHARACTER this one must not
+     *        share — the adjacency rule, so four neighbours stay choosable.
+     *
+     * ⚠️⚠️ AND SEPARATELY, NO WORD ALREADY ON THE BOARD. Jake, 2026-09-09:
+     * *"the words are all repeated multiple times on the same frame. There
+     * shouldn't really be any repeats with a pool of 200 words."* He is right and
+     * the cause was that THIS FUNCTION ONLY EVER COMPARED FIRST CHARACTERS. Two
+     * cells holding `into` never violated the adjacency rule, so nothing stopped
+     * six of them, and with 200 words available the board still looked like it
+     * had eight.
+     *
+     * ⭐ THE TWO RULES ARE DIFFERENT AND BOTH ARE NEEDED: first characters must
+     * differ among NEIGHBOURS so the student can choose a direction; whole words
+     * must differ across the WHOLE BOARD so it reads as thirty things rather than
+     * as eight repeated.
+     *
+     * ⚠️ THE UNIQUENESS PASS IS BEST-EFFORT AND FALLS BACK, because it has to:
+     * `arcade-pool.js`'s MIN_POOL is 24 and the board has 30 cells, so a thin
+     * early level CANNOT fill it uniquely. A hard requirement would blank cells
+     * on exactly the levels that can least afford it.
+     */
     wordAvoiding(avoid) {
         // ⚠️ THE ROUND'S POOL, NOT THE CONSTRUCTOR'S, WHEN A PROVIDER IS GIVEN.
         // ⚠️ AND IT FALLS BACK TO `this.pool` IF THE PROVIDER RETURNS NOTHING: a
@@ -293,6 +317,17 @@ export class EscapeBoard {
             ? this.poolFor(this.round) : this.pool;
         if (!pool.length) return '';
         const taken = new Set((avoid || []).filter(Boolean).map(w => w[0]));
+        const used = this.wordsInUse();
+
+        // Pass 1: a different first character AND a word not already on the board.
+        for (let i = 0; i < 60; i++) {
+            const w = pool[Math.floor(this.rand() * pool.length)];
+            if (!taken.has(w[0]) && !used.has(w)) return w;
+        }
+        // ⚠️ PASS 2 DROPS UNIQUENESS BEFORE IT DROPS THE FIRST-CHARACTER RULE, and
+        // that order is deliberate. A duplicate word is untidy; two neighbours
+        // sharing a first character makes the board UNCHOOSABLE, which is a
+        // broken game rather than an ugly one.
         for (let i = 0; i < 40; i++) {
             const w = pool[Math.floor(this.rand() * pool.length)];
             if (!taken.has(w[0])) return w;
@@ -634,8 +669,26 @@ export class EscapeBoard {
      */
     ash(x, y) {
         if (x === this.player.x && y === this.player.y) return;
+        // ⚠️⚠️ A BLAST MAY NEVER TAKE THE PLAYER'S LAST EXIT. Found by the harness
+        // once whole-board word uniqueness shifted the random stream: with enough
+        // ash on the board a student could have all four neighbours ashed at
+        // once, and ash holds a square for five steps. ⭐ THEY WOULD BE ALIVE,
+        // UNTHREATENED, AND UNABLE TO TYPE ANYTHING — no legal move, no death, no
+        // way to act. A game that simply stops is worse than one that kills you.
+        // ⚠️ THE RULE IS "NOT THE LAST ONE", NOT "NEVER NEXT TO THE PLAYER".
+        // Ashing three of four exits is exactly the pressure the kaiju is for;
+        // only the fourth is refused.
+        if (this.isAdjacentTo(x, y, this.player.x, this.player.y)) {
+            const exits = this.adjacent(this.player.x, this.player.y)
+                .filter(c => this.grid[c.y][c.x] && !(c.x === x && c.y === y)).length;
+            if (exits === 0) return;
+        }
         this.grid[y][x] = '';
         this.zapped[y][x] = ASH_STEPS;
+    }
+
+    isAdjacentTo(x, y, px, py) {
+        return Math.abs(x - px) + Math.abs(y - py) === 1;
     }
 
     /** Can the player step here? ⚠️ THE VIEW MUST NOT ANSWER THIS — ash is a rule. */
@@ -738,6 +791,20 @@ export class EscapeBoard {
         this._lastSpawned = en;
         this.wave++;
         return { t: 'spawn', kind, x: en.x, y: en.y, wave: en.wave };
+    }
+
+    /**
+     * Every word currently visible. ⚠️ INCLUDES THE TEAR-FREE WORD — a webbed
+     * student typing a word that is also sitting in a neighbouring cell would
+     * have two correct answers to one prompt.
+     */
+    wordsInUse() {
+        const s = new Set();
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) if (this.grid[y][x]) s.add(this.grid[y][x]);
+        }
+        if (this.player.webWord) s.add(this.player.webWord);
+        return s;
     }
 
     /**

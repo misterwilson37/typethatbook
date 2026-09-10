@@ -1026,6 +1026,33 @@ function showFreeGates() {
  * game-shell.js is explicit that it may only be supplied by a caller that
  * ALREADY holds the leaderboard document, and this page does not.
  */
+/**
+ * ⚠️⚠️ THE PANEL WANTS `todayClock` / `weekClock`; `MINUTES` HOLDS
+ * `dailySeconds` / `weeklySeconds`. Passing the raw object was why Jake saw no
+ * daily or weekly row at all — `drawGauges()` reads two field names this page has
+ * never used, found both undefined, and correctly drew nothing. ⭐ NO ERROR, NO
+ * WARNING, JUST AN ABSENT PANEL SECTION: the failure mode of an object contract
+ * that nothing checks.
+ *
+ * ⚠️ AND IT IS A FUNCTION SO THE CLOCKS CLIMB. bankSecond() already increments
+ * MINUTES live; a snapshot taken at mount would have been frozen at the value it
+ * had when the student pressed play, which is the other half of what he saw.
+ */
+function clockStr(sec) {
+    const s = Math.max(0, Math.floor(sec || 0));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+             : `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function liveMinutes() {
+    if (!MINUTES) return null;
+    return {
+        todayClock: clockStr(MINUTES.dailySeconds),
+        weekClock: clockStr(MINUTES.weeklySeconds),
+    };
+}
+
 function chosenScope() { return $('scope').value === 'full' ? 'full' : 'level'; }
 
 function chosenLevelIdx() {
@@ -1167,7 +1194,7 @@ function play() {
         // the lesson flow on both. See game-deadline.js's `survival` note.
         survival: survivalPool.length > 0,
         // ⚠️ A GETTER, not the object — see game-deadline.js's minuteLines().
-        minutes: () => MINUTES,
+        minutes: liveMinutes,
         // ⚠️⚠️ ONE TICK PER GRADED SECOND. The date is stamped HERE, at the
         // moment of the tick, so a game running through midnight splits across
         // two days exactly as a lesson does — the view never learns what a date
@@ -1220,7 +1247,7 @@ function playFree() {
                 barHost: $('controls-col'),
                 panelCanvas: $('radar-canvas'),
                 gaugeCanvas: $('gauge-canvas'),
-                minutes: () => MINUTES,
+                minutes: liveMinutes,
               }
             : {}),
         ...(g.id === 'escape'
@@ -1228,7 +1255,7 @@ function playFree() {
                 barHost: $('controls-col'),
                 previewCanvas: $('radar-canvas'),
                 gaugeCanvas: $('gauge-canvas'),
-                minutes: () => MINUTES,
+                minutes: liveMinutes,
               }
             : {}),
         ...(g.id === 'escape'

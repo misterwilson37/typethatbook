@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- tools/game-lab.html v1.7.0 — Round 108 (Bar-Let): the bench shows Escape Key's
+<!-- tools/game-lab.html v1.8.0 — Round 110 (Bar-Let): the bench mirrors arcade.html's
+     three-column shape, all three games get the flanks, and the clocks climb.
+     ⚠️ A BENCH THAT DIFFERS FROM THE PAGE CANNOT REPRODUCE THE PAGE'S BUGS.
+     tools/game-lab.html v1.7.0 — Round 108 (Bar-Let): the bench shows Escape Key's
      side panels, which were previously only visible on the live page.
      tools/game-lab.html v1.6.0 — Round 105 (Bar-Let): the bench offers BOTH scopes,
      and Shatter can be benched on its morpheme pool. ⚠️ A bench that could only
@@ -99,10 +102,21 @@
 <!-- ⚠️ THE BENCH GETS THE PANELS TOO. They were the one part of Deadline the lab
      could never show, so every panel defect had to be found on the live page by a
      student. -->
-<div id="lab-cols" style="display:flex;gap:8px;align-items:stretch;min-height:520px">
-  <canvas id="preview-canvas" style="width:210px;flex:0 0 210px;background:#06101c"></canvas>
-  <div id="stage" style="flex:1 1 auto"></div>
-  <canvas id="gauge-canvas" style="width:230px;flex:0 0 230px;min-height:420px;background:#06101c"></canvas>
+<!-- ⚠️⚠️ THE BENCH MIRRORS arcade.html's THREE-COLUMN SHAPE ON PURPOSE. Jake:
+     *"Game lab and arcade should essentially match. I should be able to play
+     shatter from either, too."* ⭐ A BENCH THAT DIFFERS FROM THE PAGE IS A BENCH
+     THAT CANNOT REPRODUCE THE PAGE'S BUGS — the control bar landing on the
+     keyboard, the gauges drawing nothing, the panel column too short to fit its
+     rows: every one of those was a LAYOUT fault, and a bench with a different
+     layout was structurally unable to show any of them.
+     ⚠️ #controls-col IS THE BAR HOST, exactly as on the real page, so the chrome
+     buttons dock in the right column instead of floating over the keyboard. -->
+<div id="lab-cols" style="display:flex;gap:8px;align-items:stretch;min-height:560px">
+  <canvas id="preview-canvas" style="width:230px;flex:0 0 230px;background:#06101c;border-radius:8px"></canvas>
+  <div id="stage" style="flex:1 1 auto;min-width:0"></div>
+  <div id="controls-col" style="width:240px;flex:0 0 240px;display:flex;flex-direction:column;gap:6px">
+    <canvas id="gauge-canvas" style="width:100%;flex:1 1 auto;min-height:430px;background:#06101c;border-radius:8px"></canvas>
+  </div>
 </div>
 <div id="readout">Set a gate, press Start, then Start again on the get-ready panel. Sound is off by default — the Sound button turns it on. Escape clears the current word. Deadline: type the word nearest the ground. Escape Key: type an adjacent word to move onto it — your row and column are tinted, because that is where creatures arrive. Shatter: type the rock nearest your ship; it breaks into pieces that spell it, and you have to type those too. Clearing rocks fills the WARP meter — Space pushes everything back. The readout counts banked seconds, which is the only thing Shatter and Escape Key save.</div>
 
@@ -146,6 +160,31 @@ function sequenceFor(kind) {
 }
 
 let bankPoolSource = '';
+let ticks = 0;
+
+/**
+ * ⚠️⚠️ THE BENCH'S CLOCKS CLIMB, AND THE FIRST VERSION'S DID NOT. It returned two
+ * fixed strings, so Jake reasonably read a frozen panel as a broken one — *"the
+ * clocks on the right don't climb."* ⭐ A FAKE THAT DOES NOT MOVE IS
+ * INDISTINGUISHABLE FROM A DEAD SEAM, which is the one thing a bench exists to
+ * tell you apart.
+ * ⚠️ IT COUNTS THE SAME `ticks` THE READOUT SHOWS, so the panel and the readout
+ * cannot disagree — and the numbers below them are a plausible starting total,
+ * not real data, because the bench has no auth.
+ */
+const LAB_DAY_BASE = 12 * 60, LAB_WEEK_BASE = 108 * 60;
+function labClock(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+             : `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+function labMinutes() {
+    return {
+        todayClock: labClock(LAB_DAY_BASE + ticks),
+        weekClock: labClock(LAB_WEEK_BASE + ticks),
+    };
+}
 function describe(cfg) {
     const which = document.getElementById('game').value;
     const avg = avgTargetChars(cfg.targets);
@@ -214,7 +253,7 @@ function start() {
     // arcade-lesson-test.mjs stayed green the whole time because it pinned the
     // PAGE's listener while nothing was emitting. A visible counter here is the
     // cheapest end of that seam to check.
-    let ticks = 0;
+    ticks = 0;
     handle = mount(stage, {
         config: cfg,
         onSecond: () => { ticks++; },
@@ -222,6 +261,15 @@ function start() {
         // words LENGTHEN as rounds advance; without it the bench would read one
         // of the eight banks and the other seven would stay unexercised.
         // ⚠️ ESCAPE KEY ONLY — game-shatter.js accepts neither canvas.
+        // ⚠️ EVERY GAME GETS THE FLANKS NOW, not Escape Key alone — Shatter's
+        // left panel is a radar over a warp meter rather than a wave preview, but
+        // it is the same box, and Deadline has had both since Round 95.
+        barHost: document.getElementById('controls-col'),
+        ...(which === 'shatter'
+            ? { panelCanvas: document.getElementById('preview-canvas'),
+                gaugeCanvas: document.getElementById('gauge-canvas'),
+                minutes: labMinutes }
+            : {}),
         ...(which === 'escape'
             ? { previewCanvas: document.getElementById('preview-canvas'),
                 gaugeCanvas: document.getElementById('gauge-canvas'),
@@ -229,7 +277,7 @@ function start() {
                 // rather than reading them. ⭐ IT PASSES A GETTER, exactly as the
                 // real page does, so the SEAM is exercised even though the data
                 // is not real.
-                minutes: () => ({ todayClock: '0:12:30', weekClock: '1:48:05' }) }
+                minutes: labMinutes }
             : {}),
         ...(which === 'escape' && bankPool
             ? { poolFor: poolProviderFor(LAB_KEYS, Math.random,

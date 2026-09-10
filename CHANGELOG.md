@@ -1,5 +1,86 @@
 # CHANGELOG — TypeThatBook
 
+## Round 110 (Bar-Let) — 2026-09-10 — repeats, dead seams, and a board that could trap you
+
+### ⚠️⚠️ THE SAME EIGHT WORDS, THIRTY TIMES
+
+Jake: *"the words are all repeated multiple times on the same frame. There
+shouldn't really be any repeats with a pool of 200 words."*
+
+⭐ **`wordAvoiding()` ONLY EVER COMPARED FIRST CHARACTERS.** Two cells holding
+`into` never violated the adjacency rule, so nothing stopped six of them — and
+with 199 words available the board still looked like it had eight.
+
+⚠️ **THE TWO RULES ARE DIFFERENT AND BOTH ARE NEEDED**: first characters must
+differ among NEIGHBOURS so a direction is choosable; whole words must differ
+across the WHOLE BOARD so it reads as thirty things. Measured after: **0
+duplicates**, 20 seeds × 30 steps.
+
+⚠️ Uniqueness is best-effort and falls back, because `MIN_POOL` is 24 and the
+board has 30 cells. ⭐ **PASS 2 DROPS UNIQUENESS BEFORE IT DROPS THE FIRST-CHARACTER
+RULE** — a duplicate is untidy; two neighbours sharing a first letter makes the
+board unchoosable.
+
+### ⚠️⚠️ AND THAT CHANGE EXPOSED A GAME-STOPPING BUG
+
+Shifting the random stream revealed that **all four of a student's exits could be
+ashed at once**. ⭐ **ALIVE, UNTHREATENED, AND UNABLE TO TYPE ANYTHING FOR FIVE
+STEPS.** A game that simply stops is worse than one that kills you. `ash()` now
+refuses the player's LAST exit — ⚠️ only the last: ashing three of four is exactly
+the pressure the kaiju exists to apply.
+
+### ⚠️⚠️ THREE DEAD SEAMS, ALL THE SAME SHAPE
+
+1. **`barHost` was accepted by both views and passed to nobody**, so the control
+   bar fell back to its floating overlay and landed on the keyboard.
+2. **`minutes` was handed `{dailySeconds, weeklySeconds}`; `drawGauges()` reads
+   `todayClock`/`weekClock`.** Both undefined, so it correctly drew nothing —
+   ⭐ NO ERROR, NO WARNING, JUST AN ABSENT PANEL SECTION.
+3. **The peek existed in the rules since Round 107 and nowhere on screen.** The
+   view drew creatures at full position throughout, so the telegraph was a wasted
+   turn — exactly what Jake saw.
+
+⚠️⚠️ **ALL THREE ARE THE SHAPE THIS PROJECT KEEPS FINDING**: an option that exists
+at one end with nothing consuming it at the other, like Escape Key's dead
+per-second tick and the pool provider the board ignored. ⭐ **WHEN A VIEW ACCEPTS
+AN OPTION, GREP FOR WHERE IT IS USED BEFORE BELIEVING IT WORKS.**
+
+### The panel, restaged
+
+Timing line **above** the creature at full panel width (it was truncated because
+it shared a 210px row with a sprite and a name), **four** rows, and the freed
+space on the right now carries a **movement glyph** — up/down for the spider,
+left/right for the kaiju, a target for the hunter. ⚠️ It says HOW, never WHERE: an
+axis is a rule about the creature; an edge is a fact about this arrival, and
+giving that away removes the read-the-board skill.
+
+### The peek, staged
+
+Kaiju leans 62% out with a head tilt; spider pokes 28% in — head and eyes, no
+legs; the hunter gets an announcement, since it arrives at a corner and has no
+axis to lean along. All faded, so a leaning creature never reads as an arrived one.
+
+### ⭐ THE BENCH MIRRORS THE PAGE NOW
+
+Three columns, `#controls-col` as the bar host, all three games with both flanks,
+and clocks that climb. ⚠️⚠️ **A BENCH THAT DIFFERS FROM THE PAGE CANNOT REPRODUCE
+THE PAGE'S BUGS** — the bar on the keyboard, the empty gauges, the short panel
+column were all LAYOUT faults, and a bench with a different layout was
+structurally unable to show any of them. ⚠️ Its fake clocks now MOVE: a fake that
+sits still is indistinguishable from a dead seam.
+
+### ⚠️ `queue-owner-test.mjs` IS RED AND IT IS NOT FROM THIS ROUND
+
+It fails **identically on an untouched copy of the repo**, and `session-log.js` is
+byte-identical. ⚠️⚠️ **BUT NOTE WHAT THAT CONTROL DOES AND DOES NOT RULE OUT** —
+Round 103 called nine failures "verified identical on an untouched copy" when the
+copy shared the missing packages. This one rules out **my source changes**. It does
+NOT rule out the environment or the clock, and the test builds ISO timestamps from
+dates, so a UTC day boundary is the first thing to check. **Read the assertions
+before assuming.**
+
+**92 of 93 pass.**  ⚠️⚠️ **NOT BROWSER-VERIFIED.**
+
 ## Round 109 (Bar-Let) — 2026-09-09 — the beam was a lie, and Shatter gets its panels
 
 ### ⚠️⚠️⚠️ THE KAIJU BEAM WAS AN ANIMATION OF A RULE THE BOARD DOES NOT HAVE

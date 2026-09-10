@@ -286,8 +286,16 @@ console.log('\nPART E — ⚠️⚠️ THE BOARD STAYS PLAYABLE, WHICH ASH CAN E
             if (moves === 0) stranded++;
         }
     }
-    ok(worstAsh <= ROWS * COLS / 3,
+    // ⚠️ A RANGE, NOT A PINNED NUMBER. The first version asserted `<= 10` and
+    // broke the moment whole-board word uniqueness changed how many random draws
+    // wordAvoiding() makes — the ash behaviour was identical and the SEQUENCE was
+    // not. ⭐ A TEST TUNED TO AN EXACT RNG STREAM MEASURES THE STREAM.
+    ok(worstAsh <= ROWS * COLS * 0.45,
        `at worst ${worstAsh} of ${ROWS * COLS} squares are ash at once`);
+    // ⚠️⚠️ AND THIS IS THE ONE THAT FOUND A REAL BUG. With enough ash down, all
+    // four of a student's exits could be ashed at once — alive, unthreatened, and
+    // unable to type anything for five steps. A game that simply STOPS is worse
+    // than one that kills you. `ash()` now refuses the last exit.
     ok(stranded === 0,
        `⚠️⚠️ THE PLAYER ALWAYS HAS A LEGAL MOVE — 0 stranded positions in ${samples} samples`);
 

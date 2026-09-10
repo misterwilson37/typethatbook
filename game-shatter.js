@@ -651,6 +651,15 @@ export function mount(container, opts) {
     layout();
 
     const chrome = mountChrome(container, {
+        // ⚠️⚠️ PASSED THROUGH, WHICH IT WAS NOT. Both views ACCEPTED `barHost` and
+        // then never handed it to game-chrome.js, so the control bar fell back to
+        // its floating overlay and landed on top of the keyboard — Jake:
+        // *"The buttons should go to the right (and off the keyboard)."*
+        // ⭐ THE OPTION EXISTED AT BOTH ENDS AND NOTHING CONNECTED THEM, which is
+        // the same shape as Escape Key's dead per-second tick and the pool
+        // provider the board ignored. ⚠️ WHEN A VIEW ACCEPTS AN OPTION, GREP FOR
+        // WHERE IT IS USED BEFORE BELIEVING IT WORKS.
+        barHost: (opts && opts.barHost) || null,
         title: 'Shatter',
         hint: 'Type a rock to break it — and it breaks into its pieces, which you '
             + 'have to type too. Go for whatever is closest to your ship. Fill the '

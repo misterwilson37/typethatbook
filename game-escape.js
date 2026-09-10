@@ -601,7 +601,7 @@ export function mount(container, opts) {
             drawWavePreview(previewCtx, {
                 W: size.w, H: size.h,
                 round: board.round,
-                waves: board.upcoming(3),
+                waves: board.upcoming(4),   // ⚠️ FOUR — Jake: "another monster row could go on the left"
                 // ⚠️ NULL WHEN THE NEXT WAVE WAITS ON A CLEAR BOARD RATHER THAN A
                 // DISTANCE. A bar filling toward an event that is not on a timer
                 // would be an animation telling a lie.
@@ -907,9 +907,55 @@ export function mount(container, opts) {
             // cells, under the sprites, so a kaiju sits on top of its own shot.
             const mine = blasts.find(b => b.x === en.x && b.y === en.y);
             const tilt = mine ? (mine.dir < 0 ? -0.45 : 0.45) : 0;
+            // ⭐⭐ THE PEEK IS NOW VISIBLE, WHICH IS THE ONLY REASON IT EXISTS.
+            // Jake: *"The creatures also don't peak into the board when they
+            // spawn, they just come in for another turn."* ⚠️ HE IS RIGHT AND IT
+            // WAS A REAL FAILURE: escape-board.js has held a `peek` step since
+            // Round 107, and the view drew the creature at its full position the
+            // whole time — so the telegraph existed in the rules and NOWHERE ON
+            // SCREEN. A warning nobody can see is a wasted turn, which is exactly
+            // what he saw.
+            //
+            // ⭐ THE CREATURE IS PUSHED BACK OFF ITS OWN EDGE AND ONLY LEANS IN,
+            // along the axis it will travel. Jake's own staging: *"Kaiju could
+            // literally tilt his head in (as he already tilts to blast). Spider
+            // could poke a quarter of his pixels into the board - enough to get
+            // his glowing eyes."*
+            let px = pos.x, py = pos.y, lean = tilt;
+            if (en.peek > 0) {
+                if (en.kind === 'kaiju') {
+                    // ⚠️ 62% OUT, PLUS A TILT TOWARD THE BOARD. Enough that the
+                    // head and the glowing eye clear the edge and nothing else.
+                    px -= en.dir * cell * 0.62;
+                    lean = en.dir * 0.5;
+                } else if (en.kind === 'spider') {
+                    // ⚠️ 72% OUT — a quarter of the sprite showing, which for
+                    // this grid is the head and the eyes and no legs.
+                    py -= en.dir * cell * 0.72;
+                } else {
+                    // ⚠️ THE HUNTER IS NOT STAGED, IT IS ANNOUNCED. Jake: *"Robot
+                    // gets an announcement, so it doesn't matter."* It has no
+                    // entry axis to lean along — it arrives at a corner — so a
+                    // lean would be a direction it is not about to move in.
+                    px = pos.x; py = pos.y;
+                }
+                // ⚠️ FADED, SO A LEANING CREATURE NEVER READS AS ONE THAT HAS
+                // ARRIVED. It cannot catch anything yet (caughtBy() skips it) and
+                // it must not look like it can.
+                ctx.globalAlpha *= 0.7;
+            }
             drawPixelSprite(ctx, sprite, ENEMY_PALETTES[en.kind],
-                            pos.x, pos.y, cell * 0.8,
-                            en.dir === -1 || en.facingLeft, tilt);
+                            px, py, cell * 0.8,
+                            en.dir === -1 || en.facingLeft, lean);
+            if (en.peek > 0 && en.kind === 'hunter') {
+                // The announcement, since the bot cannot stage itself.
+                platedText(ctx, {
+                    x: pos.x, y: pos.y - cell * 0.5, text: 'HUNTER INBOUND',
+                    font: 'bold 11px "Courier Prime", monospace',
+                    color: '#f1c40f', bg: 'rgba(2,4,10,0.94)', border: '#f1c40f',
+                    padX: 8, padY: 5,
+                });
+            }
             ctx.restore();
         }
     }
@@ -974,6 +1020,15 @@ export function mount(container, opts) {
     layout();
 
     const chrome = mountChrome(container, {
+        // ⚠️⚠️ PASSED THROUGH, WHICH IT WAS NOT. Both views ACCEPTED `barHost` and
+        // then never handed it to game-chrome.js, so the control bar fell back to
+        // its floating overlay and landed on top of the keyboard — Jake:
+        // *"The buttons should go to the right (and off the keyboard)."*
+        // ⭐ THE OPTION EXISTED AT BOTH ENDS AND NOTHING CONNECTED THEM, which is
+        // the same shape as Escape Key's dead per-second tick and the pool
+        // provider the board ignored. ⚠️ WHEN A VIEW ACCEPTS AN OPTION, GREP FOR
+        // WHERE IT IS USED BEFORE BELIEVING IT WORKS.
+        barHost: (opts && opts.barHost) || null,
         title: 'Escape Key',
         hint: 'Type a word next to you to move onto it. Your row and column are '
             + 'tinted — that is where creatures come from, so keep moving. '
