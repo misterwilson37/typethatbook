@@ -1,3 +1,8 @@
+// game-draw.js v1.10.0 — Round 109 (Bar-Let): drawShatterPanel() — a radar over a
+//   warp meter. ⚠️⚠️ THE TWO HALVES ARE DELIBERATELY UNEQUAL. Jake: the radar is
+//   *"just window dressing - nothing of importance. Only the 'Can I warp yet?'
+//   bar is important."* A future round that labels the contacts has turned window
+//   dressing into a second place to look during play.
 // game-draw.js v1.9.0 — Round 108 (Bar-Let): drawWavePreview(), and Shift is two
 //   REAL KEYS on the bottom row instead of a line of text over the space bar.
 //   ⚠️⚠️ ONLY THE OPPOSITE HAND'S SHIFT LIGHTS UP — a capital is typed with the
@@ -56,7 +61,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.9.0';
+export const GAME_DRAW_VERSION = '1.10.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1600,5 +1605,112 @@ export function drawWavePreview(ctx, o) {
         roundRect(ctx, pad, by, bw * Math.max(0, Math.min(1, o.progress)), 5, 2.5);
         ctx.fillStyle = '#a32cc4'; ctx.fill();
     }
+    ctx.restore();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SHATTER'S LEFT PANEL — A RADAR OVER A WARP METER. Round 109 (Bar-Let).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-09, and the honesty in it is the specification:
+// *"The radar screen in the top gives slightly more information than the screen
+// itself, so you could see meteors coming before they appear, but you can't do
+// much with that information as there are no words there yet. It's just window
+// dressing - nothing of importance. Only the 'Can I warp yet?' bar is
+// important."*
+//
+// ⚠️⚠️ SO THE TWO HALVES ARE DELIBERATELY UNEQUAL AND MUST STAY THAT WAY. The
+// radar is atmosphere; the warp meter is a decision. A future round that makes
+// the radar useful — labelling contacts, showing which rock is which — has turned
+// window dressing into a second place to look during play, and the student's eyes
+// belong on the field.
+// ⭐ THE SIZE SPLIT SAYS SO: the meter gets the room it needs and the radar takes
+// what is left, not the other way round.
+
+/**
+ * @param {object} o
+ *   W, H      {number}
+ *   contacts  {object[]}  { r, angle } in board space, r = 1 at the ring
+ *   warps     {number}    banked warps
+ *   maxWarps  {number}
+ *   charge    {number}    0..1 toward the next one
+ */
+export function drawShatterPanel(ctx, o) {
+    const { W, H } = o;
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    ctx.fillStyle = 'rgba(6,10,20,0.92)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(70,90,130,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, W - 1, H - 1);
+
+    const pad = 12;
+    // ⚠️ THE METER'S HEIGHT IS FIXED AND THE RADAR TAKES THE REMAINDER. Round 101
+    // learned this one panel over: a flex canvas with two fixed halves draws the
+    // lower one off the bottom on a short window and says nothing about it.
+    const meterH = 96;
+    const radarH = Math.max(70, H - meterH - pad * 2);
+    const cx = W / 2, cy = pad + radarH / 2;
+    const rr = Math.min(W / 2 - pad, radarH / 2) - 4;
+
+    ctx.font = 'bold 11px "Courier Prime", monospace';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillStyle = '#5d7characters'.slice(0, 0) || '#5d7290';
+    ctx.fillText('RADAR', pad, pad - 4);
+
+    ctx.strokeStyle = 'rgba(0,229,255,0.25)';
+    for (const k of [1, 0.66, 0.33]) {
+        ctx.beginPath(); ctx.arc(cx, cy, rr * k, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(cx - rr, cy); ctx.lineTo(cx + rr, cy);
+    ctx.moveTo(cx, cy - rr); ctx.lineTo(cx, cy + rr); ctx.stroke();
+
+    // ⚠️ CONTACTS ARE DOTS AND CARRY NO TEXT. Labelling them would make the radar
+    // readable, which is exactly what it must not be — see the header.
+    for (const c of (o.contacts || [])) {
+        const d = Math.max(0, Math.min(1.15, c.r)) * rr;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(c.angle) * d, cy + Math.sin(c.angle) * d, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = c.r <= 0.25 ? '#ff5566' : 'rgba(0,229,255,0.75)';
+        ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#00ffff'; ctx.fill();
+
+    // ── the half that matters ───────────────────────────────────────────────
+    const my = H - meterH - pad + 8;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.font = 'bold 11px "Courier Prime", monospace';
+    ctx.fillStyle = o.warps > 0 ? '#ffd700' : '#5d7290';
+    ctx.fillText('WARP', pad, my);
+
+    // ⭐ BANKED WARPS ARE PIPS, NOT A NUMBER. "Warps: 2" is a fact to read; two
+    // lit pips beside an empty third is a fact to see, and it shows the CEILING
+    // at the same time — which is what makes hoarding legible as a choice.
+    const maxW = o.maxWarps || 3;
+    const pipW = Math.min(46, (W - pad * 2 - (maxW - 1) * 6) / maxW);
+    for (let i = 0; i < maxW; i++) {
+        const x = pad + i * (pipW + 6);
+        roundRect(ctx, x, my + 18, pipW, 22, 4);
+        const lit = i < (o.warps || 0);
+        ctx.fillStyle = lit ? '#ffd700' : 'rgba(12,20,34,0.95)';
+        ctx.globalAlpha = lit ? 0.9 : 1; ctx.fill(); ctx.globalAlpha = 1;
+        ctx.strokeStyle = lit ? '#ffd700' : 'rgba(70,90,130,0.6)';
+        ctx.lineWidth = 1; ctx.stroke();
+    }
+
+    const bw = W - pad * 2;
+    roundRect(ctx, pad, my + 48, bw, 10, 5);
+    ctx.fillStyle = 'rgba(12,20,34,0.95)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(70,90,130,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+    roundRect(ctx, pad + 1.5, my + 49.5, Math.max(0, (bw - 3) * (o.charge || 0)), 7, 3.5);
+    ctx.fillStyle = (o.warps || 0) > 0 ? '#ffd700' : '#00e5ff'; ctx.fill();
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 10px "Courier Prime", monospace';
+    ctx.fillStyle = (o.warps || 0) > 0 ? '#ffd700' : '#5d7290';
+    ctx.fillText((o.warps || 0) > 0 ? 'SPACE TO WARP' : 'CLEAR ROCKS TO CHARGE',
+                 W / 2, my + 64);
     ctx.restore();
 }

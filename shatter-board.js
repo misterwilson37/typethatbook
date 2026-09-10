@@ -1,5 +1,10 @@
-// shatter-board.js v1.0.0 — SHATTER'S BOARD, WITH NO CANVAS IN IT.
-// Round 103 (Bar-Let).
+// shatter-board.js v1.1.0 — SHATTER'S BOARD, WITH NO CANVAS IN IT.
+// Round 103, Round 109 (Bar-Let).
+//
+// v1.1.0 — ⭐ WARPS STACK TO THREE. Jake: *"That would both use up space and
+//   encourage hoarding."* ⚠️ THE HOARDING IS THE MECHANIC — a single-charge meter
+//   makes warping strictly correct the instant it fills, so there is nothing to
+//   weigh; with a stack, spending one now costs the third one later.
 //
 // ⚠️⚠️ THE SPLIT IS THE MECHANIC, AND THE SPLIT IS WHY THIS FILE EXISTS BEFORE
 // THE VIEW DOES. Jake, 2026-09-07, killing the sonar and campfire reskins:
@@ -45,7 +50,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.0.0';
+export const SHATTER_BOARD_VERSION = '1.1.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -117,6 +122,20 @@ export const SPLIT_SPREAD = 0.55;
 // student ever earns is spent by reflex on the word that earned it.
 export const WARP_CLEARS = 8;
 export const WARP_GRACE_MS = 400;
+
+// ⭐⭐ WARPS STACK, UP TO THREE. Jake, 2026-09-09: *"Perhaps you can charge up to
+// 3 warps if you don't use them often. That would both use up space and
+// encourage hoarding."*
+//
+// ⚠️ THE HOARDING IS THE MECHANIC, NOT A SIDE EFFECT. A single-charge meter makes
+// warping strictly correct the instant it fills — there is nothing to weigh. With
+// a stack, spending one now costs the third one later, so the student is making a
+// judgement about a board they can see, which is the only kind of decision worth
+// putting in a typing game.
+// ⚠️ AND IT IS CAPPED. Uncapped charges would let a patient student bank twenty
+// and then be untouchable for a minute, which removes the pressure the whole
+// game is built to apply.
+export const MAX_WARPS = 3;
 
 // What a warp buys: every rock is shoved back out toward the spawn ring.
 // ⚠️ IT DESTROYS NOTHING. A warp that cleared the board would be a second way to
@@ -485,7 +504,9 @@ export class ShatterBoard {
     _break(rock, nowMs) {
         this.rocks = this.rocks.filter(r => r !== rock);
         if (this.locked === rock) this.locked = null;
-        this.clearsSinceWarp++;
+        // ⚠️ CAPPED AT THE STACK, or a long clean run banks charge that can never
+        // be spent and the meter stops meaning anything.
+        this.clearsSinceWarp = Math.min(MAX_WARPS * WARP_CLEARS, this.clearsSinceWarp + 1);
         this.lastClearAt = nowMs;
 
         if (rock.terminal) return [];
@@ -517,14 +538,25 @@ export class ShatterBoard {
 
     // ── the warp ────────────────────────────────────────────────────────────
 
-    /** 0..1, for the meter the student can see. */
+    /** How many whole warps are banked, 0..MAX_WARPS. */
+    get warps() {
+        return Math.min(MAX_WARPS, Math.floor(this.clearsSinceWarp / WARP_CLEARS));
+    }
+
+    /**
+     * 0..1 toward the NEXT warp — the partial bar above the banked pips.
+     * ⚠️ IT READS 1 WHEN THE STACK IS FULL, so the panel shows a filled bar
+     * rather than a bar that resets to empty at the moment the student has the
+     * most power. A meter that empties on success reads as a penalty.
+     */
     get charge() {
-        return Math.min(1, this.clearsSinceWarp / WARP_CLEARS);
+        if (this.warps >= MAX_WARPS) return 1;
+        return (this.clearsSinceWarp % WARP_CLEARS) / WARP_CLEARS;
     }
 
     /** All three conditions. Each closes a different hole; see the header. */
     canWarp(nowMs) {
-        if (this.charge < 1) return false;
+        if (this.warps < 1) return false;
         if (this.locked && this.locked.typed > 0) return false;
         if (nowMs - this.lastClearAt < WARP_GRACE_MS) return false;
         return true;
@@ -540,7 +572,10 @@ export class ShatterBoard {
         for (const rock of this.rocks) {
             rock.r = Math.min(SPAWN_R, rock.r + WARP_PUSH);
         }
-        this.clearsSinceWarp = 0;
+        // ⚠️ ONE WARP IS SPENT, NOT THE WHOLE STACK. Zeroing the counter would
+        // throw away the other two the student deliberately saved, which is the
+        // opposite of what hoarding is supposed to buy them.
+        this.clearsSinceWarp -= WARP_CLEARS;
         return true;
     }
 

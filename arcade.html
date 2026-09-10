@@ -295,6 +295,12 @@
                  They should be able to open up available lessons OR go straight
                  to the word pools."* ⚠️ NEITHER OPTION IS PRESENTED AS THE
                  UNLOCKED ONE OR THE REAL ONE — both are just choices. -->
+            <!-- ⚠️ DEADLINE SEES THIS ROW TOO. Jake: *"In arcade mode, deadline
+                 should also have the option of word pool, and it can take them
+                 from escape key's pool."* ⚠️ ARCADE MODE ONLY — a Deadline run
+                 played against a LESSON must use that run's own characters or it
+                 is no longer comparable to the typed version, which is the whole
+                 point of this page. -->
             <div class="row" id="row-scope" style="display:none">
                 <label for="scope">WORDS</label>
                 <select id="scope">
@@ -966,7 +972,16 @@ function applyGameMode() {
     for (const id of ['row-lesson', 'row-run', 'row-speed']) {
         $(id).style.display = free ? 'none' : '';
     }
-    $('row-level').style.display = free ? '' : 'none';
+    // ⚠️⚠️ THE LEVEL ROW DISAPPEARS WHEN THE STUDENT PICKS THE FULL POOL, ON ANY
+    // GAME. Jake, 2026-09-09: *"If we pick word pool, the drop down for lessons
+    // should go away on any game."* ⭐ AND HE IS RIGHT FOR A REASON WORTH WRITING
+    // DOWN: at `full` the level decides nothing about the words, so a lesson
+    // picker sitting there is a control that looks like it does something and
+    // does not. ⚠️ THE LEVEL STILL SETS THE PACE at `full` — the gate comes from
+    // `arcadeTargetWPM()` either way — so this hides a control that is still
+    // partly live, which is the one cost of the rule and is worth it.
+    const fullPool = free && chosenScope() === 'full';
+    $('row-level').style.display = (free && !fullPool) ? '' : 'none';
     $('row-scope').style.display = free ? '' : 'none';
     if (free) showFreeGates(); else showGates();
 }
@@ -1198,6 +1213,16 @@ function playFree() {
         // ⚠️ THE PREVIEW PANEL REUSES #radar-canvas, THE ELEMENT, NOT THE RADAR.
         // Deadline's radar answers "where"; this one deliberately refuses to —
         // see drawWavePreview()'s header. Same box on the page, different job.
+        // ⭐ SHATTER'S PANELS MIRROR THE OTHER TWO. Its left panel is a radar over
+        // a warp meter rather than a wave preview — different content, same box.
+        ...(g.id === 'shatter'
+            ? {
+                barHost: $('controls-col'),
+                panelCanvas: $('radar-canvas'),
+                gaugeCanvas: $('gauge-canvas'),
+                minutes: () => MINUTES,
+              }
+            : {}),
         ...(g.id === 'escape'
             ? {
                 barHost: $('controls-col'),

@@ -1,5 +1,103 @@
 # CHANGELOG — TypeThatBook
 
+## Round 109 (Bar-Let) — 2026-09-09 — the beam was a lie, and Shatter gets its panels
+
+### ⚠️⚠️⚠️ THE KAIJU BEAM WAS AN ANIMATION OF A RULE THE BOARD DOES NOT HAVE
+
+Jake reported three symptoms and they were all one defect: *"the kaiju zapped all
+the way to me (two squares straight down), but it x'd out the next square"*,
+*"zapped above and below, but with no beam"*, and *"the beam only appeared when I
+was within a column, and it seemed to have no effect beyond the visual."*
+
+⭐ **THE VIEW DREW A BEAM FROM ANY KAIJU THAT SHARED THE PLAYER'S ROW OR COLUMN,
+AIMED AT THE PLAYER, WITH NO CONNECTION TO THE ZAP THE BOARD ACTUALLY FIRED.** Two
+systems describing one event, neither reading the other. Every symptom follows:
+the beam pointed at a cell nobody ashed, the real one-square zap had no beam
+because the kaiju was not in line, and the visual did nothing because it was never
+attached to anything.
+
+⚠️⚠️ **IT SURVIVED THE ROUND 107 RULES REWRITE BECAUSE I REPLACED THE BOARD AND
+LEFT THE VIEW'S GUESS IN PLACE.** The old `firing` block predated the spec and
+nothing made it fail — no harness draws.
+
+⭐ **THE BEAM IS NOW A `blast` EVENT AND NOTHING ELSE.** One square, in the
+direction the board fired, ending on the cell the board ashed. The beam and the X
+are two renderings of one event and cannot point at different squares.
+
+---
+
+### ⭐ THE TEAR-FREE WORD IS ON THE PLAYER, ON THE WEB, ON A WHITE PLATE
+
+Jake: *"It should appear on my square, on a white box, on a web, on me. That way
+typing it literally frees me."*
+
+It sat above the board. ⚠️ **THAT IS NOT A PLACEMENT PROBLEM, IT IS A MEANING
+PROBLEM.** A word floating over the board is an instruction from the game; a word
+stamped on the web holding you is the thing you are typing your way out of — and
+the second needs no explaining, which is the entire point. White plate, not the
+dark one every other label uses: it is the one moment the board has a single
+correct answer.
+
+---
+
+### ⚠️⚠️ TWO CLOCKS, AND CONFLATING THEM IS WHY THE TIMER NEVER STOPPED
+
+Jake: *"I've let the game run the whole time I've been typing this, and it keeps
+counting time. Like library, it should only count when I'm typing."*
+
+⭐ **HE IS RIGHT ABOUT THE BANKED CLOCK AND `game-shell.js` IS RIGHT ABOUT THE
+GRADED ONE, AND THEY ARE NOT THE SAME NUMBER.** GameClock's header forbids an idle
+timer for a reason that still holds: an idle-aware WPM divides characters by only
+the seconds spent typing them and reports 45 for a student producing 15.
+
+So the idle gate is on the **banking path only**. `d.report()` is untouched.
+⚠️ **DO NOT "SIMPLIFY" THIS BY WIRING `d.pause()` TO THE IDLE TIMER** — that is
+the exact thing the shell forbids, and it would inflate every WPM the game
+reports. Three seconds, and it is `learn.js`'s `LEARN_IDLE_THRESHOLD`, not a new
+number. Both Escape Key and Shatter.
+
+---
+
+### Shatter joins the page
+
+**Right panel** reuses `drawGauges()` rather than growing a third console — ⭐ the
+ship's **lives** are Deadline's shields under a different word.
+
+**Left panel** is a radar over a warp meter, and ⚠️⚠️ **THE TWO HALVES ARE
+DELIBERATELY UNEQUAL.** Jake: *"It's just window dressing - nothing of importance.
+Only the 'Can I warp yet?' bar is important."* The radar sees rocks still outside
+the ring and labels none of them. ⚠️ A future round that makes it readable has
+turned window dressing into a second place to look during play.
+
+⭐ **WARPS STACK TO THREE**, and the hoarding is the mechanic rather than a side
+effect: a single-charge meter makes warping strictly correct the instant it fills,
+so there is nothing to weigh. Spending one now costs the third one later. ⚠️ Capped
+— uncapped charge would let a patient student bank twenty and be untouchable.
+⚠️ Spending one leaves the rest; zeroing the stack would throw away what they
+saved.
+
+---
+
+### ⭐ ESCAPE PAUSES ANY GAME, AND IT LIVES IN THE CHROME
+
+Jake: *"this gives the hover mechanic to work."* ⚠️ **NOT IN THE THREE VIEWS** —
+pause is already `game-chrome.js`'s job, and three copies of a pause key is three
+places for it to stop working. Capture phase, stopping propagation, because every
+view already binds Escape to its own "clear what I typed" and pausing outranks it.
+
+### ⭐ THE LESSON PICKER DISAPPEARS AT FULL POOL, ON ANY GAME
+
+⚠️ At `full` the level decides nothing about the words, so a lesson picker sitting
+there is a control that looks like it does something and does not. ⚠️ The level
+still sets the PACE at `full`, so this hides a control that is partly live — the
+one cost of the rule, and worth it.
+
+Deadline now sees the WORDS row in arcade mode too. ⚠️ **ARCADE ONLY** — a
+Deadline run played against a lesson must use that run's own characters or it
+stops being comparable to the typed version, which is this page's whole purpose.
+
+**ALL 93 HARNESSES PASS** (59 in shatter-board). ⚠️⚠️ **NOT BROWSER-VERIFIED.**
+
 ## Round 108 (Bar-Let) — 2026-09-09 — the side panels, the keyboard, and escape-board 2.0.0
 
 ✅ **`escape-board.js` IS 2.0.0 ON JAKE'S EXPLICIT SIGN-OFF**: *"If it was 1.x,

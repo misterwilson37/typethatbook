@@ -1,4 +1,12 @@
-// game-shatter.js v1.1.0 — SHATTER. Round 103, Round 106 (Bar-Let).
+// game-shatter.js v1.2.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let).
+//
+// v1.2.0 — ⭐ BOTH SIDE PANELS, STACKED WARPS, AND THE IDLE-AWARE BANKED CLOCK.
+//   ⚠️ THE RIGHT PANEL REUSES drawGauges() rather than growing a third console:
+//   the ship's LIVES are Deadline's shields under a different word.
+//   ⚠️ THE LEFT PANEL'S RADAR IS DELIBERATELY USELESS — Jake: *"It's just window
+//   dressing... Only the 'Can I warp yet?' bar is important."* Do not label the
+//   contacts.
+// game-shatter.js v1.1.0 — Round 106.
 //
 // v1.1.0 — ⚠️⚠️ ROCKS ARE OBJECTS NOW, NOT LABELS. v1.0.0 drew every target as a
 //   rounded rectangle behind text — Jake's verdict was *"that's just...bad. Just
@@ -75,8 +83,10 @@ import {
 // thing this game's art has to communicate. See game-sprites.js's header.
 import { rockOutline, drawRock, drawShip as drawShipArt, drawTargetWord }
     from './game-sprites.js';
+import { drawShatterPanel, drawGauges } from './game-draw.js';
+import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.1.0';
+export const GAME_SHATTER_VERSION = '1.2.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -114,6 +124,27 @@ export function mount(container, opts) {
     // which is what makes a run through midnight split across two day documents
     // exactly as a lesson does. This file must never learn what a date is.
     const onSecond = (opts && opts.onSecond) || null;
+
+    // ⚠️ THE PANELS, ALL OPTIONAL — tools/game-lab.html may pass none. Shatter's
+    // right panel mirrors the other two games' consoles; ⭐ ITS "SHIELDS" ROW IS
+    // THE SHIP'S LIVES, which is the same quantity under a different word, so it
+    // reuses drawGauges() rather than growing a third console.
+    const panelCanvas = (opts && opts.panelCanvas) || (opts && opts.radarCanvas) || null;
+    const gaugeCanvas = (opts && opts.gaugeCanvas) || null;
+    const panelCtx = panelCanvas ? panelCanvas.getContext('2d') : null;
+    const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
+    // ⚠️⚠️ A GETTER, NOT A VALUE — the banked totals are a Firestore read and a
+    // view must not fetch. Same rule as the other two views.
+    const getMinutes = (opts && opts.minutes) || null;
+
+    // ⚠️ SAME TWO-CLOCK SPLIT AS ESCAPE KEY v2.0.0, AND FOR THE SAME REASON. The
+    // graded clock stays wall-clock (game-shell.js's GameClock header explains
+    // why an idle-aware WPM is a lie); the BANKED clock stops when the student
+    // does, because a game left open on a desk is not practice.
+    // ⚠️ learn.js's THREE SECONDS, not a new number.
+    const IDLE_MS = 3000;
+    let lastKeyAt = 0;
+    let idleMs = 0;
 
     // ⚠️⚠️ A ONE-CHARACTER TARGET CANNOT SPLIT, so it is a Deadline word wearing
     // Shatter's costume: the student pays the doubled interval `costFactor`
@@ -217,6 +248,7 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
+        lastKeyAt = now;
 
         // ⚠️⚠️ THE WARP IS TRIED BEFORE THE KEYSTROKE IS ACCOUNTED, AND ONLY THE
         // BOARD DECIDES WHETHER IT FIRES. All three of its conditions — meter
@@ -331,6 +363,7 @@ export function mount(container, opts) {
         particles = [];
         banner = null; flash = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
+        idleMs = 0; lastKeyAt = 0;
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous run's
         // high-water mark. A fresh director means a fresh clock at zero, so the
         // mark has to start at zero with it.
@@ -372,12 +405,18 @@ export function mount(container, opts) {
             }
         }
 
+        if (!ended && started && !paused && d.clock.seconds(now) > 0
+            && now - lastKeyAt > IDLE_MS) {
+            idleMs += dt * 1000;
+        }
+
         updateParticles(particles, dt);
         if (flash > 0) flash = Math.max(0, flash - dt);
         // ⚠️ IN THE FRAME LOOP, NOT ONLY IN finish() — the host's daily total has
         // to move WHILE the student plays, because that is when they are looking
         // at it.
         bankWholeSeconds(now);
+        drawPanels(d.report(now));
         if (onTick && !ended) {
             tickAcc += dt;
             if (tickAcc >= 1) { tickAcc = 0; onTick(d.report(now)); }
@@ -404,10 +443,46 @@ export function mount(container, opts) {
      */
     function bankWholeSeconds(now) {
         if (!onSecond || !started) return;
-        const whole = Math.floor(d.clock.seconds(now));
+        // ⚠️ IDLE SUBTRACTED FROM THE GRADED CLOCK, so this stays DERIVED and
+        // keeps every property that made it safe. See Escape Key v2.0.0.
+        const whole = Math.floor(d.clock.seconds(now) - idleMs / 1000);
         while (secondsBanked < whole) {
             secondsBanked++;
             try { onSecond(); } catch (_) { /* never let a host error stop play */ }
+        }
+    }
+
+    /**
+     * The two side panels. ⚠️ DRAWN FROM THE FRAME LOOP like the field — two
+     * clocks over one game state is how a panel comes to disagree with the thing
+     * it describes.
+     */
+    function drawPanels(rep) {
+        if (panelCtx) {
+            const size = fitCanvas(panelCanvas, panelCtx);
+            drawShatterPanel(panelCtx, {
+                W: size.w, H: size.h,
+                // ⚠️ THE RADAR SEES EVERY ROCK, INCLUDING ONES STILL OUT PAST THE
+                // RING — that is the *"you could see meteors coming before they
+                // appear"* Jake asked for, and it is the only thing it adds.
+                contacts: board.rocks.map(r => ({ r: r.r, angle: r.angle })),
+                warps: board.warps, maxWarps: MAX_WARPS, charge: board.charge,
+            });
+        }
+        if (gaugeCtx) {
+            const size = fitCanvas(gaugeCanvas, gaugeCtx);
+            const m = getMinutes ? getMinutes() : null;
+            drawGauges(gaugeCtx, {
+                W: size.w, H: size.h,
+                seconds: rep.seconds,
+                // ⭐ THE SHIP'S LIVES. Same quantity as Deadline's shields under a
+                // different word, so it reuses the console rather than growing a
+                // third one.
+                shieldsLeft: rep.shieldsLeft,
+                wpm: rep.wpm, acc: rep.acc,
+                todayClock: m ? m.todayClock : null,
+                weekClock: m ? m.weekClock : null,
+            });
         }
     }
 
@@ -544,7 +619,7 @@ export function mount(container, opts) {
         // actually gates the key.
         const bw = Math.min(180, Math.max(90, W * 0.22));
         const bx = cx - bw / 2;
-        const full = board.charge >= 1;
+        const full = board.warps > 0;
         roundRect(ctx, bx, HUD_H / 2 - 6, bw, 12, 6);
         ctx.fillStyle = 'rgba(12,20,34,0.95)'; ctx.fill();
         ctx.strokeStyle = 'rgba(70,90,130,0.6)'; ctx.lineWidth = 1; ctx.stroke();
@@ -553,7 +628,11 @@ export function mount(container, opts) {
         ctx.textAlign = 'center';
         ctx.font = 'bold 11px "Courier Prime", monospace';
         ctx.fillStyle = full ? '#ffd700' : '#6f86a8';
-        ctx.fillText(full ? 'SPACE TO WARP' : 'WARP', cx, HUD_H / 2 + 17);
+        // ⚠️ THE HUD SHOWS THE COUNT WHEN THERE IS ONE. The left panel carries the
+        // pips; this is the glance version for a student whose eyes are on the
+        // field, and it must agree with the panel because both read `board`.
+        ctx.fillText(full ? `WARP \u00d7${board.warps} \u2014 SPACE` : 'WARP',
+                     cx, HUD_H / 2 + 17);
         ctx.restore();
     }
 

@@ -16,7 +16,7 @@
 import {
     ShatterBoard, splitTarget, splittable,
     SHATTER_COST_FACTOR, SPLIT_MIN_R, SPAWN_R,
-    WARP_CLEARS, WARP_GRACE_MS, WARP_PUSH,
+    WARP_CLEARS, WARP_GRACE_MS, WARP_PUSH, MAX_WARPS,
     SHATTER_BOARD_VERSION,
 } from '../shatter-board.js';
 import {
@@ -304,7 +304,7 @@ console.log('\nPART F — ⚠️⚠️ THE WARP IS EARNED, AND ITS THREE CONDITI
         for (const ch of 'as') b.tryKey(ch, t);
         t += 10;
     }
-    ok(b.charge === 1, `${WARP_CLEARS} cleared rocks fill the meter`);
+    ok(b.warps === 1, `${WARP_CLEARS} cleared rocks bank one warp`);
 
     // ⚠️ HOLE 3, AND IT IS THE ONE THAT LOOKS OPTIONAL. The habit space arrives
     // right after the word that earned the meter, when nothing is locked — so it
@@ -328,7 +328,31 @@ console.log('\nPART F — ⚠️⚠️ THE WARP IS EARNED, AND ITS THREE CONDITI
        'and shoves every rock back out');
     ok(rocks.every(r => b.rocks.includes(r)),
        '⚠️ IT DESTROYS NOTHING — a warp that cleared the board would be a way to clear a rock for free');
-    ok(b.charge === 0, 'the meter is spent');
+    ok(b.warps === 0, 'and spending it leaves none banked');
+
+    // ⭐⭐ HOARDING. Jake, 2026-09-09: warps stack to three, *"which would both
+    // use up space and encourage hoarding."*
+    // ⚠️ THE POINT IS THAT SPENDING ONE COSTS THE THIRD ONE LATER — a
+    // single-charge meter makes warping strictly correct the instant it fills,
+    // so there is nothing for the student to weigh.
+    const h = new ShatterBoard({ rand: mulberry(21) });
+    let t3 = 0;
+    while (t3 < 4000 && h.warps < MAX_WARPS) {
+        h.spawn('as', 1000000, t3);
+        for (const ch of 'as') h.tryKey(ch, t3);
+        t3 += 10;
+    }
+    ok(h.warps === MAX_WARPS, `a clean run banks up to ${MAX_WARPS} warps`);
+    for (let i = 0; i < 40; i++) {
+        h.spawn('as', 1000000, t3); for (const ch of 'as') h.tryKey(ch, t3); t3 += 10;
+    }
+    ok(h.warps === MAX_WARPS,
+       '⚠️ AND NO FURTHER — uncapped charge would make a patient student untouchable');
+    ok(h.charge === 1,
+       '⚠️ the partial bar reads FULL at the cap, not empty — a meter that empties on success reads as a penalty');
+    const t4 = t3 + WARP_GRACE_MS + 1;
+    ok(h.warp(t4) === true && h.warps === MAX_WARPS - 1,
+       '⭐ spending one leaves the rest — zeroing the stack would throw away what they saved');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

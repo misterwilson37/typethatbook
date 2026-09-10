@@ -231,6 +231,9 @@ export function mount(container, opts) {
     const ctx = canvas.getContext('2d');
 
     let W = 0, H = 0, cell = 0, offX = 0, offY = 0, kbH = 0;
+    /** How long a blast stays on screen. ⚠️ SHORTER THAN AN ENEMY STEP, so two
+     *  consecutive shots never overlap into one continuous beam. */
+    const BLAST_MS = 280;
 
     // ⚠️ THE BOARD SCALES TO THE CANVAS. The prototype hardcoded 120 px cells on a
     // 720×600 canvas, so on a student iPad in portrait the board was cropped and
@@ -261,12 +264,51 @@ export function mount(container, opts) {
     // restart(), or the replay's first N seconds are swallowed by the last run's
     // mark, which is the exact bug game-deadline.js v1.10.0 records.
     let secondsBanked = 0;
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ TWO CLOCKS, AND CONFLATING THEM IS WHY THIS WAS WRONG
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-09: *"I've let the game run the whole time I've been typing
+    // this, and it keeps counting time. Like library, it should only count when
+    // I'm typing."* He is right about the BANKED clock and game-shell.js is right
+    // about the GRADED one, and they are not the same number.
+    //
+    //   • THE GRADED CLOCK (`d.clock`) stays wall-clock, first keystroke to end.
+    //     GameClock's header explains why and it is not negotiable: an
+    //     idle-aware WPM divides characters by only the seconds spent typing
+    //     them and reports 45 for a student producing 15 — a number that lands
+    //     on the leaderboard and disagrees with every other surface in the app.
+    //   • THE BANKED CLOCK — the seconds that reach the student's day and week —
+    //     must stop when they stop, exactly as Library and learn.js do. A game
+    //     left open on a desk is not practice.
+    //
+    // ⭐ SO THE IDLE GATE LIVES HERE, ON THE BANKING PATH ONLY, AND `d.report()`
+    // IS UNTOUCHED. ⚠️ DO NOT "SIMPLIFY" THIS BY WIRING d.pause() TO THE IDLE
+    // TIMER — that is the exact thing game-shell.js forbids, and it would silently
+    // inflate every WPM this game reports.
+    //
+    // ⚠️ THREE SECONDS, AND IT IS learn.js's NUMBER (LEARN_IDLE_THRESHOLD), not a
+    // new one. Two thresholds for "has this child stopped typing" would drift.
+    const IDLE_MS = 3000;
+    let lastKeyAt = 0;
+    let idleMs = 0;
     // ⚠️⚠️ THE ERROR MEMORY. Round 90 built this for Deadline and it never reached
     // this game: a key the student gets wrong stays tinted red until they get it
     // right, so a child who keeps missing the same letter can SEE which one.
     // ⚠️ 'fixed' IS NOT ERASED. A key that stops shouting but stays marked is the
     // information they asked for; deleting it deletes the record.
     const keyStates = {};
+    // ⚠️⚠️ THE BEAM IS AN EVENT, NOT A GUESS. v2.0.0 drew a beam from any kaiju
+    // that happened to share the player's row or column, aimed AT THE PLAYER, and
+    // it had nothing to do with the zap the board actually fired. Jake saw all
+    // three symptoms at once: *"the kaiju zapped all the way to me... but it x'd
+    // out the next square"*, *"zapped above and below, but with no beam"*, and
+    // *"the beam only appeared when I was within a column, and it seemed to have
+    // no effect beyond the visual."* ⭐ TWO SYSTEMS DESCRIBING ONE EVENT, NEITHER
+    // READING THE OTHER — the view was animating a rule the board does not have.
+    // ⚠️ NOW IT RENDERS `blast` EVENTS AND NOTHING ELSE: one square, in the
+    // direction the board fired, landing exactly on the cell the board ashed.
+    let blasts = [];
     // Per-enemy render position, eased toward the board's integer cell so a step
     // reads as a glide rather than a teleport.
     const ease = new Map();
@@ -287,6 +329,7 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
+        lastKeyAt = now;
         const r = board.tryKey(e.key);
 
         // ⚠️ EVERY KEYSTROKE IS ACCOUNTED, INCLUDING A MISS. All three prototypes
@@ -384,6 +427,8 @@ export function mount(container, opts) {
         particles = []; ease.clear();
         banner = null; flash = 0; stepAccMs = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
+        blasts = [];
+        idleMs = 0; lastKeyAt = 0;
         for (const k of Object.keys(keyStates)) delete keyStates[k];
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous
         // run's high-water mark. A fresh director means a fresh clock starting
@@ -438,6 +483,11 @@ export function mount(container, opts) {
                               Math.round(26 * motionScale()), 220);
                         banner = { text: 'BOT DOWN', until: now + 1200 };
                     } else if (ev.t === 'blast') {
+                        // ⚠️ THE TARGET CELL IS COMPUTED ONCE, HERE, from the
+                        // same `dir` the board used — never re-derived at draw
+                        // time from the player's position.
+                        blasts.push({ x: ev.x, y: ev.y, ty: ev.y + ev.dir,
+                                      dir: ev.dir, until: now + BLAST_MS });
                         sfx.hunter();
                     } else if (ev.t === 'leave') {
                         burst(particles, cx(ev.x), cy(ev.y), '#556',
@@ -448,6 +498,15 @@ export function mount(container, opts) {
                     } else if (ev.t === 'caught') takeHit(now);
                 }
             }
+        }
+
+        // ⚠️ ACCUMULATED ONLY WHILE THE GRADED CLOCK IS ALSO RUNNING, or a
+        // student who paused for a minute would have that minute counted as idle
+        // AND already excluded by the pause — subtracted twice, and the banked
+        // total would run backwards.
+        if (!ended && started && !paused && d.clock.seconds(now) > 0
+            && now - lastKeyAt > IDLE_MS) {
+            idleMs += dt * 1000;
         }
 
         updateParticles(particles, dt);
@@ -489,7 +548,16 @@ export function mount(container, opts) {
      */
     function bankWholeSeconds(now) {
         if (!onSecond || !started) return;
-        const whole = Math.floor(d.clock.seconds(now));
+        // ⚠️ IDLE SECONDS ARE SUBTRACTED FROM THE GRADED CLOCK RATHER THAN
+        // COUNTED SEPARATELY, so this stays DERIVED from d.clock.seconds() and
+        // keeps every property that made it safe: idempotent, pause-aware,
+        // nothing before the first keystroke.
+        // ⚠️ `idleMs` IS ACCUMULATED FROM A CLAMPED dt, so a hidden tab
+        // UNDER-counts idle and the student banks slightly MORE than they
+        // strictly typed. ⭐ THAT DIRECTION IS DELIBERATE: the clock already
+        // pauses outright on a hidden tab, so the residue is small, and erring
+        // toward the child is the right way to be wrong about minutes.
+        const whole = Math.floor(d.clock.seconds(now) - idleMs / 1000);
         while (secondsBanked < whole) {
             secondsBanked++;
             try { onSecond(); } catch (_) { /* never let a host error stop play */ }
@@ -576,18 +644,40 @@ export function mount(container, opts) {
 
         drawHud(d.report(now));
         drawCells();
+        drawBlasts(now);
         drawWebs();
         drawWords();
         drawEnemies(tSec, dt);
         drawPlayer();
         drawParticles(ctx, particles);
 
+        // ⭐⭐ THE TEAR-FREE WORD SITS ON THE PLAYER, ON THE WEB, ON A WHITE
+        // PLATE. Jake: *"When I got caught in a web, it was hard to tell what my
+        // word was. It should appear on my square, on a white box, on a web, on
+        // me. That way typing it literally frees me."*
+        //
+        // ⚠️⚠️ IT USED TO SIT ABOVE THE BOARD, at `offY - 16`, and that is not a
+        // placement problem — it is a MEANING problem. A word floating over the
+        // board is an instruction from the game; a word stamped on the web that
+        // is holding you is the thing you are typing your way out of. The second
+        // one needs no explaining, which is the entire point.
+        //
+        // ⚠️ DRAWN AFTER THE PLAYER AND THE PARTICLES, so nothing covers it. The
+        // student cannot act on anything else while webbed, so it outranks
+        // everything on the board.
         if (board.player.webWord != null) {
+            const wx = cx(board.player.x), wy = cy(board.player.y);
+            // The web that holds them, drawn on top of the frog rather than under
+            // it — they are caught IN it.
+            drawWeb(ctx, wx, wy, cell * 0.46);
             platedProgress(ctx, {
-                x: W / 2, y: offY - 16, text: board.player.webWord, typedLen: board.typed.length,
-                font: `bold ${Math.max(16, Math.round(cell * 0.24))}px "Courier Prime", monospace`,
-                border: '#ffd700', typedColor: '#ffd700', restColor: '#fff',
-                bg: 'rgba(40,26,4,0.94)',
+                x: wx, y: wy, text: board.player.webWord, typedLen: board.typed.length,
+                font: `bold ${Math.max(13, Math.round(cell * 0.20))}px "Courier Prime", monospace`,
+                // ⚠️ A WHITE PLATE, NOT THE DARK ONE EVERY OTHER LABEL USES. It is
+                // the one moment the board has a single correct answer, and it
+                // should not look like the thirty other words around it.
+                bg: 'rgba(255,255,255,0.94)', border: '#ffd700', borderWidth: 3,
+                typedColor: '#1a7f37', restColor: '#101418',
             });
         }
 
@@ -657,6 +747,23 @@ export function mount(container, opts) {
                     drawVaporised(ctx, cx(x), cy(y), cell);
                 }
             }
+        }
+    }
+
+    /**
+     * ⚠️⚠️ ONE SQUARE, IN THE DIRECTION THE BOARD FIRED, ENDING ON THE CELL THE
+     * BOARD ASHED. Jake: *"The beam should zap one square up or down, and the
+     * result is the ash (and an x)."* The beam and the X are now two renderings
+     * of ONE event, so they cannot point at different squares.
+     */
+    function drawBlasts(now) {
+        blasts = blasts.filter(b => now < b.until);
+        for (const b of blasts) {
+            // ⚠️ IT STARTS AT THE KAIJU'S MOUTH AND STOPS AT THE CELL EDGE, not
+            // at the next cell's centre — a beam that overshot into the square
+            // beyond the one it ashed is exactly the mismatch this replaced.
+            const jitter = Math.max(0, (b.until - now) / BLAST_MS);
+            drawBeam(ctx, cx(b.x), cy(b.y), cx(b.x), cy(b.ty), jitter);
         }
     }
 
@@ -795,14 +902,11 @@ export function mount(container, opts) {
             // ⭐ THE KAIJU FIRES DOWN ITS LANE, and the beam is drawn BEFORE the
             // sprite so the creature sits on top of its own blast. Its head
             // tilts toward the shot, which is the prototype's touch.
-            const firing = en.kind === 'kaiju' && en.stunSteps <= 0
-                && (en.x === board.player.x || en.y === board.player.y);
-            let tilt = 0;
-            if (firing) {
-                const tx = cx(board.player.x), ty = cy(board.player.y);
-                drawBeam(ctx, pos.x, pos.y, tx, ty, Math.abs(Math.sin(tSec * 30)));
-                tilt = en.y === board.player.y ? 0 : (ty < pos.y ? -0.45 : 0.45);
-            }
+            // ⚠️ THE HEAD TILT COMES FROM A REAL BLAST THIS CREATURE FIRED, and
+            // the beam itself is drawn separately in drawBlasts() — over the
+            // cells, under the sprites, so a kaiju sits on top of its own shot.
+            const mine = blasts.find(b => b.x === en.x && b.y === en.y);
+            const tilt = mine ? (mine.dir < 0 ? -0.45 : 0.45) : 0;
             drawPixelSprite(ctx, sprite, ENEMY_PALETTES[en.kind],
                             pos.x, pos.y, cell * 0.8,
                             en.dir === -1 || en.facingLeft, tilt);

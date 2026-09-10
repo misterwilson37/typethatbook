@@ -1,3 +1,9 @@
+// game-chrome.js v1.8.0 — Round 109 (Bar-Let): ESCAPE PAUSES ANY GAME. Jake:
+//   *"The escape key should pause any game - this gives the hover mechanic to
+//   work."* ⚠️ IT LIVES HERE, NOT IN THE THREE VIEWS — pause is already this
+//   file's job, and three copies of a pause key is three places for it to stop
+//   working. ⚠️ CAPTURE PHASE, and it stops propagation: every view already binds
+//   Escape to its own "clear what I typed", and pausing outranks that.
 // game-chrome.js v1.7.0
 //
 // v1.7.0 — ⭐ ROUND 101 — THE CARD BUTTONS BECOME BOLTED-IN HARDWARE. Jake,
@@ -79,7 +85,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.7.0';
+export const GAME_CHROME_VERSION = '1.8.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -330,7 +336,25 @@ export function mountChrome(container, opts) {
             row,
         ]);
         // Enter or Space also starts, since their hands are already on the keys.
-        window.addEventListener('keydown', readyKey, true);
+        // ⭐⭐ ESCAPE PAUSES ANY GAME. Jake, 2026-09-09: *"The escape key should pause
+    // any game - this gives the hover mechanic to work (hover over a word to see
+    // what book it came from and/or what morphemes mean)."*
+    // ⚠️ IT LIVES IN THE CHROME, NOT IN THE THREE VIEWS. Pause is already this
+    // file's job — three copies of a pause key is three places for it to stop
+    // working, and the views each already bind Escape to their own "clear what I
+    // typed", which is why this listens in the CAPTURE phase and stops the event
+    // before it reaches them.
+    // ⚠️ NOT WHILE THE GET-READY PANEL IS UP: there is nothing to pause yet, and
+    // Escape there would look like it did nothing.
+    function pauseKey(e) {
+        if (e.key !== 'Escape') return;
+        if (phase !== 'playing' && phase !== 'paused') return;
+        e.preventDefault();
+        e.stopPropagation();
+        setPaused(phase !== 'paused');
+    }
+    window.addEventListener('keydown', pauseKey, true);
+    window.addEventListener('keydown', readyKey, true);
     }
 
     function readyKey(e) {
@@ -461,6 +485,7 @@ export function mountChrome(container, opts) {
                 try { o.onCountdown(null); } catch (_) {}
             }
             window.removeEventListener('keydown', readyKey, true);
+            window.removeEventListener('keydown', pauseKey, true);
             if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
             // ⚠️⚠️ AND THE BAR, WHICH IS THE BUG JAKE SAW AS "the buttons are
             // currently duplicated when I'm paused". With a barHost the bar is
