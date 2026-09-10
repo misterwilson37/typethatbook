@@ -1,4 +1,13 @@
-// game-escape.js v2.0.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106, 108.
+// game-escape.js v2.1.0 — ESCAPE KEY. Round 82 (Victor), 102, 104, 106, 108, 112.
+//
+// v2.1.0 — ⚠️⚠️ THE TOP BAR IS GONE AND THE BOARD TOOK ITS 54px. Every number it
+//   showed — round, WPM, accuracy, lives — is already on the console to the right
+//   or the panel to the left, in a different visual language, so the student had
+//   to work out whether two readouts agreed. ⭐ TWO READOUTS FOR ONE STATE IS THE
+//   SHAPE THIS PROJECT KEEPS FINDING. The Pac-Man lives were a third language
+//   besides. ⚠️ DO NOT RE-ADD A HUD: if a number is missing it belongs in
+//   drawGauges(), which all three games share.
+// game-escape.js v2.0.0 — Round 108.
 //
 // ✅ 2.0.0 on Jake's sign-off — escape-board.js's rules rewrite is a 2.0.0 and
 // this view moves with it.
@@ -6,9 +15,10 @@
 // v2.0.0 — ⭐ THE SIDE PANELS AND THE KEYBOARD. Jake, 2026-09-09: a left panel
 //   that *"previews what's coming, but not where"*, a right panel carrying lives,
 //   time, speed, accuracy and the banked minutes, and a keyboard with Shift keys.
-//   • ⚠️ EVERY PANEL IS ABSENT-SAFE. tools/game-lab.html mounts this view with no
-//     side canvases at all, so a panel that assumed its canvas existed would
-//     break the bench the moment it was added.
+//   • ⚠️ EVERY PANEL IS ABSENT-SAFE, because learn.js mounts games with no side
+//     canvases. ⚠️ tools/game-lab.html was the other such host and is GONE as of
+//     Round 112 — the lab is arcade.html?lab=1, one instance, and it passes the
+//     canvases exactly as a student's session does.
 //   • ⚠️ THE KEYBOARD'S HEIGHT COMES OUT OF THE BOARD'S BUDGET BEFORE the cell
 //     size is computed. Subtracting it afterwards sizes the cells to a canvas
 //     that no longer exists and pushes the bottom row under the strip.
@@ -140,7 +150,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.0.0';
+export const GAME_ESCAPE_VERSION = '2.1.0';
 
 /**
  * @param {HTMLElement} container
@@ -199,17 +209,17 @@ export function mount(container, opts) {
     // ⚠️⚠️ THE SIDE PANELS, ALL OPTIONAL. Jake, 2026-09-09, asked for Deadline's
     // two flanks on this game: a left panel previewing what is coming and a right
     // panel carrying lives, time, speed, accuracy and the banked minutes.
-    // ⚠️ EVERY ONE IS ABSENT-SAFE. tools/game-lab.html mounts this view with no
-    // side canvases at all, and a panel that assumed its canvas existed would
-    // break the bench the moment it was added — which is why game-deadline.js
-    // states the same rule about its three.
+    // ⚠️ EVERY ONE IS ABSENT-SAFE, because learn.js mounts games with no side
+    // canvases at all. ⚠️ tools/game-lab.html was the other such host and is GONE
+    // as of Round 112 — the lab is arcade.html?lab=1 now, one instance, and it
+    // passes the canvases like any student would.
     const previewCanvas = (opts && opts.previewCanvas) || (opts && opts.radarCanvas) || null;
     const gaugeCanvas = (opts && opts.gaugeCanvas) || null;
     const previewCtx = previewCanvas ? previewCanvas.getContext('2d') : null;
     const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
     // ⚠️⚠️ A GETTER, NOT A VALUE. The daily and weekly totals live in daylog.js's
     // day documents — a Firestore read — and A VIEW MUST NOT FETCH: this file is
-    // mounted by tools/game-lab.html, which has no auth at all. A getter keeps
+    // mounted by hosts with no auth at all. A getter keeps
     // the read where the page's own budget is accounted for, and lets a page that
     // cannot answer simply not pass one.
     const getMinutes = (opts && opts.minutes) || null;
@@ -246,9 +256,9 @@ export function mount(container, opts) {
         // cells to a canvas that no longer exists and push the bottom row under
         // the keyboard — which is the class of bug Round 100 spent a round on.
         kbH = keyboardStripHeight(H, keysOn);
-        cell = Math.floor(Math.min(W / COLS, (H - 54 - kbH) / ROWS));
+        cell = Math.floor(Math.min(W / COLS, (H - kbH - 12) / ROWS));
         offX = Math.round((W - cell * COLS) / 2);
-        offY = Math.round((H - 54 - kbH - cell * ROWS) / 2) + 46;
+        offY = Math.round((H - kbH - cell * ROWS) / 2);
     }
 
     // ── view-only state ─────────────────────────────────────────────────────
@@ -646,7 +656,6 @@ export function mount(container, opts) {
         ctx.fillStyle = '#05070c';
         ctx.fillRect(0, 0, W, H);
 
-        drawHud(d.report(now));
         drawCells();
         drawBlasts(now);
         drawWebs();
@@ -910,6 +919,8 @@ export function mount(container, opts) {
             // the beam itself is drawn separately in drawBlasts() — over the
             // cells, under the sprites, so a kaiju sits on top of its own shot.
             const mine = blasts.find(b => b.x === en.x && b.y === en.y);
+            // ⚠️ SCREEN ANGLE — see drawPixelSprite(). A kaiju drawn flipped no
+            // longer needs its blast tilt inverted by hand.
             const tilt = mine ? (mine.dir < 0 ? -0.45 : 0.45) : 0;
             // ⭐⭐ THE PEEK IS NOW VISIBLE, WHICH IS THE ONLY REASON IT EXISTS.
             // Jake: *"The creatures also don't peak into the board when they
@@ -931,7 +942,10 @@ export function mount(container, opts) {
                     // ⚠️ 62% OUT, PLUS A TILT TOWARD THE BOARD. Enough that the
                     // head and the glowing eye clear the edge and nothing else.
                     px -= en.dir * cell * 0.62;
-                    lean = en.dir * 0.5;
+                    // ⚠️ ALWAYS POSITIVE — drawPixelSprite() now takes a SCREEN
+                    // angle and undoes the mirror itself, so "lean into the
+                    // board" is one number for both directions.
+                    lean = 0.5;
                 } else if (en.kind === 'spider') {
                     // ⚠️ 72% OUT — a quarter of the sprite showing, which for
                     // this grid is the head and the eyes and no legs.
@@ -964,56 +978,32 @@ export function mount(container, opts) {
         }
     }
 
-    function drawHud(rep) {
-        const font = 'bold 15px "Courier Prime", monospace';
-        // ⚠️ THE ROUND IS SHOWN. The prototype displayed it, Jake thinks in it
-        // ("he should appear around round 5 or 6"), and a rising number is its own
-        // reward — the difference from the prototype is that this one MEANS
-        // something: escape-board.js gates the hunter on it.
-        const text = d.endless
-            ? `ROUND ${board.round}   SCORE ${rep.score}   ${rep.wpm} WPM   ${rep.acc}%`
-            : `ROUND ${board.round}   ${rep.wpm} WPM   ${rep.acc}%   TARGET ${rep.targetWPM}/${rep.minAccuracy}%`;
-        // ⚠️ SET THE FONT BEFORE MEASURING, or the plate drifts as the game draws
-        // other things and leaves other fonts on the context.
-        ctx.save(); ctx.font = font;
-        const tw = ctx.measureText(text).width;
-        ctx.restore();
-        platedText(ctx, {
-            x: 14 + tw / 2, y: 20, text, font, color: '#8fe8c8',
-            bg: 'rgba(2,4,10,0.75)', padX: 10, padY: 6, border: 'rgba(0,229,255,0.2)',
-        });
+    /**
+     * ⚠️⚠️ THERE IS NO TOP BAR ANY MORE, AND THE BOARD GOT THE SPACE.
+     *
+     * Jake, 2026-09-10: *"Pacman life indicators make no sense. In fact, the whole
+     * top bar is silly when you have the console on the right. Let's use that
+     * space more effectively by expanding the board."*
+     *
+     * ⭐ HE IS RIGHT TWICE OVER. The bar showed ROUND, SCORE, WPM, ACCURACY and
+     * lives — and the console on the right shows the run clock, LIVES, WPM and
+     * accuracy, while the left panel shows the wave. **EVERY NUMBER WAS ON SCREEN
+     * TWICE**, in two visual languages, and the student had to work out whether
+     * they agreed. ⚠️ TWO READOUTS FOR ONE STATE IS THE SHAPE THIS PROJECT KEEPS
+     * FINDING; here it was costing 46px off the top of a board that needed it.
+     *
+     * ⚠️ AND THE PAC-MAN LIVES WERE A THIRD LANGUAGE — yellow arcs that belong to
+     * a different game entirely, next to a console that already counts LIVES in
+     * words. ⚠️ DO NOT RE-ADD A HUD HERE. If a number is missing, it belongs in
+     * drawGauges(), which every game on the page already shares.
+     *
+     * ⚠️ THE SCORE IS THE ONE THING THE CONSOLE DOES NOT CARRY, and it is not
+     * lost: the result panel reports it at the end of the run, which is when it
+     * means anything. A live score during play is a number nobody acts on.
+     */
+    const HUD_H = 0;
 
-        for (let i = 0; i < d.shieldsMax; i++) {
-            const x = W - 20 - i * 26;
-            ctx.save();
-            ctx.globalAlpha = i < rep.shieldsLeft ? 1 : 0.22;
-            ctx.fillStyle = '#ffd700';
-            ctx.beginPath();
-            ctx.arc(x, 20, 8, 0.35, Math.PI * 2 - 0.35);
-            ctx.lineTo(x, 20);
-            ctx.closePath(); ctx.fill();
-            ctx.restore();
-        }
 
-        if (!d.endless) {
-            const pct = Math.min(1, d.clearedChars / d.quotaChars);
-            const bw = Math.min(180, W * 0.26);
-            const bx = W - bw - 20 - d.shieldsMax * 26;
-            ctx.save();
-            roundRect(ctx, bx, 14, bw, 12, 6);
-            ctx.fillStyle = 'rgba(2,4,10,0.8)'; ctx.fill();
-            ctx.strokeStyle = 'rgba(0,229,255,0.3)'; ctx.lineWidth = 1; ctx.stroke();
-            roundRect(ctx, bx + 1.5, 15.5, Math.max(0, (bw - 3) * pct), 9, 4.5);
-            ctx.fillStyle = pct >= 1 ? '#ffd700' : '#00e5ff'; ctx.fill();
-            ctx.restore();
-        }
-    }
-
-    // ── lifecycle ───────────────────────────────────────────────────────────
-    //
-    // ⚠️ THE HIDDEN-TAB PAUSE IS THE ONLY THING ALLOWED TO STOP THE CLOCK. Idle
-    // time inside a running game is charged — see GameClock's header. `stepAccMs`
-    // is reset on resume so a hidden minute does not fire a burst of enemy steps.
     function onVisibility() {
         const now = performance.now();
         if (document.hidden) d.pause(now);

@@ -1,3 +1,10 @@
+// game-draw.js v1.11.0 — Round 112 (Bar-Let): the wave preview RESERVES the tip's
+//   space before sizing its rows. ⚠️⚠️ THE ROWS WERE EATING IT — rowH came from
+//   the whole remaining height, so four rows expanded to fill the panel and the
+//   guard on the tip was always false. ⭐ The tip was correctly deciding it had no
+//   room, in a panel that was two-thirds empty. Same shape as the keyboard strip:
+//   a FIXED block must leave the budget before a FLEXIBLE one is sized.
+//   ⚠️ drawGauges() now takes `livesLabel` — "SHIELDS" made no sense for a frog.
 // game-draw.js v1.10.0 — Round 109 (Bar-Let): drawShatterPanel() — a radar over a
 //   warp meter. ⚠️⚠️ THE TWO HALVES ARE DELIBERATELY UNEQUAL. Jake: the radar is
 //   *"just window dressing - nothing of importance. Only the 'Can I warp yet?'
@@ -61,7 +68,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.10.0';
+export const GAME_DRAW_VERSION = '1.11.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1565,7 +1572,17 @@ export function drawWavePreview(ctx, o) {
     if (!waves.length) { ctx.restore(); return; }
 
     const top = pad + 22;
-    const rowH = Math.max(52, (H - top - pad) / waves.length);
+    // ⚠️⚠️ THE TIP'S SPACE IS RESERVED BEFORE THE ROWS ARE SIZED, NOT AFTER.
+    // Jake, 2026-09-10: *"Nothing is in that bottom left corner yet."* ⭐ THE
+    // ROWS WERE EATING IT: rowH was computed from the WHOLE remaining height, so
+    // four rows expanded to fill the panel and the `H - tipTop > 68` check that
+    // guards the tip was always false. The tip was correctly deciding it had no
+    // room, in a panel that was two-thirds empty.
+    // ⚠️ THIS IS THE SAME SHAPE AS THE KEYBOARD STRIP IN game-escape.js: a fixed
+    // block must come out of the budget BEFORE the flexible thing is sized, or
+    // the flexible thing takes all of it.
+    const tipH = o.tip ? 92 : 0;
+    const rowH = Math.max(48, (H - top - pad - tipH) / waves.length);
 
     waves.forEach((w, i) => {
         const y = top + i * rowH;
@@ -1627,7 +1644,7 @@ export function drawWavePreview(ctx, o) {
     // ⚠️ DRAWN ONLY IF THERE IS ROOM. Squeezing it in on a short window would push
     // the fourth queue row off the bottom, and the queue is the panel's job.
     const tipTop = top + waves.length * rowH + 6;
-    if (o.tip && H - tipTop > 68) {
+    if (o.tip && H - tipTop > 60) {
         ctx.globalAlpha = 1;
         roundRect(ctx, pad, tipTop, W - pad * 2, H - tipTop - pad, 6);
         ctx.fillStyle = 'rgba(163,44,196,0.10)'; ctx.fill();

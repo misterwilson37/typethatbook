@@ -602,7 +602,7 @@ const threat = lanes => { const c = recorder();
 }
 
 {
-    // ⚠️ ABSENT-SAFE. tools/game-lab.html and learn.js supply no side canvases,
+    // ⚠️ ABSENT-SAFE. learn.js supplies no side canvases (tools/game-lab.html did too, until Round 112 deleted it),
     // and a panel that threw on empty input would take the bench with it.
     let threw = false;
     try { const c = recorder(); drawThreatBoard(c, { W: 180, H: 104, lanes: [] }); }

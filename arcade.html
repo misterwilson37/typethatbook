@@ -301,12 +301,52 @@
                  played against a LESSON must use that run's own characters or it
                  is no longer comparable to the typed version, which is the whole
                  point of this page. -->
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ⚠️⚠️ THE LAB IS THIS PAGE WITH ?lab=1, NOT A SECOND PAGE.
+                 ═══════════════════════════════════════════════════════════════
+                 Jake, 2026-09-10: *"finding a bug in one is not helpful if the
+                 other is running a different instance of the game. And if that's
+                 not possible, then just torch game lab, because I don't have time
+                 to test both, and I'd rather test what kids see."*
+
+                 ⭐ HE IS RIGHT, AND THE EVIDENCE IS THE LAST FOUR ROUNDS. The
+                 control bar landing on the keyboard, the gauges drawing nothing,
+                 the panel column too short for its rows — every one was a LAYOUT
+                 fault, every one was invisible on the bench because the bench had
+                 a different layout, and every one had to be found by Jake on the
+                 live page. ⚠️ A SEPARATE BENCH DOES NOT HALVE THE TESTING, IT
+                 DOUBLES IT AND TRUSTS THE WRONG HALF.
+
+                 ⭐ SO tools/game-lab.html IS DELETED AND ITS CONTROLS LIVE HERE,
+                 hidden unless the URL says ?lab=1. Same page, same mount, same
+                 CSS, same instance — the dev sees exactly what the student sees
+                 plus three dropdowns.
+                 ⚠️ THE FLAG MAY ONLY EVER ADD CONTROLS. The moment it changes a
+                 layout, a default or a code path, the two instances have diverged
+                 again and this whole rule is undone. -->
+            <div class="row" id="row-lab" style="display:none">
+                <label for="labGate">LAB &mdash; gate override (dev only)</label>
+                <select id="labGate"></select>
+            </div>
             <div class="row" id="row-scope" style="display:none">
                 <label for="scope">WORDS</label>
                 <select id="scope">
                     <option value="level" selected>from my lessons so far</option>
                     <option value="full">everything &mdash; the whole word pool</option>
                 </select>
+            </div>
+            <!-- ⭐ AT `full` THE LEVEL PICKER BECOMES A SPEED PICKER. Jake,
+                 2026-09-10: *"The level dropdown for entire pool of words makes
+                 no sense - it should just change to speed like deadline had
+                 before."* ⚠️ HE IS RIGHT AND IT WAS INCOHERENT: at `full` the
+                 level no longer decides the letters, so the only thing it still
+                 did was set the pace — while calling itself LEVEL and listing
+                 lesson names. ⭐ SAME QUANTITY, HONEST LABEL.
+                 ⚠️ UP TO 100 WPM, because a third of the school already types and
+                 the lesson gates top out far below where they live. -->
+            <div class="row" id="row-freespeed" style="display:none">
+                <label for="freespeed">SPEED &mdash; how fast the words arrive</label>
+                <select id="freespeed"></select>
             </div>
             <div class="row" id="row-level" style="display:none">
                 <label for="level">LEVEL &mdash; sets the letters and the starting speed</label>
@@ -426,7 +466,7 @@ import { GAME_SHELL_VERSION } from './game-shell.js';
 import { GAME_DRAW_VERSION } from './game-draw.js';
 import { GAME_CHROME_VERSION } from './game-chrome.js';
 import { GAME_LAYOUT_VERSION } from './game-layout.js';
-const ARCADE_PAGE_VERSION = '3.11.0';
+const ARCADE_PAGE_VERSION = '3.12.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -942,7 +982,22 @@ function fillSpeeds() {
 // ⚠️ THE FLAG IS `assessed` FROM THE REGISTRY, NOT A LIST OF IDS HERE. A second
 // list would be the copy that disagrees the first time a game's status changes.
 function currentGame() { return GAMES[$('game').value] || GAMES.deadline; }
-function isFreePlay() { return !currentGame().assessed; }
+
+/**
+ * ⚠️⚠️ DEADLINE JOINS FREE PLAY WHEN THE STUDENT PICKS THE WHOLE WORD POOL.
+ * Jake, 2026-09-10: *"Deadline can't pick the pool of words."*
+ *
+ * ⭐ `assessed` DECIDES WHETHER A GAME *CAN* BE GRADED, NOT WHETHER THIS RUN IS.
+ * Gating the WORDS row on it meant Deadline could only ever be played against a
+ * lesson run — which is right for the graded path and wrong for the arcade, and
+ * the arcade is most of what this page is used for.
+ * ⚠️ A LESSON-SCOPED DEADLINE RUN IS STILL THE GRADED ONE and still gets the
+ * comparison table. Only `full` opts out, and it opts out of the grade too —
+ * there is no gate to compare a whole-library pool against.
+ */
+function isFreePlay() {
+    return !currentGame().assessed || chosenScope() === 'full';
+}
 
 function fillGames() {
     const sel = $('game');
@@ -980,9 +1035,13 @@ function applyGameMode() {
     // does not. ⚠️ THE LEVEL STILL SETS THE PACE at `full` — the gate comes from
     // `arcadeTargetWPM()` either way — so this hides a control that is still
     // partly live, which is the one cost of the rule and is worth it.
-    const fullPool = free && chosenScope() === 'full';
+    const fullPool = chosenScope() === 'full';
     $('row-level').style.display = (free && !fullPool) ? '' : 'none';
-    $('row-scope').style.display = free ? '' : 'none';
+    // ⚠️ THE WORDS ROW IS ALWAYS VISIBLE NOW — it is the control that DECIDES
+    // whether this is free play, so hiding it when free play is off would make
+    // the state unreachable from the state it hides in.
+    $('row-scope').style.display = '';
+    $('row-freespeed').style.display = fullPool ? '' : 'none';
     if (free) showFreeGates(); else showGates();
 }
 
@@ -1053,7 +1112,56 @@ function liveMinutes() {
     };
 }
 
+/** ⚠️ READ ONCE. A flag that could change mid-session would let the two
+ *  instances diverge inside one page load, which is the thing it exists to stop. */
+const LAB = new URLSearchParams(location.search).get('lab') === '1';
+
+function fillLab() {
+    if (!LAB) return;
+    $('row-lab').style.display = '';
+    const sel = $('labGate');
+    if (sel.options.length) return;
+    const o0 = document.createElement('option');
+    o0.value = ''; o0.textContent = 'use the game\u2019s own gate';
+    sel.appendChild(o0);
+    for (const w of [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100]) {
+        const o = document.createElement('option');
+        o.value = String(w); o.textContent = w + ' WPM gate';
+        sel.appendChild(o);
+    }
+}
+
+/** ⚠️ RETURNS 0 WHEN UNSET OR WHEN THE FLAG IS OFF, which every caller already
+ *  treats as "no override" — so the student's path runs identical code. */
+function labGate() {
+    if (!LAB) return 0;
+    const v = parseInt($('labGate').value, 10);
+    return Number.isFinite(v) ? v : 0;
+}
+
 function chosenScope() { return $('scope').value === 'full' ? 'full' : 'level'; }
+
+// ⚠️ UP TO 100. The lesson gates run 10–35; a student on the full word pool has
+// said they are past that, and capping them at a lesson's pace would make the
+// pool choice pointless for exactly the students it exists for.
+const FREE_SPEEDS = [10, 15, 20, 25, 30, 40, 50, 60, 75, 100];
+
+function fillFreeSpeeds() {
+    const sel = $('freespeed');
+    if (sel.options.length) return;
+    for (const w of FREE_SPEEDS) {
+        const o = document.createElement('option');
+        o.value = String(w);
+        o.textContent = w + ' WPM';
+        sel.appendChild(o);
+    }
+    sel.value = '20';
+}
+
+function chosenFreeWPM() {
+    const v = parseInt($('freespeed').value, 10);
+    return Number.isFinite(v) ? v : 20;
+}
 
 function chosenLevelIdx() {
     const v = parseInt($('level').value, 10);
@@ -1091,7 +1199,16 @@ function freePlayConfig() {
     // GATE. game-shell.js's arcadeWindow() is the single answerer — two windows
     // over one list would draw the letters from one lesson and the speed from
     // another.
-    const cfg = arcadeConfig({ lessons: LESSONS, progress: PROGRESS, levelIdx: chosenLevelIdx() });
+    // ⚠️ AT `full` THE SPEED IS THE STUDENT'S, NOT THE LEVEL'S. `targetWPM` wins
+    // over arcadeTargetWPM() inside arcadeConfig(), which is exactly the seam it
+    // documents for a caller that already knows the pace it wants.
+    const cfg = arcadeConfig({
+        lessons: LESSONS, progress: PROGRESS, levelIdx: chosenLevelIdx(),
+        // ⚠️ THE LAB OVERRIDE IS APPLIED AT THE SAME SEAM the student's own speed
+        // choice uses, not by a second path — so a bug reproduced under ?lab=1 is
+        // a bug in the code the student runs.
+        targetWPM: labGate() || (chosenScope() === 'full' ? chosenFreeWPM() : 0),
+    });
     // ⚠️⚠️ THE TARGETS ARE REPLACED; THE GATE IS NOT. Scope decides WHAT you
     // type, the level decides HOW FAST it arrives — and a student who opens the
     // pool up has said nothing about wanting a harder pace. ⚠️ Conflating the
@@ -1111,7 +1228,8 @@ function freePlayConfig() {
 function describeLevel() {
     const idx = chosenLevelIdx();
     const keys = arcadeKeySet(LESSONS, PROGRESS, idx);
-    const wpm = arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
+    const wpm = chosenScope() === 'full' ? chosenFreeWPM()
+        : arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
     const pool = arcadePool({
         game: currentGame().id, scope: chosenScope(), keySet: keys, round: 1,
     });
@@ -1217,7 +1335,9 @@ function play() {
  */
 function playFree() {
     const g = currentGame();
-    const mountGame = g.id === 'shatter' ? mountShatter : mountEscape;
+    const mountGame = g.id === 'shatter' ? mountShatter
+        : g.id === 'escape' ? mountEscape
+        : mountDeadline;
     lastPlayedWPM = null;
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
@@ -1502,6 +1622,8 @@ async function load(user) {
         $('pickerBody').style.display = 'block';
         fillGames();
         fillLevels();
+        fillFreeSpeeds();
+        fillLab();
         if (!PLAYABLE.length) {
             // ⚠️ THE ASSESSED GAME IS REMOVED FROM THE PICKER, NOT LEFT TO FAIL
             // ON PLAY. currentRun() would return null and play() would return
@@ -1530,7 +1652,10 @@ async function load(user) {
 
 $('game').addEventListener('change', applyGameMode);
 $('level').addEventListener('change', showFreeGates);
-$('scope').addEventListener('change', showFreeGates);
+// ⚠️ SCOPE CHANGES WHICH ROWS EXIST, not just what they say, so it re-runs the
+// whole mode switch rather than only the blurb.
+$('scope').addEventListener('change', applyGameMode);
+$('freespeed').addEventListener('change', showFreeGates);
 $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);

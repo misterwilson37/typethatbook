@@ -1,4 +1,10 @@
-// game-sprites.js v1.0.0 — THE ARCADE'S ARTWORK. Round 106 (Bar-Let).
+// game-sprites.js v1.1.0 — THE ARCADE'S ARTWORK. Rounds 106, 112 (Bar-Let).
+//
+// v1.1.0 — ⚠️ drawPixelSprite() TAKES A SCREEN-SPACE ANGLE. `scale(-1, 1)` mirrors
+//   the rotation too, so a kaiju entering from the right leaned backwards OUT of
+//   the board while the identical call leaned the left-hand one correctly in.
+//   ⭐ NEGATED INSIDE, NOT AT THE CALL SITES, so every caller means the same thing
+//   by a positive angle and the next one cannot inherit the bug.
 //
 // ⚠️⚠️ THIS FILE EXISTS BECAUSE THE PROTOTYPES LOOKED BETTER THAN THE REWRITE AND
 // JAKE WAS RIGHT TO SAY SO.
@@ -28,7 +34,7 @@
 // ⚠️ PURE-ISH: it draws to a 2D context and does nothing else. No DOM, no state,
 // no timers, no Math.random(). Every function takes everything it needs.
 
-export const GAME_SPRITES_VERSION = '1.0.0';
+export const GAME_SPRITES_VERSION = '1.1.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ESCAPE KEY — 24×24 PIXEL SPRITES
@@ -125,8 +131,16 @@ export function drawPixelSprite(ctx, sprite, palette, x, y, size, flipX = false,
 
     ctx.save();
     ctx.translate(Math.round(x), Math.round(y));
+    // ⚠️⚠️ ROTATION IS IN SCREEN SPACE, AND THE MIRROR IS UNDONE FOR IT. Jake,
+    // 2026-09-10: *"Kaiju tilts the wrong way when spawning on the right."*
+    // ⭐ `scale(-1, 1)` MIRRORS THE ROTATION TOO, so a kaiju entering from the
+    // right — which is drawn flipped — leaned backwards out of the board while
+    // the identical call leaned the left-hand one correctly in. ⚠️ NEGATING HERE
+    // RATHER THAN AT THE CALL SITE IS THE POINT: every caller now means the same
+    // thing by a positive angle, so the next one cannot inherit the bug. The two
+    // call sites that compensated for this by hand are simpler for it.
     if (flipX) ctx.scale(-1, 1);
-    if (rotation) ctx.rotate(rotation);
+    if (rotation) ctx.rotate(flipX ? -rotation : rotation);
     const sx = -w / 2, sy = -h / 2;
     for (let r = 0; r < sprite.length; r++) {
         const row = sprite[r];

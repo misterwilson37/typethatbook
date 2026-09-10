@@ -1,5 +1,72 @@
 # CHANGELOG — TypeThatBook
 
+## Round 112 (Bar-Let) — 2026-09-10 — ⚠️⚠️ THE LAB IS TORCHED, and the top bar with it
+
+### ⚠️⚠️⚠️ `tools/game-lab.html` IS DELETED. THE LAB IS `arcade.html?lab=1`.
+
+Jake: *"finding a bug in one is not helpful if the other is running a different
+instance of the game. And if that's not possible, then just torch game lab,
+because I don't have time to test both, and I'd rather test what kids see."*
+
+⭐ **THE EVIDENCE IS THE LAST FOUR ROUNDS.** The control bar landing on the
+keyboard, the gauges drawing nothing, the panel column too short for its rows,
+the tip with no space — **every one was a LAYOUT fault, every one was invisible
+on the bench because the bench had its own layout, and every one had to be found
+by Jake on the live page.** ⚠️ A SEPARATE BENCH DOES NOT HALVE THE TESTING; IT
+DOUBLES IT AND TRUSTS THE WRONG HALF.
+
+The lab's controls now live on the arcade page behind `?lab=1`: same page, same
+mount, same CSS, same instance. ⚠️⚠️ **THE FLAG MAY ONLY EVER ADD CONTROLS.** The
+moment it changes a layout, a default or a code path, the two instances have
+diverged again and the rule is undone. The gate override is applied at the same
+seam the student's own speed choice uses, so a bug reproduced under `?lab=1` is a
+bug in the code the student runs.
+
+---
+
+### ⚠️ THE KAIJU LEANED OUT OF THE BOARD FROM THE RIGHT
+
+`scale(-1, 1)` mirrors the rotation too, so the identical call leaned the
+left-hand kaiju correctly in and the right-hand one backwards out. ⭐ **NEGATED
+INSIDE `drawPixelSprite()`, NOT AT THE CALL SITES** — every caller now means the
+same thing by a positive angle, so the next one cannot inherit it.
+
+### ⚠️⚠️ THE EXTRA-LIFE TIP WAS CORRECTLY DECIDING IT HAD NO ROOM
+
+...in a panel that was two-thirds empty. `rowH` came from the whole remaining
+height, so four queue rows expanded to fill the panel and the guard on the tip
+was always false. ⭐ **SAME SHAPE AS THE KEYBOARD STRIP: A FIXED BLOCK MUST LEAVE
+THE BUDGET BEFORE A FLEXIBLE ONE IS SIZED**, or the flexible one takes all of it.
+
+### ⭐ NO MORE TOP BAR — THE BOARD TOOK THE 54px
+
+Every number it carried is already on the console to the right or the panel to
+the left. ⚠️⚠️ **EVERY NUMBER WAS ON SCREEN TWICE, IN TWO VISUAL LANGUAGES**, and
+the student had to work out whether they agreed. The Pac-Man lives were a third
+language besides, next to a console that counts LIVES in words. ⚠️ **DO NOT
+RE-ADD A HUD** — if a number is missing it belongs in `drawGauges()`, which all
+three games share. ⚠️ The score is not lost: the result panel reports it at the
+end, which is when it means anything.
+
+### ⭐ DEADLINE CAN PICK THE WORD POOL
+
+⚠️ `assessed` decides whether a game **can** be graded, not whether **this run
+is**. Gating the WORDS row on it meant Deadline could only ever be played against
+a lesson run — right for the graded path, wrong for the arcade, and the arcade is
+most of what this page does. ⚠️ A lesson-scoped Deadline run is still the graded
+one and still gets the comparison table; only `full` opts out, and it opts out of
+the grade too, because there is no gate to compare a whole-library pool against.
+
+### ⭐ AT `full`, LEVEL BECOMES SPEED — UP TO 100 WPM
+
+⚠️ It was incoherent: at `full` the level no longer decided the letters, so the
+only thing it still did was set the pace, while calling itself LEVEL and listing
+lesson names. ⚠️ **100, NOT 35** — the lesson gates top out far below where a
+third of the school already lives, and capping them at a lesson's pace makes the
+pool choice pointless for exactly the students it exists for.
+
+**ALL 93 HARNESSES PASS.** ⚠️⚠️ **NOT BROWSER-VERIFIED.**
+
 ## Round 111 (Bar-Let) — 2026-09-10 — standing still stops working, and the mouse is optional
 
 ### ⚠️⚠️ THE KAIJU TRAIN AND THE SAFE IDLE WERE ONE BUG

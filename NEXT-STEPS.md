@@ -30,7 +30,7 @@ game-deadline.js       →  repo root
 HANDOFF-games.md       →  repo root
 README-games.md        →  repo root
 tests/                 →  tests/       (2 files)
-tools/game-lab.html    →  tools/
+(tools/game-lab.html is GONE as of Round 112 — the lab is arcade.html?lab=1)
 firebase/APPROVED-game-scores.md  →  firebase/   (shape approved, NOT deployed)
 ```
 
@@ -57,7 +57,10 @@ point). **That is the one that protects this work from your roadmap work.**
 
 ## 2. Smoke test — play them (5 minutes, no JSON needed)
 
-Open `https://<your-pages-domain>/tools/game-lab.html`.
+Open `https://<your-pages-domain>/arcade.html?lab=1`. ⚠️ THE LAB IS THE ARCADE
+PAGE WITH A FLAG, NOT A SEPARATE BUILD — a bench with its own layout cannot
+reproduce the page's layout bugs, which is how four rounds of them reached Jake
+instead of the harness.
 
 ⚠️ **This page is publicly reachable once pushed.** It is unlinked so nobody finds
 it by accident, and it is harmless if they do — no auth, no reads, no writes. But
