@@ -1,3 +1,7 @@
+// game-sprites.js v1.6.0 — ⭐ THE PRISM SPUTTERS ON A WRONG KEY. Jake: *"Maybe
+//   wrong colors just fizzle at the tip?"* — light reaching the apex and failing
+//   to leave it. ⚠️ White, never a finger colour, and six fixed sparks rather
+//   than particles: a student who is missing is missing repeatedly.
 // game-sprites.js v1.5.1 — ⚠️ PERF: the per-cell bloom stops using shadowBlur.
 //   It was inside the innermost draw loop — up to 20 blurred fills per pane per
 //   frame — and shadowBlur is the most expensive canvas op on iOS Safari, which
@@ -69,7 +73,7 @@
 // ⚠️ PURE-ISH: it draws to a 2D context and does nothing else. No DOM, no state,
 // no timers, no Math.random(). Every function takes everything it needs.
 
-export const GAME_SPRITES_VERSION = '1.5.1';
+export const GAME_SPRITES_VERSION = '1.6.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ESCAPE KEY — 24×24 PIXEL SPRITES
@@ -810,6 +814,49 @@ export function drawPrism(ctx, x, y, r, angle, o) {
     ctx.moveTo(r * 0.94, -r * 0.06);
     ctx.lineTo(-r * 0.52, -r * 0.66);
     ctx.stroke();
+
+    // ── the sputter ─────────────────────────────────────────────────────────
+    // ⭐ Jake, 2026-09-11: *"Maybe wrong colors just fizzle at the tip?"* — a
+    // wrong key throws no beam, and this is what that looks like up close: light
+    // reaching the apex and failing to leave it.
+    //
+    // ⚠️ SMALL ON PURPOSE (*"not huge, but present"*). It is the quietest signal
+    // in the game and should be: a mistake in Shatter costs accuracy and nothing
+    // else, and the loud red flash already tells the student it happened. This
+    // only says WHERE.
+    //
+    // ⚠️⚠️ WHITE, NEVER A FINGER COLOUR. Every coloured thing on this field means
+    // "this is the finger that types this key"; a sputter in the colour of the
+    // key they got wrong would be teaching the wrong association at the exact
+    // moment the student is paying most attention.
+    //
+    // ⚠️ NOT PARTICLES. Six deterministic sparks derived from `flare` cost one
+    // loop and vanish with it — a real burst would leave debris around the prism
+    // after every typo, and a student who is missing is missing repeatedly.
+    if (flare > 0.02) {
+        const n = 6;
+        ctx.lineCap = 'round';
+        for (let i = 0; i < n; i++) {
+            // Fixed angles rather than random, so the sputter reads as the same
+            // fault each time instead of as a different effect every keystroke.
+            const a = (i / n - 0.5) * 1.25 + (i % 2 ? 0.08 : -0.08);
+            const reach = r * (0.30 + 0.55 * flare) * (0.6 + 0.4 * ((i * 7) % 5) / 4);
+            ctx.globalAlpha = flare * (i % 2 ? 0.85 : 0.5);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.96, 0);
+            ctx.lineTo(r * 0.96 + Math.cos(a) * reach, Math.sin(a) * reach);
+            ctx.stroke();
+        }
+        // One dying point of light at the apex itself.
+        ctx.globalAlpha = flare;
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(r * 0.96, 0, Math.max(1, r * 0.09 * flare), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+    }
 
     ctx.restore();
 }

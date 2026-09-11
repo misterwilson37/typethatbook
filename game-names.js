@@ -1,3 +1,7 @@
+// game-names.js v1.3.0 — Round 116 (Sun): ⭐ SHARDS, the fourth cabinet and the
+// second Shatter. Same view, different board. ⚠️ THE REGISTRY IS THE LAST STEP
+// OF BUILDING A GAME, NOT A NOTE ABOUT ONE — see the `unbuilt` note below, which
+// kept a finished Shatter out of every picker for eleven rounds.
 // game-names.js v1.2.0 — Round 114 (Carriage). TWO CHANGES, ONE ROOT CAUSE:
 //   • Shatter is no longer flagged `unbuilt`. The view shipped in Round 103 and
 //     this flag kept it out of every picker for eleven rounds, defended the
@@ -30,7 +34,7 @@
 // ⚠️ THIS IS ALSO WHY THE FILES ARE `game-escape.js` AND `game-deadline.js`
 // RATHER THAN `game-escape-key.js` AND SO ON. Filenames are ids too.
 
-export const GAME_NAMES_VERSION = '1.2.0';
+export const GAME_NAMES_VERSION = '1.3.0';
 
 /**
  * ⚠️ `id` VALUES ARE FROZEN. Add games; never rename these strings.
@@ -106,10 +110,39 @@ export const GAMES = {
         module: './game-shatter.js',
         panels: { left: 'panelCanvas', threat: false },
     },
+    shards: {
+        // ⚠️⚠️ THE ID IS FROZEN THE MOMENT THIS SHIPS — it is the `game` field on
+        // every `game_scores` document Shards ever writes. Jake named it on
+        // 2026-09-11; Round 116 renamed game-draw.js's glass-particle field
+        // `shard` → `sliver` beforehand so the word means one thing in this repo.
+        id: 'shards',
+        // ⭐ NOT "SHATTER 2". Jake's, and better than the `drift` proposed to
+        // him: the two cabinets share everything except motion, so *Shatter /
+        // Shards* says "same world, different physics" where *Drift* would say
+        // "different game". ⚠️ AND A SEQUEL NUMBER WOULD BIAS THE EXPERIMENT —
+        // the whole point of offering both is to find out which one a class
+        // actually prefers, and "2" tells a twelve-year-old the answer.
+        title: 'Shards',
+        tagline: 'The same glass, drifting. Nothing lands — it comes back around.',
+        kind: 'throughput',
+        assessed: false,
+        countsTime: true,
+        // ⚠️⚠️ THE SAME VIEW AS SHATTER, ON PURPOSE. `game-shatter.js` takes a
+        // `drift` flag and swaps `ShatterBoard` for `ShardsBoard`; everything
+        // else — the glass, the prism, the panels, the HUD — is one file. A
+        // second view would be Rule 5, and every change to the art would have to
+        // be made twice. See shatter-shards.js's header.
+        module: './game-shatter.js',
+        drift: true,
+        panels: { left: 'panelCanvas', threat: false },
+    },
 };
 
 /** Ids in the order they should be offered to a student. */
-export const GAME_ORDER = ['deadline', 'escape', 'shatter'];
+// ⚠️ SHARDS SITS NEXT TO SHATTER, LAST. They are a pair and a student choosing
+// between them should see them side by side; putting the new one first would
+// also be a recommendation nobody made.
+export const GAME_ORDER = ['deadline', 'escape', 'shatter', 'shards'];
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ⚠️ WHERE THE ARCADE IS REACHED FROM (Jake's ruling, 2026-09-07)

@@ -1,3 +1,9 @@
+// shatter-board.js v1.3.0 — Round 116 (Sun): ⭐ `_rank()` and `_placePiece()`,
+// the two hooks shatter-shards.js subclasses. Pure refactor of lines that were
+// already here; this file's harness is unmodified and still passes, which is the
+// only reason to believe that. ⚠️ NEXT_ID is shared across both boards on
+// purpose — a student never has two cabinets open, and one id space means a
+// `parent` pointer can never be ambiguous.
 // shatter-board.js v1.2.0 — Round 116 (Sun): ⭐ place(), THE VIEW SEAM. The
 // view read `rock.r` and `rock.angle` in nine places, so a second motion model
 // would have forced a second VIEW and every change to the glass would have had
@@ -56,7 +62,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.2.0';
+export const SHATTER_BOARD_VERSION = '1.3.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -313,6 +319,15 @@ export function splittable(text) {
 
 let NEXT_ID = 1;
 
+/**
+ * Mint the next target id. ⚠️⚠️ ONE COUNTER FOR EVERY BOARD IN THE APP, AND IT
+ * IS EXPORTED FOR THAT REASON. `parent` points at an id; two counters would
+ * eventually mint the same number twice and a piece would claim a parent that
+ * was never its parent. shatter-shards.js calls this rather than keeping its
+ * own, and any third board must too.
+ */
+export function nextTargetId() { return NEXT_ID++; }
+
 export class ShatterBoard {
     /**
      * @param {object} o
@@ -405,7 +420,7 @@ export class ShatterBoard {
     spawn(text, lifetimeMs, nowMs) {
         const life = Math.max(1, lifetimeMs || 1);
         const rock = {
-            id: NEXT_ID++,
+            id: nextTargetId(),
             text: String(text || ''),
             typed: 0,
             r: SPAWN_R,
@@ -447,6 +462,51 @@ export class ShatterBoard {
         return arrived;
     }
 
+    // ── THE TWO HOOKS A SECOND MOTION MODEL NEEDS ───────────────────────────
+    //
+    // ⚠️⚠️ ADDED IN v1.3.0 SO `shatter-shards.js` CAN SUBCLASS THIS RATHER THAN
+    // COPY IT. Jake: *"build shard, please. I want kids to have that option."*
+    // ⭐ EVERYTHING THAT IS NOT MOTION IS SHARED: the split ladder, the lock
+    // rule, the re-lock rescue, the warp economy, the charge meter. Shards
+    // overrides four methods — `spawn`, `advance`, `place` and these two — and
+    // inherits the rest, so a fix to how a word splits reaches both cabinets or
+    // neither. ⚠️ THAT IS THE ENTIRE DEFENCE AGAINST RULE 5 for two live boards.
+    //
+    // ⚠️ BOTH ARE PURE REFACTORS OF LINES THAT WERE ALREADY HERE. Nothing about
+    // this board's behaviour changed; shatter-board-test.mjs is unmodified and
+    // still passes, which is the only reason to believe that sentence.
+
+    /**
+     * How urgent a rock is, for the lock rule. LOWER IS MORE URGENT.
+     *
+     * ⚠️ IT IS NOT `place().threat` INVERTED, and the difference matters. `threat`
+     * is for the VIEW and may fold in anything that makes a pane look alarming;
+     * this decides which pane a keystroke GOES TO, and a lock rule that shifted
+     * because something merely looked scarier would be unpredictable to type
+     * against. ⭐ Two questions that happen to agree on this board and need not
+     * on the next one.
+     */
+    _rank(rock) { return rock.r; }
+
+    /**
+     * Build one piece of a rock that just broke.
+     *
+     * ⚠️ THE FLOOR ONLY EVER PUSHES PIECES OUTWARD. See SPLIT_MIN_R: a piece
+     * placed where its parent died would be born already on top of the student.
+     */
+    _placePiece(rock, text, i, n) {
+        const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * SPLIT_SPREAD;
+        return {
+            id: nextTargetId(),
+            text, typed: 0,
+            r: Math.max(rock.r, SPLIT_MIN_R),
+            angle: rock.angle + off,
+            dr: rock.dr,   // ⚠️ ONE JOURNEY, ONE SPEED. See the header.
+            terminal: true,
+            parent: rock.id,
+        };
+    }
+
     // ── typing ──────────────────────────────────────────────────────────────
 
     /**
@@ -466,7 +526,7 @@ export class ShatterBoard {
         let best = null;
         for (const rock of this.rocks) {
             if (rock.text[rock.typed] !== ch) continue;
-            if (!best || rock.r < best.r) best = rock;
+            if (!best || this._rank(rock) < this._rank(best)) best = rock;
         }
         return best;
     }
@@ -529,7 +589,7 @@ export class ShatterBoard {
             for (const rock of this.rocks) {
                 if (rock === this.locked || rock.typed !== 0) continue;
                 if (!rock.text.startsWith(prefix)) continue;
-                if (!alt || rock.r < alt.r) alt = rock;
+                if (!alt || this._rank(rock) < this._rank(alt)) alt = rock;
             }
             if (alt) {
                 this.locked.typed = 0;
@@ -581,23 +641,9 @@ export class ShatterBoard {
         const parts = splitTarget(rock.text);
         if (parts.length < 2) return [];
 
-        // ⚠️ THE FLOOR ONLY EVER PUSHES PIECES OUTWARD. See SPLIT_MIN_R.
-        const r = Math.max(rock.r, SPLIT_MIN_R);
-        const spread = SPLIT_SPREAD;
         const pieces = [];
         for (let i = 0; i < parts.length; i++) {
-            const off = parts.length === 1 ? 0
-                : (i / (parts.length - 1) - 0.5) * spread;
-            const piece = {
-                id: NEXT_ID++,
-                text: parts[i],
-                typed: 0,
-                r,
-                angle: rock.angle + off,
-                dr: rock.dr,   // ⚠️ ONE JOURNEY, ONE SPEED. See the header.
-                terminal: true,
-                parent: rock.id,
-            };
+            const piece = this._placePiece(rock, parts[i], i, parts.length);
             this.rocks.push(piece);
             pieces.push(piece);
         }

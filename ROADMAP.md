@@ -50,13 +50,44 @@ BOARD BEHIND A FLAG WAS DELIBERATELY NOT BUILT** — rule 5, and exactly what
 1. ⚠️ **A HARNESS FIRST** (Rule 10): drive a drift board headless over many
    seeded runs and answer *how long does a 15 / 25 / 40 WPM student last*. No
    drift board becomes authoritative before that number exists.
-2. `shatter-shards.js` implementing `ShatterBoard`'s interface, id **`shards`**,
+2. ✅ **DONE, Round 116.** `shatter-shards.js` v1.1.0, id **`shards`**,
    title **Shards** (Jake's name — *Shatter / Shards* reads as siblings rather
    than a sequel, which is what the experiment needs). ⚠️ The id freezes in
    Firestore on ship; the particle field was renamed `shard` → `sliver` in
    Round 116 to keep the word unambiguous.
 3. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY** (Rule 9), and delete the lab
    page with it.
+
+### 116e — ⚠️⚠️ SHARDS IS SURVIVE-BY-LUCK; SHATTER IS SURVIVE-BY-SKILL
+
+**Shipped, and Jake should know this before a class does.** Round 116's
+simulation (12 seeds, 3-minute runs, a perfect typist aiming at whatever the
+board would lock):
+
+| typing | hits | panes cleared |
+|---|---|---|
+| none | 9.3 | 0 |
+| ≈12 WPM | 9.6 | 18 |
+| ≈30 WPM | 10.3 | 74 |
+| ≈60 WPM | 7.8 | 172 |
+
+⭐ **CLEARING RISES WITH SKILL. SURVIVING BARELY DOES.** `GameDirector` refills
+the field to a fixed occupancy, so density — and therefore the hit rate — is
+roughly flat from 12 to 30 WPM and only a genuinely fast typist outruns it.
+⚠️ In Shatter, typing a pane before it lands directly prevents a hit; in Shards
+the other seven panes on screen are free to hit you whatever you do.
+
+⚠️⚠️ **THIS WAS NOT TUNED AWAY AND THE HARNESS DELIBERATELY DOES NOT ASSERT THE
+OPPOSITE.** It may be the point — an arcade game you eventually lose, scored on
+what you cleared, is a legitimate design and is a genuinely different feel to
+compare Shatter against. It may also be a pedagogical weakness: a game where
+getting better does not visibly keep you alive teaches less than one where it
+does. **That is Jake's call and a rotation of students is the instrument.**
+
+If it turns out to be a flaw, the honest lever is the lock rule rather than the
+numbers: make clearing the nearest pane *matter*, e.g. a cleared pane briefly
+suppresses a refill. ⚠️ Do not reach for a smaller `HIT_R` — that makes nobody
+die, which is a different game again.
 
 ### 116b — DEADLINE AND ESCAPE KEY HAVE STILL NEVER BEEN MOUNTED BY A HARNESS
 

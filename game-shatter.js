@@ -1,3 +1,15 @@
+// game-shatter.js v1.5.0 — Round 116 (Sun), after Jake played it:
+//   • ⭐ THE COUNTDOWN IS THE SEVEN-SEGMENT ONE NOW. *"the countdown at the
+//     beginning of shatter is not the digital countdown of deadline, and I think
+//     that's a consistency thing that should be across games."* game-chrome.js
+//     has offered `onCountdown` since Round 99 and Deadline was the ONLY view
+//     that ever took it up — the same "option offered at one end, consumed at
+//     neither" shape this project keeps finding. ⚠️ Escape Key still has not.
+//   • ⭐ THE PRISM HOLDS ITS BEARING THROUGH A MISS. *"the prism ship points up
+//     on mistakes, which is jarring when your target is below you."* A wrong key
+//     drops the lock, which is right; the view treated "no lock" as "nowhere to
+//     aim" and flicked to its rest pose — a 180° snap at the moment the student
+//     is already off balance. ⚠️ AIM AND LOCK ARE NOT THE SAME QUESTION.
 // game-shatter.js v1.4.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let), 116 (Sun).
 //
 // v1.4.0 — ⭐⭐ THIS VIEW NO LONGER KNOWS WHAT A POLAR COORDINATE IS. Jake:
@@ -116,12 +128,19 @@
 
 import { GameDirector } from './game-shell.js';
 import { ShatterBoard, splittable, SHATTER_COST_FACTOR } from './shatter-board.js';
+// ⭐ THE SECOND CABINET. Jake: *"build shard, please. I want kids to have that
+// option."* ⚠️⚠️ ONE VIEW, TWO BOARDS — that is the whole reason Round 116 spent
+// a version on the `place()` seam before writing a line of Shards. A second
+// COPY of this file would be Rule 5 and every change to the glass would have to
+// be made twice; a second BOARD is just a different answer to "where is this
+// pane", which this file stopped asking directly in v1.4.0.
+import { ShardsBoard } from './shatter-shards.js';
 import { mountChrome } from './game-chrome.js';
 import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
     fitCanvas, platedText, glassBurst, updateParticles,
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
-    makeStars, drawStars, fingerColorOf, fingerPalette,
+    makeStars, drawStars, fingerColorOf, fingerPalette, drawCountdownOverlay,
 } from './game-draw.js';
 // ⚠️⚠️ A TARGET IS A PANE OF GLASS, ONE PANEL PER LETTER. v1.0.0 drew a rounded
 // rectangle behind text (a label), v1.2.0 drew an asteroid (breakable, and
@@ -131,7 +150,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.4.0';
+export const GAME_SHATTER_VERSION = '1.5.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -224,7 +243,12 @@ export function mount(container, opts) {
     });
 
     let d = new GameDirector(baseCfg);
-    let board = new ShatterBoard({ rand });
+    // ⚠️ THE CABINET PICKS THE BOARD AND NOTHING ELSE CHANGES. `drift: true`
+    // arrives from arcade.html via the game registry; every other line in this
+    // file is identical for both games, which is the property to protect.
+    const drift = !!(opts && opts.drift);
+    const makeBoard = () => (drift ? new ShardsBoard({ rand }) : new ShatterBoard({ rand }));
+    let board = makeBoard();
     let capsOn = false;
     let started = false;   // set by the countdown; spawns wait for it
 
@@ -331,8 +355,34 @@ export function mount(container, opts) {
     // 0..1. The prism whites out on a wrong key, which is the mirror of the
     // coloured shot it throws on a right one.
     let flare = 0;
+    // ⚠️⚠️ THE SEVEN-SEGMENT COUNTDOWN, NOT game-chrome.js's DOM NUMERAL. Jake,
+    // 2026-09-11: *"the countdown at the beginning of shatter is not the digital
+    // countdown of deadline, and I think that's a consistency thing that should
+    // be across games."* ⭐ IT IS THE SAME SHAPE AS EVERY OTHER DEFECT THIS
+    // PROJECT KEEPS FINDING: game-chrome.js has offered `onCountdown` since
+    // Round 99 and Deadline is the only view that ever took it up, so two of the
+    // three cabinets have been counting down in a different typeface from the
+    // one they then play in. ⚠️ Escape Key still does — see HANDOFF.
+    let countdown = null;
     // The dispersion shockwave a warp throws. 0..1, or null.
     let warpRing = null;
+    // ⚠️⚠️ WHERE THE PRISM WAS LAST POINTING. Jake, 2026-09-11: *"the prism ship
+    // points up on mistakes, which is jarring when your target is below you.
+    // Maybe wrong colors just fizzle at the tip?"*
+    //
+    // ⭐ THE CAUSE IS A BOARD RULE THE VIEW WAS READING TOO LITERALLY. A wrong
+    // key drops the lock (shatter-board.js `if (!next) { this.locked = null }`),
+    // which is correct — the student is no longer typing that word. But the view
+    // treated "no lock" as "nothing to aim at" and snapped to its rest pose,
+    // which on a radial field is a 180° flick at the exact moment the student is
+    // already off balance.
+    //
+    // ⚠️ AIM IS NOT THE SAME QUESTION AS LOCK. It only points up before the FIRST
+    // lock of a run, when there genuinely is nowhere to point. After that it
+    // holds the last bearing, and the miss is told by the prism flaring white and
+    // throwing no ray — which is exactly Jake's "fizzle at the tip" and was
+    // already built; it was just being drowned out by the flick.
+    let lastAim = null;
     let ended = false;
     let rafId = null, lastFrame = null, tickAcc = 0;
     // ⚠️ HIGH-WATER MARK, NOT AN ACCUMULATOR — see bankWholeSeconds().
@@ -523,13 +573,13 @@ export function mount(container, opts) {
      */
     function restart() {
         d = new GameDirector(baseCfg);
-        board = new ShatterBoard({ rand });
+        board = makeBoard();
         particles = [];
         banner = null; flash = 0;
         // ⚠️ THE LIGHT GOES OUT TOO. A shot or a warp ring left over from the
         // previous run paints on the countdown of the next one, which reads as
         // the game firing at a pane that is not there.
-        shots = []; flare = 0; warpRing = null;
+        shots = []; flare = 0; warpRing = null; lastAim = null; countdown = null;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         idleMs = 0; lastKeyAt = 0;
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous run's
@@ -689,6 +739,10 @@ export function mount(container, opts) {
         // ⚠️ NO FULL-SCREEN RED FILL — photosensitivity. See game-draw.js.
         drawHitFeedback(ctx, W, H, flash);
         if (capsOn) drawCapsWarning(ctx, W, HUD_H + 8);
+        // ⚠️ ONE SOURCE DISPLAYED ONCE. game-chrome.js owns the countdown clock
+        // and hands the number over; this only paints it. A view that ran its
+        // own timer here would be the second clock Round 95 had to delete.
+        drawCountdownOverlay(ctx, W, H, countdown);
 
         if (banner && now < banner.until) {
             platedText(ctx, {
@@ -828,12 +882,12 @@ export function mount(container, opts) {
      * telling the student about a target that does not exist.
      */
     function drawPrismShip() {
-        let angle = null;
         if (board.locked && board.rocks.includes(board.locked)) {
             const p = px(board.locked);
-            angle = Math.atan2(p.y - cy, p.x - cx);
+            // ⚠️ REMEMBERED, so a miss does not throw the aim away — see below.
+            lastAim = Math.atan2(p.y - cy, p.x - cx);
         }
-        drawPrism(ctx, cx, cy, SHIP_R * 0.8, angle, { fan: FAN, flare });
+        drawPrism(ctx, cx, cy, SHIP_R * 0.8, lastAim, { fan: FAN, flare });
     }
 
     /**
@@ -950,7 +1004,14 @@ export function mount(container, opts) {
         // ⚠️ IT SAYS PANE AND PRISM BECAUSE THE SCREEN DOES. A hint that still
         // said "rock" and "ship" would be describing the previous version of
         // this game to a child looking at this one.
-        hint: 'Each word is a pane of glass, one panel per letter, coloured for '
+        hint: drift
+            ? 'Panes of glass drift across the field and wrap around the edges '
+              + 'the way they do in Asteroids \u2014 nothing lands on a timer, so a '
+              + 'word you ignore comes back. Type one to light it up and shatter '
+              + 'it, and its pieces really do fly apart. Clearing panes charges '
+              + 'the WARP meter; Space shoves everything away from your prism. '
+              + 'Esc lets go of the word you are on.'
+            : 'Each word is a pane of glass, one panel per letter, coloured for '
             + 'the finger that types it. Light up every panel and the pane '
             + 'shatters — into its pieces, which you have to type too. Go for '
             + 'whatever is closest to your prism. Clearing panes charges the WARP '
@@ -958,6 +1019,10 @@ export function mount(container, opts) {
             + 'are on.',
         muted: isMuted(),
         onStart() { started = true; lastFrame = null; },
+        // ⚠️ SUPPLYING THIS SUPPRESSES game-chrome.js's OWN DOM NUMERAL, which
+        // is the point — two countdowns on screen would be worse than the
+        // inconsistent one. See `countdown` above.
+        onCountdown(n) { countdown = n; },
         onPause(on) {
             const now = performance.now();
             // ⚠️ PAUSE STOPS THE GRADED CLOCK — the one deliberate exception

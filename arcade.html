@@ -1824,7 +1824,10 @@ function play() {
  */
 function playFree() {
     const g = currentGame();
-    const mountGame = g.id === 'shatter' ? mountShatter
+    // ⚠️ SHATTER AND SHARDS ARE ONE VIEW. The registry's `drift` flag picks the
+    // board; branching on the id here to a second module would be the Rule 5
+    // split the whole seam exists to avoid.
+    const mountGame = (g.id === 'shatter' || g.id === 'shards') ? mountShatter
         : g.id === 'escape' ? mountEscape
         : mountDeadline;
     lastPlayedWPM = null;
@@ -1836,6 +1839,10 @@ function playFree() {
     const cfg = freePlayConfig();
     handle = mountGame($('stage'), {
         config: cfg,
+        // ⭐ SHARDS. One flag, straight off the registry entry — the cabinet a
+        // student clicked is the only thing that decides which board they get,
+        // and this page does not get an opinion about it.
+        drift: !!g.drift,
         // ⚠️⚠️ ESCAPE KEY ONLY, AND game-shatter.js DOES NOT ACCEPT IT. Shatter's
         // rocks come from the director's target pool and its own split ladder;
         // handing it a per-round provider would be this page asserting a

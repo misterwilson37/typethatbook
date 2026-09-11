@@ -66,6 +66,45 @@ prism idea. Build it all please."*
   needs no palette literal. The left panel's tracery is a rose window; ⚠️ its
   rule is unchanged — still deliberately unreadable.
 
+### Shards — the second cabinet
+
+Jake: *"build shard, please. I want kids to have that option."* And:
+*"Go ahead and make the sputter - not huge, but present."*
+
+* **`shatter-shards.js` 1.1.0**, new. Panes drift with free 2D velocity and
+  **wrap** at the field edges; nothing arrives. ⭐ **It overrides five methods,
+  all motion, and inherits everything else** — the split ladder, the lock rule,
+  the re-lock rescue, the warp economy. A fix to how a word splits reaches both
+  cabinets or neither, which is the entire defence against Rule 5 for two live
+  boards. ⭐ **The director's `lifetimeMs` becomes SPEED** rather than being
+  discarded, so the one number that knows how fast this child types still sets
+  the pace; it just no longer sets a deadline.
+* ⚠️⚠️ **v1.0.0 punished slow typists for playing, and the harness caught it.**
+  Over 12 seeds, a 12 WPM typist took **15.2 hits against 10.5 for a student who
+  did nothing at all.** Clearing a word replaces one pane with two or three, and
+  a board with no exit meant a slow typist raised the density and then had to
+  live in it. ⭐ Fixed with a **wandering budget**: a pane drifts for a few
+  crossings and sails out. Not a hit, not scored, nobody charged — the
+  pressure-relief valve that "ignore it and it comes back" needs to be a choice
+  rather than a sentence. Pieces inherit the *remaining* budget, never a fresh
+  one.
+* **`shatter-board.js` 1.2.0 → 1.3.0.** `_rank()` and `_placePiece()` hooks, and
+  `nextTargetId()` so both boards share one id space. Pure refactor; that file's
+  harness is unmodified and still passes.
+* **`game-shatter.js` 1.4.0 → 1.5.0** (also: seven-segment countdown, prism
+  holds its bearing through a miss) **→ takes a `drift` flag.** One view, two
+  boards. **`game-names.js` 1.2.0 → 1.3.0** registers `shards`;
+  **`arcade.html`** routes both ids to the same mount.
+* **`game-sprites.js` 1.5.1 → 1.6.0.** The prism **sputters** on a wrong key —
+  six fixed white sparks at the apex, small on purpose. ⚠️ White, never a finger
+  colour: every coloured thing on that field means "this is the finger for this
+  key", and sputtering in the colour of the key they got wrong would teach the
+  wrong association at the moment of peak attention.
+* **`tests/shatter-shards-test.mjs`** new, 60 assertions. **98 → 99 harnesses.**
+  ⚠️ Part H deliberately does **not** assert that typing protects you in
+  proportion to skill, because it does not — see ROADMAP 116e.
+
+
 ### The view seam — step 1 of two Shatters
 
 Jake: *"What about a shatter 2 and have kids try both?"*

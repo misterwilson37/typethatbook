@@ -141,7 +141,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **98 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **99 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
