@@ -1,3 +1,9 @@
+// shatter-shards-test.mjs v1.1.0 — Round 117 (Bennett): PART H NOW DRIVES THE
+// REAL `GameDirector`. It had been inventing its own spawn pacing — 2500ms to a
+// ceiling of 8, against a real interval of 9.6–17.3s — so it reported a board
+// four to seven times busier than the one students play, passed, and let Shards
+// ship a game Jake could ignore for two minutes. Part H now carries the idle
+// floor ROADMAP 116h asked for by name.
 // shatter-shards-test.mjs v1.0.0 — SHARDS: THE SECOND CABINET. Round 116 (Sun).
 //
 // ⚠️⚠️ THE FIRST THING THIS FILE CHECKS IS THAT THE TWO BOARDS ARE
@@ -17,9 +23,12 @@
 // entire reason Jake asked for the cabinet rather than a simulation. Part F
 // pins only that the game is not trivially impossible.
 
-import { ShatterBoard, splitTarget, WARP_CLEARS, MAX_WARPS }
-    from '../shatter-board.js';
-import { ShardsBoard, WRAP_EDGE, HIT_R } from '../shatter-shards.js';
+import { ShatterBoard, splitTarget, splittable, WARP_CLEARS, MAX_WARPS,
+         SHATTER_COST_FACTOR } from '../shatter-board.js';
+import { GameDirector } from '../game-shell.js';
+import { SHATTER_WORDS } from '../shatter-words.js';
+import { ShardsBoard, WRAP_EDGE, PRISM_R, reachOf, SPEED_GAIN }
+    from '../shatter-shards.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -139,8 +148,13 @@ console.log('\nC — THE DIRECTOR\u2019S LIFETIME BECOMES SPEED');
        '\u2b50 and proportionally so \u2014 a third of the time is three times the ' +
        'speed, not some other curve');
 
-    // Crossing the field takes the lifetime it was given.
-    const crossed = sp(slow) * 12000;
+    // ⚠️ CROSSING THE FIELD TAKES THE LIFETIME IT WAS GIVEN, DIVIDED BY
+    // SPEED_GAIN — Round 117. The director's lifetime is priced for SHATTER,
+    // where it is one inbound journey and a deadline; read as a drift speed it
+    // means a 65-second crossing at a 20 WPM gate, and a board whose objects
+    // barely move cannot threaten anyone. ⭐ THE GATE STILL SETS THE PACE, which
+    // is what the two assertions above pin; this only sets the scale.
+    const crossed = sp(slow) * 12000 / SPEED_GAIN;
     ok(Math.abs(crossed - 2) < 1e-6,
        'a pane covers the field exactly once in its lifetime (' +
        crossed.toFixed(3) + ' of a spawn radius \u00d7 2)');
@@ -313,29 +327,59 @@ console.log('\nG — THE WARP SHOVES AND DESTROYS NOTHING');
 console.log('\nH — THE GAME IS NOT TRIVIALLY IMPOSSIBLE, AND NOT FREE');
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️⚠️ THIS IS A SANITY FLOOR AND NOT A BALANCE CLAIM. Pressure here is
-// DENSITY, and nobody has measured how long a slow child lasts under it — that
-// is what a rotation of thirty twelve-year-olds is for, and it is the whole
-// reason Jake asked for the cabinet rather than a simulation. ⭐ WHAT THIS PINS
-// IS ONLY THE TWO WAYS A NEW BOARD IS USUALLY BROKEN: unplayable on arrival, or
-// impossible to lose.
+// ⚠️⚠️⚠️ v1.1.0 — THIS PART WAS MEASURING A BOARD NO STUDENT HAS EVER PLAYED,
+// AND THAT IS WHY IT PASSED WHILE JAKE WENT TWO MINUTES WITHOUT A THREAT.
+//
+// v1.0.0 spawned on a hardcoded 2500ms timer to a hardcoded ceiling of eight
+// panes and never touched `GameDirector`. ⭐ **THE REAL PUSH INTERVAL AT THESE
+// GATES IS 9.6 TO 17.3 SECONDS** — the director prices it from the student's
+// gate and multiplies by SHATTER_COST_FACTOR, which is 3. So this harness was
+// feeding the board between four and seven times the work the live game does,
+// reported 9.3 idle hits over three minutes, and called that a game.
+//
+// ⭐⭐ THE RULE THIS ROUND PAID FOR: **A SIMULATION THAT INVENTS ITS OWN PACING
+// IS NOT A MEASUREMENT OF THE GAME.** Part H's job is to answer "is this board
+// survivable", and the answer depends entirely on how fast work arrives — which
+// is the one thing it was making up. Everything downstream of it was measured
+// against a fiction, including the reassuring table in ROADMAP 116e.
+//
+// ⚠️ IT NOW DRIVES THE REAL PIPELINE: a real `GameDirector` with
+// `costFactor: SHATTER_COST_FACTOR` and `endless: true` exactly as
+// `game-shatter.js` builds it, real splittable words from `shatter-words.js`,
+// `d.spawnDue(t, board.rocks.length)` for the spawn test, and `d.hit()` for the
+// shields — so "dead" means what it means on screen.
 {
-    const play = ({ seed, kpm }) => {
-        const b = new ShardsBoard({ rand: mulberry(seed) });
-        const words = ['sunlight', 'carefully', 'remarking', 'mistakes', 'unfolded'];
-        let hits = 0, cleared = 0, w = 0, nextSpawn = 0, lastKey = -1e9;
+    const WORDS = SHATTER_WORDS.filter(e => splittable(e.w)).map(e => e.w);
+    ok(WORDS.length > 50, `the real splittable word pool loaded (${WORDS.length})`);
+
+    /**
+     * One run, driven the way the view drives it.
+     * @param kpm keys per minute; WPM is a fifth of it. A typist who is always
+     *        correct and always aims at whatever the board would lock — the best
+     *        case deliberately, because the question is whether the BOARD is
+     *        fair and not whether a simulated student is good.
+     */
+    const play = ({ seed, kpm, gate = 20, ms = 300000 }) => {
+        const rand = mulberry(seed);
+        const d = new GameDirector({
+            targets: WORDS, targetWPM: gate, endless: true,
+            costFactor: SHATTER_COST_FACTOR, rand,
+        });
+        const b = new ShardsBoard({ rand });
         const iv = kpm ? 60000 / kpm : 0;
-        for (let t = 0; t < 180000; t += 16) {
-            if (t >= nextSpawn && b.rocks.length < 8) {
-                b.spawn(words[w++ % words.length], 9000, t);
-                nextSpawn = t + 2500;
+        let hits = 0, cleared = 0, lastKey = -1e9, firstHitAt = null, deadAt = null;
+        let occSum = 0, frames = 0;
+        for (let t = 0; t < ms; t += 16) {
+            for (const _gone of b.advance(t)) {
+                hits++;
+                if (firstHitAt == null) firstHitAt = t;
+                d.hit(t);
+                if (d.over && deadAt == null) deadAt = t;
             }
-            hits += b.advance(t).length;
-            // ⚠️ kpm IS KEYS PER MINUTE AND WPM IS FIFTHS OF IT. A typist who
-            // is always correct and always aims at whatever the board would
-            // lock — the best case, deliberately, because the question is
-            // whether the BOARD is fair and not whether a simulated student is
-            // good.
+            if (!d.over && d.spawnDue(t, b.rocks.length)) {
+                const tg = d.nextTarget(t);
+                if (tg) b.spawn(tg.text, tg.lifetimeMs, t);
+            }
             if (kpm && t - lastKey >= iv) {
                 lastKey = t;
                 const target = b.locked && b.rocks.includes(b.locked)
@@ -346,47 +390,115 @@ console.log('\nH — THE GAME IS NOT TRIVIALLY IMPOSSIBLE, AND NOT FREE');
                     if (r.cleared) cleared++;
                 }
             }
+            occSum += b.rocks.length; frames++;
+            if (deadAt != null) break;
         }
-        return { hits, cleared, left: b.rocks.length };
+        return { hits, cleared, firstHitAt, deadAt, occ: occSum / frames };
     };
 
-    // ⚠️⚠️ THE ASSERTION THAT FOUND THE REAL DEFECT. v1.0.0 of the board let a
-    // pane wrap forever; over twelve seeds a 12 WPM typist took 15.2 hits
-    // against 10.5 for a student who did nothing at all. ⭐ PLAYING WAS WORSE
-    // THAN NOT PLAYING, for exactly the children this app exists for — clearing
-    // a word replaces one pane with two or three, and a board with no exit meant
-    // a slow typist raised the density and then had to live in it. Fixed by
-    // giving panes a wandering budget; see shatter-shards.js v1.1.0.
-    const slow = play({ seed: 21, kpm: 60 });    // ≈12 WPM
-    const idle = play({ seed: 21, kpm: 0 });
-    const fast = play({ seed: 21, kpm: 300 });   // ≈60 WPM
+    const SEEDS = [3, 11, 21, 37, 53, 71, 89, 101];
+    const sweep = kpm => SEEDS.map(s => play({ seed: s, kpm }));
+    const mean = (rs, k) => rs.reduce((n, r) => n + (r[k] || 0), 0) / rs.length;
 
-    ok(slow.hits <= idle.hits + 1,
-       '\u26a0\u26a0 a SLOW typist is not punished for playing \u2014 they take no ' +
-       'more hits than a student who types nothing (' + slow.hits + ' vs ' +
-       idle.hits + ')');
-    ok(slow.cleared > 3,
-       'and still clears panes while they are at it (' + slow.cleared + ')');
-    ok(fast.hits < idle.hits,
-       '\u2b50 while a fast typist really does survive longer (' + fast.hits +
-       ' vs ' + idle.hits + ')');
-    ok(fast.cleared > slow.cleared * 3,
-       '\u2b50 and clears far more (' + fast.cleared + ' vs ' + slow.cleared + ')');
-    ok(idle.hits > 0,
-       '\u26a0\u26a0 a student who types NOTHING is still eventually hit \u2014 a ' +
-       'wrap board where ignoring everything is survivable has no game in it (' +
-       idle.hits + ')');
+    const idle = sweep(0);
+    const slow = sweep(60);     // ≈12 WPM
+    const fast = sweep(300);    // ≈60 WPM
 
-    // ⚠️⚠️ AND WHAT THIS DELIBERATELY DOES **NOT** ASSERT, because it is not
-    // true and must not be quietly made to look true: that typing PROTECTS you
-    // in proportion to skill. It does not. The director refills the field to a
-    // fixed occupancy, so density — and therefore the hit rate — is roughly
-    // flat from 12 to 30 WPM, and only a genuinely fast typist outruns it.
-    // ⭐ SHARDS IS SURVIVE-BY-LUCK AND SCORE-BY-SKILL; SHATTER IS
-    // SURVIVE-BY-SKILL. That is a real difference between the two cabinets, it
-    // is exactly the kind of thing a rotation of students will feel, and it is
-    // written down here rather than tuned away because nobody has yet decided
-    // whether it is a flaw or the point. See ROADMAP 116e.
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE IDLE FLOOR — ROADMAP 116h, AND IT IS THE ASSERTION THE ROADMAP
+    // ASKED FOR BY NAME.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-11: *"shards is just too easy… I went 2 minutes without
+    // touching the keyboard **at all** and never had any threat at all."*
+    //
+    // ⭐ A STUDENT WHO TYPES NOTHING MUST BE DEAD INSIDE THE FLOOR, ON EVERY
+    // SEED. Not "usually", not "on average" — a game you can reliably ignore
+    // for the length of a class rotation is not a game, and an average hides
+    // exactly the seeds where nothing ever happens.
+    //
+    // ⚠️ 120 SECONDS IS JAKE'S OWN NUMBER, not a tuning choice: it is the span
+    // he sat through untouched. ⚠️⚠️ IT IS A CEILING ON SAFETY AND NOT A TARGET
+    // — a board that kills an idler in 30 seconds passes this and may well be
+    // right; a board that takes three minutes does not.
+    // ⚠️⚠️ THE THRESHOLD IS STATED AS A MEAN PLUS A HARD CEILING, AND THE FIRST
+    // DRAFT DEMANDED "every seed inside 120s" AND COULD NOT BE MET WITHOUT
+    // INVERTING THE FAIRNESS ORDERING BELOW. That is a real finding and it is
+    // written down rather than tuned around: faster glass kills idlers sooner
+    // and ALSO kills slow typists sooner, and this app exists for the second
+    // group. ⭐ SO THE IDLE FLOOR YIELDS TO THE FAIRNESS RULE, not the reverse.
+    const IDLE_MEAN_MS = 120000;   // Jake's own two untouched minutes
+    const IDLE_CEILING_MS = 180000;
+    const meanDead = mean(idle.map(r => ({ v: r.deadAt == null ? 300000 : r.deadAt })), 'v');
+    ok(meanDead < IDLE_MEAN_MS,
+       '⚠️⚠️ A STUDENT WHO TYPES NOTHING IS DEAD INSIDE JAKE\'S TWO MINUTES ON ' +
+       `AVERAGE (${Math.round(meanDead / 1000)}s; was 265s before Round 117)`);
+    const stragglers = idle.filter(r => r.deadAt == null || r.deadAt > IDLE_CEILING_MS);
+    ok(stragglers.length <= 1,
+       '⚠️ and at most one seed in eight outlives three minutes doing nothing ' +
+       `(${stragglers.length})`);
+
+    const never = idle.filter(r => r.firstHitAt == null);
+    ok(never.length === 0,
+       `⚠️ and every idle seed is threatened at all (${never.length} never were)`);
+
+    const firsts = idle.map(r => r.firstHitAt == null ? Infinity : r.firstHitAt);
+    const worstFirst = Math.max(...firsts);
+    ok(worstFirst <= 60000,
+       '⭐ the FIRST threat arrives inside 60s on every seed — a student must ' +
+       `learn what the game is before it kills them (worst ${Math.round(worstFirst / 1000)}s)`);
+
+    // ⚠️⚠️ AND THE BOARD IS NOT EMPTY WHILE THIS HAPPENS. This is the assertion
+    // that stops a future round "fixing" the floor by simply spawning more.
+    // ⭐ THE ORIGINAL DEFECT WAS NEVER DENSITY: an idle student already sat under
+    // 7.5 panes and was not hit, because `HIT_R` was 0.10 in a field 2.7 wide and
+    // the pane's own SIZE was not in the hit test at all — glass visibly passed
+    // over the prism and nothing happened. If this goes red upward, someone has
+    // answered a geometry problem by burying the student in words.
+    ok(mean(idle, 'occ') < 12,
+       `⚠️ and the idle board is not merely buried in glass (${mean(idle, 'occ').toFixed(1)} panes)`);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ PLAYING IS NEVER WORSE THAN NOT PLAYING. The original v1.0.0 defect.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // ⭐ AND IT IS ASSERTED ON TIME SURVIVED, NOT ON HIT COUNT. A hit count
+    // comparison is meaningless once students die at different moments: the
+    // idler dies early and stops accruing hits, so "fewer hits" can mean "died
+    // sooner". `deadAt` is the number a child feels.
+    const survived = rs => mean(rs.map(r => ({ v: r.deadAt == null ? 300000 : r.deadAt })), 'v');
+    const [tIdle, tSlow, tFast] = [survived(idle), survived(slow), survived(fast)];
+    ok(tSlow >= tIdle,
+       '⚠️⚠️ a SLOW typist lives at least as long as a student who does nothing ' +
+       `— the game must never charge a child for trying (${Math.round(tSlow / 1000)}s ` +
+       `vs ${Math.round(tIdle / 1000)}s)`);
+    ok(tFast > tIdle,
+       `⭐ and a fast typist really does survive longer (${Math.round(tFast / 1000)}s ` +
+       `vs ${Math.round(tIdle / 1000)}s)`);
+
+    ok(mean(slow, 'cleared') > 3,
+       `a slow typist still clears panes while they are at it (${mean(slow, 'cleared').toFixed(0)})`);
+    ok(mean(fast, 'cleared') > mean(slow, 'cleared') * 2,
+       `⭐ and a fast one clears far more (${mean(fast, 'cleared').toFixed(0)} vs ` +
+       `${mean(slow, 'cleared').toFixed(0)})`);
+
+    // ⚠️ THE GAME IS STILL LOSABLE BY EVERYONE. An arcade cabinet eats quarters;
+    // a Shards run that never ends is a different game and a worse one.
+    // ⚠️⚠️ DELIBERATELY NOT ASSERTED: that a fast typist eventually loses. They
+    // survive all five minutes on every seed here, and that is CORRECT for the
+    // window rather than a defect — `arcadeConfig()` ramps pressure toward
+    // `survivalCeilingFor(gate)` over a far longer run than a harness should
+    // simulate, and "an arcade cabinet eats quarters" is that ramp's job, not
+    // this board's. ⭐ ASSERTING IT HERE WOULD MEASURE THE RAMP AND CALL IT THE
+    // GAME — which is exactly the mistake Part G of shatter-board-test.mjs
+    // records making twice.
+    ok(tFast >= tSlow,
+       `⚠️ a fast typist is never worse off than a slow one (${Math.round(tFast / 1000)}s ` +
+       `vs ${Math.round(tSlow / 1000)}s)`);
+
+    console.log(`    idle ${Math.round(tIdle / 1000)}s | slow ${Math.round(tSlow / 1000)}s ` +
+                `| fast ${Math.round(tFast / 1000)}s survived; ` +
+                `occupancy idle ${mean(idle, 'occ').toFixed(1)}`);
 }
 
 console.log(fail

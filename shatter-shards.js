@@ -96,9 +96,21 @@
 import {
     ShatterBoard, SPAWN_R, SPLIT_MIN_R, WARP_PUSH, WARP_CLEARS, nextTargetId,
     MAX_SPLIT_DEPTH, MIN_RESPLIT_LEN,
+    paneRadius, PANE_CELL, PANE_HIT_FRACTION,
 } from './shatter-board.js';
 
-export const SHATTER_SHARDS_VERSION = '1.2.0';
+export const SHATTER_SHARDS_VERSION = '1.3.0';
+
+/**
+ * How close a pane's CENTRE may come to the prism's centre before they touch.
+ *
+ * ⚠️ ASTEROIDS' TEST: `rockRadius + shipRadius`, and the rock term dominates.
+ * ⚠️ THE PANE TERM IS IN FIELD UNITS because `PANE_CELL` is a fraction of
+ * SPAWN_R — the same call the view makes in pixels with a pixel cell.
+ */
+export function reachOf(rock) {
+    return PRISM_R + paneRadius(rock && rock.text, PANE_CELL) * PANE_HIT_FRACTION;
+}
 
 // ⚠️ THE FIELD IS A SQUARE THAT CONTAINS THE SPAWN RING, NOT THE RING ITSELF.
 // Wrapping on a circle means a pane leaves and re-enters at the antipode, which
@@ -108,11 +120,19 @@ export const SHATTER_SHARDS_VERSION = '1.2.0';
 // wraps rather than blinking at the rim.
 export const WRAP_EDGE = 1.35;
 
-// How close a pane's centre gets to the prism before it counts as a hit.
-// ⚠️ GENEROUS ON PURPOSE. In Shatter a pane arrives head-on and the student can
-// see it coming down a known line; here it can cross from anywhere, so a tight
-// radius would read as being hit by something that missed.
-export const HIT_R = 0.10;
+// ⚠️⚠️ THE PRISM'S OWN RADIUS — HALF OF THE COLLISION TEST, NOT ALL OF IT.
+//
+// v1.3.0, Round 117 (Bennett). This constant used to BE the whole hit test:
+// `hypot(x, y) <= HIT_R`, with the pane treated as a point. ⭐⭐ THAT IS THE BUG
+// JAKE FELT AS *"never had any threat at all"*, and it is geometry rather than
+// difficulty — a nine-letter window is DRAWN at a radius of about 0.25 and could
+// hurt you only within 0.10, so **glass visibly passed over the prism and
+// nothing happened.**
+//
+// ⚠️ THE FIX IS ASTEROIDS' TEST, WHICH IS THE GAME JAKE POINTED AT: a rock hits
+// when `distance <= rockRadius + shipRadius`, and the ROCK term dominates. See
+// advance().
+export const PRISM_R = 0.10;
 
 // A pane crosses the field in the time the director gave it. ⚠️ THE FIELD IS
 // TWO SPAWN RADII WIDE, so this is the distance term in speed = distance / time.
@@ -124,11 +144,56 @@ const CROSSING = SPAWN_R * 2;
 // student would lose track of the word they were typing.
 const WARP_KICK = WARP_PUSH;
 
-// How many field crossings a pane wanders before it leaves. ⚠️ MORE THAN ONE, OR
-// this is Shatter with extra steps — the whole texture of this board is that a
-// word you skip comes back at least once. ⚠️ AND NOT MANY MORE, or the relief
-// valve is too slow to help the student who needs it.
-export const WANDER_CROSSINGS = 2.5;
+// ⚠️⚠️⚠️ THE WANDERING BUDGET IS DELETED — ROADMAP 116h.1, Round 117 (Bennett).
+//
+// Jake: *"some of the glass just vanished midway through the game. Nothing
+// should go away unless it's zapped."* ⭐ HE IS RIGHT, AND THE BUDGET COULD NOT
+// BE SIMPLY REMOVED EITHER: v1.0.0 had no exit at all and a 12 WPM typist was hit
+// MORE than a student who did nothing, because clearing a word replaced one pane
+// with three on a board nothing ever left. The budget fixed that by letting
+// panes expire — and made ignoring everything FREE, which is worse.
+//
+// ⭐⭐ GEOMETRY PAYS FOR BOTH, WHICH IS WHY NEITHER A TIMER NOR A CURVE IS NEEDED.
+// Now that a pane's own size is in the hit test, cross-section scales with the
+// WORD: `unusually` carries 0.0635 of area and its three pieces carry 0.0375
+// between them. **Breaking a word cuts the threat by about 40% while tripling the
+// pane count.** So density genuinely falls for a student who is TYPING — the
+// thing the budget was trying to buy with a clock and accidentally gave away to
+// the idle student as well.
+//
+// ⚠️ THE EXIT IS THE PRISM AND NOTHING ELSE. Every pane ends one of two ways:
+// typed out, or it reaches the student. Nothing expires. Nothing vanishes.
+
+// ⚠️⚠️ HOW MUCH FASTER THAN THE DIRECTOR'S LIFETIME THE GLASS MOVES.
+//
+// ⭐ THE SECOND HALF OF WHY SHARDS WAS TOO EASY, AND IT IS THE ASTEROIDS
+// COMPARISON AGAIN. At a 20 WPM gate the director prices a 9-letter word at a
+// **64.8-second** lifetime — correct for Shatter, where that is ONE inbound
+// journey and a deadline. Read as a drift speed it means a pane takes over a
+// minute to cross the field once. An Asteroids rock crosses in five seconds.
+// ⚠️ A BOARD WHOSE OBJECTS BARELY MOVE CANNOT THREATEN ANYONE, however many of
+// them there are.
+//
+// ⭐ THE GATE STILL SETS THE PACE — this is a multiplier ON the director's
+// number, not a replacement for it, so a 15 WPM child still gets slower glass
+// than a 40 WPM child. It just no longer gets glacial glass.
+// ⚠️⚠️ 2.5 IS MEASURED, NOT CHOSEN. Swept 2 / 2.5 / 3 / 3.5 / 4 / 5 over 8 seeds
+// against the real director. ⭐ IT IS THE ONLY VALUE WHERE A SLOW TYPIST CLEARLY
+// OUTLIVES AN IDLE ONE (108s vs 86s); at 3 and above the two invert again,
+// because the glass starts arriving faster than a 12 WPM child can break it and
+// the board empties by hitting them rather than by being typed.
+// ⚠️ THE FAIRNESS ORDERING IS THE BINDING CONSTRAINT HERE, NOT THE IDLE FLOOR.
+// Faster glass kills idlers sooner AND punishes slow typists sooner, and this
+// app exists for the second group.
+export const SPEED_GAIN = 2.5;
+
+// ⚠️⚠️ A PIECE MOVES FASTER THAN ITS PARENT, PER SPLIT LEVEL. Jake: *"We need
+// more speed or something from those pieces of glass."*
+// ⭐ AND THERE IS NOW A REASON RATHER THAN A FEEL: a splinter is a genuinely
+// SMALLER target since Round 117, so it crosses the prism less often. Speed buys
+// back the crossings its size gave up, which is what keeps a broken word from
+// making the field calmer than an untouched one.
+export const PIECE_SPEED_GAIN = 1.5;
 
 /**
  * Panes drift and wrap; nothing arrives.
@@ -199,7 +264,7 @@ export class ShardsBoard extends ShatterBoard {
         // and FIXED AT SPAWN for the same reason the base fixes `dr`: a speed
         // recomputed from current pressure would accelerate under the student's
         // own success, which is the ramp applied twice.
-        const speed = CROSSING / life;
+        const speed = CROSSING * SPEED_GAIN / life;
 
         // Heading: broadly across the field, but never aimed. ⚠️ AN AIMED PANE
         // IS A RADIAL PANE. The spread is wide enough that plenty of them will
@@ -221,7 +286,6 @@ export class ShardsBoard extends ShatterBoard {
             // the view's clock and a paused game must not burn a pane's budget;
             // `_lastAt` already handles the gap, and a decrementing counter would
             // be a second clock to keep in step with it.
-            leavesAt: nowMs + life * WANDER_CROSSINGS,
             terminal: false,
             parent: null,
         };
@@ -260,12 +324,19 @@ export class ShardsBoard extends ShatterBoard {
             if (rock.y < -WRAP_EDGE) rock.y += WRAP_EDGE * 2;
             else if (rock.y > WRAP_EDGE) rock.y -= WRAP_EDGE * 2;
 
-            if (Math.hypot(rock.x, rock.y) <= HIT_R) { hit.push(rock); continue; }
-            // ⚠️⚠️ AN EXPIRED PANE IS NOT A HIT AND IS NOT RETURNED. It sails out
-            // of the field: nothing lands, nothing is scored, nobody is charged.
-            // Returning it would make the view account it to the director as a
-            // hit and turn the relief valve into a punishment.
-            if (rock.leavesAt != null && nowMs >= rock.leavesAt) continue;
+            // ⚠️⚠️ THE PANE'S OWN SIZE IS IN THE TEST — Round 117. `paneRadius()`
+            // is shatter-board.js's, the same function the view draws with, so a
+            // window that looks like it covers the prism is one that does.
+            // ⭐⭐ AND THIS IS WHAT MAKES DENSITY FALL FOR A STUDENT WHO IS
+            // TYPING, with no timer and nothing vanishing unzapped. Cross-section
+            // scales with the WORD, so breaking one is a real reduction in
+            // threat even though it raises the pane COUNT:
+            //     `unusually`  r 0.252  area 0.0635
+            //     its pieces                 0.0375  — about 40% less
+            // ⚠️ THAT IS THE ANSWER TO ROADMAP 116h.1. The wandering budget was
+            // trying to buy this with a clock, and bought it for the idle student
+            // too; geometry charges it to the keyboard instead.
+            if (Math.hypot(rock.x, rock.y) <= reachOf(rock)) { hit.push(rock); continue; }
             alive.push(rock);
         }
         this.rocks = alive;
@@ -300,19 +371,18 @@ export class ShardsBoard extends ShatterBoard {
         const spread = n === 1 ? 0 : (i / (n - 1) - 0.5) * 2.0;
         const base = Math.atan2(rock.vy, rock.vx);
         const kick = rock.speed * 0.85;
+        const spd = rock.speed * PIECE_SPEED_GAIN;
         return {
             id: nextTargetId(),
             text, typed: 0,
             x, y,
-            vx: rock.vx + Math.cos(base + spread) * kick,
-            vy: rock.vy + Math.sin(base + spread) * kick,
-            speed: rock.speed,
+            // ⚠️ SCALED, NOT JUST KICKED. The kick alone changes HEADING more
+            // than pace; PIECE_SPEED_GAIN is what makes a splinter genuinely
+            // quicker than the window it came from.
+            vx: (rock.vx + Math.cos(base + spread) * kick) * PIECE_SPEED_GAIN,
+            vy: (rock.vy + Math.sin(base + spread) * kick) * PIECE_SPEED_GAIN,
+            speed: spd,
             depth: (rock.depth || 0) + 1,
-            // ⚠️ PIECES INHERIT THE REMAINING BUDGET, THEY DO NOT GET A FRESH
-            // ONE. A full budget per piece is precisely the bug this fixes: it
-            // would mean breaking a word BOUGHT the student more clutter, for
-            // longer, the slower they were.
-            leavesAt: rock.leavesAt,
             // ⚠️ SAME RULE AS THE BASE — see MAX_SPLIT_DEPTH there. Two levels on
             // one board and one on the other would be two different games
             // wearing the same split ladder.

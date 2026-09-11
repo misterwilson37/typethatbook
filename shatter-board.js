@@ -64,7 +64,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.4.0';
+export const SHATTER_BOARD_VERSION = '1.5.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -186,6 +186,40 @@ export const MAX_WARPS = 3;
 // clear a rock that costs no keystrokes, and `clearedChars` — the quota, the
 // grade, the score — would stop being a count of typing.
 export const WARP_PUSH = 0.45;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ HOW BIG A PANE IS — ONE RULE, READ BY THE VIEW **AND** BY SHARDS' HIT TEST
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// v1.5.0, Round 117 (Bennett). ⚠️ THIS FORMULA WAS A LOCAL IN `game-shatter.js`'s
+// drawPanes() AND NOTHING ELSE COULD SEE IT. That was fine while only pixels
+// cared. ⭐⭐ IT STOPPED BEING FINE THE MOMENT A BOARD NEEDED TO KNOW, because a
+// second copy of "how big is a pane" is exactly Rule 9: two records of one
+// quantity, and they drift the first time anyone adjusts how the glass looks.
+// The next person to make windows 10% larger would make them 10% larger to LOOK
+// AT and not to COLLIDE WITH, and nothing would say so.
+//
+// ⚠️ IT IS UNIT-AGNOSTIC ON PURPOSE. Hand it a cell size in pixels and it
+// answers in pixels; hand it PANE_CELL and it answers in field units. ⭐ THAT IS
+// WHAT MAKES THE TWO READERS *IDENTICAL* RATHER THAN MERELY CONSISTENT — Rule 11
+// applied to a shape instead of to a number.
+//
+// ⚠️ A FLOOR, so a two-letter splinter is still a pane of glass and not a chip.
+export const PANE_CELL = 0.07;            // one cell, as a fraction of SPAWN_R
+export const PANE_MIN_CELLS = 1.35;       // the floor, in cells
+export const PANE_CELLS_PER_CHAR = 0.40;  // how fast a pane grows with its word
+
+export function paneRadius(text, cell) {
+    const n = String(text || '').length;
+    return Math.max(cell * PANE_MIN_CELLS, n * cell * PANE_CELLS_PER_CHAR);
+}
+
+// ⚠️⚠️ A PANE IS AN IRREGULAR SILHOUETTE, NOT A DISC, so `paneRadius()` is a
+// BOUNDING radius and over-counts at the corners. Collision uses a conservative
+// fraction of it. ⭐ THE DIRECTION IS DELIBERATE: being killed by a visible gap
+// feels like a broken game, while sailing through a visible overlap merely feels
+// lucky. When in doubt, miss.
+export const PANE_HIT_FRACTION = 0.78;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE SPLIT LADDER

@@ -112,7 +112,40 @@ harness has to fail against a real student's history before the fix and pass
 after. Check whether `arcade.html` already knows the furthest-reached lesson or
 has to be told.
 
-### 116h — ⚠️⚠️ SHARDS IS TOO EASY, AND ONE CAUSE IS MINE. A WHOLE ROUND.
+### 116h — ⚠️ PARTS 1 AND 2 CLOSED (Round 117). PARTS 3 AND 4 STILL OPEN.
+
+✅ **THE ROOT CAUSE WAS A COLLISION BUG, NOT A BALANCE PROBLEM.** The pane's own
+size was not in the hit test — `hypot(x,y) <= 0.10` while a nine-letter window
+was DRAWN at ≈0.25 field units. Glass visibly passed over the prism and nothing
+happened. Fixed to Asteroids' `rockRadius + shipRadius`; `paneRadius()` now lives
+in `shatter-board.js` and the view and the hit test call the same function.
+⚠️ **SHARDS ONLY — giving Shatter a radius shortens every lifetime and voids the
+990-trial clearability sweep.**
+
+✅ **1 — THE WANDERING BUDGET IS DELETED AND NOTHING REPLACED IT.** Cross-section
+scales with the word, so breaking `unusually` cuts threat area ~40% (0.0635 →
+0.0375) while tripling the pane count. Density falls for a student who is TYPING,
+with no clock and nothing vanishing unzapped.
+
+✅ **2 — PIECES CARRY THREAT.** `PIECE_SPEED_GAIN = 1.5`: a splinter is a smaller
+target now, so speed buys back the crossings its size gave up.
+
+✅ **AND A SECOND CAUSE NOBODY HAD NAMED:** the director prices a 9-letter word at
+a 64.8s lifetime, which read as a drift speed is a **65-second field crossing**.
+`SPEED_GAIN = 2.5`, measured over a 6-value sweep. ⚠️⚠️ **2.5 IS PICKED BY THE
+FAIRNESS ORDERING, NOT THE IDLE FLOOR** — it is the only value where a slow typist
+outlives an idle one (108s vs 86s); at 3+ they invert. Idle survival 265s → 86s;
+worst first threat 269s → 46s.
+
+⚠️⚠️ **3 AND 4 ARE UNTOUCHED.** The translation design is settled: prism jumps to
+P, every pane becomes `pane − P` wrapped, **velocities untouched** — fewer lines
+than today's shove, and the radar needs no change. Score candidates on the nearest
+pane now AND ~1.5s ahead. `WARP_CLEARS` wants a `this.warpClears` hook on the base
+rather than a copied `warp()`.
+
+The original brief is kept below as the record.
+
+### ~~116h — ⚠️⚠️ SHARDS IS TOO EASY, AND ONE CAUSE IS MINE. A WHOLE ROUND.~~
 
 **Jake, after playing:** *"shards is just too easy… I went 2 minutes without
 touching the keyboard **at all** and never had any threat at all."*

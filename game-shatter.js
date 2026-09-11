@@ -1,3 +1,7 @@
+// game-shatter.js v1.7.0 — Round 117 (Bennett): the pane size rule moves to
+// shatter-board.js so Shards' hit test and this file's draw read ONE formula.
+// ⚠️ NO BEHAVIOUR CHANGE HERE — paneRadius(text, size) returns exactly what the
+// inline max() returned. The change is who else can see it.
 // game-shatter.js v1.6.0 — Round 116 (Sun): ⭐ THE PRISM SHATTERS IN SLOW MOTION.
 //   Jake: *"when the ship gets hit, it should shatter into all the colors.
 //   Ideally in slow motion."* The burst is the WHOLE finger spectrum, not the
@@ -138,7 +142,7 @@
 // `ended = true` and ABOVE `d.end()`.
 
 import { GameDirector } from './game-shell.js';
-import { ShatterBoard, splittable, SHATTER_COST_FACTOR } from './shatter-board.js';
+import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius } from './shatter-board.js';
 // ⭐ THE SECOND CABINET. Jake: *"build shard, please. I want kids to have that
 // option."* ⚠️⚠️ ONE VIEW, TWO BOARDS — that is the whole reason Round 116 spent
 // a version on the `place()` seam before writing a line of Shards. A second
@@ -161,7 +165,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.6.0';
+export const GAME_SHATTER_VERSION = '1.7.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -879,7 +883,13 @@ export function mount(container, opts) {
             // different sizes read as depth rather than as sloppy alignment.
             // ⚠️ A FLOOR, so a two-letter splinter is still a pane of glass and
             // not a chip.
-            const rr = Math.max(size * 1.35, rock.text.length * size * 0.40);
+            // ⚠️⚠️ THE SIZE RULE IS shatter-board.js's, NOT THIS FILE'S — Round
+            // 117. Shards' hit test reads the SAME function in field units, so a
+            // pane that looks like it covers the prism is a pane that does.
+            // ⚠️ DO NOT INLINE THIS FORMULA BACK. It was a local here for four
+            // rounds and that is precisely why glass could visibly pass over the
+            // prism with nothing happening.
+            const rr = paneRadius(rock.text, size);
             // ⚠️ THE RIM CARRIES STATE AND NOTHING ELSE DOES: red when it is
             // about to land, gold when locked, otherwise the colour of the
             // finger that types its next key — the same finger map keyboard.js

@@ -91,67 +91,109 @@
 >
 > ---
 >
-> ## ⚠️⚠️ 116h IS UNTOUCHED, ON PURPOSE, AND MY FIRST PROPOSAL WAS WRONG
+> ## ⚠️⚠️ 116h — PARTS 1 AND 2 ARE DONE BY GEOMETRY. PART 4 IS NOT STARTED.
 >
-> Jake: *"Before you start curving stuff toward the prism, I'd like you to look at
-> how asteroids works. Asteroids is a stressful game, and there's no curve."*
-> ⭐ **HE WAS RIGHT AND THE MEASUREMENT BACKS HIM.** I had proposed giving panes
-> an inward curve. That is a force bolted on to compensate for a geometry error.
+> Jake: *"Asteroids is a stressful game, and there's no curve."* ⭐ **HE WAS
+> RIGHT. THE CURVE I PROPOSED WAS A FORCE BOLTED ON TO COMPENSATE FOR A
+> COLLISION BUG.** Also: I said *thrust* and his idea was *hyperspace*. Thrust is
+> steered and continuous; the student's hands are typing and there is nothing to
+> steer with. **Hyperspace is a discrete relocation with no heading** — which is
+> what he described from the start.
 >
-> **What I measured before proposing anything — drive the REAL pipeline**
-> (`arcadeConfig()` → `GameDirector` → `ShardsBoard`, real 47-lesson corpus,
-> 8 seeds, 5-minute runs, idle student at a 20 WPM gate):
+> ### ✅ THE DEFECT: THE PANE'S SIZE WAS NOT IN THE HIT TEST
 >
-> | seed | first hit | hits in 5 min | dead |
-> |---|---|---|---|
-> | 3 | 138s | 1 | alive |
-> | 11 | 271s | 1 | alive |
-> | 21 | 110s | 3 | 172s |
-> | 37 | 42s | 3 | 173s |
-> | 53 | **never** | 0 | alive |
-> | 71 | 219s | 1 | alive |
-> | 89 | 111s | 3 | 296s |
-> | 101 | 217s | 1 | alive |
+> `hypot(x, y) <= HIT_R` with `HIT_R = 0.10`, while `drawPanes()` drew a
+> nine-letter window at **≈0.25** field units. ⭐ **GLASS VISIBLY PASSED OVER THE
+> PRISM AND NOTHING HAPPENED.** Asteroids tests `rockRadius + shipRadius` and the
+> ROCK term dominates; Shards tested a point.
 >
-> ⚠️⚠️ **JAKE'S "TWO MINUTES UNTOUCHED WITH NO THREAT" IS THE MEDIAN EXPERIENCE,
-> NOT AN UNLUCKY RUN.** Half the seeds survive five minutes doing nothing. A
-> typist above 60 kpm takes **zero** hits at every speed tested.
+> * **`shatter-board.js` v1.5.0** — the size formula moves out of
+>   `game-shatter.js`'s `drawPanes()` into `paneRadius(text, cell)`, unit-agnostic:
+>   pixels in, pixels out; `PANE_CELL` in, field units out. ⚠️ **BOTH READERS CALL
+>   THE SAME FUNCTION** — Rule 11 applied to a shape rather than to a number.
+>   ⚠️ `PANE_HIT_FRACTION = 0.78` because a pane is an irregular silhouette and
+>   the bounding radius over-counts at the corners. **When in doubt, miss** — being
+>   killed by a visible gap reads as broken; sailing through an overlap reads as
+>   lucky.
+> * **`shatter-shards.js` v1.3.0** — `HIT_R` → `PRISM_R`, and `reachOf(rock)` is
+>   `PRISM_R + paneRadius × 0.78`.
+> * ⚠️⚠️ **SHARDS ONLY. DO NOT GIVE SHATTER A RADIUS.** There a pane arrives at
+>   `r = 0` and size never entered the arithmetic; adding it makes every pane hit
+>   EARLIER, silently shortening every lifetime and invalidating the 990-trial
+>   clearability sweep. That is a graded-path guarantee.
 >
-> ⚠️⚠️⚠️ **AND `shatter-shards-test.mjs` PART H IS MEASURING A BOARD NO STUDENT
-> PLAYS.** It reports 9.3 idle hits over three minutes and passes. It never uses
-> the director: it spawns on a hardcoded 2500ms timer to a hardcoded ceiling of 8.
-> **The real interval at these gates is 9.6–17.3 seconds.** ⭐ **SO THE ROADMAP'S
-> INSTRUCTION NEEDS ONE AMENDMENT: re-point Part H at `GameDirector` FIRST, or the
-> new idle-floor assertion is written against the same fiction.**
+> ### ✅ 116h.1 — THE WANDERING BUDGET IS DELETED, AND NOTHING REPLACED IT
 >
-> ⭐⭐ **WHY ASTEROIDS IS STRESSFUL WITHOUT A CURVE — three things Shards lacks:**
-> 1. ⚠️ **You move.** Collisions in Asteroids are mostly the player flying into
->    something. The prism is nailed to the centre, so half the closing speed in
->    every collision is simply absent.
-> 2. ⚠️⚠️ **Rocks are big, and the collision test knows it.** Asteroids tests
->    `rockRadius + shipRadius`, dominated by the rock. Shards tests
->    `hypot(x, y) <= HIT_R` with `HIT_R = 0.10` — **the pane's size is not in the
->    test at all.** And `drawPanes()` sizes a nine-letter window at about **0.25
->    in field units, two and a half times the radius at which it can hurt you.**
->    ⭐ **GLASS VISIBLY PASSES OVER THE PRISM AND NOTHING HAPPENS.** That is not a
->    difficulty setting; it is a defect, and it is most of what Jake felt.
->    The arithmetic: a 0.10 disc in a 2.7-wide field is clipped by ~7% of random
->    crossings; at 0.33 it is ~24%, about eleven times the area.
-> 3. **Waves, not a trickle.** Asteroids starts the screen full and each wave is
->    bigger. Shards gets one pane every 9.6–17.3 seconds.
+> *"Nothing should go away unless it's zapped."* ⭐ **GEOMETRY PAYS FOR BOTH SIDES
+> OF THE OLD DILEMMA.** Cross-section scales with the WORD:
+> `unusually` carries 0.0635 of area; its three pieces carry **0.0375** between
+> them. **Breaking a word cuts threat ~40% while tripling the pane count.** So
+> density falls for a student who is TYPING — the thing the budget bought with a
+> clock and accidentally gave the idler too. The only exits are typed out, or the
+> prism. **Nothing expires.**
 >
-> ⭐ **AND IT REFRAMES 116h.4: the warp-as-translation is not a relief mechanic,
-> it is THRUST** — the mobility Asteroids has and Shards lacks, handed back as a
-> discrete earned move. That is why Jake's instinct on it was right and my
-> "breathing room" framing undersold it.
+> ### ✅ 116h.2 — PIECES CARRY THREAT, AND NOW FOR A REASON
 >
-> ⚠️ **NOTHING IN 116h WAS CHANGED. Jake asked for the conversation first.**
+> `PIECE_SPEED_GAIN = 1.5`. ⭐ A splinter is a genuinely SMALLER target now, so it
+> crosses the prism less often; speed buys back the crossings its size gave up.
+> That is a number with an argument behind it rather than a feel.
 >
-> ---
+> ### ⚠️⚠️ AND A SECOND CAUSE NOBODY HAD NAMED: THE GLASS BARELY MOVED
+>
+> At a 20 WPM gate the director prices a 9-letter word at a **64.8-second**
+> lifetime — correct for Shatter, where that is one inbound journey and a
+> deadline. Read as a drift speed it means **a pane takes over a minute to cross
+> the field once.** An Asteroids rock crosses in five seconds.
+> **`SPEED_GAIN = 2.5`**, a multiplier ON the director's number so the gate still
+> sets the pace.
+>
+> ⚠️⚠️ **2.5 IS MEASURED AND THE CONSTRAINT THAT PICKED IT IS NOT THE ONE YOU
+> EXPECT.** Swept 2 / 2.5 / 3 / 3.5 / 4 / 5 over 8 seeds against the real director:
+>
+> | gain | idle survives | slow survives | worst first threat | all idle dead <120s |
+> |---|---|---|---|---|
+> | 2 | 96s | 96s | 57s | no |
+> | **2.5** | **86s** | **108s** | **46s** | no |
+> | 3 | 79s | 65s | 42s | no |
+> | 3.5 | 73s | 75s | 40s | **yes** |
+> | 5 | 61s | 47s | 37s | yes |
+>
+> ⭐⭐ **2.5 IS THE ONLY VALUE WHERE A SLOW TYPIST CLEARLY OUTLIVES AN IDLE ONE.**
+> At 3 and above they invert: glass arrives faster than a 12 WPM child can break
+> it, so the board empties by hitting them rather than by being typed.
+> ⚠️ **THE IDLE FLOOR YIELDS TO THE FAIRNESS RULE, NOT THE REVERSE** — faster glass
+> kills idlers sooner AND slow typists sooner, and this app exists for the second
+> group. Part H's floor is therefore a MEAN plus a ceiling, and says so.
+>
+> **Before → after (idle, 8 seeds, 5 min, 20 WPM gate):** survived **265s → 86s**;
+> worst first threat **269s → 46s**; and **slow 108s now beats idle 86s**.
+>
+> ### ⚠️⚠️ NOT STARTED: 116h.3 (warp price) AND 116h.4 (the translation)
+>
+> ⭐ **THE DESIGN IS SETTLED AND IS SMALLER THAN IT LOOKS.** Prism jumps to P →
+> every pane becomes `pane − P`, wrapped. **Velocities are untouched** — the ship
+> teleported, it did not accelerate — so relative speeds and the whole
+> constellation are preserved and the radar needs no change at all. It is FEWER
+> lines than the shove in `warp()` today.
+> ⚠️ Score candidate offsets on the nearest pane **now and ~1.5s ahead**, or the
+> warp drops the student in an empty pocket with something fast arriving in it.
+> ⚠️ `WARP_CLEARS` is still Shatter's price and wants a `this.warpClears` hook on
+> the base rather than a copied `warp()` — this file's own standing rule.
+>
+> ### ⚠️ WHAT IS STILL UNMEASURED
+>
+> Idle occupancy fell to **2.4 panes** (from 7.5). The board is emptier than
+> Asteroids' ever is, because the director's 16-second interval was priced for a
+> board where panes leave. ⭐ **THE WARP WORK SHOULD RE-READ THIS NUMBER** — if a
+> translation makes clearing more survivable, occupancy may want to rise, and that
+> is a director conversation, not a board one.
 >
 > ## ⚠️ TWO THINGS I FOUND AND DID NOT FIX
 >
-> 1. ⚠️ **`run-all-tests.mjs` EXISTS TWICE** — at the repo root and in `tests/`,
+> 1. ✅ **DONE — both root `.mjs` duplicates are deleted** (`run-all-tests.mjs`,
+>    `dead-handler-test.mjs`), on Jake's word. The `tests/` copies are the live
+>    ones. Original note kept:
+> 1. ~~⚠️ **`run-all-tests.mjs` EXISTS TWICE**~~ — at the repo root and in `tests/`,
 >    near-identical, and the **root copy cannot run from the root** (it resolves
 >    `../game.js`). That is a Rule 9 shape: one registry, two records. I edited
 >    BOTH to keep them in step, which is the thing Rule 9 exists to stop being
@@ -165,6 +207,8 @@
 > ## VERSION STAMPS THIS ROUND
 >
 > `game-shell.js` **v1.8.0** · `arcade.html` **v3.21.0** ·
+> `shatter-board.js` **v1.5.0** · `shatter-shards.js` **v1.3.0** ·
+> `game-shatter.js` **v1.7.0** · `tests/shatter-shards-test.mjs` **v1.1.0** ·
 > `shatter-shards.js` **v1.2.0** (header corrected to match its constant — it
 > read v1.1.0 over a `'1.2.0'`; no code change) ·
 > `tests/arcade-scope-menu-test.mjs` **v1.0.0, new** ·
