@@ -75,6 +75,36 @@
 >
 > ---
 >
+> ## ⚠️⚠️⚠️ I SHIPPED A PAGE-FATAL REGRESSION THIS ROUND. READ THIS FIRST.
+>
+> **Both lesson pages loaded nothing and clicked nowhere**, from one edit of
+> mine, and **99 harnesses were green over it.**
+>
+> The mode pill replaced `learn.html`'s `← Home` anchor, on the reasoning that a
+> Library tab and a Home link were two records of one route. ⭐ **THE ANCHOR WAS
+> NOT A ROUTE.** `learn.js` repurposes it: during a lesson it becomes the STOP
+> control (`href='#'`, `onclick = stopLesson`) and reverts to `index.html` on the
+> map. It was the in-lesson stop wearing a home link's clothes, and I read the
+> clothes.
+>
+> ⚠️ **THE COST WAS NOT THE LOST FEATURE.** `backBtn.href = ...` threw on a null;
+> a top-level binding plus a property write takes the whole module down, so both
+> pages rendered nothing at all.
+>
+> ⚠️⚠️ **THE LESSON, AND IT IS THE ROUND'S BIGGEST:** *removing* something is as
+> dangerous as adding it, and this project's habits are all built around
+> additions. Rule 9 trains you to delete the old record when you add a new one —
+> ⭐ **BUT "TWO RECORDS OF ONE THING" IS A JUDGEMENT, AND I MADE IT FROM AN
+> ELEMENT'S NAME RATHER THAN FROM ITS CALLERS.** Grep the id before deleting the
+> element. Always.
+>
+> `dead-handler-test.mjs` **Part D** now catches this class: every TOP-LEVEL
+> `getElementById()` in a controller must still exist in its page. ⚠️ Top-level
+> only — a first draft matched every lookup and reported 28 false positives per
+> page, all runtime-injected controls. Guarded lookups are exempt.
+>
+> ---
+>
 > ## ⚠️⚠️ FOUR DEFECTS JAKE FOUND BY PLAYING, THAT NO HARNESS COULD HAVE
 >
 > ⭐ **THE PATTERN IS THE POINT: none of these throws, logs, or fails a test.**
@@ -117,6 +147,21 @@
 > 1. ⚠️⚠️ **RECONCILE THE `learn2` FORK** — §11 §0. Promote or fold back, **and
 >    delete the loser.** Unchanged since Round 102 and still first. The School
 >    Beta card sends real students to it.
+> 0. ⚠️⚠️ **SHARDS IS TOO EASY — A WHOLE ROUND, ROADMAP 116h.** Jake: *"I went 2
+>    minutes without touching the keyboard **at all** and never had any threat at
+>    all."* Four problems, two of them design rather than tuning. ⭐ **ONE IS
+>    MINE:** the wandering budget I added to stop slow typists being punished
+>    made ignoring everything FREE — *"nothing should go away unless it's
+>    zapped."* ⚠️ Do not simply delete it; that restores the original punishment.
+>    And **warp is the wrong mechanic**: Jake meant the ship RELOCATES to a
+>    quieter part of the map, which on a radar-centred field means the whole
+>    field translates under it — density preserved, board rearranged — not
+>    everything shoved away.
+> 1. ⚠️ **"WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU** in Deadline —
+>    ROADMAP 116g. The scope control filters the word pool and not the picker, so
+>    a child who asks for only what they have learned is still offered every
+>    lesson. ⭐ **THE SETTING IS LYING**, which is worse than not offering it.
+>    ⚠️ A student with NO history still gets the full pool.
 > 2. **Shatter has no UFO.** *"Maybe the ship should get another life if it takes
 >    out a space ship"* still has no enemy to attach to. ⚠️ In the new art the
 >    obvious answer is not a UFO — see §16's last section for the two candidates
@@ -8512,3 +8557,75 @@ would let a student bank time they did not type in.
 * ⚠️ Shatter's cabinet thumbnail hardcodes six finger colours rather than
   importing the map. A second copy, knowingly, for six static polygons — flagged
   in `arcade.html` as a place to revisit if the palette ever changes.
+
+---
+
+## §18. Round 116, part three — the pill, and the page I broke with it
+
+### A. ⚠️⚠️ THE REGRESSION, AND WHY IT IS THE MOST USEFUL THING IN THIS ROUND
+
+I deleted `learn.html`'s `← Home` anchor while wiring the shared mode pill, on
+the reasoning that a Library tab and a Home link were two records of one route.
+**Both lesson pages then loaded nothing and clicked nowhere.**
+
+⭐ **THE ANCHOR WAS NOT A ROUTE.** `learn.js` repurposes it — `href='#'` and
+`onclick = stopLesson` during a lesson, reverting to `index.html` on the map. It
+was the in-lesson STOP control wearing a home link's clothes.
+
+⚠️⚠️ **I MADE A RULE 9 JUDGEMENT FROM AN ELEMENT'S NAME RATHER THAN FROM ITS
+CALLERS.** That is the transferable part. This project's entire culture is built
+around *adding* carefully — versions, harnesses, "complete replacement files" —
+and Rule 9 actively trains you to delete the old record when you add a new one.
+⭐ **BUT "TWO RECORDS OF ONE THING" IS A JUDGEMENT, AND IT NEEDS THE SAME
+EVIDENCE ANY OTHER CLAIM DOES.** `grep back-btn *.js` would have taken four
+seconds and answered it completely.
+
+⚠️ And the failure mode was disproportionate: not a dead link, a **dead page**. A
+top-level `const x = getElementById(...)` followed by any `x.foo =` takes the
+whole module down before a student sees anything.
+
+### B. `dead-handler-test.mjs` PART D — THE MIRROR QUESTION
+
+Part B has asked since Round 27f: *is every button in the page wired?* — a dead
+control. ⭐ **PART D ASKS THE OPPOSITE AND MORE DANGEROUS ONE:** *is every element
+the code grabs still in the page?* — a dead page.
+
+⚠️ **TOP-LEVEL BINDINGS ONLY, AND THAT PRECISION IS THE CHECK.** The first draft
+matched every `getElementById()` anywhere and reported 28 false positives per
+page — all controls these modules inject at runtime, which of course are not in
+static HTML. The fatal shape is narrow: a binding taken at module load, before
+anything could have been injected, then written to. A lookup inside a function
+fails locally and breaks one control. Guarded lookups (`if (el)`, `el?.`,
+`el &&`) are exempt, because that says the author knows it may be absent.
+Verified by re-deleting the anchor: one assertion goes red, no others move.
+
+### C. `site-nav.js` — ONE RECORD OF THE SITE MAP
+
+The mode pill is now one module painting itself into `index.html`, `learn.html`,
+`learn2.html` and `arcade.html`. ⚠️ My estimate of *"four lines per page"* was
+wrong — the two lesson pages had no pill at all. It reads its colours from CSS
+custom properties with per-page fallbacks, so it never knows which page it is on.
+
+⭐ **THE SCHOOL TAB IS A MENU BECAUSE `learn2` EXISTS, AND THAT MENU IS A
+SYMPTOM.** Jake asked for it and it is genuinely useful today. ⚠️⚠️ **BUT IT MAKES
+THE FORK COMFORTABLE**, and a tidy chooser is exactly the kind of thing that lets
+"we will reconcile it later" last another twenty rounds. `learn2` has been open
+item 1 since Round 102. **When the fork is reconciled, delete `SCHOOL_PAGES[1]`
+and the menu collapses to a plain tab on all four pages at once.**
+
+### D. ⚠️ WHAT JAKE FOUND IN SHARDS, WHICH IS NEXT ROUND'S JOB
+
+*"I went 2 minutes without touching the keyboard at all and never had any threat
+at all."* Full brief in ROADMAP 116h. ⭐ **THE HEADLINE IS THAT ONE CAUSE IS
+MINE:** the wandering budget added earlier this round — which fixed a real
+defect, a slow typist being hit more than an idle one — made ignoring everything
+free. *"Nothing should go away unless it's zapped."*
+
+⚠️⚠️ **THAT IS THE SECOND TIME THIS ROUND A FIX CREATED A WORSE PROBLEM THAN THE
+ONE IT SOLVED** (the first being the pill and the back link). Both times the fix
+was correct about the thing it was aimed at and wrong about what else touched it.
+
+⚠️ **WHOEVER TAKES 116h: START WITH THE HARNESS, NOT THE CONSTANTS.** Part H
+already records that Shards is survive-by-luck; it has no floor on the idle case.
+Make it assert *a student who types nothing is dead inside N seconds*, watch it
+fail, and only then change a number.

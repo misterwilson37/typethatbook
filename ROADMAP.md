@@ -58,6 +58,74 @@ BOARD BEHIND A FLAG WAS DELIBERATELY NOT BUILT** — rule 5, and exactly what
 3. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY** (Rule 9), and delete the lab
    page with it.
 
+### 116g — ⚠️ "WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU
+
+**Jake, 2026-09-11, playing Deadline:** *"if a student picks 'What I know so far'
+in deadline, it still gives him access to literally every lesson. The lesson menu
+should be locked to exactly what the kid has gotten to. Full pool is available
+for those kids who haven't done anything."*
+
+⚠️ The scope control filters the WORD POOL and does not filter the LESSON PICKER
+beside it, so a child who asks for "only what I have learned" is still offered
+every lesson in the sequence. ⭐ **THE SETTING IS THEREFORE LYING**, which is
+worse than not offering it: a student picks the honest option and is handed
+Unit 5 anyway.
+
+**The rule Jake stated, exactly:** the menu is capped at the furthest lesson the
+student has actually reached. ⚠️ **AND THE EXCEPTION IS LOAD-BEARING** — a
+student with no history gets the FULL pool, not an empty menu. A brand-new child
+must never meet a picker with nothing in it.
+
+⚠️ Small and well-defined, but it touches progress data, so Rule 10 applies: the
+harness has to fail against a real student's history before the fix and pass
+after. Check whether `arcade.html` already knows the furthest-reached lesson or
+has to be told.
+
+### 116h — ⚠️⚠️ SHARDS IS TOO EASY, AND ONE CAUSE IS MINE. A WHOLE ROUND.
+
+**Jake, after playing:** *"shards is just too easy… I went 2 minutes without
+touching the keyboard **at all** and never had any threat at all."*
+
+⭐ **THIS IS A BRIEF FOR A FRESH INSTANCE, NOT A TUNING PASS.** Four separate
+problems, and at least two are design decisions rather than numbers.
+
+**1. ⚠️⚠️ THE GLASS VANISHES ON ITS OWN, AND THAT IS MY BUG.** *"some of the
+glass just vanished midway through the game. Nothing should go away unless it's
+zapped."* Round 116 gave panes a WANDERING BUDGET (`WANDER_CROSSINGS`) to fix a
+real defect — a 12 WPM typist was being hit MORE than a student who did nothing,
+because splitting a word added panes to a board with no exit. ⭐ **THE FIX
+CREATED A WORSE UNFAIRNESS THAN THE ONE IT REMOVED:** ignoring everything is now
+free. ⚠️ **DO NOT SIMPLY DELETE THE BUDGET** — that restores the original
+punishment. The real question is what makes density fall for a student who is
+TYPING; see 4.
+
+**2. Pieces carry no threat.** *"We need more speed or something from those
+pieces of glass."* Pieces inherit the parent's speed plus a kick. A board where
+breaking a word makes the field calmer is a board that rewards clearing with
+safety and then has nothing left to pressure you with.
+
+**3. Warps are too cheap.** `WARP_CLEARS` was priced for Shatter, where clears
+are scarcer because panes arrive and die on a timer.
+
+**4. ⚠️⚠️ WARP IS THE WRONG MECHANIC ENTIRELY — THIS IS A DESIGN CHANGE, NOT A
+NUMBER.** Jake: *"Warp doesn't work the way I meant it to - namely, that the ship
+jumps somewhere with fewer asteroids on the same map. Given the nature of the
+radar, that really means everything else has to jump, I guess, but it just
+removing **everything** makes the game far too easy."*
+⭐ **THE INTENT IS RELOCATION, NOT A SHOCKWAVE.** The prism is fixed at the
+centre of a radar-relative field, so "the ship jumps" inverts to "the field
+translates under it" — every pane shifts by the same offset, wrapping, so the
+board is genuinely rearranged rather than emptied. ⚠️ A translation preserves
+density, which is exactly why it is the right mechanic and the current push is
+not: it buys the student BREATHING ROOM without buying them fewer words.
+
+⚠️ **AND THE MEASUREMENT PROBLEM IS REAL.** `shatter-shards-test.mjs` Part H
+already records that Shards is survive-by-luck and score-by-skill (116e), and it
+deliberately does not assert otherwise. **Two minutes untouched with zero threat
+means even the luck is absent.** Whoever takes this should start by making Part H
+assert a floor on the idle case — *a student who types nothing is dead inside N
+seconds* — and watch it fail before changing a single constant.
+
 ### 116e — ⚠️⚠️ SHARDS IS SURVIVE-BY-LUCK; SHATTER IS SURVIVE-BY-SKILL
 
 **Shipped, and Jake should know this before a class does.** Round 116's
