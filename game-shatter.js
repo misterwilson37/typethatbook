@@ -262,10 +262,13 @@ export function mount(container, opts) {
     function decorate(rock) {
         if (!rock || rock.cut) return rock;
         rock.cut = paneCut(rand, rock.text.length);
-        // ⚠️ THE SWAY IS THE ONLY MOTION LEFT ON A TARGET (the tumble is gone —
-        // letters have to stay over their own panels), and it still answers to
-        // the reduced-motion setting like everything else in this file.
-        rock.cut.sway *= motionScale();
+        // ⚠️ THE TUMBLE ANSWERS TO THE REDUCED-MOTION SETTING like everything
+        // else in this file. ⭐ SCALED, NOT DISABLED: a plate turning slowly is
+        // still the Superman II picture, and freezing every pane flat would
+        // make a reduced-motion student's game look like a different game.
+        // game-draw.js's motionScale() returns 0.25, never 0.
+        rock.cut.tumbleRate *= motionScale();
+        rock.cut.rollRate *= motionScale();
         rock.colors = Array.from(rock.text, ch => fingerColorOf(ch, '#9fb6d8'));
         return rock;
     }
@@ -713,45 +716,38 @@ export function mount(container, opts) {
         // near pane is the one the prism is pointing at.
         const sorted = board.rocks.slice().sort((a, b) => b.r - a.r);
         const size = Math.max(14, Math.round(ringR * 0.07));
-        // ⚠️ ONE PULSE FOR THE WHOLE FIELD, NOT ONE PER PANE. Panes breathing out
-        // of phase with each other is a shimmer; breathing together reads as the
-        // light source flickering, which is what a nave does.
-        const pulse = 0.5 + 0.5 * Math.sin(tSec * 3.2);
         for (const rock of sorted) {
             decorate(rock);
             const p = px(rock);
             const near = rock.r <= DANGER_R;
             const isLocked = rock === board.locked;
-            // ⭐ THE PANE IS SIZED TO ITS OWN WORD, because the word is built
-            // INTO it one panel per letter. That is legitimate here in a way it
-            // was not on Escape Key's grid: these are objects at different
-            // distances, so plainly different sizes read as depth rather than as
-            // sloppy alignment.
-            const panelW = size * 0.80;
-            const halfW = Math.max(panelW, (rock.text.length * panelW) / 2);
-            const halfH = size * 0.86;
+            // ⭐ THE PANE IS SIZED TO ITS OWN WORD, because the word is drawn
+            // across it. That is legitimate here in a way it was not on Escape
+            // Key's grid: these are objects at different distances, so plainly
+            // different sizes read as depth rather than as sloppy alignment.
+            // ⚠️ A FLOOR, so a two-letter splinter is still a pane of glass and
+            // not a chip.
+            const rr = Math.max(size * 1.35, rock.text.length * size * 0.40);
             // ⚠️ THE RIM CARRIES STATE AND NOTHING ELSE DOES: red when it is
             // about to land, gold when locked, otherwise the colour of the
             // finger that types its next key — the same finger map keyboard.js
-            // uses everywhere else in this app. ⭐ The panels already say HOW FAR
-            // THROUGH the word the student is, so the rim is free to say
-            // something else entirely, which it was not when it was a rock.
+            // uses everywhere else in this app.
             const nextCh = rock.text[rock.typed] || rock.text[0];
             const rim = near ? '#ff5566'
                 : isLocked ? '#ffd700'
                 : fingerColorOf(nextCh, '#cfe6ff');
-            drawPane(ctx, p.x, p.y, rock.cut, {
-                halfW, halfH,
+            drawPane(ctx, p.x, p.y, rr, rock.cut, {
                 text: rock.text,
                 typed: rock.typed,
                 size,
                 colors: rock.colors,
+                locked: isLocked,
                 // ⚠️ A PIECE IS A SPLINTER, A PARENT IS A WINDOW — a difference
-                // of KIND rather than of degree. A slightly smaller window would
-                // be exactly the "slightly off" that reads as a mistake.
+                // of KIND rather than of degree. A slightly smaller window
+                // would be exactly the "slightly off" that reads as a mistake.
                 piece: rock.parent != null,
                 base: rock.parent != null
-                    ? 'rgba(14,10,26,0.80)' : 'rgba(6,10,20,0.84)',
+                    ? 'rgba(16,11,28,0.82)' : 'rgba(6,10,20,0.86)',
                 rim,
                 lineWidth: isLocked ? 2.6 : 1.8,
                 glow: near ? '#ff5566' : (isLocked ? '#ffd700' : null),
@@ -759,7 +755,6 @@ export function mount(container, opts) {
                 // is; the crazing says this particular pane has crossed it, on
                 // the pane itself, where the student's eyes already are.
                 crack: near ? Math.min(1, (DANGER_R - rock.r) / DANGER_R + 0.25) : 0,
-                pulse: isLocked ? pulse : pulse * 0.5,
                 tSec,
             });
         }

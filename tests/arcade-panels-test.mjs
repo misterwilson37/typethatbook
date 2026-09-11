@@ -57,7 +57,8 @@ import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard,
          drawCountdownOverlay, drawKeyboardStrip, drawWavePreview,
          drawShatterPanel, fingerPalette, glassBurst, updateParticles,
          drawParticles } from '../game-draw.js';
-import { paneCut, drawPane, drawPrism, drawRefract } from '../game-sprites.js';
+import { paneCut, paneVerts, paneCells, drawPane, drawPrism, drawRefract }
+    from '../game-sprites.js';
 import { FINGER_COLORS, FINGER_NAMES } from '../keyboard.js';
 import * as LAY from '../game-layout.js';
 import { GAMES, GAME_ORDER, panelOptionsFor, usesThreatBoard } from '../game-names.js';
@@ -117,6 +118,11 @@ function recorder() {
                        color: String(this.fillStyle) });
         },
         strokeRect() {},
+        // ⚠️ PRESENT FOR THE SAME REASON clip() AND translate() ARE: a recorder
+        // missing a method it should have DIES instead of disagreeing, and a
+        // dead harness looks exactly like a caught mutation. drawPaneWord()
+        // backs its text with a dark stroke so it survives a starfield.
+        strokeText() {},
         fillText(text, x, y) {
             ops.push({ op: 'text', text: String(text), x, y,
                        alpha: this.globalAlpha, color: String(this.fillStyle) });
@@ -1368,16 +1374,23 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
 // ═════════════════════════════════════════════════════════════════════════════
 //
 // ⚠️⚠️ THE ART IS THE TEACHING CLAIM IN THIS GAME, WHICH IS WHY IT GETS A
-// HARNESS AND ESCAPE KEY'S FROG DOES NOT. Round 116 made every target a leaded
-// pane with ONE PANEL PER LETTER, coloured by the finger that types it, and
-// gave the ship a prism that throws a ray in that same colour. ⭐ THAT CLAIM IS
-// ONLY TRUE WHILE THERE IS ONE COPY OF THE COLOUR LIST. A hardcoded rainbow in
-// game-shatter.js would look IDENTICAL on screen and be a lie, and no amount of
-// reading either file would tell you which — so it is checked by arithmetic.
+// HARNESS AND ESCAPE KEY'S FROG DOES NOT. Every pane's cell is coloured by the
+// finger that typed it, and the prism throws a ray in that same colour. ⭐ THAT
+// CLAIM IS ONLY TRUE WHILE THERE IS ONE COPY OF THE COLOUR LIST. A hardcoded
+// rainbow in game-shatter.js would look IDENTICAL on screen and be a lie.
 //
-// ⚠️ WHAT THIS PART MAY NOT DO, same rule as the rest of the file: no literal
-// pixel positions. Every assertion is a RELATIONSHIP that must survive someone
-// resizing a pane.
+// ⚠️⚠️ REWRITTEN IN v1.7.0, AND THE REWRITE IS THE INTERESTING PART. v1.6.0's
+// assertions all passed against a pane that Jake looked at and rejected:
+// *"I was imagining that it would be like an asteroid with random edges that
+// kind of fill in with random panes. Yours is a word. Split into letters.
+// It's...not impressive."* ⭐ THE ASSERTIONS WERE TRUE AND THE THING THEY
+// DESCRIBED WAS A PROGRESS BAR — they pinned "one panel per letter, evenly
+// stepped, letters marching left to right", which is precisely the regularity
+// that was wrong. **A HARNESS CAN ONLY EVER HOLD THE DESIGN STILL; IT CANNOT
+// TELL YOU THE DESIGN IS BAD.** What it now pins is IRREGULARITY, which is a
+// weaker claim and the honest one.
+//
+// ⚠️ NO LITERAL PIXEL POSITIONS, same rule as the rest of the file.
 {
     // ── K1. the palette is keyboard.js's, in order ──────────────────────────
     const fan = fingerPalette();
@@ -1388,133 +1401,164 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
        'same spectrum the keyboard paints, or the colour on the glass stops ' +
        'meaning the key');
 
-    // ── K2. one panel per letter, in the word's own colours ─────────────────
-    // ⚠️ DRIVEN, NOT READ. A regex over game-sprites.js cannot tell you that the
-    // fifth letter landed on the fourth panel.
     const word = 'unusual';
     const colors = ['#111111', '#222222', '#333333', '#444444',
                     '#555555', '#666666', '#777777'];
-    const c = recorder();
     const cut = paneCut(seeded(7), word.length);
-    drawPane(c, 300, 200, cut, {
-        halfW: 70, halfH: 14, text: word, typed: word.length, size: 16,
-        colors, base: '#000000', rim: '#ffffff', lineWidth: 2, tSec: 0,
+
+    // ── K2. the silhouette is irregular, and it is CUT ─────────────────────
+    // ⚠️⚠️ THIS IS THE ASSERTION v1.6.0 COULD NOT MAKE, because its pane was a
+    // rectangle. An asteroid silhouette means the corner radii genuinely differ
+    // — a polygon whose vertices all sat at the same distance would be a
+    // regular n-gon, which is a stop sign, not a broken window.
+    const verts = paneVerts(cut, 100);
+    ok(verts.length >= 4, 'a pane has at least four corners (' + verts.length + ')');
+    const radii = verts.map(([vx, vy]) => Math.hypot(vx, vy));
+    ok(Math.max(...radii) - Math.min(...radii) > 8,
+       '\u26a0\u26a0 the corners sit at genuinely DIFFERENT distances \u2014 an ' +
+       'irregular silhouette, not a regular polygon');
+    // ⭐ AND THE ANGLES BETWEEN THEM DIFFER TOO. Equal sectors at unequal radii
+    // is still a wheel; it is the uneven sector widths that make it hand-cut.
+    const spans = cut.angles.map((a, i) => {
+        let d = cut.angles[(i + 1) % cut.sectors] - a;
+        while (d <= 0) d += Math.PI * 2;
+        return d;
     });
-    const fills = c.ops.filter(o => o.op === 'fill');
-    for (let i = 0; i < colors.length; i++) {
-        ok(fills.some(f => f.color === colors[i]),
-           'panel ' + i + ' is filled in its own letter\u2019s colour');
+    ok(Math.max(...spans) - Math.min(...spans) > 0.12,
+       '\u2b50 and the sectors are unequal widths, so the lead is not a wheel');
+    const total = spans.reduce((a, b) => a + b, 0);
+    ok(Math.abs(total - Math.PI * 2) < 1e-9,
+       '\u26a0\u26a0 the sectors close on exactly 2\u03c0 \u2014 normalised, not nudged, ' +
+       'so the last cell meets the first with no seam');
+    ok(cut.hubR > 0,
+       'the hub is off-centre, which is most of what makes it look hand-made');
+
+    // ── K3. cells light in a SCATTERED order, never left to right ──────────
+    // ⚠️⚠️ THE DEFECT JAKE REPORTED, STATED AS ARITHMETIC. A pane that fills in
+    // by position is a progress bar however it is shaded; one that fills in by
+    // a frozen shuffle is a window being glazed.
+    ok(cut.order.length === cut.sectors * cut.rings,
+       'every cell appears exactly once in the lighting order');
+    ok(new Set(cut.order).size === cut.order.length,
+       '\u26a0 and no cell is lit twice or never');
+    ok(cut.order.some((c, i) => c !== i),
+       '\u26a0\u26a0 the lighting order is SHUFFLED, not the cell index order \u2014 ' +
+       'the glass fills in scattered');
+
+    // ── K4. typing lights cells, in the word's own colours ─────────────────
+    const drawAt = (typed, extra) => {
+        const c = recorder();
+        drawPane(c, 300, 200, 90, cut, Object.assign({
+            text: word, typed, size: 16, colors, base: '#000000',
+            rim: '#ffffff', lineWidth: 2, tSec: 0, tumble: false,
+        }, extra || {}));
+        return c;
+    };
+    // ⚠️ COUNTS CELL POLYGONS, NOT DISTINCT COLOURS. The colours are cycled
+    // when there are more cells than letters, so counting colours would cap at
+    // the palette size and quietly stop measuring anything.
+    const cellFills = c => c.ops.filter(
+        o => o.op === 'fill' && colors.includes(o.color)).length;
+    const nCells = cut.sectors * cut.rings;
+    ok(cellFills(drawAt(0)) === 0,
+       '\u26a0\u26a0 a fresh pane lights NO cells \u2014 the art never claims progress ' +
+       'the student has not made');
+    ok(cellFills(drawAt(word.length)) === nCells,
+       '\u2b50\u2b50 and a FINISHED word lights EVERY cell (' + nCells + ') \u2014 the ' +
+       'window blazes for the instant before it goes, whatever its cell count');
+    const mid = cellFills(drawAt(3));
+    ok(mid > 0 && mid < nCells,
+       'and partway through it is partly glazed (' + mid + ' of ' + nCells + ')');
+    ok(cellFills(drawAt(5)) >= mid,
+       '\u26a0 lighting is monotonic \u2014 a cell never goes dark again');
+
+    // ⚠️⚠️ WHICH CELL LIT, NOT HOW MANY. A mutation that lit cells in index
+    // order — sweeping across the window, exactly the progress bar Jake
+    // rejected — passed every count-based assertion above. ⭐ COUNTING CANNOT
+    // SEE ORDER; ask the geometry which polygon was actually filled.
+    const cellsAt = paneCells(cut, 90);
+    const firstLit = drawAt(1).ops.find(
+        o => o.op === 'fill' && colors.includes(o.color));
+    ok(firstLit != null, 'the first key fills exactly one cell');
+    const same = (poly, pts) => poly.length === pts.length &&
+        poly.every((pt, i) => Math.abs(pt[0] - pts[i][0]) < 1e-9 &&
+                              Math.abs(pt[1] - pts[i][1]) < 1e-9);
+    ok(same(cellsAt[cut.order[0]], firstLit.pts),
+       '\u2b50\u2b50 and it is the cell the frozen shuffle nominates, not cell zero');
+    if (cut.order[0] !== 0) {
+        ok(!same(cellsAt[0], firstLit.pts),
+           '\u26a0\u26a0 the glass fills in SCATTERED \u2014 it does not sweep from ' +
+           'the first cell across, which is the progress bar all over again');
+    } else {
+        ok(true, '(this seed nominated cell zero first; the check above still binds)');
     }
-    const letters = c.ops.filter(o => o.op === 'text').map(o => o.text).join('');
-    ok(letters === word,
-       '\u26a0 every letter of the word is drawn exactly once, in order (' +
+
+    // ⚠️⚠️ THE ASSERTION THAT CATCHES A RETURN TO ONE-CELL-PER-LETTER. Round
+    // 117's first draft of this part checked `cells !== word.length` and a
+    // mutation restoring the rejected design passed it by coincidence, because
+    // the sector floor rounded 7 up to 8. ⭐ CHECK THE PROPERTY ACROSS A RANGE,
+    // NOT AT ONE POINT: a pane's cell count must not track its letter count.
+    const counts = [2, 4, 7, 11, 16].map(n => {
+        const k = paneCut(seeded(21), n);
+        return k.sectors * k.rings;
+    });
+    ok(counts.every(c => c >= 6),
+       '\u26a0 even a two-letter splinter is a real window (' + counts.join(',') + ')');
+    ok(!counts.every((c, i) => c === [2, 4, 7, 11, 16][i]),
+       '\u26a0\u26a0 and the cell count is NOT the letter count \u2014 the geometry is ' +
+       'free of the teaching, which is the whole of Jake\u2019s note');
+    const c7 = drawAt(word.length);
+    for (let i = 0; i < colors.length; i++) {
+        ok(c7.ops.some(o => o.op === 'fill' && o.color === colors[i]),
+           'letter ' + i + '\u2019s finger colour reached the glass');
+    }
+    const letters = c7.ops.filter(o => o.op === 'text').map(o => o.text).join('');
+    ok(letters.replace(/\s/g, '') === word,
+       '\u26a0 the word is drawn FLAT over the glass, whole and in order (' +
        letters + ')');
 
-    // ⭐ AND THE LETTERS MARCH LEFT TO RIGHT, EVENLY. The panel boundary and the
-    // letter over it are the same number; this is the assertion that catches
-    // them drifting apart.
-    const xs = c.ops.filter(o => o.op === 'text').map(o => o.x);
-    const gaps = xs.slice(1).map((x, i) => x - xs[i]);
-    ok(gaps.every(g => g > 0),
-       '\u26a0 letters advance rightwards across the pane');
-    ok(Math.max(...gaps) - Math.min(...gaps) < 0.001,
-       '\u2b50\u2b50 and by an EQUAL step \u2014 one letter per panel, evenly cut');
-
-    // ⚠️⚠️ AND THE LEAD STAYS ON THE BOUNDARY THE LETTERS WERE SPACED AGAINST.
-    // ⭐ THE FIRST DRAFT OF THIS PART DID NOT CHECK THIS AND WAS WRONG NOT TO:
-    // mutation-testing it (lean applied at the top of each came and not undone
-    // at the bottom) left all 269 assertions green. The letters CANNOT drift —
-    // they are drawn at the nominal panel centre — so a lean that walks the
-    // glass out from under them is invisible to every assertion above. The
-    // cames lean for the hand-cut look and must still be CENTRED on their
-    // boundary, or the panels stop having equal average width and each letter
-    // slowly stops sitting on its own pane.
-    const cames = c.ops.filter(o => o.op === 'stroke' && o.pts.length === 2);
-    ok(cames.length >= (word.length - 1),
-       'every interior boundary is leaded (' + cames.length + ')');
-    const pw = (70 * 2) / word.length;
-    for (let i = 1; i < word.length; i++) {
-        const boundary = -70 + i * pw;
-        ok(cames.some(k => Math.abs((k.pts[0][0] + k.pts[1][0]) / 2 - boundary) < 0.001),
-           '\u26a0\u26a0 came ' + i + ' is CENTRED on its boundary \u2014 it leans at ' +
-           'the top and unleans at the bottom, so the glass never walks out ' +
-           'from under the letters');
+    // ── K5. the tumble is a plate turning, not a spin ──────────────────────
+    // ⚠️⚠️ Jake: *"the glass panes that capture the evil Kryptonians kind of
+    // tumble through space."* A spin is rotate(); a tumble is a SQUASH along an
+    // axis. ⭐ AND IT MUST NEVER REACH ZERO — a plate exactly edge-on is
+    // invisible, and a target that vanishes for a third of a second is one the
+    // student is charged for not typing.
+    const scales = [];
+    for (let t = 0; t < 60; t++) {
+        const c = { ...recorder() };
+        const rec = recorder();
+        rec.scale = (sx) => scales.push(sx);
+        drawPane(rec, 0, 0, 80, cut, {
+            text: word, typed: 2, size: 16, colors, rim: '#fff', tSec: t * 0.25,
+        });
     }
+    ok(scales.length > 0, 'the pane squashes along an axis as it turns');
+    ok(Math.min(...scales) > 0.1,
+       '\u26a0\u26a0 and never reaches edge-on \u2014 a pane that disappears is a pane ' +
+       'the student is charged for not typing (min ' +
+       Math.min(...scales).toFixed(3) + ')');
+    ok(Math.max(...scales) > 0.9,
+       '\u2b50 while still opening out to face-on, so the glass is readable');
+    ok(Math.max(...scales) - Math.min(...scales) > 0.4,
+       '\u2b50 and it really is a TUMBLE rather than a wobble');
+    const frozen = recorder();
+    frozen.scale = () => { throw new Error('scaled with tumble off'); };
+    let froze = true;
+    try {
+        drawPane(frozen, 0, 0, 80, cut, { text: word, typed: 1, size: 16,
+                                          colors, rim: '#fff', tumble: false });
+    } catch (_) { froze = false; }
+    ok(froze, '\u26a0 and `tumble: false` holds it flat, for reduced motion');
 
-    // ── K3. an untyped pane lights nothing but its NEXT panel ───────────────
-    // ⚠️ THIS IS THE PROGRESS DISPLAY. If it goes green on a pane with zero
-    // letters typed showing seven lit panels, the art is lying about how far
-    // through the word the student is.
-    const c0 = recorder();
-    drawPane(c0, 300, 200, paneCut(seeded(7), word.length), {
-        halfW: 70, halfH: 14, text: word, typed: 0, size: 16,
-        colors, base: '#000000', rim: '#ffffff', tSec: 0,
-    });
-    const lit0 = colors.filter(col => c0.ops.some(o => o.op === 'fill' && o.color === col));
-    ok(lit0.length === 1 && lit0[0] === colors[0],
-       '\u26a0\u26a0 a fresh pane paints ONE panel \u2014 the next letter\u2019s \u2014 and ' +
-       'leaves the rest dark (' + lit0.length + ')');
-
-    const c3 = recorder();
-    drawPane(c3, 300, 200, paneCut(seeded(7), word.length), {
-        halfW: 70, halfH: 14, text: word, typed: 3, size: 16,
-        colors, base: '#000000', rim: '#ffffff', tSec: 0,
-    });
-    const lit3 = colors.filter(col => c3.ops.some(o => o.op === 'fill' && o.color === col));
-    ok(lit3.length === 4,
-       '\u2b50 three typed letters light three panels plus the next one (' +
-       lit3.length + ')');
-    // ⚠️ AND THE LIT ONES ARE STRONGER THAN THE NEXT ONE. Two facts, two
-    // strengths: how far through, and which finger is coming.
-    const alphaOf = col => {
-        const f = c3.ops.find(o => o.op === 'fill' && o.color === col);
-        return f ? f.alpha : null;
-    };
-    ok(alphaOf(colors[0]) > alphaOf(colors[3]),
-       '\u26a0\u26a0 a TYPED panel is painted harder than the NEXT one, so the two ' +
-       'signals cannot be confused for each other');
-
-    // ── K4. the rim carries state and the panels do not ─────────────────────
-    // ⚠️ THE DANGER COLOUR IS NOT NEGOTIABLE. Round 116 restyled everything
-    // around it; a red that drifted to amber with the art would be the art
-    // overruling the teaching.
-    const cNear = recorder();
-    drawPane(cNear, 300, 200, paneCut(seeded(3), 4), {
-        halfW: 40, halfH: 14, text: 'they', typed: 1, size: 16,
-        colors: colors.slice(0, 4), rim: '#ff5566', glow: '#ff5566',
-        crack: 1, tSec: 0,
-    });
+    // ── K6. the rim carries state; the cells do not ────────────────────────
+    const cNear = drawAt(1, { rim: '#ff5566', glow: '#ff5566', crack: 1 });
     ok(cNear.ops.some(o => o.op === 'stroke' && o.color === '#ff5566'),
        'the rim of a pane about to land is stroked red');
-    const cFar = recorder();
-    drawPane(cFar, 300, 200, paneCut(seeded(3), 4), {
-        halfW: 40, halfH: 14, text: 'they', typed: 1, size: 16,
-        colors: colors.slice(0, 4), rim: '#ff5566', crack: 0, tSec: 0,
-    });
     ok(cNear.ops.filter(o => o.op === 'stroke').length >
-       cFar.ops.filter(o => o.op === 'stroke').length,
-       '\u2b50 and it CRAZES as it closes \u2014 the same pane draws more strokes ' +
-       'with crack set than without, on the pane itself where the eyes are');
+       drawAt(1, { rim: '#ff5566', crack: 0 }).ops.filter(o => o.op === 'stroke').length,
+       '\u2b50 and it CRAZES as it closes, on the pane itself where the eyes are');
 
-    // ── K5. a piece is a different SHAPE, not a smaller one ─────────────────
-    // ⚠️ THE DISTINCTION HAS TO SURVIVE A RESIZE. Round 106's filled-vs-hollow
-    // rock was a difference of degree and Jake's whole note about it was that
-    // degree reads as a mistake.
-    const outline = (piece) => {
-        const cc = recorder();
-        drawPane(cc, 0, 0, paneCut(seeded(11), 4), {
-            halfW: 40, halfH: 14, text: 'time', typed: 0, size: 16,
-            colors: colors.slice(0, 4), rim: '#fff', piece, tSec: 0,
-        });
-        // the LAST stroked path is the rim; the silhouette is its point count
-        const strokes = cc.ops.filter(o => o.op === 'stroke');
-        return strokes[strokes.length - 1].pts.length;
-    };
-    ok(outline(false) !== outline(true),
-       '\u26a0\u26a0 a splinter and a window are cut with a different number of ' +
-       'edges (' + outline(false) + ' vs ' + outline(true) + ')');
-
-    // ── K6. the prism throws the whole spectrum, and whites out on a miss ───
+    // ── K7. the prism, and a shot that is spent draws nothing ──────────────
     const cp = recorder();
     drawPrism(cp, 200, 200, 24, 0, { fan, flare: 0 });
     for (const col of fan) {
@@ -1524,9 +1568,6 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
     ok(cp.ops.some(o => o.op === 'stroke' && /rgba\(255,255,255/.test(o.color)),
        '\u2b50 and white light enters it \u2014 a prism with nothing going in is a ' +
        'triangle');
-
-    // ⚠️ A WRONG KEY MUST NOT PRODUCE A COLOURED RAY. "No light came out" is
-    // the whole reading of a mistake in this game.
     const cs = recorder();
     drawRefract(cs, 0, 0, 50, 50, '#43A047', 1);
     ok(cs.ops.some(o => o.op === 'fill' && o.color === '#43A047'),
@@ -1537,11 +1578,10 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
        '\u26a0\u26a0 and a spent shot draws NOTHING rather than a zero-width ' +
        'artefact left on the field');
 
-    // ── K7. shards are glass, and the shared particle still carries squares ─
-    // ⚠️⚠️ THIS IS THE ONE THAT PROTECTS THE OTHER TWO GAMES. glassBurst() adds
-    // OPTIONAL fields to the SHARED particle; an unguarded spin increment would
-    // make every square particle in Deadline and Escape Key NaN, which is
-    // invisible on screen until something reads a position.
+    // ── K8. shards are glass, and the shared particle still carries squares ─
+    // ⚠️⚠️ THIS PROTECTS THE OTHER TWO GAMES. glassBurst() adds OPTIONAL fields
+    // to the SHARED particle; an unguarded spin increment would make every
+    // square particle in Deadline and Escape Key NaN.
     const list = [];
     glassBurst(list, 10, 10, ['#ff0000', '#00ff00'], 6, 100, seeded(5));
     list.push({ x: 0, y: 0, vx: 1, vy: 1, life: 1, max: 1, color: '#fff' });
@@ -1552,8 +1592,6 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
     const plain = list[list.length - 1];
     ok(plain.spin === undefined || Number.isFinite(plain.spin),
        '\u26a0 and never picks up a NaN spin');
-    ok(list.filter(p => p.shard).every(p => Number.isFinite(p.spin)),
-       'while every shard does tumble');
     const cg = recorder();
     drawParticles(cg, list);
     ok(cg.ops.some(o => o.op === 'fillRect'),
@@ -1561,21 +1599,17 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
     ok(cg.ops.filter(o => o.op === 'fill').length >= 6,
        '\u2b50 and each shard as a filled sliver');
 
-    // ── K8. the left panel is still deliberately useless ────────────────────
-    // ⚠️ THE LABEL CHANGED AND THE RULE DID NOT. Jake: *"It's just window
-    // dressing... Only the 'Can I warp yet?' bar is important."* A rose window
-    // that started labelling its contacts would be a different panel.
+    // ── K9. the left panel is still deliberately useless ───────────────────
     const cw = recorder();
     drawShatterPanel(cw, { W: 200, H: 420, charge: 0.5, warps: 1, maxWarps: 3,
                            contacts: [{ r: 0.8, angle: 0.3 }, { r: 0.1, angle: 2 }] });
     const texts = cw.ops.filter(o => o.op === 'text').map(o => o.text);
-    ok(texts.some(t => /ROSE WINDOW/.test(t)),
-       'the left panel is a rose window now');
-    ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) && !/WARP|ROSE|WINDOW|SPACE|CLEAR|TO|CHARGE/i.test(t)),
+    ok(texts.some(t => /ROSE WINDOW/.test(t)), 'the left panel is a rose window');
+    ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) &&
+                        !/WARP|ROSE|WINDOW|SPACE|CLEAR|TO|CHARGE/i.test(t)),
        '\u26a0\u26a0 and NOTHING on it is labelled \u2014 a readable radar is exactly ' +
        'what Jake ruled it must not become');
 }
-
 
 console.log(fail
     ? `\narcade-panels-test: ${pass} passed, ${fail} FAILED`

@@ -258,197 +258,317 @@ export function drawWeb(ctx, x, y, r) {
 // SHATTER — STAINED GLASS
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️⚠️ THE ROCKS ARE GONE AND THAT IS THE POINT. v1.1.0 replaced a rounded
-// rectangle with an irregular polygon because *"nothing about a rounded
-// rectangle says BREAKABLE"* — correct, and it bought an ASTEROID, which says
-// breakable and says nothing else. The game is called **Shatter**, the words are
-// already coloured a letter at a time by the finger map, and the thing that
-// shatters into coloured pieces is GLASS.
+// ⚠️⚠️ v1.3.0 GOT THIS WRONG AND JAKE SAID SO: *"I was imagining that it would
+// be like an asteroid with random edges that kind of fill in with random panes.
+// Yours is a word. Split into letters. It's...not impressive."*
 //
-// ⭐ SO A TARGET IS A LEADED PANE, ONE PANEL PER LETTER, EACH PANEL THE COLOUR OF
-// THE FINGER THAT TYPES IT. The pane starts dark. Every correct key lights its
-// panel from behind. The last key lights the last panel and the whole thing
-// blows apart into coloured shards. ⚠️ THE PROGRESS BAR, THE FINGER DRILL AND THE
-// ART ARE NOW ONE OBJECT rather than three things layered on top of each other —
-// which is why this is not a reskin. `drawTargetWord()`'s red-typed / white-rest
-// scheme was a second, competing progress display and is deleted with it.
+// ⭐ HE IS RIGHT AND THE DIAGNOSIS IS SPECIFIC RATHER THAN A MATTER OF TASTE.
+// v1.3.0 drew a rectangle divided into N equal vertical stripes, one per letter.
+// **THAT IS A PROGRESS BAR WITH A GLASS TEXTURE ON IT.** Every real property of
+// stained glass is regularity's opposite: the came lines are irregular, the
+// cells are different shapes and sizes, and none of it lines up with anything.
+// A row of equal stripes reads as a loading indicator because that is what a
+// row of equal stripes *is*.
 //
-// ⚠️⚠️ AND THEREFORE THE PANE DOES NOT TUMBLE. v1.1.0's rocks spun, with the word
-// drawn flat on top in screen space — fine when the word was a label sitting in
-// front of a rock, impossible now that each letter must stay over its own panel.
-// It keeps a small frozen TILT and a slow SWAY instead, so it reads as glass
-// hanging rather than as a sticker. ⭐ A slow sway costs nothing and a spin costs
-// legibility; there was never a trade here.
+// ⚠️ AND IT CAME FROM ONE BAD INFERENCE: "one panel per letter" sounded like it
+// tied the art to the teaching, so the geometry was made to serve the letter
+// count. ⭐ THE TEACHING NEVER NEEDED THE GEOMETRY — it needs the COLOUR to be
+// the finger's colour, and a cell can be any shape at all and still be the
+// right colour. Freeing the shape from the letter count costs the teaching
+// nothing and is the whole fix.
 //
-// ⚠️ THE FUNCTIONS BELOW TAKE THEIR COLOURS AS ARGUMENTS AND LOOK NOTHING UP.
-// game-draw.js owns the one import of keyboard.js's FINGER_COLORS (game-
-// assumptions-test.mjs Part J is the guard), and a palette literal in this file
-// would be the second copy that check exists to prevent.
+// ═══════════════════════════════════════════════════════════════════════════
+// WHAT A PANE IS NOW
+// ═══════════════════════════════════════════════════════════════════════════
+//
+//   * An **irregular polygon** — the asteroid silhouette v1.2.0 had, which was
+//     the one thing about it that was right, and which this file threw away.
+//     ⚠️ STRAIGHT EDGES AND SHARP CORNERS: glass is cut, not eroded.
+//   * Leaded into **irregular cells** from an OFF-CENTRE hub: random sector
+//     widths, two rings, and a per-corner radius that is also what defines the
+//     silhouette. ⭐ THE CELLS AND THE OUTLINE ARE THE SAME ARITHMETIC, so they
+//     cannot disagree — the outer edge of the outer ring IS the polygon.
+//   * Cells light **in a frozen random order**, not left to right, each in the
+//     colour of the finger that typed it. *"Fill in with random panes."*
+//   * The word is drawn **flat on top**, in screen space, over the glass. ⚠️ It
+//     is NOT carved into the geometry, and that is what makes both the tumble
+//     and the irregular cells possible at all.
+//
+// ⚠️⚠️ THE COLOURS STILL ARRIVE AS AN ARGUMENT AND ARE NEVER LOOKED UP. This
+// file imports nothing; game-draw.js owns the one import of keyboard.js's
+// FINGER_COLORS. A palette literal here would be the second copy.
+
+/** How many leaded cells a pane of `n` letters gets. ⚠️ NOT `n`. */
+function cellTarget(n) {
+    return Math.max(6, Math.min(18, n + 4));
+}
 
 /**
- * The frozen cut of one pane: how its corners are chamfered, how its lead lines
- * lean, how it hangs, and where it will craze when it gets close.
+ * The frozen cut of one pane: its sectors, its rings, its hub, its tumble and
+ * the order its cells light in.
  *
- * ⚠️ CALL ONCE AT SPAWN AND KEEP IT ON THE TARGET. Re-rolling per frame makes the
- * came lines jitter, which reads as a rendering fault — the same lesson
- * rockOutline() learned and the reason it took `rand` too.
+ * ⚠️ CALL ONCE AT SPAWN AND KEEP IT ON THE TARGET. Re-rolling per frame makes
+ * the glass boil, which reads as a rendering fault — the lesson rockOutline()
+ * learned and the reason it took `rand` too.
  *
- * ⚠️ TAKES THE PANEL COUNT, because `lean` is per interior came and a pane handed
- * a lean array of the wrong length would draw its glass and its lead in two
- * different places.
+ * ⚠️ `letters` ONLY SETS HOW MANY CELLS TO CUT, and loosely. It is deliberately
+ * not the cell count: see the header.
  */
-export function paneCut(rand = Math.random, panels = 1) {
-    const n = Math.max(1, panels | 0);
-    const lean = [];
-    for (let i = 0; i < n - 1; i++) lean.push((rand() - 0.5) * 0.46);
-    const corner = [];
-    for (let i = 0; i < 4; i++) corner.push(0.10 + rand() * 0.20);
-    // Where the crazing starts and which way it runs. Three fractures is enough
-    // to read as glass; more looks like a cobweb.
+export function paneCut(rand = Math.random, letters = 6) {
+    const cells = cellTarget(Math.max(1, letters | 0));
+    const rings = 2;
+    const sectors = Math.max(4, Math.round(cells / rings));
+
+    // ⚠️ RANDOM SECTOR WIDTHS, NORMALISED TO EXACTLY 2π. Equal sectors are a pie
+    // chart; unequal ones are a window. Normalising rather than nudging is what
+    // guarantees the last cell closes onto the first with no seam.
+    const w = [];
+    let total = 0;
+    for (let i = 0; i < sectors; i++) { const v = 0.55 + rand() * 0.9; w.push(v); total += v; }
+    const angles = [];
+    let a = rand() * Math.PI * 2;
+    for (let i = 0; i < sectors; i++) { angles.push(a); a += (w[i] / total) * Math.PI * 2; }
+
+    // ⭐ ONE RADIUS PER SECTOR CORNER, AND IT DOES DOUBLE DUTY: it is where the
+    // outer ring ends AND it is the silhouette vertex. That is why the outline
+    // can never drift away from the glass it is supposed to contain.
+    const reach = [];
+    for (let i = 0; i < sectors; i++) reach.push(0.74 + rand() * 0.44);
+    // ⚠️ A DEGENERATE CUT IS STILL A WINDOW. Nothing below may divide by a
+    // reach of zero or a sector of zero width; the ranges above guarantee it,
+    // and this comment exists so a later "simplification" of them does not.
+
+    // Where the inner ring sits, per sector. Irregular, or the inner ring reads
+    // as a drawn circle sitting on top of the design.
+    const inner = [];
+    for (let i = 0; i < sectors; i++) inner.push(0.34 + rand() * 0.22);
+
+    // ⚠️ AN OFF-CENTRE HUB IS MOST OF WHAT MAKES IT LOOK HAND-MADE. Centred, the
+    // spokes are a wheel and the eye reads symmetry that is not there.
+    const hubA = rand() * Math.PI * 2;
+    const hubR = rand() * 0.20;
+
+    // The order the cells light in. ⚠️ A FROZEN PERMUTATION, NOT A PER-FRAME
+    // DRAW — a pane whose lit cells moved around while the student typed would
+    // be unreadable as progress and would look like a fault.
+    const order = [];
+    for (let i = 0; i < sectors * rings; i++) order.push(i);
+    for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = order[i]; order[i] = order[j]; order[j] = t;
+    }
+
     const cracks = [];
     for (let i = 0; i < 3; i++) {
         cracks.push({ a: rand() * Math.PI * 2, bend: (rand() - 0.5) * 0.9,
                       reach: 0.55 + rand() * 0.5 });
     }
+
     return {
-        panels: n, lean, corner, cracks,
-        tilt: (rand() - 0.5) * 0.20,
-        sway: 0.45 + rand() * 0.65,
-        phase: rand() * Math.PI * 2,
+        sectors, rings, angles, reach, inner, hubA, hubR, order, cracks,
+        // ── the Superman II tumble ──────────────────────────────────────────
+        // ⭐ Jake: *"the glass panes that capture the evil Kryptonians kind of
+        // tumble through space."* A flat plate turning in 3D, seen from the
+        // side, foreshortens to a line and opens out again — which on a 2D
+        // canvas is exactly `scale(cos θ, 1)` under a rotation. ⚠️ IT IS NOT A
+        // SPIN: v1.2.0's rocks rotated in-plane, which is a different motion and
+        // the one that made the word unreadable.
+        tumbleRate: (0.22 + rand() * 0.34) * (rand() < 0.5 ? -1 : 1),
+        tumblePhase: rand() * Math.PI * 2,
+        // The axis the plate turns about, so they are not all tumbling the same
+        // way. Held still — a wandering axis reads as a wobble, not a tumble.
+        tumbleAxis: rand() * Math.PI * 2,
+        // ⚠️ AND A SLOW IN-PLANE DRIFT ON TOP, because a plate that only ever
+        // turns about one axis reads as mechanical.
+        rollRate: (rand() - 0.5) * 0.22,
+        rollPhase: rand() * Math.PI * 2,
     };
 }
 
 /**
- * Trace the silhouette in LOCAL coordinates, centred on the origin.
- *
- * ⚠️ A PANE AND A SHARD DIFFER IN KIND, NOT IN DEGREE — the same argument
- * v1.1.0 made for filled-versus-hollow, which this replaces. A whole target is a
- * chamfered window: even, architectural, cut by a glazier. A piece is a
- * SPLINTER, pointed at both ends. A slightly smaller window would be the
- * "slightly off" that reads as a mistake rather than as a fragment.
+ * The corner points of the silhouette, in local coordinates.
+ * ⚠️ EXPORTED FOR THE HARNESS ONLY. Nothing in the app should need this — if a
+ * caller wants the outline it is because it is about to draw a second one.
  */
-function panePath(ctx, halfW, halfH, cut, piece) {
-    ctx.beginPath();
-    if (piece) {
-        const tip = Math.min(halfW * 0.5, halfH * 1.1);
-        ctx.moveTo(-halfW, -halfH * 0.10 + cut.corner[0] * halfH * 0.4);
-        ctx.lineTo(-halfW + tip * 0.8, -halfH);
-        ctx.lineTo(halfW - tip * 0.5, -halfH * 0.86);
-        ctx.lineTo(halfW, halfH * 0.06);
-        ctx.lineTo(halfW - tip * 0.7, halfH);
-        ctx.lineTo(-halfW + tip * 0.45, halfH * 0.88);
-        ctx.closePath();
-        return;
+export function paneVerts(cut, r) {
+    const out = [];
+    for (let i = 0; i < cut.sectors; i++) {
+        out.push([Math.cos(cut.angles[i]) * r * cut.reach[i],
+                  Math.sin(cut.angles[i]) * r * cut.reach[i]]);
     }
-    const c = i => Math.min(halfH * 0.5, halfW * 0.30) * cut.corner[i];
-    ctx.moveTo(-halfW + c(0), -halfH);
-    ctx.lineTo(halfW - c(1), -halfH);
-    ctx.lineTo(halfW, -halfH + c(1));
-    ctx.lineTo(halfW, halfH - c(2));
-    ctx.lineTo(halfW - c(2), halfH);
-    ctx.lineTo(-halfW + c(3), halfH);
-    ctx.lineTo(-halfW, halfH - c(3));
-    ctx.lineTo(-halfW, -halfH + c(0));
+    return out;
+}
+
+/** Hub position in local coordinates. */
+function hubOf(cut, r) {
+    return [Math.cos(cut.hubA) * r * cut.hubR, Math.sin(cut.hubA) * r * cut.hubR];
+}
+
+/**
+ * Corner of the lattice at sector `i`, ring boundary `j` (0 = hub, 1 = inner
+ * ring, 2 = outer edge).
+ *
+ * ⚠️⚠️ EVERY POINT IN THE PANE COMES THROUGH HERE, INCLUDING THE SILHOUETTE'S.
+ * That is the property that makes the outline and the cells one piece of
+ * arithmetic rather than two that have to be kept in step.
+ */
+function latticePoint(cut, r, i, j) {
+    const s = i % cut.sectors;
+    const [hx, hy] = hubOf(cut, r);
+    if (j === 0) return [hx, hy];
+    const ang = cut.angles[s];
+    const rad = r * cut.reach[s] * (j === 1 ? cut.inner[s] : 1);
+    // ⚠️ MEASURED FROM THE HUB, NOT FROM THE CENTRE. From the centre the cells
+    // would not meet the hub the spokes are drawn from, and every inner cell
+    // would have a sliver of unpainted glass at its point.
+    return [hx + Math.cos(ang) * rad, hy + Math.sin(ang) * rad];
+}
+
+/**
+ * Every leaded cell, as a polygon, in local coordinates.
+ *
+ * ⚠️⚠️ drawPane() USES THIS RATHER THAN REBUILDING THE QUADS INLINE, so there
+ * is exactly one arithmetic for where a cell is. It is also exported, for the
+ * harness: counting how many cells lit cannot tell you WHICH lit, and
+ * "scattered rather than sweeping" is the whole of Jake's note. A mutation that
+ * lit cells in index order passed a count-based check.
+ */
+export function paneCells(cut, r) {
+    const out = [];
+    for (let ring = 0; ring < cut.rings; ring++) {
+        for (let i = 0; i < cut.sectors; i++) {
+            out.push([
+                latticePoint(cut, r, i, ring),
+                latticePoint(cut, r, i + 1, ring),
+                latticePoint(cut, r, i + 1, ring + 1),
+                latticePoint(cut, r, i, ring + 1),
+            ]);
+        }
+    }
+    return out;
+}
+
+/** Trace the silhouette. Straight edges, sharp corners: glass is cut. */
+function panePath(ctx, cut, r) {
+    ctx.beginPath();
+    for (let i = 0; i < cut.sectors; i++) {
+        const [x, y] = latticePoint(cut, r, i, 2);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
     ctx.closePath();
 }
 
 /**
- * One pane: the glass, the lead, the letters and the crazing, in one call.
- *
- * ⚠️⚠️ THE LETTERS ARE DRAWN HERE AND NOT BY THE CALLER, and that is deliberate
- * rather than convenient. A panel boundary and the letter that sits over it are
- * the SAME NUMBER; two functions computing it is exactly the shape that lets a
- * word drift half a panel off its own glass with nothing on screen to say which
- * of the two is wrong. One function, one arithmetic.
+ * One pane of stained glass.
  *
  * @param {object} o
- *   halfW, halfH  {number}   the pane's half-extents before tilt
- *   text          {string}   the word; its length must equal cut.panels
- *   typed         {number}   how many letters are lit
- *   size          {number}   letter size in px
- *   colors        {string[]} one colour per letter, from the finger map
- *   base          {string}   the unlit glass
- *   rim           {string}   the came around the edge — this carries STATE
- *   lineWidth     {number}
- *   glow          {string|null}
- *   piece         {boolean}  splinter rather than window
- *   crack         {number}   0..1, how badly it has crazed
- *   pulse         {number}   0..1, the breathing on the NEXT panel
- *   tSec          {number}   for the sway
+ *   text      {string}   drawn FLAT on top, not built into the geometry
+ *   typed     {number}   letters typed so far
+ *   total     {number}   letters in the word; defaults to text.length. ⚠️ PASSED
+ *                        separately so a caller can light a pane it is not
+ *                        drawing text on
+ *   size      {number}   letter size in px
+ *   colors    {string[]} one colour per letter, from the finger map; cycled if
+ *                        there are more cells than letters
+ *   base      {string}   the unlit glass
+ *   rim       {string}   the came around the edge — this carries STATE
+ *   lineWidth {number}
+ *   glow      {string|null}
+ *   piece     {boolean}  a splinter broken off a pane
+ *   crack     {number}   0..1
+ *   locked    {boolean}
+ *   tSec      {number}   drives the tumble
+ *   tumble    {boolean}  false freezes it flat (reduced motion)
  */
-export function drawPane(ctx, x, y, cut, o) {
+export function drawPane(ctx, x, y, r, cut, o) {
     const opt = o || {};
     const text = String(opt.text || '');
-    const n = Math.max(1, cut.panels || text.length || 1);
-    const halfW = opt.halfW || 40, halfH = opt.halfH || 14;
-    const typed = Math.max(0, Math.min(n, opt.typed || 0));
-    const pal = opt.colors || [];
-    const pw = (halfW * 2) / n;
+    const typed = Math.max(0, opt.typed || 0);
+    const pal = opt.colors && opt.colors.length ? opt.colors : ['#9fb6d8'];
+    const tSec = opt.tSec || 0;
 
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(cut.tilt + Math.sin((opt.tSec || 0) * cut.sway + cut.phase) * 0.035);
+
+    // ── the tumble ──────────────────────────────────────────────────────────
+    // ⚠️ `scale()` INSIDE A ROTATION IS THE WHOLE TRICK. Rotating to the axis,
+    // squashing along it, and rotating back is the 2D shadow of a flat plate
+    // turning in 3D — which is what the Phantom Zone panes do.
+    // ⚠️⚠️ IT NEVER REACHES ZERO. A plate exactly edge-on is invisible, and a
+    // target that disappears for a third of a second is a target the student is
+    // charged for not typing. 0.16 is thin enough to read as edge-on and thick
+    // enough to stay on screen.
+    let squash = 1;
+    if (opt.tumble !== false) {
+        const th = cut.tumblePhase + tSec * cut.tumbleRate;
+        squash = 0.16 + 0.84 * Math.abs(Math.cos(th));
+        ctx.rotate(cut.tumbleAxis + cut.rollPhase + tSec * cut.rollRate);
+        ctx.scale(squash, 1);
+        ctx.rotate(-cut.tumbleAxis);
+    }
 
     // ── the glass ───────────────────────────────────────────────────────────
-    panePath(ctx, halfW, halfH, cut, opt.piece);
-    ctx.fillStyle = opt.base || 'rgba(6,10,20,0.82)';
+    panePath(ctx, cut, r);
+    ctx.fillStyle = opt.base || 'rgba(6,10,20,0.86)';
     ctx.fill();
 
+    // ⚠️ THE CELLS ARE CLIPPED TO THE SILHOUETTE ANYWAY, BELT AND BRACES. They
+    // are built from the same points so they cannot escape it, but a future
+    // change to either is one line away from a cell hanging outside the lead.
     ctx.save();
     ctx.clip();
 
-    // ⚠️ THE LEAN IS APPLIED AT THE TOP AND UNDONE AT THE BOTTOM, so every came
-    // stays centred on its boundary and the panels keep equal average width. A
-    // lean applied to one end only walks the whole word off the pane.
-    const cameX = i => {
-        const base = -halfW + i * pw;
-        const k = cut.lean[i - 1] || 0;
-        return { top: base + k * pw * 0.38, bot: base - k * pw * 0.38 };
-    };
-
-    for (let i = 0; i < n; i++) {
-        const state = i < typed ? 'lit' : (i === typed ? 'next' : 'dark');
-        if (state === 'dark') continue;
-        const L = i === 0 ? { top: -halfW - 2, bot: -halfW - 2 } : cameX(i);
-        const R = i === n - 1 ? { top: halfW + 2, bot: halfW + 2 } : cameX(i + 1);
+    const cells = paneCells(cut, r);
+    const nCells = cells.length;
+    // ⚠️⚠️ LIT CELLS ARE A PROPORTION OF THE WORD, NOT A COUNT OF KEYSTROKES,
+    // and that is what finally decouples the glass from the letters. Lighting
+    // one cell per key meant the cell count had to track the letter count or a
+    // finished word left its window half dark — which is how v1.3.0 talked
+    // itself into one-cell-per-letter in the first place. ⭐ A PROPORTION LETS
+    // THE WINDOW BE ANY SHAPE AND STILL BLAZE COMPLETELY ON THE LAST KEY, which
+    // is also a better beat: the glass is fully lit for the instant before it
+    // goes.
+    const total = Math.max(1, opt.total || text.length || 1);
+    const onCount = typed >= total ? nCells
+        : Math.round((typed / total) * nCells);
+    for (let k = 0; k < nCells; k++) {
+        // ⭐ `order` MAPS PROGRESS TO CELLS, NOT POSITION TO CELLS. Progress
+        // lights the next cell of a frozen shuffle, so the glass fills in
+        // scattered rather than sweeping across — which is the difference
+        // between a window and a progress bar.
+        const lit = cut.order.indexOf(k);
+        if (lit >= onCount) continue;
+        const poly = cells[k];
         ctx.beginPath();
-        ctx.moveTo(L.top, -halfH - 2);
-        ctx.lineTo(R.top, -halfH - 2);
-        ctx.lineTo(R.bot, halfH + 2);
-        ctx.lineTo(L.bot, halfH + 2);
+        for (let q = 0; q < poly.length; q++) {
+            q === 0 ? ctx.moveTo(poly[q][0], poly[q][1])
+                    : ctx.lineTo(poly[q][0], poly[q][1]);
+        }
         ctx.closePath();
-        ctx.fillStyle = pal[i] || '#9fb6d8';
-        // ⭐ LIT IS NEARLY OPAQUE, NEXT IS A BREATH. The student needs to see at a
-        // glance how much of the word is gone AND which finger comes next; those
-        // are two facts and they get two strengths rather than two widgets.
-        ctx.globalAlpha = state === 'lit' ? 0.82 : (0.13 + 0.16 * (opt.pulse || 0));
+        ctx.fillStyle = pal[lit % pal.length];
+        ctx.globalAlpha = 0.80;
         ctx.fill();
         ctx.globalAlpha = 1;
     }
 
-    // The sheen. ⚠️ ONE SOFT DIAGONAL, NOT A HIGHLIGHT PER PANEL — glass catches
-    // the light across a window, not inside each piece of it.
-    const sheen = ctx.createLinearGradient(-halfW, -halfH, halfW * 0.4, halfH);
-    sheen.addColorStop(0, 'rgba(255,255,255,0.13)');
-    sheen.addColorStop(0.45, 'rgba(255,255,255,0.03)');
+    // The sheen, across the whole window rather than per cell.
+    const sheen = ctx.createLinearGradient(-r, -r, r * 0.5, r);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.12)');
+    sheen.addColorStop(0.5, 'rgba(255,255,255,0.03)');
     sheen.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = sheen;
-    ctx.fillRect(-halfW, -halfH, halfW * 2, halfH * 2);
+    ctx.fillRect(-r, -r, r * 2, r * 2);
 
-    // ── the crazing ─────────────────────────────────────────────────────────
-    // ⚠️ IT IS THE DANGER SIGNAL AND IT IS FROZEN PER PANE. A pane about to land
-    // crazes; the fractures do not move once they appear, because glass that
-    // re-cracks every frame is a shimmer, not a warning.
     if (opt.crack > 0) {
         ctx.strokeStyle = 'rgba(255,255,255,' + (0.25 + 0.45 * opt.crack).toFixed(3) + ')';
         ctx.lineWidth = 1.1;
         for (const f of cut.cracks) {
-            const reach = f.reach * Math.max(halfW, halfH) * (0.6 + 0.6 * opt.crack);
+            const reach = f.reach * r * (0.6 + 0.6 * opt.crack);
             ctx.beginPath();
             ctx.moveTo(0, 0);
             for (let s = 1; s <= 3; s++) {
-                const a = f.a + f.bend * (s / 3);
-                ctx.lineTo(Math.cos(a) * reach * (s / 3), Math.sin(a) * reach * (s / 3) * 0.7);
+                const ang = f.a + f.bend * (s / 3);
+                ctx.lineTo(Math.cos(ang) * reach * (s / 3), Math.sin(ang) * reach * (s / 3));
             }
             ctx.stroke();
         }
@@ -456,48 +576,69 @@ export function drawPane(ctx, x, y, cut, o) {
     ctx.restore();
 
     // ── the lead ────────────────────────────────────────────────────────────
-    const lead = Math.max(1.6, halfH * 0.13);
-    ctx.strokeStyle = 'rgba(3,5,11,0.92)';
+    // ⚠️ DRAWN AFTER THE GLASS AND OVER IT, which is how leading works and also
+    // why the cells need no gaps between them: the came covers the seam.
+    const lead = Math.max(1.5, r * 0.055);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = 'rgba(3,5,11,0.95)';
     ctx.lineWidth = lead;
-    for (let i = 1; i < n; i++) {
-        const c = cameX(i);
-        ctx.beginPath();
-        ctx.moveTo(c.top, -halfH); ctx.lineTo(c.bot, halfH); ctx.stroke();
+    for (let i = 0; i < cut.sectors; i++) {
+        const a0 = latticePoint(cut, r, i, 0);
+        const a2 = latticePoint(cut, r, i, 2);
+        ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(a2[0], a2[1]); ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(190,215,255,0.16)';
-    ctx.lineWidth = 1;
-    for (let i = 1; i < n; i++) {
-        const c = cameX(i);
-        ctx.beginPath();
-        ctx.moveTo(c.top + lead * 0.5, -halfH); ctx.lineTo(c.bot + lead * 0.5, halfH); ctx.stroke();
+    // The inner ring, as straight segments between the spokes — a real ring of
+    // lead is bent at each spoke, not curved.
+    ctx.beginPath();
+    for (let i = 0; i <= cut.sectors; i++) {
+        const p = latticePoint(cut, r, i, 1);
+        i === 0 ? ctx.moveTo(p[0], p[1]) : ctx.lineTo(p[0], p[1]);
     }
+    ctx.stroke();
 
     // ── the rim, which is the only thing carrying state ─────────────────────
-    panePath(ctx, halfW, halfH, cut, opt.piece);
+    panePath(ctx, cut, r);
     if (opt.glow) { ctx.shadowColor = opt.glow; ctx.shadowBlur = 14; }
     ctx.strokeStyle = opt.rim || '#ffffff';
     ctx.lineWidth = opt.lineWidth || 1.8;
     ctx.stroke();
     ctx.shadowBlur = 0;
+    ctx.restore();
 
-    // ── the letters ─────────────────────────────────────────────────────────
-    // ⚠️ A LIT LETTER GOES DARK AND AN UNLIT ONE GOES PALE, which is the inverse
-    // of every other view in this app and is right here: the letter is a lead
-    // glyph and the glass behind it is what changed. Making the letter brighter
-    // as well would put two signals on one panel and dim the finger colour that
-    // panel exists to teach.
-    ctx.font = 'bold ' + Math.round(opt.size || 16) + 'px "Courier Prime", monospace';
-    ctx.textAlign = 'center';
+    // ── the word, FLAT, in screen space ─────────────────────────────────────
+    // ⚠️⚠️ OUTSIDE THE TUMBLE TRANSFORM, DELIBERATELY. A word that tumbled with
+    // its pane would be unreadable for most of every turn, and the student is
+    // being asked to type it. ⭐ THIS IS ALSO WHAT FREED THE GEOMETRY: once the
+    // word stopped being built out of cells, the cells could be any shape.
+    if (text) drawPaneWord(ctx, x, y, text, typed, opt.size || 16, !!opt.locked);
+}
+
+/**
+ * The word on a pane: typed part dim, the rest bright — or gold when locked.
+ *
+ * ⚠️ A DARK BACKING STROKE, NOT A PLATE. Over glass and a starfield bare text is
+ * unreadable, and a filled plate hides the window the word belongs to. This is
+ * v1.2.0's `drawTargetWord()`, restored: it was deleted in v1.3.0 because the
+ * cells had taken over saying how far through the word the student was, and
+ * with the cells no longer aligned to letters that job comes back here.
+ */
+export function drawPaneWord(ctx, x, y, text, typedLen, size, locked) {
+    ctx.save();
+    ctx.font = 'bold ' + Math.round(size) + 'px "Courier Prime", monospace';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    for (let i = 0; i < n; i++) {
-        const ch = text[i];
-        if (!ch || ch === ' ') continue;
-        const lx = -halfW + (i + 0.5) * pw;
-        if (i < typed) ctx.fillStyle = 'rgba(6,9,16,0.88)';
-        else if (i === typed) ctx.fillStyle = '#ffffff';
-        else ctx.fillStyle = 'rgba(196,212,238,0.72)';
-        ctx.fillText(ch, lx, 0);
-    }
+    const full = ctx.measureText(text).width;
+    const typed = text.slice(0, typedLen), rest = text.slice(typedLen);
+    let sx = x - full / 2;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(2,4,10,0.92)';
+    ctx.strokeText(text, sx, y);
+    ctx.fillStyle = 'rgba(120,140,175,0.85)';
+    ctx.fillText(typed, sx, y);
+    sx += ctx.measureText(typed).width;
+    ctx.fillStyle = locked ? '#ffd700' : '#ffffff';
+    ctx.fillText(rest, sx, y);
     ctx.restore();
 }
 
