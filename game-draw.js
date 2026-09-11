@@ -1,3 +1,6 @@
+// game-draw.js v1.17.0 — Round 116 (Sun): five letters in SEG_ON and
+// sevenSegGlyphs(), so the arcade header can set ARCADE on the SAME seven-segment
+// device the game clocks use instead of owning a second copy of the geometry.
 // game-draw.js v1.16.0 — Round 116 (Sun): the glass-particle field renames
 // `shard` → `sliver`, to keep it out of the way of the `shards` game id, which
 // is frozen in Firestore forever. Pure rename; no behaviour.
@@ -94,7 +97,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.16.0';
+export const GAME_DRAW_VERSION = '1.17.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -850,7 +853,50 @@ const SEG_ON = {
     '9': [1, 1, 1, 1, 0, 1, 1],
     '-': [0, 0, 0, 0, 0, 0, 1],
     ' ': [0, 0, 0, 0, 0, 0, 0],
+    // ⚠️⚠️ FIVE LETTERS, FOR THE ARCADE WORDMARK, AND NOT A GENERAL ALPHABET.
+    // Jake, 2026-09-11: *"the courier TypeThatBook and appended Arcade in the
+    // same digital font you use for the clocks in the games themselves."*
+    // ⭐ THEY LIVE HERE RATHER THAN IN A COPY IN arcade.html BECAUSE THAT WOULD
+    // BE TWO SEVEN-SEGMENT DISPLAYS: the header and the game clock would drift
+    // the first time anyone adjusts SEG_THICK, and nothing would catch it.
+    // ⚠️ R IS THE AUTHENTIC LOWERCASE r — a seven-segment display cannot make a
+    // capital R, and faking one with an eighth segment would mean the header and
+    // the game are no longer the same device.
+    // ⚠️ DO NOT GROW THIS INTO AN ALPHABET. The clocks render digits and a colon;
+    // every letter added is a glyph nothing verifies and somebody will eventually
+    // use it to write a label, which is what the mono font is for.
+    'A': [1, 1, 1, 0, 1, 1, 1],
+    'R': [0, 0, 0, 0, 1, 0, 1],
+    'C': [1, 0, 0, 1, 1, 1, 0],
+    'D': [0, 1, 1, 1, 1, 0, 1],
+    'E': [1, 0, 0, 1, 1, 1, 1],
 };
+
+/**
+ * The seven-segment glyphs of `text` as polygons, for callers that are not a
+ * canvas — the arcade header renders them as SVG.
+ *
+ * ⚠️⚠️ EXPORTED SO THE HEADER CANNOT OWN A SECOND COPY OF THE GEOMETRY. It is
+ * the same `segPolys()` drawSevenSeg() uses, at the same thickness and aspect,
+ * so the wordmark and the in-game clock are one device by construction.
+ *
+ * @returns {object} { w, h, glyphs: [{ on: boolean[], polys: number[][][] }] }
+ *          Unlit segments are RETURNED, not omitted — the caller decides whether
+ *          to ghost them, and ghosting is most of what makes a display read as a
+ *          display rather than as a typeface.
+ */
+export function sevenSegGlyphs(text, h) {
+    const t = h * LAY.SEG_THICK;
+    const dw = h * LAY.SEG_ASPECT, gap = h * 0.12;
+    const glyphs = [];
+    let x = 0;
+    for (const ch of String(text || '')) {
+        const on = SEG_ON[ch] || SEG_ON[' '];
+        glyphs.push({ on: on.map(Boolean), polys: segPolys(x, 0, dw, h, t) });
+        x += dw + gap;
+    }
+    return { w: Math.max(0, x - gap), h, glyphs, unlitAlpha: LAY.SEG_UNLIT_ALPHA };
+}
 
 /** A horizontal bar as a hexagon, so the segments mitre against each other. */
 function segH(cx, cy, len, t) {

@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.16.0 — THE MARQUEE WORKS, NAMES THE PLAYER, AND THE PROSE
+<!-- arcade.html v3.17.0 — Round 116 (Sun): THE ARCADE STOPS LOOKING LIKE A
+     DIFFERENT SITE. Jake: *"the current layout just feels like an entirely
+     different site."* The marquee card becomes a full-bleed sticky SITE HEADER
+     on the library's skeleton, with a three-way School/Library/Arcade pill and
+     ARCADE set on the SAME seven-segment device the game clocks use
+     (game-draw.js's sevenSegGlyphs, not a copy). ⚠️ THE PILL IS INCOMPLETE
+     UNTIL index.html AND learn.html CARRY IT TOO — the arcade is currently the
+     only page that knows all three places exist.
+     Also: the result card is centred and max-width instead of full-bleed
+     (*"tiny and strangely shaped"* — it was `.panel`, sized by the page rather
+     than by its contents), gains a primary "Play again" above "Pick another
+     cabinet", and leaves the arcade floor up behind it. And SHARDS is routed:
+     shatter and shards are one view, picked by the registry's `drift` flag.
+     arcade.html v3.16.0 — THE MARQUEE WORKS, NAMES THE PLAYER, AND THE PROSE
      UNDER THE FRAME IS GONE. Round 115 (Tower). Jake, 2026-09-10, with a
      screenshot showing TODAY and WEEK as dashes: *"arcade needs to lose the
      gratuitous description at the bottom, and the header needs to actually show
@@ -336,32 +349,58 @@
     /* ⭐ THE MARQUEE IS THE HANDOFF FROM SCHOOL TO ARCADE, which is the bit Jake
        asked for by name. Same two clocks as the lesson HUD, same words, so a
        student crossing over recognises where their minutes went. */
-    .marquee {
-        display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap;
-        border: 1px solid var(--rule); border-radius: 12px;
-        border-top: 1px solid rgba(120,170,220,0.28);
-        background: linear-gradient(180deg, #0d141d 0%, #0a1017 100%);
-        padding: 14px 18px; margin-bottom: 18px;
-        box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
+    /* ⚠️ FULL-BLEED AND PINNED, like every other page in TTB. `.wrap` has side
+       padding, so the bar breaks out of it with negative margins rather than
+       being moved outside — moving it would put it above the element that
+       centres the page and it would stop agreeing with the content width. */
+    .site-header {
+        position: sticky; top: 0; z-index: 100;
+        margin: -18px -18px 18px; padding: 12px 24px;
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 14px; flex-wrap: wrap;
+        background: var(--panel); border-bottom: 1px solid var(--rule);
     }
-    .marquee .mq-title {
-        font-size: 1.15rem; letter-spacing: 4px; color: var(--warn);
-        text-shadow: 0 0 14px rgba(255,210,125,0.35); margin-right: auto;
+    .hdr-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .hdr-right { display: flex; align-items: center; gap: 16px; }
+    /* ⚠️ BASELINE, NOT CENTRE. "TypeThatBook" sits on a text baseline and the
+       wordmark is a box; centring them floats the display above the word. */
+    .site-title { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+    .site-title .tt {
+        font-size: 1.1rem; font-weight: 700; letter-spacing: 1px;
+        color: var(--accent);
     }
-    .mq-clock { font-size: .72rem; letter-spacing: 1px; color: var(--ink-ghost); }
-    .mq-clock b {
-        display: block; font-size: 1.15rem; letter-spacing: 2px;
-        color: var(--accent); font-weight: 400;
+    #mq-wordmark { display: block; }
+    .mode-toggle {
+        display: inline-flex; border: 1px solid var(--rule); border-radius: 999px;
+        overflow: hidden; background: #070b11; flex-shrink: 0;
     }
-    /* ⭐ Round 115 — WHO IS PLAYING. Same shape as the two clocks so all three
-       sit on one baseline; ellipsised because a school email is long and a
-       marquee that wraps is not a marquee. */
-    .mq-player b {
-        max-width: 240px; overflow: hidden; text-overflow: ellipsis;
-        white-space: nowrap; color: var(--ink);
+    .mode-btn {
+        font: inherit; font-size: .78rem; letter-spacing: .5px; padding: 5px 14px;
+        color: var(--ink-ghost); text-decoration: none; line-height: 1.6;
+        white-space: nowrap; transition: background .15s, color .15s;
     }
-    .mq-home { font-size: .74rem; color: var(--ink-dim); text-decoration: none; }
-    .mq-home:hover { color: var(--accent); }
+    .mode-btn:hover { color: var(--ink); background: #111a26; }
+    .mode-btn.active { background: var(--accent); color: #06121a; font-weight: 700; }
+    .hdr-clock { text-align: right; line-height: 1.15; }
+    .hdr-clock i {
+        display: block; font-style: normal; font-size: .6rem; letter-spacing: 1.5px;
+        color: var(--ink-ghost);
+    }
+    .hdr-clock b { font-size: .92rem; font-weight: 400; color: var(--accent);
+                   letter-spacing: 1px; }
+    /* ⚠️ ELLIPSISED: a school email is long and a header that wraps is not a
+       header. */
+    .hdr-who b {
+        font-size: .9rem; font-weight: 700; color: var(--ink);
+        max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; display: block;
+    }
+    @media (max-width: 720px) {
+        .site-header { margin: -12px -12px 14px; padding: 10px 14px; }
+        .site-title .tt { font-size: .95rem; }
+        .mode-btn { padding: 5px 9px; font-size: .7rem; }
+        .hdr-who { display: none; }
+    }
 
     /* ⚠️ THREE CABINETS, AND THE GRID FOLDS RATHER THAN SQUASHING. A cabinet
        narrower than ~240px stops reading as a cabinet and starts reading as a
@@ -426,6 +465,26 @@
     }
     /* ⚠️ THE BACK LINK IS NOT A BROWSER BACK. Picking a game does not navigate,
        so the browser's own back button would leave the arcade entirely. */
+    /* ⚠️ SIZED BY ITS CONTENTS, NOT BY THE PAGE. `.panel` is full-width, which
+       is right for the picker and wrong for a two-line verdict. */
+    .result-card {
+        background: var(--panel); border: 1px solid var(--rule);
+        border-radius: 10px; padding: 20px 22px; margin: 0 auto 18px;
+        max-width: 420px; text-align: center;
+    }
+    .result-card table { margin: 10px auto 0; }
+    .result-actions {
+        display: flex; flex-direction: column; gap: 8px; margin-top: 16px;
+    }
+    /* ⚠️ THE SECONDARY ACTION IS QUIETER, NOT SMALLER. Two buttons the same
+       weight make a student read both before choosing; two different sizes make
+       the small one look disabled. */
+    .result-actions .ghost {
+        background: transparent; border: 1px solid var(--rule);
+        color: var(--ink-dim);
+    }
+    .result-actions .ghost:hover { border-color: var(--accent-line); color: var(--accent); }
+
     .cab-back {
         appearance: none; background: none; border: 0; cursor: pointer;
         color: var(--ink-dim); font: inherit; font-size: .78rem;
@@ -449,21 +508,56 @@
          and then choosing your words is the same two decisions in the order a
          child already expects from an arcade. -->
     <div class="floor" id="floor">
-        <div class="marquee">
-            <div class="mq-title">ARCADE</div>
-            <!-- ⚠️ THE SAME TWO CLOCKS AS THE LESSON HUD, SAME WORDS. A student
-                 crossing over from School should recognise where their minutes
-                 went; renaming them here would make the arcade look like a
-                 separate scoreboard. Filled by renderMarquee() once MINUTES
-                 loads, and left blank rather than showing 0:00 before then. -->
-            <!-- ⭐ Round 115 — the signed-in student, painted by renderPlayer()
-                 the moment auth reports, before any read. -->
-            <div class="mq-clock mq-player">PLAYER<b id="mq-who">—</b></div>
-            <div class="mq-clock">TODAY<b id="mq-today">—</b></div>
-            <div class="mq-clock">WEEK<b id="mq-week">—</b></div>
-            <a class="mq-home" href="./index.html">&larr; Library</a>
-            <a class="mq-home" href="./learn.html">School</a>
-        </div>
+        <!-- ⭐⭐ THE SITE HEADER, NOT A MARQUEE CARD. Jake, 2026-09-11: *"the
+             current layout just feels like an entirely different site."* He was
+             right, and the cause was structural rather than chromatic — he had
+             already said the colours were fine.
+             ⚠️ THREE THINGS MADE IT FOREIGN. (1) The marquee was a ROUNDED
+             FLOATING CARD inside the page; every other page in TTB opens with a
+             full-bleed bar pinned to the top edge, and a card says "panel" where
+             a bar says "site". (2) There was NO MODE PILL, so nothing on screen
+             said the arcade is one of three places in one app — just two text
+             links that read as footnotes. (3) It shared no typeface with the
+             library beyond the mono.
+             ⚠️⚠️ THE PILL IS THE ACTUAL FIX AND IT IS INCOMPLETE UNTIL
+             index.html AND learn.html CARRY IT TOO. Right now the arcade is the
+             only page in TTB that knows all three places exist. See ROADMAP. -->
+        <header class="site-header">
+            <div class="hdr-left">
+                <div class="site-title">
+                    <span class="tt">TypeThatBook</span>
+                    <!-- ⭐ ARCADE on the SAME seven-segment device as the game
+                         clocks — game-draw.js's sevenSegGlyphs(), not a copy of
+                         it. Painted by the tiny module below, which imports
+                         game-draw.js and NOTHING ELSE: the build panel's rule
+                         applies here too, and a wordmark that only appears when
+                         Firebase loads is a wordmark that vanishes exactly when
+                         somebody is trying to work out what is wrong. -->
+                    <svg id="mq-wordmark" width="74" height="22" aria-label="Arcade"
+                         role="img"><g fill="var(--accent)"></g></svg>
+                </div>
+                <nav class="mode-toggle" aria-label="Switch mode">
+                    <a href="./learn.html" class="mode-btn">School</a>
+                    <a href="./index.html" class="mode-btn">Library</a>
+                    <span class="mode-btn active" aria-current="page">Arcade</span>
+                </nav>
+            </div>
+            <div class="hdr-right">
+                <!-- ⚠️ THE SAME TWO CLOCKS AS THE LESSON HUD, SAME WORDS. A
+                     student crossing over from School should recognise where
+                     their minutes went. ⚠️ BOTH SURVIVE, unlike the library
+                     landing which shows the week alone: the arcade is where
+                     minutes get SPENT and not merely chosen, and Today is the
+                     number that makes a child play one more round.
+                     Filled by renderMarquee(); blank rather than 0:00 before
+                     MINUTES loads. -->
+                <div class="hdr-clock"><i>TODAY</i><b id="mq-today">—</b></div>
+                <div class="hdr-clock"><i>WEEK</i><b id="mq-week">—</b></div>
+                <!-- ⭐ Round 115 — the signed-in student, painted by
+                     renderPlayer() the moment auth reports, before any read. -->
+                <div class="hdr-who"><b id="mq-who">—</b></div>
+            </div>
+        </header>
         <div class="cabs" id="cabs"></div>
     </div>
 
@@ -629,12 +723,57 @@
          RE-ADD PROSE UNDER THE FRAME; savedNote() in the gates panel is the one
          place this page says what it keeps. -->
 
-    <div class="panel" id="result" style="display:none">
+    <!-- ⭐⭐ THE RESULT CARD. Jake, 2026-09-11: *"The pick another screen is tiny
+         and strangely shaped. Let's go with something smaller and centered.
+         Perhaps add a 'Play again?' button above the Pick another button. Maybe
+         have that card above the general arcade game."*
+         ⚠️ IT WAS `.panel`, WHICH IS FULL-WIDTH — a two-line verdict stretched
+         across a 1000px card is what "strangely shaped" means: the box was sized
+         by the page, not by its contents. This one has a max width and centres
+         itself, so it is the same shape whatever the screen.
+         ⭐ AND THE FLOOR STAYS UP BEHIND IT. The card no longer replaces the
+         arcade; `showFloor()` runs alongside it, so the cabinets are already
+         there and "Pick another" is a dismissal rather than a navigation.
+         ⚠️ THE GAME ITSELF CANNOT STAY — finish() destroys the handle and the
+         canvas goes with it, which is what stops a dead run from drawing over
+         the next one. -->
+    <div class="result-card" id="result" style="display:none">
         <div id="verdict"></div>
         <table id="compare"></table>
-        <button class="play" id="again" style="margin-top:14px">Pick another &rarr;</button>
+        <div class="result-actions">
+            <!-- ⚠️ PLAY AGAIN IS FIRST AND IS THE PRIMARY. A student who just
+                 finished a run almost always wants another one, and it keeps
+                 their level and word pool — it is one click, not a re-setup. -->
+            <button class="play" id="playAgain" type="button">Play again</button>
+            <button class="ghost" id="again" type="button">Pick another cabinet</button>
+        </div>
     </div>
 </div>
+
+<!-- ⭐ THE WORDMARK. Its own module, importing game-draw.js and nothing else —
+     the same reason the build panel below imports no Firebase: a header that
+     only renders when the app renders is useless at the moment somebody is
+     working out why the app did not. -->
+<script type="module">
+import { sevenSegGlyphs } from './game-draw.js';
+const H = 16;
+const g = document.querySelector('#mq-wordmark g');
+if (g) {
+    const set = sevenSegGlyphs('ARCADE', H);
+    const svg = g.closest('svg');
+    svg.setAttribute('viewBox', `0 -1 ${(set.w + 2).toFixed(1)} ${H + 2}`);
+    svg.setAttribute('width', Math.round(set.w + 2));
+    svg.setAttribute('height', H + 2);
+    // ⚠️⚠️ UNLIT SEGMENTS ARE DRAWN, GHOSTED. That is what makes it read as a
+    // DISPLAY rather than as a slightly odd typeface, and it is also what stops
+    // the seven-segment r looking like a broken R — inside a full cell an unlit
+    // segment reads as OFF.
+    g.innerHTML = set.glyphs.flatMap(gl => gl.polys.map((p, i) =>
+        `<polygon opacity="${gl.on[i] ? 1 : set.unlitAlpha}" points="${
+            p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ')}"/>`
+    )).join('');
+}
+</script>
 
 <!-- ⚠️⚠️ THE BUILD PANEL IS ITS OWN MODULE, AND IMPORTS NO FIREBASE ON PURPOSE.
      The app module below imports firebase-config.js; if the SDK fails to load —
@@ -662,7 +801,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.16.0';
+const ARCADE_PAGE_VERSION = '3.17.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -797,6 +936,15 @@ let PROGRESS = {};
 let PLAYABLE = [];
 let handle = null;
 let lastPlayedWPM = null;
+// ⚠️⚠️ WHICH PLAY FUNCTION RAN, SO "Play again" CAN REPEAT IT. ⭐ A FUNCTION
+// REFERENCE, NOT A FLAG: re-deriving the path from isFreePlay() at click time
+// would read the picker's CURRENT state, and a student who ended a graded run
+// and then idly changed the scope row would press Play again and silently get a
+// different kind of run. This replays what they actually just played.
+// ⚠️ IT IS NOT A SECOND RECORD OF THE CONFIG — both functions rebuild their own
+// config from the picker exactly as they do on a first press, so the level and
+// word pool a student chose are still the single source.
+let lastPlay = null;
 // ⚠️ THE STUDENT'S REAL DAY AND WEEK SECONDS, read once at load and handed to
 // the game for the strip's bottom corners. null until read, and null forever for
 // a signed-out visitor — the game shows nothing rather than a made-up zero.
@@ -1732,6 +1880,7 @@ function PANEL_ELS() {
 }
 
 function play() {
+    lastPlay = play;
     if (isFreePlay()) { playFree(); return; }
     const r = currentRun();
     if (!r) return;
@@ -1823,6 +1972,7 @@ function play() {
  * See game-deadline.js's `survival` note.
  */
 function playFree() {
+    lastPlay = playFree;
     const g = currentGame();
     // ⚠️ SHATTER AND SHARDS ARE ONE VIEW. The registry's `drift` flag picks the
     // board; branching on the id here to a second module would be the Rule 5
@@ -1914,6 +2064,10 @@ function playFree() {
 function finishFree(rep) {
     if (handle) { handle.destroy(); handle = null; }
     $('stageWrap').style.display = 'none';
+    // ⭐ THE FLOOR COMES BACK UP UNDER THE CARD. See the card's markup: "Pick
+    // another" is now a dismissal rather than a navigation, because the
+    // cabinets are already on screen behind it.
+    $('floor').style.display = 'block';
     $('result').style.display = 'block';
     $('compare').innerHTML = '';
     if (!rep) {
@@ -1934,6 +2088,7 @@ function finishFree(rep) {
 function finish(rep, r) {
     if (handle) { handle.destroy(); handle = null; }
     $('stageWrap').style.display = 'none';
+    $('floor').style.display = 'block';   // see finishFree()
     $('result').style.display = 'block';
     if (!rep) {
         $('verdict').innerHTML = '<span class="big">Stopped</span><br>No result \u2014 nothing was saved.';
@@ -2202,6 +2357,15 @@ $('cab-back').addEventListener('click', showFloor);
 $('again').addEventListener('click', () => {
     $('result').style.display = 'none';
     showFloor();
+});
+
+// ⚠️ REPLAYS WHAT THEY JUST PLAYED, not what the picker currently says. See
+// `lastPlay`. ⚠️ AND FALLS BACK TO THE FLOOR RATHER THAN DOING NOTHING — a
+// button that silently no-ops is worse than one that takes you somewhere.
+$('playAgain').addEventListener('click', () => {
+    $('result').style.display = 'none';
+    if (typeof lastPlay === 'function') lastPlay();
+    else showFloor();
 });
 
 // ⚠️ WAITS FOR AUTH RATHER THAN READING IMMEDIATELY. Lessons are world-readable

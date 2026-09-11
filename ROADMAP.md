@@ -89,6 +89,21 @@ numbers: make clearing the nearest pane *matter*, e.g. a cleared pane briefly
 suppresses a refill. ⚠️ Do not reach for a smaller `HIT_R` — that makes nobody
 die, which is a different game again.
 
+### 116f — ⚠️ THE MODE PILL EXISTS ON ONE PAGE OUT OF THREE
+
+Round 116 gave `arcade.html` a real site header with a three-way
+**School / Library / Arcade** pill, which was the actual fix for *"it feels like
+an entirely different site"* — not the colours, which Jake had already said were
+fine. ⭐ **BUT `index.html` AND `learn.html` STILL SHOW A TWO-WAY PILL**, so the
+arcade is the only page in TTB that knows all three places exist, and a student
+who lands on the library has no visible route to the arcade except the tile.
+
+⚠️ **DO IT AS ONE EDIT ACROSS BOTH PAGES.** A pill that means "two of the three"
+on one page and "three of three" on another is worse than the inconsistency it
+replaces. The markup is four lines and the CSS is already written twice; the
+real work is deciding whether it becomes a shared partial, which this app has no
+mechanism for.
+
 ### 116b — DEADLINE AND ESCAPE KEY HAVE STILL NEVER BEEN MOUNTED BY A HARNESS
 
 ⚠️⚠️ **THE CHEAPEST LARGE WIN AVAILABLE.** `tests/arcade-mount-test.mjs` (Round
