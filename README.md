@@ -157,12 +157,15 @@ explicit control in reports.html rather than a side effect of deleting a run.
 ## Working on it
 
 ```
-npm install    # ⚠️ FIRST. jsdom is not vendored; without it THIRTEEN harnesses
+npm install    # ⚠️ FIRST. jsdom is not vendored; without it FIFTEEN harnesses
                #    fail with ERR_MODULE_NOT_FOUND, which is an uninstalled
                #    suite, not a red one. (Count verified Round 55 by
                #    `grep -ln jsdom tests/*.mjs | wc -l` — it said "eight" for
                #    several rounds. Recount it, do not carry it forward.
-               #    Recounted Round 57: still thirteen.)
+               #    Recounted Round 57: thirteen. Recounted Round 116: FIFTEEN
+               #    — it had already drifted to fourteen unnoticed, and
+               #    arcade-mount-test.mjs makes fifteen. The instruction above
+               #    works; it only works if somebody follows it.)
 npm test       # every fast harness, plus the registration and syntax audits
 npm run audit:versions   # version stamps and header budgets
 

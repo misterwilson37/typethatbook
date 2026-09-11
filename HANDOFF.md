@@ -1,6 +1,166 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-10 by Round 115 (Tower), for whoever is next
+> ## ▶ START HERE — written 2026-09-10 by Round 116 (Sun), for whoever is next
+>
+> **Instance name: Sun** — the Sun Typewriter Company, New York, c.1901. Checked
+> against all five doc files and the 31 names already used: no hit. It is the
+> right name for a round in which white light goes into a prism.
+>
+> ⚠️⚠️ **THIS BLOCK WAS WRITTEN LAST**, per Round 113's rule.
+>
+> **What shipped: Shatter is stained glass, and the ship is a prism.** Jake asked
+> for the idea by name and then for all of it. A target is a **leaded pane with
+> one panel per letter**, each panel the colour of the finger that types it. It
+> starts dark; a correct key lights its panel from behind and the prism throws a
+> ray in that same colour to do it; the last key lights the last panel and the
+> pane blows apart into shards of exactly those colours. Full reasoning in §16.
+>
+> **Expected stamps:** `game-shatter.js` **v1.3.0**, `game-sprites.js` **v1.2.0**,
+> `game-draw.js` **v1.14.0**, `game-chrome.js` **v1.10.0**,
+> `arcade-pool.js` **v2.1.0**.
+>
+> ---
+>
+> ## ⚠️⚠️ TWO DEFECTS FOUND THIS ROUND THAT NOBODY WAS LOOKING FOR
+>
+> **1. THE WORDS WERE ARRIVING IN ALPHABETICAL ORDER, IN ALL THREE GAMES THAT
+> WALK A POOL.** Jake, mid-round: *"the words are coming through
+> alphabetically...which is kind of lame."* ⭐ **NOBODY CHOSE IT.** It fell out of
+> three separately-correct decisions meeting: the word lists are STORED A–Z (so a
+> human can find a word in them), `wordsForKeys()` and `gradedOrder()` PRESERVE
+> input order (neither should invent one), and `nextTarget()` walks the array
+> with a wrapping cursor (learn.js hands it the sentences of a passage, which
+> must arrive in the author's order). ⚠️ **THE FIX IS IN `arcade-pool.js`, NOT IN
+> THE DIRECTOR** — shuffling in `nextTarget()` would shuffle learn.js's passages
+> and destroy Shatter's easy-band-first ramp. Shuffled **within** the difficulty
+> band for Shatter, outright for the word banks. Escape Key never had it;
+> `wordAvoiding()` already samples at random.
+> ⭐ **IT REACHED A CLASSROOM BECAUSE NO HARNESS HAD EVER LOOKED AT THE SEQUENCE
+> A STUDENT RECEIVES** — only at whether the pool was big enough and legal.
+> `arcade-pool-test.mjs` Part F now does, and it was written RED against the
+> shipped code first (Rule 10), printing Jake's exact complaint back.
+>
+> **2. ⚠️⚠️ EVERY TEARDOWN IN THE ARCADE HAS BEEN THROWING, AND ESCAPE-TO-PAUSE
+> HAS BEEN DEAD AFTER THE FIRST RESTART.** `game-chrome.js` declared `pauseKey`
+> INSIDE `showReady()` while `destroy()` removed its listener at MOUNT scope.
+> * Every `destroy()` threw `ReferenceError: pauseKey is not defined`, so **every
+>   statement after that line was skipped** — the panel, the control bar, and in
+>   the caller the canvas removal and `board.destroy()`. `arcade.html` destroys
+>   and re-mounts on every launch, so **switching cabinets stacked a dead canvas
+>   on the page each time.**
+> * `showReady()` runs again on every restart, so the listener was re-added and
+>   Escape called `setPaused()` twice per press — pause, immediately unpause.
+>   **Escape-to-pause stopped working after the first "play again"**, which is
+>   the precondition Jake asked for so the hover card would have something to
+>   hang off (see the open list below — that item was blocked on a thing that was
+>   already broken).
+>
+> ⭐ **BOTH WERE FOUND BY RUNNING THE GAME, NOT BY READING IT**, and that is the
+> real result of this round. `tests/arcade-mount-test.mjs` is **the first harness
+> in this project that calls `mount()`**. HANDOFF rule 2 has said since Round 105
+> that a green suite does not mean the pages load; `module-parse-test.mjs` closed
+> the parse half and `arcade-panels-test.mjs` closed the panel-drawing half, but
+> **nothing had ever executed a frame loop, an input path, a spawn or a
+> teardown.** It found the chrome bug in its first minute.
+>
+> ---
+>
+> ## ⚠️ WHAT IS NOT DONE
+>
+> 1. ⚠️⚠️ **RECONCILE THE `learn2` FORK** — §11 §0. Promote or fold back, **and
+>    delete the loser.** Unchanged since Round 102 and still first. The School
+>    Beta card sends real students to it.
+> 2. **Shatter has no UFO.** *"Maybe the ship should get another life if it takes
+>    out a space ship"* still has no enemy to attach to. ⚠️ In the new art the
+>    obvious answer is not a UFO — see §16's last section for the two candidates
+>    and why neither is chosen yet. **This needs Jake's ruling, not a guess.**
+> 3. **The hover mechanic.** ⭐ Its precondition is now genuinely true for the
+>    first time: Escape pauses every game AND keeps working after a restart.
+>    `word-banks.js` has `provenanceLine()` and `shatter-words.js` has per-part
+>    glosses — the data is ready, the UI is not.
+> 4. ⚠️ **A PEDAGOGY QUESTION, NOT A WIRING ONE.** Every lesson in Units 1, 2 and
+>    5 is graded on a `key_random` final run, which `DRILL_TYPES` forces to
+>    `minWPM: null` — so **a student can pass all fifteen at 2 WPM.** Jake
+>    believed the opposite and has been told. His call.
+> 5. **114b is still open**: the arcade is absent from `versions.js` SOURCES, so
+>    `docs-vs-repo-test.mjs` passes vacuously for twelve modules and prints
+>    fourteen "no readable version stamp; skipped" notes on every run. ⚠️ **Those
+>    notes are expected and are not this round's doing.**
+>
+> ---
+>
+> ## VERSION STAMPS AND THE SUITE
+>
+> * **98 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+>   FIFTEEN fail on a missing package and look like defects (the README said
+>   thirteen and had already drifted; recounted, do not carry it forward).
+>   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
+>   `docs-vs-repo-test.mjs` C2 matches it by regex and reads the FIRST hit in
+>   this file — and §§1–8 are full of historical records saying "57 harnesses
+>   pass", "56 harnesses pass" and so on. Reword this line and C2 silently starts
+>   grading a 2026-07 round instead of today.
+>   ⚠️⚠️ **BUMP IT HERE AND IN `README.md` IN THE SAME EDIT.** Round 116 moved it
+>   97 → 98 and C2 went red within the same session, which is the check working.
+> * ⚠️ **THE BUILD PANEL IS THE FASTEST WAY TO TELL WHICH BUILD IS DEPLOYED.**
+>   Round 113 was reported against a page two builds behind, debugging a bug
+>   already fixed. ⭐ **ASK FOR THE PANEL'S VERSION BEFORE DEBUGGING A REPORT.**
+> * ⚠️⚠️ **NOTHING IN ROUNDS 103–116 IS BROWSER-VERIFIED BY ME** — I cannot run
+>   one. ⭐ But this round is the first where the claim "it draws" is not pure
+>   inference: `arcade-mount-test.mjs` drives the real `mount()` under jsdom and
+>   asserts the render path ran to the end. **That is still not a picture.** The
+>   colours, the sizes and whether a pane is legible on a projector are
+>   unverified and Jake should look before a class does.
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ THE SIX RULES THIS PROJECT PAID FOR
+>
+> **1. `npm install` BEFORE THE FIRST SUITE RUN.** Rounds 102–104 each recorded
+> *"nine pre-existing failures… nobody has looked."* All nine were
+> `Cannot find package 'jsdom'`. ⚠️ **NEVER CARRY A FAILURE COUNT FORWARD WITHOUT
+> READING AN ERROR.** ⭐ And any fixture date must derive from `Date.now()` —
+> Round 111 found a harness that passed for exactly 21 days and then failed
+> forever.
+>
+> **2. A GREEN SUITE DOES NOT MEAN THE PAGES LOAD.** Round 105 shipped
+> `arcade.html` with a duplicate `import` binding, whole page blank, at 93/93.
+> ⭐ **ROUND 116 IS THE FIRST ROUND TO ACT ON THIS RULE RATHER THAN RESTATE IT**,
+> and it immediately found a teardown that had been throwing for an unknown
+> number of rounds. `arcade-mount-test.mjs` is the beginning, not the end: it
+> drives Shatter only. **Deadline and Escape Key have still never been mounted by
+> a harness.** That is the cheapest large win available to the next round.
+>
+> **3. ⚠️⚠️ DO NOT REWRITE WHAT WORKS. IT IS NOT A DRAFT.** Jake, twice, on the
+> sprites and the Escape Key rules: *"your version 0.x was closer to right than
+> any of your 1.x."* ⭐ **BOTH TIMES THE PORT KEPT THE ARITHMETIC AND THREW AWAY
+> THE DESIGN.** ⚠️ Round 116 redrew every pixel of Shatter and deliberately did
+> NOT touch the one thing that already worked — the ship aiming at the locked
+> target. The prism is the same triangle pointing the same way. **When you redo
+> art, name the thing you are keeping before you start.**
+>
+> **4. ⚠️⚠️ AN OPTION THAT EXISTS AT ONE END AND IS CONSUMED AT NEITHER.** The
+> single most repeated defect in the project: `countsTime: true` with no view
+> emitting a second (20 rounds); `poolFor` accepted by a board that ignored it;
+> `barHost` accepted by two views and passed to nobody. ⭐ **ROUND 116 FOUND THE
+> MIRROR IMAGE**: `destroy()` consuming a name that existed only in another
+> scope. ⚠️ **GREP FOR BOTH ENDS, AND CHECK THEY ARE IN THE SAME SCOPE.**
+>
+> **5. ⚠️⚠️ ONE INSTANCE. `tools/game-lab.html` IS DELETED (Round 112).** The lab
+> is `arcade.html?lab=1`. ⚠️ **THE `?lab=1` FLAG MAY ONLY EVER ADD CONTROLS** —
+> the moment it changes a layout, a default or a code path, they have diverged.
+>
+> **6. ⭐ A HARNESS THAT PASSES ITS OWN MUTATION TEST IS NOT DONE YET.**
+> `arcade-panels-test.mjs` has now shipped a worthless draft **twice** — Part I
+> in Round 114, and Part K's first draft this round (a came that leans at the top
+> and never unleans left all 269 assertions green, because the letters are drawn
+> at the nominal panel centre and physically cannot drift). ⚠️ **WRITE DOWN WHAT
+> A FAILURE WOULD MEAN, THEN BREAK THE CODE AND CHECK THE CHECK GOES RED.** Five
+> mutations were run against Part K and four were caught; the fifth is why the
+> came-centring assertions exist.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-09-10 by Round 115 (Tower)
 >
 > **Instance name: Tower** — Sears's typewriter brand, and an arcade cabinet.
 > Checked against CHANGELOG, HANDOFF and ROADMAP. Full record: §15.
@@ -13,12 +173,7 @@
 >
 > **Expected stamps:** `index.html` **v3.24.0**, `arcade.html` **v3.16.0**
 > (the arcade badge reads `arcade v3.16.0`), `game-deadline.js` **v1.12.0**,
-> `learn2.js` **v0.8.0-staging**, `shatter-board.js` **v1.2.0**,
-> `game-shatter.js` **v1.3.0**.
->
-> **Third change this round:** Shatter's rocks come ~3.7× faster early (new
-> speed rule, fairness re-swept), spiral in, break into tumbling letter-coloured
-> shards, and every key fires a bolt in its finger colour. §15.2.
+> `learn2.js` **v0.8.0-staging**.
 >
 > **Second fix this round:** on `learn2`, a defended city now ALWAYS moves the
 > student forward — the modal no longer re-grades accuracy against the game's
@@ -31,6 +186,10 @@
 > folded them into §§10–14 and recorded them deleted, but web uploads never
 > delete, so they are still live and `docs-vs-repo-test.mjs` A3 is red on them.
 > That is the suite's only failure (96 of 97). Anything else red is yours.
+>
+> > ⚠️ **ROUND 116: DONE — ALL EIGHT ARE GONE FROM THE REPO** and
+> > `docs-vs-repo-test.mjs` A3 is green. The paragraph above is kept as the
+> > record of the ask, not as a live instruction.
 >
 > ⚠️ **ROADMAP 114a is closed** — a 21-day fixture time bomb, not lost minutes.
 >
@@ -7937,24 +8096,242 @@ instead when `passReport` exists (arcade sees this as a normal game end).
 `learn.js` whenever the fork is folded back** — §11; do not lose it in the merge.
 ⚠️ Not browser-verified end to end.
 
-### §15.2 Shatter: speed rethink, breaking, colour
 
-⚠️⚠️ **The old speed rule** was depth 4 × 2N chars at the gate — ~50 s per rock at
-15 WPM. `shatter-board.js` v1.2.0: journey capped at `TRAVEL_SLACK` (2.4) × own-word
-typing time (board takes `targetWPM`; the shell's shorter lifetime still wins, so
-the ramp is intact); pieces kicked outward by `SPLIT_KICK` (pays for them; only
-lengthens); rocks orbit (`ORBIT`, angular only — **never let it feed `r`**). Part S
-of `shatter-board-test.mjs` is the fairness proof; re-run it after touching any
-of the three constants. ⚠️ SLACK below ~2.2 makes pieces unclearable at the gate.
+---
 
-`game-shatter.js` v1.3.0 is view-only: per-letter coloured edges, colour bolts +
-shimmer, wedge shards, fly-out pieces, capped-rate ship turning. `drawRock` is
-now unused in this file (still exported by `game-sprites.js`). Known: long words
-at the ring overhang the playfield edge.
+## §16. Round 116 (Sun) — stained glass, a prism, and two bugs nobody was looking for
 
-**Open ideas offered to Jake for Shatter's own personality** (not built): the
-ship as a gravity well / "the words are falling into you" vortex (the orbit is a
-first step), breaking a rock into its morpheme pieces with the piece meanings
-shown (data exists in `shatter-words.js`), chain reactions when shards hit other
-rocks of the same finger colour.
+**Instance name: Sun** — the Sun Typewriter Company, New York, c.1901. Checked
+against CHANGELOG, HANDOFF, ROADMAP, README and `tests/README.md`, and against
+the 31 names already used (Bar-Let, Bar-Lock, Blickensderfer, Caligraph,
+Carriage, Corona, Crandall, Daugherty, Densmore, Duplex, Emerson, Fox, Franklin,
+Hammond, Imperial, Jewett, Lambert, Linotype, Merritt, Mignon, Munson, Noiseless,
+Odell, Oliver, Rem-Sho, Remington, Smith-Premier, Tower, Victor, Wellington,
+Yost). No hit.
 
+### A. ⭐⭐ THE ART MAKES AN ARGUMENT NOW, AND THAT IS THE DIFFERENCE
+
+Jake asked for an idea a previous instance had floated: *"Stained glass.
+'Shatter' suggests glass more than rock… The ship could be a prism: white light
+goes in, and your coloured shots come out."*
+
+⚠️⚠️ **THIS IS THE THIRD TIME SHATTER HAS REDRAWN ITS TARGETS AND THE FIRST TIME
+THE ART HAS BEEN AN IDEA RATHER THAN A STYLE.**
+
+* v1.0.0 drew a rounded rectangle behind text. Jake: *"that's just...bad."*
+  Correct — it is a **label**, and nothing about a label says breakable.
+* v1.2.0 drew an irregular polygon with a frozen silhouette and a slow tumble.
+  That does say breakable, and it says nothing else. ⭐ **WHAT IT BOUGHT WAS
+  ASTEROIDS WEARING A DIFFERENT NAME**, which is exactly the thing the file's own
+  header said it was trying not to be.
+* v1.3.0: **the game is called Shatter, and the words were already coloured a
+  letter at a time by the finger map.** The thing that shatters into coloured
+  pieces is glass. It always was.
+
+**A target is a leaded pane with one panel per letter, each panel the colour of
+the finger that types it.** It starts dark. A correct key lights its panel from
+behind, and the prism throws a ray in that same colour to do it. The last key
+lights the last panel and the pane blows apart into shards of exactly those
+colours.
+
+⚠️ **THE PROGRESS DISPLAY, THE FINGER DRILL AND THE ART ARE ONE OBJECT NOW**
+rather than three stacked on each other. That is why `drawTargetWord()`'s
+red-typed / white-rest scheme was **deleted** rather than kept — it was a
+second, competing answer to *how far through this word am I*, and two answers to
+one question is the defect this project names most often.
+
+**A lit letter goes dark and an unlit one pale**, which is inverted from
+everywhere else in the app and is right here: the letter is a lead glyph and the
+glass behind it is what changed. Brightening the letter as well would put two
+signals on one panel and dim the finger colour that panel exists to teach.
+
+**Parent versus piece stays a difference of KIND.** A whole target is a
+chamfered window — even, architectural, cut by a glazier. A piece is a
+**splinter**, pointed at both ends. ⚠️ Round 106 already learned this one:
+filled-versus-hollow was a difference of degree, and degree reads as a mistake.
+
+**⚠️⚠️ AND THE PANE DOES NOT TUMBLE.** v1.2.0's rocks spun with the word drawn
+flat on top in screen space — fine for a label in front of a rock, impossible
+once each letter must stay over its own panel. A frozen tilt and a slow sway
+instead. ⭐ A sway costs nothing and a spin costs legibility; there was never a
+trade there.
+
+### B. ⭐ THE PRISM IS THE SAME TRIANGLE POINTING THE SAME WAY
+
+⚠️⚠️ **THIS IS RULE 3 BEING OBEYED ON PURPOSE AND IT SHOULD BE READ THAT WAY.**
+The instruction was to redraw everything, and the single most valuable thing in
+this game is the prototype's idea that **the ship aims at what you are typing** —
+drawn confirmation the lock landed where the student meant, which matters more
+here than anywhere because two split pieces can share a first letter.
+
+**So the aim behaviour is untouched, byte for byte.** The prism is not a new
+ship; it is what that triangle turns out to have been all along, once the
+targets became glass:
+
+* **White light enters the back face**, always drawn. A prism with nothing going
+  into it is a triangle.
+* **At rest the spectrum fans from the apex** in the eight finger colours. ⭐
+  That is free: a permanent legend for the colours on the panes, sitting in the
+  middle of the field, costing no HUD space.
+* **A correct key collapses the fan into one bright ray** in that key's finger
+  colour. The ray, the panel it lights and the key on `keyboard.js`'s map are one
+  colour in three places.
+* **A wrong key whites the prism out and throws nothing.** The one thing a
+  mistake must read as is *no light came out*.
+* **A warp is the prism firing in every direction at once** — eight expanding
+  rings, one per finger. It still destroys nothing; `WARP_PUSH`'s rule is
+  unchanged.
+
+⚠️ **THE COLOURS ARRIVE AS AN ARGUMENT AND ARE NEVER LOOKED UP.**
+`game-sprites.js` is deliberately pure and imports nothing, so `drawPrism()`
+takes its fan as a parameter and `game-draw.js` grew `fingerPalette()` — one
+read of `keyboard.js`'s `FINGER_COLORS`, which it already owned the sole import
+of (`game-assumptions-test.mjs` Part J). ⭐ **A HARDCODED RAINBOW IN THE VIEW
+WOULD LOOK IDENTICAL ON SCREEN AND BE A LIE.** The teaching claim is that the
+colour on the glass is the colour on the key, and that is only true while there
+is one copy of the list.
+
+### C. ⚠️⚠️ THE WORDS WERE ARRIVING ALPHABETICALLY, IN TWO OF THE THREE GAMES
+
+Jake, mid-round: *"the words are coming through alphabetically...which is kind
+of lame."*
+
+⭐ **NOBODY CHOSE IT.** Three separately-correct decisions met:
+
+1. `shatter-words.js` and every bank in `word-banks.js` are **stored A–Z** —
+   right, because they are hand-curated lists a human must be able to search.
+2. `wordsForKeys()` and `gradedOrder()` **preserve input order** — right,
+   because neither has any business inventing one.
+3. `GameDirector.nextTarget()` **walks `targets` with a wrapping cursor** —
+   right, because `learn.js` hands it the sentences of a passage and they must
+   arrive in the order the author wrote them.
+
+So a full-scope Shatter run opened `abandoned abruptly absently absolutely`.
+
+⚠️⚠️ **THE FIX BELONGS IN THE POOL, NOT IN THE DIRECTOR**, and that is the part
+worth remembering. Shuffling inside `nextTarget()` is the obvious one-line fix
+and it would shuffle learn.js's passages and destroy Shatter's
+easy-band-first ramp. ⭐ **THE POOL IS THE THING THAT KNOWS WHAT ORDER IT WANTS;
+THE DIRECTOR IS THE THING THAT MUST HONOUR WHATEVER IT IS HANDED.**
+
+`gradedOrder()` now shuffles **within** each difficulty band and never across
+them. ⚠️ Its old comment said *"NOT SHUFFLED: shuffling would hand a Unit-2
+student `accomplishment` as their opening rock"* — that reasoning is correct and
+is why this is not a plain shuffle. **But it only ever defended the BAND order,
+and it was read as defending the alphabet**, which nothing defends. The word
+banks get a plain shuffle: every word in a bank is the same length, so there is
+no band to preserve. Escape Key never had the defect — `wordAvoiding()` samples
+at random already — and is deliberately absent from the new assertions, because
+claiming it there would suggest the fix reached further than it did.
+
+⚠️ **WHY IT REACHED A CLASSROOM: NO HARNESS HAD EVER LOOKED AT THE SEQUENCE A
+STUDENT RECEIVES.** `arcade-pool-test.mjs` asked whether the pool was big enough,
+legal, splittable and dealable — every question except *what order does this
+arrive in*. Part F now asks it, and per Rule 10 it was **written red against the
+shipped code first**, printing Jake's complaint back as the failure message.
+
+### D. ⚠️⚠️ THE TEARDOWN HAS BEEN THROWING, AND ESCAPE-TO-PAUSE HAS BEEN DEAD
+
+`game-chrome.js` declared `pauseKey` **inside `showReady()`** while `destroy()`
+removed its listener at **mount scope**. Two defects from one mistake:
+
+1. Every `destroy()` threw `ReferenceError: pauseKey is not defined`, so **every
+   statement after that line was skipped** — in this file the panel and the
+   control bar, and in the caller (`game-shatter.js`) the canvas removal and
+   `board.destroy()`. ⚠️ **`arcade.html` DESTROYS AND RE-MOUNTS ON EVERY
+   LAUNCH**, so switching cabinets stacked a dead canvas on the page each time.
+2. `showReady()` runs again on every restart, so the listener was added a
+   second, third and fourth time, and Escape called `setPaused()` twice per
+   press — pause, immediately unpause. **Escape-to-pause silently stopped
+   working after the first "play again".**
+
+⭐ **THE SECOND ONE IS WHY OPEN ITEM 3 WAS BLOCKED ON SOMETHING ALREADY BROKEN.**
+Jake asked for Escape-pauses-every-game *specifically* so the hover card would
+have a precondition to hang off. The precondition existed once per mount and
+then stopped.
+
+Fixed by registering both listeners once, at mount scope, where `destroy()` can
+see them. ⚠️ Mutation-verified by reinstating the exact shipped shape: three
+assertions in `arcade-mount-test.mjs` Part C go red.
+
+### E. ⭐⭐ THE FIRST HARNESS IN THIS PROJECT THAT RUNS A GAME
+
+`tests/arcade-mount-test.mjs` — **98 harnesses now, up from 97.**
+
+HANDOFF rule 2 has said since Round 105 that a green suite does not mean the
+pages load. `module-parse-test.mjs` closed the parse half. `arcade-panels-test`
+closed the panel-drawing half against a recording context. ⚠️⚠️ **NEITHER HAD
+EVER CALLED `mount()`, SO NOTHING IN THIS REPO HAD EXECUTED A FRAME LOOP, AN
+INPUT PATH, A SPAWN OR A TEARDOWN.** The file found §D in its first minute.
+
+What it does and does not do:
+
+* It mounts Shatter under jsdom against a canvas context that answers every call
+  and records only the method **names** — enough to ask *did the render path run
+  to the end*, and deliberately not enough to ask *did it look right*. The
+  second question is Part K's, against a real recording context.
+* ⚠️ **IT TYPES BLIND.** It sprays the alphabet and never learns a single game
+  rule. How a word splits belongs to `shatter-board-test.mjs`; what a keystroke
+  is worth belongs to `game-shell-test.mjs`. A mount harness that grew a copy of
+  either would be the third place those rules live.
+* ⚠️ Its first draft waited 60ms for a 3000ms countdown, every keystroke was
+  correctly swallowed by the get-ready guard, and five assertions went red
+  against perfectly good code. `COUNTDOWN_MS` is **imported** now, never guessed.
+
+⭐ **IT DRIVES SHATTER ONLY. Deadline and Escape Key have still never been
+mounted by a harness, and that is the cheapest large win available to the next
+round.**
+
+### F. ⚠️ A SECOND WORTHLESS HARNESS DRAFT, IN THE SAME FILE AS THE FIRST
+
+`arcade-panels-test.mjs` Part K pins the stained glass: one panel per letter,
+the letters evenly stepped, an untyped pane lighting exactly one panel, a typed
+panel painted harder than the next one, the rim carrying state, a splinter cut
+with a different number of edges, the prism dispersing all eight colours, a
+spent shot drawing nothing, and shards not NaN-ing the shared particle.
+
+Five mutations were run. Four went red. **The fifth did not**, and it is the
+instructive one: moving the came lean so it applies at the top of each lead line
+and is never undone at the bottom left **all 269 assertions green**. The letters
+are drawn at the nominal panel centre and *physically cannot drift*, so nothing
+in the part could see the glass walking out from under them. The came-centring
+assertions exist because of that, and the mutation now takes six red.
+
+⚠️⚠️ **THIS FILE HAS NOW SHIPPED A WORTHLESS DRAFT TWICE** — Part I in Round 114
+went green on the exact shipped defect it was written for. ⭐ **WRITE DOWN WHAT A
+FAILURE WOULD MEAN, THEN BREAK THE CODE AND CHECK THE CHECK GOES RED.**
+
+### G. ⚠️ THE OPEN QUESTION THIS ROUND DELIBERATELY DID NOT ANSWER
+
+Open item 2 is *"Shatter has no UFO"*, from Jake's *"maybe the ship should get
+another life if it takes out a space ship."* ⚠️ **IN THE NEW ART A FLYING SAUCER
+WOULD BE THE ONE OBJECT ON SCREEN THAT IS STILL FROM THE OLD GAME.** Two
+candidates fit the glass, and **neither is chosen, because this is Jake's call
+and not an implementation detail:**
+
+* **A rose window** that drifts across the field — a big, slow, many-panelled
+  target worth a life, which is the cathedral the panes came from.
+* **A raven / a thrown stone** — the thing that breaks windows, which makes the
+  bonus *defending* the glass rather than shooting down a ship.
+
+⭐ The first is better art and the second is better fiction. ⚠️ **DO NOT JUST
+BUILD ONE.** Rule 3's whole lesson is that a round which picks for Jake spends
+the next three rounds putting it back.
+
+### H. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shatter.js` | **1.3.0** | panes, shots, prism, cathedral field, new copy |
+| `game-sprites.js` | **1.2.0** | `paneCut`/`drawPane`/`drawPrism`/`drawRefract`; the four rock functions **deleted** |
+| `game-draw.js` | **1.14.0** | `glassBurst()`, shard particles, `fingerPalette()`, rose-window panel |
+| `game-chrome.js` | **1.10.0** | ⚠️ the teardown and restart fix — §D |
+| `arcade-pool.js` | **2.1.0** | ⚠️ the alphabetical-order fix — §C |
+| `tests/arcade-mount-test.mjs` | **1.0.0** | new; 15 assertions |
+| `tests/arcade-panels-test.mjs` | **1.6.0** | Part K; 276 assertions |
+| `tests/arcade-pool-test.mjs` | **1.1.0** | Part F; written red first |
+| `tests/run-all-tests.mjs` | **1.28.0** | registers the new harness |
+
+⚠️ **`arcade.html` IS UNCHANGED.** Its build panel reads the runtime constants,
+so the five bumps above appear in it with no edit — which is the property that
+list was built for.

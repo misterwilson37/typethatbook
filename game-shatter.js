@@ -1,28 +1,35 @@
-// game-shatter.js v1.3.0 — Round 115 (Tower): THE ROCKS BREAK, THE SHIP TURNS,
-//   AND EVERY KEY IS A COLOURED SHOT. Jake, 2026-09-10, sending the Gemini
-//   prototype back as the baseline: *"Ship should rotate, and rocks should
-//   literally break... Adding more color would help - perhaps mimicking what you
-//   did with deadline and the ufos, where the colors of the keys were each
-//   represented in the art of the rock itself. No projectiles come out of the
-//   ship itself, and having the colors of the letters come out would at least
-//   have something happen. Maybe it can shimmer..."*
-//   • ROCK ART: each edge of a rock is coloured by one of its letters' finger
-//     colours (keyboard.js, via fingerColorOf — the Deadline UFO idea). A typed
-//     letter's edges go dark, so a rock visibly drains as you type it.
-//   • BOLTS: every correct key fires a bolt in THAT KEY'S colour from the ship's
-//     nose; on arrival the rock shimmers in the colour and chips sparks.
-//   • BREAKING: a cleared rock's own outline is cut into wedges that fly apart
-//     and tumble (Gemini's ShipDebris idea, applied to rocks). Pieces are thrown
-//     OUT from the break point (shatter-board.js v1.2.0's SPLIT_KICK) and the
-//     view flies them there instead of teleporting them.
-//   • THE SHIP TURNS at a capped rate and tracks its orbiting target; with no
-//     lock it holds its heading instead of snapping up.
-//   • SPEED lives in shatter-board.js v1.2.0 (targetWPM passed in below).
-//   ⚠️ ALL OF THIS IS VIEW-ONLY except the board options. No grading, no key
-//   accounting and no timing changed here.
+// game-shatter.js v1.3.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let), 116 (Sun).
 //
-// (v1.2.0 and earlier follow.)
-// game-shatter.js v1.2.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let).
+// v1.3.0 — ⭐⭐ STAINED GLASS, AND A PRISM FOR A SHIP.
+//   ⚠️⚠️ THIS IS THE THIRD TIME THIS FILE HAS REDRAWN ITS TARGETS AND THE FIRST
+//   TIME THE ART HAS MADE AN ARGUMENT. v1.0.0 drew a rounded rectangle behind
+//   text — Jake: *"that's just...bad."* v1.2.0 drew an irregular polygon, which
+//   does say BREAKABLE and says nothing else, and what it bought was Asteroids
+//   wearing a different name. ⭐ THE GAME IS CALLED SHATTER AND THE WORDS WERE
+//   ALREADY COLOURED A LETTER AT A TIME BY THE FINGER MAP; the thing that
+//   shatters into coloured pieces is GLASS, and it always was.
+//
+//   A target is now a **leaded pane with one panel per letter**, each panel the
+//   colour of the finger that types it. It starts dark. A correct key lights its
+//   panel from behind and the prism throws a ray in that same colour to do it.
+//   The last key lights the last panel and the pane blows apart into shards of
+//   exactly those colours. ⚠️ THE PROGRESS DISPLAY, THE FINGER DRILL AND THE ART
+//   ARE ONE OBJECT NOW rather than three stacked on each other — which is why
+//   `drawTargetWord()`'s red-typed/white-rest scheme is DELETED rather than
+//   kept: it was a second, competing answer to "how far through am I".
+//
+//   ⭐ THE SHIP IS THE SAME TRIANGLE POINTING THE SAME WAY. That is the whole
+//   design: the prism is not a new ship, it is what that triangle turns out to
+//   have been once the targets became glass. White light enters the back face,
+//   the spectrum rests at the apex, and a correct key collapses the fan into one
+//   ray. ⚠️ A WRONG KEY WHITES IT OUT AND THROWS NOTHING, because the one thing
+//   a mistake must read as is *no light came out*. See HANDOFF §16 for why the
+//   aim behaviour itself was not touched (Jake's *"do not rewrite what works"*).
+//
+//   ⚠️ THE PANE DOES NOT TUMBLE. v1.2.0's rocks spun with the word drawn flat on
+//   top in screen space — fine for a label in front of a rock, impossible once
+//   each letter must stay over its own panel. A frozen tilt and a slow sway
+//   instead: a sway costs nothing, a spin costs legibility.
 //
 // v1.2.0 — ⭐ BOTH SIDE PANELS, STACKED WARPS, AND THE IDLE-AWARE BANKED CLOCK.
 //   ⚠️ THE RIGHT PANEL REUSES drawGauges() rather than growing a third console:
@@ -98,15 +105,15 @@ import { ShatterBoard, splittable, SHATTER_COST_FACTOR } from './shatter-board.j
 import { mountChrome } from './game-chrome.js';
 import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
-    fitCanvas, platedText, platedProgress, burst, updateParticles,
+    fitCanvas, platedText, glassBurst, updateParticles,
     drawParticles, roundRect, drawHitFeedback, drawCapsWarning, motionScale,
-    makeStars, drawStars, fingerColorOf,
+    makeStars, drawStars, fingerColorOf, fingerPalette,
 } from './game-draw.js';
-// ⚠️⚠️ A ROCK IS AN OBJECT, NOT A LABEL. v1.0.0 drew each target as a rounded
-// rectangle behind text — nothing about which says *breakable*, which is the one
-// thing this game's art has to communicate. See game-sprites.js's header.
-import { rockOutline, drawRock, drawShip as drawShipArt, drawTargetWord }
-    from './game-sprites.js';
+// ⚠️⚠️ A TARGET IS A PANE OF GLASS, ONE PANEL PER LETTER. v1.0.0 drew a rounded
+// rectangle behind text (a label), v1.2.0 drew an asteroid (breakable, and
+// nothing else). See game-sprites.js's SHATTER section header for why this is
+// the version that makes the name, the colours and the shots one idea.
+import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
@@ -114,10 +121,18 @@ export const GAME_SHATTER_VERSION = '1.3.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
-const SHIP_R = 26;          // the ship's own radius in px
+const SHIP_R = 26;          // the prism's own radius in px
 const RING_MARGIN = 30;     // gap between the spawn ring and the canvas edge
-const DANGER_R = 0.22;      // board-space radius at which a rock reads as close
+const DANGER_R = 0.22;      // board-space radius at which a pane reads as close
 const HUD_H = 46;
+// ⚠️ FETCHED ONCE AND NEVER WRITTEN. The palette is keyboard.js's; this is a
+// cached read of it, not a second home for it. See game-draw.js's
+// fingerPalette().
+const FAN = fingerPalette();
+// How long a refracted shot stays on screen. ⚠️ SHORTER THAN THE FASTEST
+// PLAUSIBLE KEY INTERVAL AT 60 WPM (200ms), so a fast student sees a stream of
+// separate shots rather than one smeared ribbon.
+const SHOT_MS = 150;
 
 /**
  * @param {HTMLElement} container
@@ -191,7 +206,7 @@ export function mount(container, opts) {
     });
 
     let d = new GameDirector(baseCfg);
-    let board = new ShatterBoard({ rand, targetWPM: d.targetWPM });
+    let board = new ShatterBoard({ rand });
     let capsOn = false;
     let started = false;   // set by the countdown; spawns wait for it
 
@@ -231,182 +246,47 @@ export function mount(container, opts) {
     }
 
     /**
-     * Attach the view-only art fields a rock needs. ⚠️ EVERY ROCK GETS THESE,
-     * INCLUDING PIECES — a piece with no outline draws as a perfect circle and
-     * instantly reads as a different kind of object from the rock it came from.
+     * Attach the view-only art fields a pane needs. ⚠️ EVERY TARGET GETS THESE,
+     * INCLUDING PIECES — a piece with no cut draws as a perfect rectangle and
+     * instantly reads as a different kind of object from the pane it came from.
      * ⚠️ It is view state living on a board object, a deliberate exception: the
      * alternative is a parallel Map keyed by rock that has to be pruned in three
      * places, and Round 82's ease-Map already showed what that costs.
+     *
+     * ⚠️⚠️ `colors` IS ONE ENTRY PER LETTER AND IS BUILT HERE, ONCE. Deriving it
+     * inside the draw loop would call the finger lookup for every letter of
+     * every pane every frame, and — worse — would be a second place that decides
+     * what colour a letter is. The pane, the shot and the shards all read this
+     * array, which is what makes them agree.
      */
     function decorate(rock) {
-        if (!rock || rock.outline) return rock;
-        rock.outline = rockOutline(rand);
-        rock.spin = rand() * Math.PI * 2;
-        rock.spinRate = (rand() - 0.5) * 0.6 * motionScale();
+        if (!rock || rock.cut) return rock;
+        rock.cut = paneCut(rand, rock.text.length);
+        // ⚠️ THE SWAY IS THE ONLY MOTION LEFT ON A TARGET (the tumble is gone —
+        // letters have to stay over their own panels), and it still answers to
+        // the reduced-motion setting like everything else in this file.
+        rock.cut.sway *= motionScale();
+        rock.colors = Array.from(rock.text, ch => fingerColorOf(ch, '#9fb6d8'));
         return rock;
     }
 
     // ── view-only state ─────────────────────────────────────────────────────
     // ⚠️ EVERYTHING HERE IS COSMETIC. Board truth lives on `board`; game truth
     // lives on `d`. Nothing below is read to decide an outcome.
-    // ⭐ v1.3.0 — view-only effects. See the header.
-    let bolts = [];    // { x0,y0, rock, at, color, born }
-    let shards = [];   // { pts, x,y, vx,vy, rot, vrot, color, life }
-    let shipAngle = -Math.PI / 2;
-    const BOLT_MS = 130, SHIMMER_MS = 260, FLY_MS = 420, SHARD_S = 1.1;
-
-    function rockSize() { return Math.max(14, Math.round(ringR * 0.07)); }
-    function rockRadius(rock) {
-        const size = rockSize();
-        return Math.max(size * 1.4, rock.text.length * size * 0.42);
-    }
-    function ease(t) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3); }
-    /** Where a rock is DRAWN: a fresh piece flies out from its break point. */
-    function drawPos(rock, now) {
-        const p = px(rock);
-        if (rock.bornR == null || rock.bornAt == null) return p;
-        const t = ease((now - rock.bornAt) / FLY_MS);
-        if (t >= 1) return p;
-        const q = px({ r: rock.bornR, angle: rock.bornAngle });
-        return { x: q.x + (p.x - q.x) * t, y: q.y + (p.y - q.y) * t };
-    }
-    function shipNose() {
-        return { x: cx + Math.cos(shipAngle) * SHIP_R * 0.8,
-                 y: cy + Math.sin(shipAngle) * SHIP_R * 0.8 };
-    }
-    /** Cut the rock's own outline into tumbling wedges, one colour per letter. */
-    function shatterArt(rock, now) {
-        if (!rock.outline) return;
-        const p = drawPos(rock, now), rr = rockRadius(rock);
-        const n = rock.outline.length;
-        const spin = (rock.spin || 0) + (now / 1000) * (rock.spinRate || 0);
-        const away = Math.atan2(p.y - cy, p.x - cx);
-        const step = 2;
-        for (let i = 0, w = 0; i < n; i += step, w++) {
-            const pts = [[0, 0]];
-            for (let k = 0; k <= step; k++) {
-                const j = (i + k) % n, a = (j / n) * Math.PI * 2 + spin;
-                const R = rr * rock.outline[j];
-                pts.push([Math.cos(a) * R, Math.sin(a) * R]);
-            }
-            const mid = ((i + step / 2) / n) * Math.PI * 2 + spin;
-            const v = (70 + rand() * 90) * motionScale();
-            shards.push({
-                pts, x: p.x, y: p.y,
-                vx: Math.cos(mid) * v + Math.cos(away) * 40,
-                vy: Math.sin(mid) * v + Math.sin(away) * 40,
-                rot: 0, vrot: (rand() - 0.5) * 6 * motionScale(),
-                color: fingerColorOf(rock.text[w % rock.text.length] || 'a', '#ffffff'),
-                life: SHARD_S,
-            });
-        }
-    }
-    function updateEffects(dt, now) {
-        for (const sh of shards) {
-            sh.x += sh.vx * dt; sh.y += sh.vy * dt;
-            sh.vx *= 0.985; sh.vy *= 0.985;
-            sh.rot += sh.vrot * dt; sh.life -= dt;
-        }
-        shards = shards.filter(sh => sh.life > 0);
-        for (const b of bolts) if (board.rocks.includes(b.rock)) b.at = drawPos(b.rock, now);
-        const keep = [];
-        for (const b of bolts) {
-            if (now - b.born < BOLT_MS) { keep.push(b); continue; }
-            // ARRIVED: the rock shimmers in the bolt's colour and chips sparks.
-            b.rock.shimmer = { color: b.color, until: now + SHIMMER_MS };
-            burst(particles, b.at.x, b.at.y, b.color, Math.round(6 * motionScale()), 120);
-        }
-        bolts = keep;
-        // ⭐ THE SHIP TURNS, IT DOES NOT SNAP: capped turn rate toward the lock,
-        // and with no lock it holds its heading.
-        const lk = board.locked && board.rocks.includes(board.locked) ? board.locked : null;
-        if (lk) {
-            const p = drawPos(lk, now);
-            let dA = Math.atan2(p.y - cy, p.x - cx) - shipAngle;
-            dA = Math.atan2(Math.sin(dA), Math.cos(dA));
-            const maxTurn = 10 * dt;
-            shipAngle += Math.max(-maxTurn, Math.min(maxTurn, dA));
-        }
-    }
-    function drawEffects(now) {
-        ctx.save();
-        ctx.lineCap = 'round';
-        for (const b of bolts) {
-            const t = Math.min(1, (now - b.born) / BOLT_MS);
-            const tt = Math.max(0, t - 0.4);
-            ctx.strokeStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 10;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(b.x0 + (b.at.x - b.x0) * tt, b.y0 + (b.at.y - b.y0) * tt);
-            ctx.lineTo(b.x0 + (b.at.x - b.x0) * t, b.y0 + (b.at.y - b.y0) * t);
-            ctx.stroke();
-        }
-        ctx.shadowBlur = 0;
-        for (const sh of shards) {
-            ctx.save();
-            ctx.globalAlpha = Math.max(0, sh.life / SHARD_S);
-            ctx.translate(sh.x, sh.y); ctx.rotate(sh.rot);
-            ctx.beginPath();
-            sh.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-            ctx.closePath();
-            ctx.fillStyle = 'rgba(8,12,22,0.7)'; ctx.fill();
-            ctx.strokeStyle = sh.color; ctx.lineWidth = 1.6; ctx.stroke();
-            ctx.restore();
-        }
-        ctx.restore();
-    }
-
-    /**
-     * ⭐ v1.3.0 — THE ROCK'S ART IS ITS LETTERS. Each edge takes the finger colour
-     * of one letter (cycling); an edge whose letter is typed goes dark, so the
-     * rock drains as it is typed. Danger and lock are a GLOW, not a recolour, so
-     * the letters stay readable in both states. A shimmer is the last bolt's
-     * colour washing over the whole outline.
-     */
-    function drawLetterRock(rock, x, y, rr, spin, isLocked, near, now) {
-        const o = rock.outline, n = o.length, L = rock.text.length || 1;
-        const pt = j => {
-            const a = (j / n) * Math.PI * 2 + spin, R = rr * o[j % n];
-            return [x + Math.cos(a) * R, y + Math.sin(a) * R];
-        };
-        ctx.save();
-        ctx.beginPath();
-        for (let j = 0; j < n; j++) { const [a, b] = pt(j); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }
-        ctx.closePath();
-        ctx.fillStyle = rock.parent != null ? 'rgba(40,30,10,0.6)' : 'rgba(4,7,14,0.6)';
-        ctx.fill();
-        // ⚠️ A HALO STROKE, NOT A GLOWING FILL — a blurred fill washed the whole
-        // rock yellow and buried the letter colours (seen rendered, Round 115).
-        if (near || isLocked) {
-            ctx.strokeStyle = near ? 'rgba(255,85,102,0.30)' : 'rgba(255,255,0,0.22)';
-            ctx.lineWidth = 6; ctx.lineJoin = 'round'; ctx.stroke();
-        }
-        ctx.lineWidth = isLocked ? 2.8 : 2;
-        ctx.lineCap = 'round';
-        for (let j = 0; j < n; j++) {
-            const li = Math.floor(j * L / n);
-            const [a, b] = pt(j), [c, e] = pt(j + 1);
-            ctx.globalAlpha = li < rock.typed ? 0.22 : 1;
-            ctx.strokeStyle = fingerColorOf(rock.text[li], '#ffffff');
-            ctx.beginPath(); ctx.moveTo(a, b); ctx.lineTo(c, e); ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
-        const sh = rock.shimmer;
-        if (sh && now < sh.until) {
-            const k = (sh.until - now) / SHIMMER_MS;
-            ctx.globalAlpha = k;
-            ctx.strokeStyle = sh.color; ctx.shadowColor = sh.color; ctx.shadowBlur = 18;
-            ctx.lineWidth = 3 + 3 * k;
-            ctx.beginPath();
-            for (let j = 0; j < n; j++) { const [a, b] = pt(j); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }
-            ctx.closePath(); ctx.stroke();
-        }
-        ctx.restore();
-    }
-
     let particles = [];
     let banner = null;
     let flash = 0;
+    // ⚠️ THE SHOTS ARE PURELY DECORATIVE AND CARRY NO HIT TEST. The board already
+    // decided the key landed before one of these exists; a beam that could
+    // "miss" would be a second adjudicator of a keystroke, which is the one
+    // thing this file is not allowed to grow.
+    // Each: { x0, y0, x1, y1, color, t } with t counting 1 → 0.
+    let shots = [];
+    // 0..1. The prism whites out on a wrong key, which is the mirror of the
+    // coloured shot it throws on a right one.
+    let flare = 0;
+    // The dispersion shockwave a warp throws. 0..1, or null.
+    let warpRing = null;
     let ended = false;
     let rafId = null, lastFrame = null, tickAcc = 0;
     // ⚠️ HIGH-WATER MARK, NOT AN ACCUMULATOR — see bankWholeSeconds().
@@ -437,13 +317,30 @@ export function mount(container, opts) {
         if (e.key === ' ' && board.canWarp(now)) {
             board.warp(now);
             sfx.free();
-            burst(particles, cx, cy, '#ffd700', Math.round(30 * motionScale()), 260);
+            // ⭐ THE WARP IS THE PRISM FIRING IN EVERY DIRECTION AT ONCE, which
+            // is the picture the mechanic was always drawing: the panes are
+            // pushed back by light. ⚠️ It still destroys nothing — see the
+            // WARP_PUSH note in shatter-board.js.
+            warpRing = { t: 1 };
+            glassBurst(particles, cx, cy, FAN, Math.round(30 * motionScale()), 260, rand);
             banner = { text: 'WARP', until: now + 900 };
             return;
         }
 
         const wasPiece = board.locked && board.locked.parent != null;
-        const before = board.rocks.slice();
+
+        // ⚠️⚠️ WHERE EVERY PANE WAS *BEFORE* THE KEY, BY ID. The shot has to be
+        // aimed at the pane the key landed on, and a cleared pane is gone from
+        // `board.rocks` by the time tryKey() returns — so its position cannot be
+        // read afterwards. ⭐ AND THIS IS BOOKKEEPING, NOT A RULE: it never
+        // decides where the key goes, it only asks the board afterwards which
+        // target stopped existing. Re-deriving the aim here — locked, or
+        // nearest-matching, or the re-lock — would be a second copy of
+        // shatter-board.js's dispatch, which is precisely the split this file's
+        // header forbids.
+        const before = new Map();
+        for (const k of board.rocks) before.set(k.id, { p: px(k), colors: k.colors });
+
         const r = board.tryKey(e.key, now);
 
         // ⚠️⚠️ IGNORED IS NOT CORRECT AND NOT WRONG. A space at a word boundary
@@ -459,23 +356,40 @@ export function mount(container, opts) {
 
         if (!r.correct) {
             flash = Math.max(flash, 0.11);
+            // ⚠️ THE PRISM WHITES OUT AND THROWS NOTHING. A wrong key producing a
+            // beam in some colour would say the keystroke did something, and the
+            // one thing a mistake must read as is *no light came out*.
+            flare = 1;
             sfx.misfire();
             return;
         }
 
-        // ⭐ v1.3.0 — THE SHOT, in the colour of the key just typed, at the rock
-        // that took it (the lock, or on the finishing key the rock that left).
-        const gone = before.find(x => !board.rocks.includes(x)) || null;
-        const hitRock = (board.locked && board.rocks.includes(board.locked)) ? board.locked : gone;
-        if (hitRock) {
-            const nose = shipNose();
-            bolts.push({ x0: nose.x, y0: nose.y, rock: hitRock, at: drawPos(hitRock, now),
-                         color: fingerColorOf(e.key, '#ffffff'), born: now });
+        // ── the shot ────────────────────────────────────────────────────────
+        // ⭐ ONE CORRECT KEY, ONE REFRACTED RAY, IN THAT KEY'S FINGER COLOUR.
+        // The ray, the panel it lights and the key on keyboard.js's map are the
+        // same colour in three places, which is the entire argument for the
+        // prism.
+        let landed = null;
+        if (r.cleared) {
+            const live = new Set(board.rocks.map(k => k.id));
+            for (const [id, snap] of before) {
+                if (!live.has(id)) { landed = snap; break; }
+            }
+        } else if (board.locked) {
+            landed = { p: px(board.locked), colors: board.locked.colors };
+        }
+        if (landed) {
+            const a = Math.atan2(landed.p.y - cy, landed.p.x - cx);
+            shots.push({
+                x0: cx + Math.cos(a) * SHIP_R * 0.78,
+                y0: cy + Math.sin(a) * SHIP_R * 0.78,
+                x1: landed.p.x, y1: landed.p.y,
+                color: fingerColorOf(e.key, '#cfe6ff'),
+                t: 1,
+            });
         }
 
         if (r.cleared) {
-            if (gone) shatterArt(gone, now);
-            r.pieces.forEach(pc => { decorate(pc); pc.bornAt = now; });
             // ⚠️⚠️ ONE SPAWNED TARGET, ONE RAMP STEP. Every piece is a real
             // `cleared()` — it is real typing and must reach clearedChars and the
             // score — but `RAMP_PER_TARGET` is priced per TARGET, and a Shatter
@@ -485,11 +399,15 @@ export function mount(container, opts) {
             // success. Found by simulation; invisible in review.
             d.cleared(r.cleared, now, { ramp: !wasPiece });
             sfx.clear();
-            const p = r.pieces.length ? px(r.pieces[0]) : { x: cx, y: cy };
-            burst(particles, p.x, p.y,
-                  r.pieces.length ? '#ffd700' : '#00e5ff',
-                  Math.round((r.pieces.length ? 22 : 12) * motionScale()),
-                  r.pieces.length ? 200 : 150);
+            // ⭐ THE SHARDS ARE THE PANE'S OWN PANELS. A word typed with four
+            // fingers blows apart in those four colours, so the debris is a
+            // record of the keystrokes that produced it — which is a thing a
+            // gold spark could never say.
+            const at = landed ? landed.p : { x: cx, y: cy };
+            const pal = (landed && landed.colors) || FAN;
+            glassBurst(particles, at.x, at.y, pal,
+                       Math.round((r.pieces.length ? 26 : 14) * motionScale()),
+                       r.pieces.length ? 210 : 160, rand);
             if (r.pieces.length) {
                 r.pieces.forEach(decorate);
                 sfx.launch(0);
@@ -500,13 +418,21 @@ export function mount(container, opts) {
 
     function takeHit(rock, now) {
         const p = px(rock);
-        burst(particles, p.x, p.y, '#ff3355', Math.round(34 * motionScale()), 260);
+        // ⚠️ THE PANE BREAKS, AND IT BREAKS IN ITS OWN COLOURS WITH RED THROUGH
+        // IT. An all-red burst would be the clearer damage signal and would also
+        // be the ONLY event in this game that does not tell the student which
+        // letters were involved — the pane that just landed on them is the one
+        // they most need to recognise next time. ⭐ The red flash below carries
+        // the damage; the shards carry the identification.
+        glassBurst(particles, p.x, p.y, (rock.colors || []).concat('#ff3355'),
+                   Math.round(34 * motionScale()), 260, rand);
         flash = 0.4;
+        flare = 1;
         sfx.hit();
         // ⚠️ THE SHELL DECIDES WHETHER THAT WAS THE LAST SHIELD, not this file.
         d.hit(now);
         if (d.over) { finish(now); return; }
-        banner = { text: 'HULL BREACH', until: now + 1200 };
+        banner = { text: 'GLASS DOWN', until: now + 1200 };
     }
 
     function finish(now) {
@@ -526,9 +452,9 @@ export function mount(container, opts) {
         // run-grade.js owns that, and Shatter never asks it anything.
         if (chrome) {
             chrome.showResult({
-                heading: 'SHIP DOWN',
+                heading: 'PRISM DOWN',
                 lines: [
-                    `${rep.wpm} WPM  ·  ${rep.acc}% accurate  ·  ${rep.targetsCleared} rocks`,
+                    `${rep.wpm} WPM  ·  ${rep.acc}% accurate  ·  ${rep.targetsCleared} panes`,
                     `Score ${rep.score}  ·  ${fmtClock(rep.seconds)} typing`,
                 ],
                 canRestart: true,
@@ -551,10 +477,13 @@ export function mount(container, opts) {
      */
     function restart() {
         d = new GameDirector(baseCfg);
-        board = new ShatterBoard({ rand, targetWPM: d.targetWPM });
-        bolts = []; shards = []; shipAngle = -Math.PI / 2;
+        board = new ShatterBoard({ rand });
         particles = [];
         banner = null; flash = 0;
+        // ⚠️ THE LIGHT GOES OUT TOO. A shot or a warp ring left over from the
+        // previous run paints on the countdown of the next one, which reads as
+        // the game firing at a pane that is not there.
+        shots = []; flare = 0; warpRing = null;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         idleMs = 0; lastKeyAt = 0;
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous run's
@@ -591,9 +520,10 @@ export function mount(container, opts) {
             // word is not waiting for anything.
             if (!ended && d.spawnDue(now, board.rocks.length)) {
                 const t = d.nextTarget(now);
-                // ⚠️⚠️ THE SILHOUETTE IS FROZEN AT SPAWN AND CARRIED ON THE ROCK.
-                // Re-rolling the offsets each frame makes the outline BOIL, which
-                // reads as a rendering fault rather than as stone.
+                // ⚠️⚠️ THE CUT IS FROZEN AT SPAWN AND CARRIED ON THE PANE.
+                // Re-rolling the corners and the came leans each frame makes the
+                // glass BOIL, which reads as a rendering fault rather than as a
+                // window.
                 if (t) decorate(board.spawn(t.text, t.lifetimeMs, now));
             }
         }
@@ -604,8 +534,21 @@ export function mount(container, opts) {
         }
 
         updateParticles(particles, dt);
-        updateEffects(dt, now);
         if (flash > 0) flash = Math.max(0, flash - dt);
+        // ⚠️ THE LIGHT DECAYS ON dt, NOT ON A TIMESTAMP DIFFERENCE, so a paused
+        // game does not come back with every shot already expired — and a
+        // hidden tab cannot fast-forward it, because dt is clamped above.
+        if (flare > 0) flare = Math.max(0, flare - dt * 4.5);
+        if (shots.length) {
+            for (let i = shots.length - 1; i >= 0; i--) {
+                shots[i].t -= dt * (1000 / SHOT_MS);
+                if (shots[i].t <= 0) shots.splice(i, 1);
+            }
+        }
+        if (warpRing) {
+            warpRing.t -= dt * 1.6;
+            if (warpRing.t <= 0) warpRing = null;
+        }
         // ⚠️ IN THE FRAME LOOP, NOT ONLY IN finish() — the host's daily total has
         // to move WHILE the student plays, because that is when they are looking
         // at it.
@@ -685,14 +628,13 @@ export function mount(container, opts) {
     // ── drawing ─────────────────────────────────────────────────────────────
     function draw(now, tSec) {
         ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = '#04060e';
-        ctx.fillRect(0, 0, W, H);
-        drawStars(ctx, stars, tSec);
+        drawNave(tSec);
 
         drawRings();
-        drawRocks(now, tSec);
-        drawEffects(now);
-        drawShip();
+        drawPanes(tSec);
+        drawShots();
+        drawPrismShip();
+        drawWarpRing();
         drawParticles(ctx, particles);
         drawHud(d.report(now));
 
@@ -711,18 +653,52 @@ export function mount(container, opts) {
     }
 
     /**
+     * The background: a dark nave with a light well behind the prism.
+     *
+     * ⚠️⚠️ THE STARFIELD WAS THE MOST ASTEROIDS-LOOKING THING LEFT ON SCREEN, and
+     * the whole point of this round is that the game stops being Asteroids in a
+     * costume. ⭐ THE SAME `stars` ARRAY IS KEPT AND REUSED AS MOTES OF DUST in
+     * the light — one array, one makeStars() call, no second field of anything —
+     * but it now sits under a radial glow centred on the prism, so what a
+     * student sees is light falling through a dark room rather than space.
+     */
+    function drawNave(tSec) {
+        ctx.fillStyle = '#04060e';
+        ctx.fillRect(0, 0, W, H);
+        const g = ctx.createRadialGradient(cx, cy, SHIP_R * 0.4, cx, cy, ringR * 1.15);
+        g.addColorStop(0, 'rgba(96,132,205,0.20)');
+        g.addColorStop(0.45, 'rgba(48,66,116,0.10)');
+        g.addColorStop(1, 'rgba(4,6,14,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        drawStars(ctx, stars, tSec);
+    }
+
+    /**
      * The spawn ring and the danger ring.
      *
-     * ⚠️ THE DANGER RING IS THE TUTORIAL. The lock rule is "nearest to impact",
-     * and a student cannot follow a rule they cannot see. Drawing the radius at
-     * which a rock becomes urgent teaches the rule without a paragraph of text,
-     * the same way Escape Key tints the player's row and column.
+     * ⚠️ THE DANGER RING IS THE TUTORIAL AND IS UNCHANGED IN MEANING. The lock
+     * rule is "nearest to impact", and a student cannot follow a rule they
+     * cannot see. Drawing the radius at which a pane becomes urgent teaches the
+     * rule without a paragraph of text, the same way Escape Key tints the
+     * player's row and column. ⚠️ IT STAYS RED. The window dressing around it
+     * changed; a danger signal that changed colour with the art would be the art
+     * overruling the teaching.
      */
     function drawRings() {
         ctx.save();
-        ctx.strokeStyle = 'rgba(70,90,130,0.35)';
+        // The outer ring is tracery now: a lead circle with ribs, which is the
+        // same circle the old one drew and reads as the frame of a window.
+        ctx.strokeStyle = 'rgba(120,150,205,0.28)';
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(cx, cy, ringR, 0, Math.PI * 2); ctx.stroke();
+        for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(a) * (ringR - 7), cy + Math.sin(a) * (ringR - 7));
+            ctx.lineTo(cx + Math.cos(a) * (ringR + 4), cy + Math.sin(a) * (ringR + 4));
+            ctx.stroke();
+        }
 
         ctx.strokeStyle = 'rgba(255,80,90,0.30)';
         ctx.setLineDash([5, 7]);
@@ -732,31 +708,108 @@ export function mount(container, opts) {
         ctx.restore();
     }
 
-    function drawRocks(now, tSec) {
+    function drawPanes(tSec) {
+        // ⚠️ FARTHEST FIRST, so a near pane is never drawn under a far one. The
+        // near pane is the one the prism is pointing at.
         const sorted = board.rocks.slice().sort((a, b) => b.r - a.r);
-        const size = rockSize();
+        const size = Math.max(14, Math.round(ringR * 0.07));
+        // ⚠️ ONE PULSE FOR THE WHOLE FIELD, NOT ONE PER PANE. Panes breathing out
+        // of phase with each other is a shimmer; breathing together reads as the
+        // light source flickering, which is what a nave does.
+        const pulse = 0.5 + 0.5 * Math.sin(tSec * 3.2);
         for (const rock of sorted) {
             decorate(rock);
-            const p = drawPos(rock, now);
+            const p = px(rock);
             const near = rock.r <= DANGER_R;
             const isLocked = rock === board.locked;
-            drawLetterRock(rock, p.x, p.y, rockRadius(rock),
-                           rock.spin + tSec * rock.spinRate, isLocked, near, now);
-            drawTargetWord(ctx, p.x, p.y, rock.text, rock.typed, size, isLocked);
+            // ⭐ THE PANE IS SIZED TO ITS OWN WORD, because the word is built
+            // INTO it one panel per letter. That is legitimate here in a way it
+            // was not on Escape Key's grid: these are objects at different
+            // distances, so plainly different sizes read as depth rather than as
+            // sloppy alignment.
+            const panelW = size * 0.80;
+            const halfW = Math.max(panelW, (rock.text.length * panelW) / 2);
+            const halfH = size * 0.86;
+            // ⚠️ THE RIM CARRIES STATE AND NOTHING ELSE DOES: red when it is
+            // about to land, gold when locked, otherwise the colour of the
+            // finger that types its next key — the same finger map keyboard.js
+            // uses everywhere else in this app. ⭐ The panels already say HOW FAR
+            // THROUGH the word the student is, so the rim is free to say
+            // something else entirely, which it was not when it was a rock.
+            const nextCh = rock.text[rock.typed] || rock.text[0];
+            const rim = near ? '#ff5566'
+                : isLocked ? '#ffd700'
+                : fingerColorOf(nextCh, '#cfe6ff');
+            drawPane(ctx, p.x, p.y, rock.cut, {
+                halfW, halfH,
+                text: rock.text,
+                typed: rock.typed,
+                size,
+                colors: rock.colors,
+                // ⚠️ A PIECE IS A SPLINTER, A PARENT IS A WINDOW — a difference
+                // of KIND rather than of degree. A slightly smaller window would
+                // be exactly the "slightly off" that reads as a mistake.
+                piece: rock.parent != null,
+                base: rock.parent != null
+                    ? 'rgba(14,10,26,0.80)' : 'rgba(6,10,20,0.84)',
+                rim,
+                lineWidth: isLocked ? 2.6 : 1.8,
+                glow: near ? '#ff5566' : (isLocked ? '#ffd700' : null),
+                // ⭐ IT CRAZES AS IT CLOSES. The danger ring says where the line
+                // is; the crazing says this particular pane has crossed it, on
+                // the pane itself, where the student's eyes already are.
+                crack: near ? Math.min(1, (DANGER_R - rock.r) / DANGER_R + 0.25) : 0,
+                pulse: isLocked ? pulse : pulse * 0.5,
+                tSec,
+            });
         }
     }
 
+    /** The refracted shots, oldest first so the newest is brightest on top. */
+    function drawShots() {
+        for (const s of shots) drawRefract(ctx, s.x0, s.y0, s.x1, s.y1, s.color, s.t);
+    }
+
     /**
-     * ⭐ THE SHIP POINTS AT WHAT THE STUDENT IS TYPING. It is the prototype's
-     * best idea in this game: drawn confirmation that the lock landed where they
-     * meant — which matters more here than anywhere, because two split pieces
-     * can share a first letter.
-     * ⚠️ WITH NO LOCK IT POINTS UP AND HOLDS STILL. A ship idly rotating is
+     * ⭐ THE PRISM POINTS AT WHAT THE STUDENT IS TYPING. It is the prototype's
+     * best idea in this game and it is UNCHANGED: drawn confirmation that the
+     * lock landed where they meant — which matters more here than anywhere,
+     * because two split pieces can share a first letter.
+     * ⚠️ WITH NO LOCK IT POINTS UP AND HOLDS STILL. A prism idly rotating is
      * telling the student about a target that does not exist.
      */
-    function drawShip() {
-        // ⭐ v1.3.0 — the heading is shipAngle, turned in updateEffects().
-        drawShipArt(ctx, cx, cy, SHIP_R * 0.8, shipAngle);
+    function drawPrismShip() {
+        let angle = null;
+        if (board.locked && board.rocks.includes(board.locked)) {
+            const p = px(board.locked);
+            angle = Math.atan2(p.y - cy, p.x - cx);
+        }
+        drawPrism(ctx, cx, cy, SHIP_R * 0.8, angle, { fan: FAN, flare });
+    }
+
+    /**
+     * The warp: the prism firing in every direction at once.
+     *
+     * ⚠️ IT IS DRAWN FROM `warpRing` AND NOTHING ELSE. The board already spent
+     * the warp and pushed the panes back; this is the picture of that having
+     * happened, and it must never be a second place that decides whether it did.
+     */
+    function drawWarpRing() {
+        if (!warpRing) return;
+        const k = 1 - warpRing.t;                 // 0 at the prism, 1 at the ring
+        ctx.save();
+        ctx.lineWidth = 3;
+        for (let i = 0; i < FAN.length; i++) {
+            // ⭐ EIGHT RINGS, ONE PER FINGER, SLIGHTLY APART — the spectrum
+            // spreading, which is what a prism does and what the warp costs:
+            // eight cleared words' worth of colour going back out.
+            const r = SHIP_R + (k - i * 0.035) * (ringR - SHIP_R) * 1.05;
+            if (r <= SHIP_R) continue;
+            ctx.globalAlpha = warpRing.t * 0.55;
+            ctx.strokeStyle = FAN[i];
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        }
+        ctx.restore();
     }
 
     function drawHud(rep) {
@@ -774,7 +827,7 @@ export function mount(container, opts) {
 
         // ⚠️ SHIELDS AS SHAPES, NOT AS A NUMBER. "Shields: 2" is a fact a child
         // has to read; three pips with one dark is a fact they can see while
-        // their eyes are on a rock.
+        // their eyes are on a pane.
         ctx.textAlign = 'right';
         const pipR = 6, gap = 17;
         for (let i = 0; i < rep.shieldsLeft + rep.hits; i++) {
@@ -794,7 +847,21 @@ export function mount(container, opts) {
         ctx.fillStyle = 'rgba(12,20,34,0.95)'; ctx.fill();
         ctx.strokeStyle = 'rgba(70,90,130,0.6)'; ctx.lineWidth = 1; ctx.stroke();
         roundRect(ctx, bx + 1.5, HUD_H / 2 - 4.5, Math.max(0, (bw - 3) * board.charge), 9, 4.5);
-        ctx.fillStyle = full ? '#ffd700' : '#00e5ff'; ctx.fill();
+        // ⭐ THE METER FILLS WITH THE SPECTRUM AND GOES GOLD WHEN IT IS READY.
+        // The charge is light the prism has collected from cleared panes, so it
+        // is drawn as light; gold is reserved for "you can spend this now",
+        // which is the only state the student has to act on. ⚠️ THE GRADIENT IS
+        // COSMETIC — the WIDTH is still board.charge and nothing else.
+        if (full) {
+            ctx.fillStyle = '#ffd700';
+        } else {
+            const grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+            for (let i = 0; i < FAN.length; i++) {
+                grad.addColorStop(i / (FAN.length - 1), FAN[i]);
+            }
+            ctx.fillStyle = grad;
+        }
+        ctx.fill();
         ctx.textAlign = 'center';
         ctx.font = 'bold 11px "Courier Prime", monospace';
         ctx.fillStyle = full ? '#ffd700' : '#6f86a8';
@@ -831,10 +898,15 @@ export function mount(container, opts) {
         // WHERE IT IS USED BEFORE BELIEVING IT WORKS.
         barHost: (opts && opts.barHost) || null,
         title: 'Shatter',
-        hint: 'Type a rock to break it — and it breaks into its pieces, which you '
-            + 'have to type too. Go for whatever is closest to your ship. Fill the '
-            + 'WARP meter by clearing rocks, then hit Space to push everything back. '
-            + 'Esc lets go of the word you are on.',
+        // ⚠️ IT SAYS PANE AND PRISM BECAUSE THE SCREEN DOES. A hint that still
+        // said "rock" and "ship" would be describing the previous version of
+        // this game to a child looking at this one.
+        hint: 'Each word is a pane of glass, one panel per letter, coloured for '
+            + 'the finger that types it. Light up every panel and the pane '
+            + 'shatters — into its pieces, which you have to type too. Go for '
+            + 'whatever is closest to your prism. Clearing panes charges the WARP '
+            + 'meter; Space pushes everything back. Esc lets go of the word you '
+            + 'are on.',
         muted: isMuted(),
         onStart() { started = true; lastFrame = null; },
         onPause(on) {

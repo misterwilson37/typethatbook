@@ -1,5 +1,54 @@
 # TYPETHATBOOK — ROADMAP
 
+### 116a — ⚠️ SHATTER'S BONUS TARGET NEEDS JAKE'S RULING, NOT AN IMPLEMENTATION
+
+**STATUS: OPEN. BLOCKED ON A DESIGN DECISION THAT IS NOT MINE TO MAKE.**
+
+Jake's original note: *"maybe the ship should get another life if it takes out a
+space ship."* Gemini's prototype had a UFO; the rewrite dropped it and the item
+has sat open since.
+
+⚠️⚠️ **ROUND 116 CHANGED THE PREMISE.** Shatter is stained glass now and the
+ship is a prism, so **a flying saucer would be the one object on screen still
+from the old game.** Two candidates fit:
+
+* **A rose window** drifting across the field — a big, slow, many-panelled
+  target worth a life. The cathedral the panes came from.
+* **A raven, or a thrown stone** — the thing that breaks windows. Makes the
+  bonus *defending* the glass rather than shooting something down.
+
+⭐ The first is better art; the second is better fiction. ⚠️ **DO NOT JUST BUILD
+ONE.** Rule 3's whole lesson is that a round which picks for Jake spends the
+next three rounds putting it back. Ask.
+
+### 116b — DEADLINE AND ESCAPE KEY HAVE STILL NEVER BEEN MOUNTED BY A HARNESS
+
+⚠️⚠️ **THE CHEAPEST LARGE WIN AVAILABLE.** `tests/arcade-mount-test.mjs` (Round
+116) is the first harness in this project to call `mount()`, and it found a
+teardown that had been throwing a `ReferenceError` for an unknown number of
+rounds — skipping the canvas removal, the control bar and `board.destroy()` —
+plus an Escape-to-pause that died after the first restart. **All 97 harnesses
+were green over both, for as long as both existed.**
+
+It drives **Shatter only**. The same file, pointed at `game-deadline.js` and
+`game-escape.js`, is a small amount of work against two views that have had far
+more rounds of change than Shatter has.
+
+⚠️ **WHAT IT MUST NOT BECOME**: a second copy of the game rules. It asserts only
+what is true of any view — it draws, it banks a second, it tears down cleanly.
+How a word splits belongs to `shatter-board-test.mjs`; what a keystroke is worth
+belongs to `game-shell-test.mjs`.
+
+### 116c — NOTHING ASKS WHAT ORDER ANYTHING ARRIVES IN
+
+Round 116 shipped a fix for the arcade pools dealing words alphabetically —
+found by Jake playing the build, not by the suite. ⭐ **THE CLASS OF DEFECT IS
+WORTH A SWEEP**: `arcade-pool-test.mjs` asked whether every pool was big enough,
+legal, splittable and dealable, and never once asked what **sequence** a student
+receives. The same blind spot plausibly exists for lesson drills, the featured
+shelf's non-reserved slots, and remediation key selection. ⚠️ Cheap to look at,
+and the one in the arcade reached a classroom.
+
 ### 114a — ✅ CLOSED (Round 115, Tower) — `guest-merge-test.mjs` Part D was a fixture time bomb
 
 ✅ **DIAGNOSED AND FIXED IN THE HARNESS; NO PRODUCTION CHANGE.** Fixtures dated

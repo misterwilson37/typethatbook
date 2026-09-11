@@ -1,3 +1,9 @@
+// arcade-pool.js v2.1.0 — Round 116 (Sun): ⭐ THE WORDS STOP ARRIVING IN
+// ALPHABETICAL ORDER. Jake, playing the build: *"the words are coming through
+// alphabetically...which is kind of lame."* Shuffled within the difficulty
+// band for Shatter and outright for the word banks — see the block above
+// gradedOrder() for why the fix is here and not in GameDirector. ⚠️ The header
+// below is v1.0.0's and the ruling in it still stands.
 // arcade-pool.js v1.0.0 — WHAT WORDS AN ARCADE RUN IS PLAYED WITH.
 // Round 104 (Bar-Let).
 //
@@ -49,7 +55,7 @@ import { splitTarget, splittable } from './shatter-board.js';
 import { makeArcadeTargets, ARCADE_GROUP_SIZE } from './game-shell.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const ARCADE_POOL_VERSION = '2.0.0';
+export const ARCADE_POOL_VERSION = '2.1.0';
 
 /** The two scopes a student may choose between. ⚠️ NEITHER IS THE DEFAULT-CORRECT
  *  ONE; the picker asks and the answer is theirs. */
@@ -157,7 +163,17 @@ export function poolForLevel({ keySet, round = 1, count = 200, scope = 'level',
     for (const len of lengths) {
         const words = wordsForKeys(keySet, len);
         if (words.length >= MIN_POOL && distinctFirsts(words) >= MIN_DISTINCT_FIRSTS) {
-            return { targets: words, source: 'words', len };
+            // ⚠️ SHUFFLED ON THE WAY OUT, NOT INSIDE wordsForKeys(). That
+            // function is exported and is used to ASK QUESTIONS about a key set
+            // ("how many words can these letters spell?"); an answer that came
+            // back in a different order every call would be a worse tool and
+            // would make three harnesses non-deterministic.
+            // ⚠️ EVERY WORD IN A BANK IS THE SAME LENGTH, so unlike Shatter's
+            // pool there is no band here to preserve — a plain shuffle is the
+            // whole fix. ⭐ AND poolProviderFor() MEMOISES PER ROUND, so Escape
+            // Key sees one stable order for the round rather than a reshuffle
+            // on every cell refresh.
+            return { targets: shuffled(words, rand), source: 'words', len };
         }
     }
     // ⚠️ NOT A FAILURE. See the header — for the early units this IS the answer,
@@ -211,16 +227,59 @@ export function poolProviderFor(keySet, rand = Math.random, scope = 'level') {
 // and use the whole alphabet, so a level-scoped pool cannot reach them until very
 // late in the course — while a third of the school could type them on day one.
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE ORDER A STUDENT RECEIVES WORDS IN — Jake, 2026-09-10
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// *"the words are coming through alphabetically...which is kind of lame."*
+//
+// ⭐ NOBODY CHOSE THAT. It fell out of three separately-correct decisions:
+// `shatter-words.js` and every bank in `word-banks.js` are STORED
+// alphabetically (right — a human has to be able to find a word in them);
+// `wordsForKeys()` and `gradedOrder()` PRESERVE input order (right — neither
+// has any business inventing one); and `GameDirector.nextTarget()` walks
+// `targets` with a wrapping cursor (right — learn.js hands it the sentences of
+// a passage and they must arrive in the order the author wrote them).
+//
+// ⚠️⚠️ SO THE FIX BELONGS HERE AND NOT IN THE DIRECTOR. Shuffling inside
+// nextTarget() would shuffle learn.js's passages too, and would destroy the
+// easy-band-first ramp below. ⭐ THE POOL IS THE THING THAT KNOWS WHAT ORDER IT
+// WANTS; the director is the thing that must honour whatever it is handed.
+//
+// ⚠️ IT TAKES `rand`, LIKE EVERY OTHER RANDOM THING IN THIS REPO. A pool that
+// cannot be reproduced in a harness is one whose "it dealt me three impossible
+// words in a row" report cannot be investigated.
+
+/** Fisher–Yates, on a copy. ⚠️ NEVER IN PLACE — `BANKS` and `SHATTER_WORDS` are
+ *  module-level constants shared by every caller in the app, and shuffling one
+ *  of them would reorder the source of truth for the whole process. */
+function shuffled(list, rand) {
+    const out = list.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+}
+
 /**
  * ⭐ EASY BAND FIRST, THEN MEDIUM. The director consumes `targets` in order and
  * wraps, so the order IS the difficulty curve — a free ramp that costs nothing
- * and needs no new machinery. ⚠️ NOT SHUFFLED: shuffling would hand a Unit-2
- * student `accomplishment` as their opening rock.
+ * and needs no new machinery.
+ *
+ * ⚠️⚠️ SHUFFLED **WITHIN** EACH BAND, NEVER ACROSS THEM. v2.0.0 said "NOT
+ * SHUFFLED: shuffling would hand a Unit-2 student `accomplishment` as their
+ * opening rock" — that reasoning is correct and is why this is not a plain
+ * shuffle. ⭐ BUT IT ONLY EVER DEFENDED THE BAND ORDER, AND WAS READ AS
+ * DEFENDING THE ALPHABET, which nothing defends: the list happens to be stored
+ * A–Z so the student got `abandoned abruptly absently absolutely`. Shuffling
+ * inside each band keeps every easy word ahead of every harder one and kills
+ * the march. tests/arcade-pool-test.mjs Part F pins both halves.
  */
-function gradedOrder(entries) {
+function gradedOrder(entries, rand = Math.random) {
     const easy = [], rest = [];
     for (const e of entries) (e.grade === 'easy' ? easy : rest).push(e);
-    return easy.concat(rest);
+    return shuffled(easy, rand).concat(shuffled(rest, rand));
 }
 
 /**
@@ -237,7 +296,7 @@ function gradedOrder(entries) {
 export function shatterPool({ scope = 'level', keySet, count = 200, rand = Math.random }) {
     const usable = SHATTER_WORDS.filter(e => splittable(e.w) && !firstBlocked(e.w));
     if (scope === 'full') {
-        return { targets: gradedOrder(usable).map(e => e.w), source: 'morphemes', len: null };
+        return { targets: gradedOrder(usable, rand).map(e => e.w), source: 'morphemes', len: null };
     }
     const keys = (keySet || []).filter(k => typeof k === 'string' && k.length === 1);
     const allowed = keys.length ? new Set(keys.map(k => k.toLowerCase())) : null;
@@ -245,7 +304,7 @@ export function shatterPool({ scope = 'level', keySet, count = 200, rand = Math.
         ? usable.filter(e => [...e.w].every(ch => allowed.has(ch)))
         : usable;
     if (fits.length >= MIN_POOL && distinctFirsts(fits.map(e => e.w)) >= MIN_DISTINCT_FIRSTS) {
-        return { targets: gradedOrder(fits).map(e => e.w), source: 'morphemes', len: null };
+        return { targets: gradedOrder(fits, rand).map(e => e.w), source: 'morphemes', len: null };
     }
     // ⚠️ NOT A FAILURE — see the header. A beginner shattering `asd|fjk` is
     // practising the drill they are actually on, under pressure.

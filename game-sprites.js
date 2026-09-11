@@ -1,4 +1,13 @@
-// game-sprites.js v1.1.0 — THE ARCADE'S ARTWORK. Rounds 106, 112 (Bar-Let).
+// game-sprites.js v1.2.0 — THE ARCADE'S ARTWORK. Rounds 106, 112, 116 (Sun).
+//
+// v1.2.0 — ⭐ SHATTER IS STAINED GLASS. The rock functions are DELETED, not
+//   deprecated: `rockOutline`, `drawRock`, `drawShip` and `drawTargetWord` had
+//   exactly one caller between them and keeping them beside their replacements
+//   would be two answers to one question. A target is now a leaded pane with one
+//   panel per letter, the panel lights in that letter's finger colour as it is
+//   typed, and the ship is the prism that throws those colours. See the section
+//   header below for why this is not a reskin. ⚠️ THE ESCAPE KEY SPRITES ABOVE
+//   ARE UNTOUCHED and the rule about them still stands.
 //
 // v1.1.0 — ⚠️ drawPixelSprite() TAKES A SCREEN-SPACE ANGLE. `scale(-1, 1)` mirrors
 //   the rotation too, so a kaiju entering from the right leaned backwards OUT of
@@ -34,7 +43,7 @@
 // ⚠️ PURE-ISH: it draws to a 2D context and does nothing else. No DOM, no state,
 // no timers, no Math.random(). Every function takes everything it needs.
 
-export const GAME_SPRITES_VERSION = '1.1.0';
+export const GAME_SPRITES_VERSION = '1.2.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ESCAPE KEY — 24×24 PIXEL SPRITES
@@ -246,91 +255,367 @@ export function drawWeb(ctx, x, y, r) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// SHATTER — VECTOR ART
+// SHATTER — STAINED GLASS
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️⚠️ A ROCK IS AN IRREGULAR POLYGON WITH A FIXED SILHOUETTE, AND BOTH HALVES OF
-// THAT MATTER. Round 105 drew rocks as rounded rectangles behind text, which is
-// a label rather than an object — nothing about it says *breakable*. And the
-// jaggedness must be FROZEN PER ROCK: re-rolling the offsets each frame makes the
-// outline boil, which reads as a rendering fault rather than as stone.
-
-export const ROCK_POINTS = 10;
+// ⚠️⚠️ THE ROCKS ARE GONE AND THAT IS THE POINT. v1.1.0 replaced a rounded
+// rectangle with an irregular polygon because *"nothing about a rounded
+// rectangle says BREAKABLE"* — correct, and it bought an ASTEROID, which says
+// breakable and says nothing else. The game is called **Shatter**, the words are
+// already coloured a letter at a time by the finger map, and the thing that
+// shatters into coloured pieces is GLASS.
+//
+// ⭐ SO A TARGET IS A LEADED PANE, ONE PANEL PER LETTER, EACH PANEL THE COLOUR OF
+// THE FINGER THAT TYPES IT. The pane starts dark. Every correct key lights its
+// panel from behind. The last key lights the last panel and the whole thing
+// blows apart into coloured shards. ⚠️ THE PROGRESS BAR, THE FINGER DRILL AND THE
+// ART ARE NOW ONE OBJECT rather than three things layered on top of each other —
+// which is why this is not a reskin. `drawTargetWord()`'s red-typed / white-rest
+// scheme was a second, competing progress display and is deleted with it.
+//
+// ⚠️⚠️ AND THEREFORE THE PANE DOES NOT TUMBLE. v1.1.0's rocks spun, with the word
+// drawn flat on top in screen space — fine when the word was a label sitting in
+// front of a rock, impossible now that each letter must stay over its own panel.
+// It keeps a small frozen TILT and a slow SWAY instead, so it reads as glass
+// hanging rather than as a sticker. ⭐ A slow sway costs nothing and a spin costs
+// legibility; there was never a trade here.
+//
+// ⚠️ THE FUNCTIONS BELOW TAKE THEIR COLOURS AS ARGUMENTS AND LOOK NOTHING UP.
+// game-draw.js owns the one import of keyboard.js's FINGER_COLORS (game-
+// assumptions-test.mjs Part J is the guard), and a palette literal in this file
+// would be the second copy that check exists to prevent.
 
 /**
- * The frozen silhouette for one rock. Call once at spawn, keep it on the rock.
- * ⚠️ TAKES `rand` — a rock field that cannot be reproduced in a harness is one
- * whose "it only looks wrong sometimes" report cannot be investigated.
+ * The frozen cut of one pane: how its corners are chamfered, how its lead lines
+ * lean, how it hangs, and where it will craze when it gets close.
+ *
+ * ⚠️ CALL ONCE AT SPAWN AND KEEP IT ON THE TARGET. Re-rolling per frame makes the
+ * came lines jitter, which reads as a rendering fault — the same lesson
+ * rockOutline() learned and the reason it took `rand` too.
+ *
+ * ⚠️ TAKES THE PANEL COUNT, because `lean` is per interior came and a pane handed
+ * a lean array of the wrong length would draw its glass and its lead in two
+ * different places.
  */
-export function rockOutline(rand = Math.random) {
-    const out = [];
-    for (let i = 0; i < ROCK_POINTS; i++) out.push(0.78 + rand() * 0.42);
-    return out;
+export function paneCut(rand = Math.random, panels = 1) {
+    const n = Math.max(1, panels | 0);
+    const lean = [];
+    for (let i = 0; i < n - 1; i++) lean.push((rand() - 0.5) * 0.46);
+    const corner = [];
+    for (let i = 0; i < 4; i++) corner.push(0.10 + rand() * 0.20);
+    // Where the crazing starts and which way it runs. Three fractures is enough
+    // to read as glass; more looks like a cobweb.
+    const cracks = [];
+    for (let i = 0; i < 3; i++) {
+        cracks.push({ a: rand() * Math.PI * 2, bend: (rand() - 0.5) * 0.9,
+                      reach: 0.55 + rand() * 0.5 });
+    }
+    return {
+        panels: n, lean, corner, cracks,
+        tilt: (rand() - 0.5) * 0.20,
+        sway: 0.45 + rand() * 0.65,
+        phase: rand() * Math.PI * 2,
+    };
 }
 
-export function drawRock(ctx, x, y, r, outline, opts) {
-    const o = opts || {};
+/**
+ * Trace the silhouette in LOCAL coordinates, centred on the origin.
+ *
+ * ⚠️ A PANE AND A SHARD DIFFER IN KIND, NOT IN DEGREE — the same argument
+ * v1.1.0 made for filled-versus-hollow, which this replaces. A whole target is a
+ * chamfered window: even, architectural, cut by a glazier. A piece is a
+ * SPLINTER, pointed at both ends. A slightly smaller window would be the
+ * "slightly off" that reads as a mistake rather than as a fragment.
+ */
+function panePath(ctx, halfW, halfH, cut, piece) {
+    ctx.beginPath();
+    if (piece) {
+        const tip = Math.min(halfW * 0.5, halfH * 1.1);
+        ctx.moveTo(-halfW, -halfH * 0.10 + cut.corner[0] * halfH * 0.4);
+        ctx.lineTo(-halfW + tip * 0.8, -halfH);
+        ctx.lineTo(halfW - tip * 0.5, -halfH * 0.86);
+        ctx.lineTo(halfW, halfH * 0.06);
+        ctx.lineTo(halfW - tip * 0.7, halfH);
+        ctx.lineTo(-halfW + tip * 0.45, halfH * 0.88);
+        ctx.closePath();
+        return;
+    }
+    const c = i => Math.min(halfH * 0.5, halfW * 0.30) * cut.corner[i];
+    ctx.moveTo(-halfW + c(0), -halfH);
+    ctx.lineTo(halfW - c(1), -halfH);
+    ctx.lineTo(halfW, -halfH + c(1));
+    ctx.lineTo(halfW, halfH - c(2));
+    ctx.lineTo(halfW - c(2), halfH);
+    ctx.lineTo(-halfW + c(3), halfH);
+    ctx.lineTo(-halfW, halfH - c(3));
+    ctx.lineTo(-halfW, -halfH + c(0));
+    ctx.closePath();
+}
+
+/**
+ * One pane: the glass, the lead, the letters and the crazing, in one call.
+ *
+ * ⚠️⚠️ THE LETTERS ARE DRAWN HERE AND NOT BY THE CALLER, and that is deliberate
+ * rather than convenient. A panel boundary and the letter that sits over it are
+ * the SAME NUMBER; two functions computing it is exactly the shape that lets a
+ * word drift half a panel off its own glass with nothing on screen to say which
+ * of the two is wrong. One function, one arithmetic.
+ *
+ * @param {object} o
+ *   halfW, halfH  {number}   the pane's half-extents before tilt
+ *   text          {string}   the word; its length must equal cut.panels
+ *   typed         {number}   how many letters are lit
+ *   size          {number}   letter size in px
+ *   colors        {string[]} one colour per letter, from the finger map
+ *   base          {string}   the unlit glass
+ *   rim           {string}   the came around the edge — this carries STATE
+ *   lineWidth     {number}
+ *   glow          {string|null}
+ *   piece         {boolean}  splinter rather than window
+ *   crack         {number}   0..1, how badly it has crazed
+ *   pulse         {number}   0..1, the breathing on the NEXT panel
+ *   tSec          {number}   for the sway
+ */
+export function drawPane(ctx, x, y, cut, o) {
+    const opt = o || {};
+    const text = String(opt.text || '');
+    const n = Math.max(1, cut.panels || text.length || 1);
+    const halfW = opt.halfW || 40, halfH = opt.halfH || 14;
+    const typed = Math.max(0, Math.min(n, opt.typed || 0));
+    const pal = opt.colors || [];
+    const pw = (halfW * 2) / n;
+
     ctx.save();
     ctx.translate(x, y);
-    if (o.spin) ctx.rotate(o.spin);
-    ctx.strokeStyle = o.stroke || '#ffffff';
-    ctx.lineWidth = o.lineWidth || 1.8;
-    if (o.glow) { ctx.shadowColor = o.glow; ctx.shadowBlur = 12; }
-    ctx.beginPath();
-    for (let i = 0; i < ROCK_POINTS; i++) {
-        const a = (i / ROCK_POINTS) * Math.PI * 2;
-        const rr = r * (outline ? outline[i] : 1);
-        const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    ctx.rotate(cut.tilt + Math.sin((opt.tSec || 0) * cut.sway + cut.phase) * 0.035);
+
+    // ── the glass ───────────────────────────────────────────────────────────
+    panePath(ctx, halfW, halfH, cut, opt.piece);
+    ctx.fillStyle = opt.base || 'rgba(6,10,20,0.82)';
+    ctx.fill();
+
+    ctx.save();
+    ctx.clip();
+
+    // ⚠️ THE LEAN IS APPLIED AT THE TOP AND UNDONE AT THE BOTTOM, so every came
+    // stays centred on its boundary and the panels keep equal average width. A
+    // lean applied to one end only walks the whole word off the pane.
+    const cameX = i => {
+        const base = -halfW + i * pw;
+        const k = cut.lean[i - 1] || 0;
+        return { top: base + k * pw * 0.38, bot: base - k * pw * 0.38 };
+    };
+
+    for (let i = 0; i < n; i++) {
+        const state = i < typed ? 'lit' : (i === typed ? 'next' : 'dark');
+        if (state === 'dark') continue;
+        const L = i === 0 ? { top: -halfW - 2, bot: -halfW - 2 } : cameX(i);
+        const R = i === n - 1 ? { top: halfW + 2, bot: halfW + 2 } : cameX(i + 1);
+        ctx.beginPath();
+        ctx.moveTo(L.top, -halfH - 2);
+        ctx.lineTo(R.top, -halfH - 2);
+        ctx.lineTo(R.bot, halfH + 2);
+        ctx.lineTo(L.bot, halfH + 2);
+        ctx.closePath();
+        ctx.fillStyle = pal[i] || '#9fb6d8';
+        // ⭐ LIT IS NEARLY OPAQUE, NEXT IS A BREATH. The student needs to see at a
+        // glance how much of the word is gone AND which finger comes next; those
+        // are two facts and they get two strengths rather than two widgets.
+        ctx.globalAlpha = state === 'lit' ? 0.82 : (0.13 + 0.16 * (opt.pulse || 0));
+        ctx.fill();
+        ctx.globalAlpha = 1;
     }
-    ctx.closePath();
-    if (o.fill) { ctx.fillStyle = o.fill; ctx.fill(); }
+
+    // The sheen. ⚠️ ONE SOFT DIAGONAL, NOT A HIGHLIGHT PER PANEL — glass catches
+    // the light across a window, not inside each piece of it.
+    const sheen = ctx.createLinearGradient(-halfW, -halfH, halfW * 0.4, halfH);
+    sheen.addColorStop(0, 'rgba(255,255,255,0.13)');
+    sheen.addColorStop(0.45, 'rgba(255,255,255,0.03)');
+    sheen.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sheen;
+    ctx.fillRect(-halfW, -halfH, halfW * 2, halfH * 2);
+
+    // ── the crazing ─────────────────────────────────────────────────────────
+    // ⚠️ IT IS THE DANGER SIGNAL AND IT IS FROZEN PER PANE. A pane about to land
+    // crazes; the fractures do not move once they appear, because glass that
+    // re-cracks every frame is a shimmer, not a warning.
+    if (opt.crack > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,' + (0.25 + 0.45 * opt.crack).toFixed(3) + ')';
+        ctx.lineWidth = 1.1;
+        for (const f of cut.cracks) {
+            const reach = f.reach * Math.max(halfW, halfH) * (0.6 + 0.6 * opt.crack);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            for (let s = 1; s <= 3; s++) {
+                const a = f.a + f.bend * (s / 3);
+                ctx.lineTo(Math.cos(a) * reach * (s / 3), Math.sin(a) * reach * (s / 3) * 0.7);
+            }
+            ctx.stroke();
+        }
+    }
+    ctx.restore();
+
+    // ── the lead ────────────────────────────────────────────────────────────
+    const lead = Math.max(1.6, halfH * 0.13);
+    ctx.strokeStyle = 'rgba(3,5,11,0.92)';
+    ctx.lineWidth = lead;
+    for (let i = 1; i < n; i++) {
+        const c = cameX(i);
+        ctx.beginPath();
+        ctx.moveTo(c.top, -halfH); ctx.lineTo(c.bot, halfH); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(190,215,255,0.16)';
+    ctx.lineWidth = 1;
+    for (let i = 1; i < n; i++) {
+        const c = cameX(i);
+        ctx.beginPath();
+        ctx.moveTo(c.top + lead * 0.5, -halfH); ctx.lineTo(c.bot + lead * 0.5, halfH); ctx.stroke();
+    }
+
+    // ── the rim, which is the only thing carrying state ─────────────────────
+    panePath(ctx, halfW, halfH, cut, opt.piece);
+    if (opt.glow) { ctx.shadowColor = opt.glow; ctx.shadowBlur = 14; }
+    ctx.strokeStyle = opt.rim || '#ffffff';
+    ctx.lineWidth = opt.lineWidth || 1.8;
     ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // ── the letters ─────────────────────────────────────────────────────────
+    // ⚠️ A LIT LETTER GOES DARK AND AN UNLIT ONE GOES PALE, which is the inverse
+    // of every other view in this app and is right here: the letter is a lead
+    // glyph and the glass behind it is what changed. Making the letter brighter
+    // as well would put two signals on one panel and dim the finger colour that
+    // panel exists to teach.
+    ctx.font = 'bold ' + Math.round(opt.size || 16) + 'px "Courier Prime", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < n; i++) {
+        const ch = text[i];
+        if (!ch || ch === ' ') continue;
+        const lx = -halfW + (i + 0.5) * pw;
+        if (i < typed) ctx.fillStyle = 'rgba(6,9,16,0.88)';
+        else if (i === typed) ctx.fillStyle = '#ffffff';
+        else ctx.fillStyle = 'rgba(196,212,238,0.72)';
+        ctx.fillText(ch, lx, 0);
+    }
     ctx.restore();
 }
 
 /**
- * The ship. ⭐ IT POINTS AT WHAT THE STUDENT IS TYPING, which is the prototype's
- * other good idea: the aim is confirmation, drawn, that the lock went where they
- * meant. ⚠️ WITH NO LOCK IT POINTS UP rather than spinning idly — a ship that
- * rotates on its own is telling the student about a target that does not exist.
+ * THE PRISM. White light goes in the back face; the colours come out the front.
+ *
+ * ⭐ IT IS THE SAME TRIANGLE POINTING THE SAME WAY AS v1.1.0's SHIP, and that is
+ * on purpose. Jake's ruling after Escape Key (game-sprites.js's own header):
+ * *"do not rewrite what works."* Aiming at the locked target was the prototype's
+ * best idea in this game and it is untouched — a prism is what the triangle
+ * turns out to have been all along, once the targets became glass.
+ *
+ * ⚠️ WITH NO LOCK IT POINTS UP AND HOLDS STILL. A prism idly rotating is telling
+ * the student about a target that does not exist.
+ *
+ * @param {object} o
+ *   fan   {string[]} the finger palette, in order — the resting dispersion, and
+ *                    a free permanent legend for the colours on the panes
+ *   flare {number}   0..1, the white-out on a wrong key
  */
-export function drawShip(ctx, x, y, r, angle) {
+export function drawPrism(ctx, x, y, r, angle, o) {
+    const opt = o || {};
+    const flare = Math.max(0, Math.min(1, opt.flare || 0));
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle == null ? -Math.PI / 2 : angle);
-    ctx.strokeStyle = '#00ffff';
-    ctx.lineWidth = 2;
-    ctx.shadowColor = '#00ffff';
-    ctx.shadowBlur = 8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // The incoming beam. ⚠️ WHITE, ALWAYS, AND ALWAYS THERE — it is the premise
+    // of the picture. A prism with nothing entering it is a triangle.
+    ctx.strokeStyle = 'rgba(255,255,255,' + (0.34 + 0.4 * flare).toFixed(3) + ')';
+    ctx.lineWidth = Math.max(2, r * 0.17);
+    ctx.beginPath();
+    ctx.moveTo(-r * 2.7, 0); ctx.lineTo(-r * 0.60, 0); ctx.stroke();
+
+    // The resting dispersion.
+    const fan = opt.fan || [];
+    for (let i = 0; i < fan.length; i++) {
+        const t = fan.length === 1 ? 0 : (i / (fan.length - 1) - 0.5);
+        const a = t * 0.46;
+        ctx.strokeStyle = fan[i];
+        ctx.globalAlpha = 0.30 + 0.35 * flare;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(r * 0.92, 0);
+        ctx.lineTo(r * 0.92 + Math.cos(a) * r * 1.75, Math.sin(a) * r * 1.75);
+        ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // The body.
+    const body = ctx.createLinearGradient(-r * 0.6, -r * 0.7, r, r * 0.7);
+    body.addColorStop(0, 'rgba(150,200,255,0.16)');
+    body.addColorStop(0.55, 'rgba(255,255,255,' + (0.20 + 0.5 * flare).toFixed(3) + ')');
+    body.addColorStop(1, 'rgba(120,230,255,0.12)');
     ctx.beginPath();
     ctx.moveTo(r, 0);
-    ctx.lineTo(-r * 0.66, r * 0.66);
-    ctx.lineTo(-r * 0.33, 0);
-    ctx.lineTo(-r * 0.66, -r * 0.66);
+    ctx.lineTo(-r * 0.60, r * 0.74);
+    ctx.lineTo(-r * 0.60, -r * 0.74);
     ctx.closePath();
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    ctx.strokeStyle = flare > 0.05 ? '#ffffff' : 'rgba(210,240,255,0.9)';
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = '#9fe8ff';
+    ctx.shadowBlur = 8 + 14 * flare;
     ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // The bright edge along the face the light leaves by.
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.94, -r * 0.06);
+    ctx.lineTo(-r * 0.52, -r * 0.66);
+    ctx.stroke();
+
     ctx.restore();
 }
 
-/** The word on a rock: typed part red, the rest white — or yellow when locked. */
-export function drawTargetWord(ctx, x, y, text, typedLen, size, locked) {
+/**
+ * One refracted shot: a tapering coloured beam with a white core.
+ *
+ * ⚠️ IT IS FIRED ON A CORRECT KEY AND IN THE KEY'S FINGER COLOUR, which is the
+ * whole reason the ship became a prism. The shot, the panel it lights and the
+ * finger that typed it are one colour in three places.
+ *
+ * @param {number} t 0..1 remaining life; the beam thins and fades with it.
+ */
+export function drawRefract(ctx, x0, y0, x1, y1, color, t) {
+    const k = Math.max(0, Math.min(1, t));
+    if (k <= 0) return;
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    const w0 = 6.5 * k, w1 = 2.2 * k;
     ctx.save();
-    ctx.font = `bold ${size}px "Courier Prime", monospace`;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    const full = ctx.measureText(text).width;
-    const typed = text.slice(0, typedLen), rest = text.slice(typedLen);
-    let sx = x - full / 2;
-    // ⚠️ A DARK BACKING STROKE, NOT A PLATE. Over a starfield bare text is
-    // unreadable, and a filled plate hides the rock the word belongs to.
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = 'rgba(2,4,10,0.9)';
-    ctx.strokeText(text, sx, y);
-    ctx.fillStyle = '#ff4444';
-    ctx.fillText(typed, sx, y);
-    sx += ctx.measureText(typed).width;
-    ctx.fillStyle = locked ? '#ffff00' : '#ffffff';
-    ctx.fillText(rest, sx, y);
+    ctx.globalAlpha = 0.22 + 0.58 * k;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15 * k;
+    ctx.beginPath();
+    ctx.moveTo(x0 + nx * w0, y0 + ny * w0);
+    ctx.lineTo(x1 + nx * w1, y1 + ny * w1);
+    ctx.lineTo(x1 - nx * w1, y1 - ny * w1);
+    ctx.lineTo(x0 - nx * w0, y0 - ny * w0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.45 + 0.55 * k;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(x0 + nx * w0 * 0.34, y0 + ny * w0 * 0.34);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x0 - nx * w0 * 0.34, y0 - ny * w0 * 0.34);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
 }

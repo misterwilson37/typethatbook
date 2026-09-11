@@ -1,3 +1,10 @@
+// arcade-panels-test.mjs v1.6.0 — Round 116 (Sun): Part K, the stained-glass
+// round. ⚠️⚠️ ITS FIRST DRAFT ALSO MISSED SOMETHING — the lean mutation (a came
+// that leans at the top and never unleans) left all 269 assertions green,
+// because the letters are drawn at the nominal panel centre and physically
+// cannot drift. ⭐ SECOND TIME THIS FILE HAS SHIPPED A DRAFT THAT PASSED ITS OWN
+// MUTATION TEST; Part I was the first. The came-centring assertions were added
+// in response and the mutation now takes six assertions red.
 // arcade-panels-test.mjs v1.5.0 — Round 115 (Tower): the marquee paints when minutes land, names the player, and the prose under the frame is pinned as deleted.
 // v1.4.0 — Round 114 (Carriage): Part I. ⚠️⚠️ ITS FIRST
 // DRAFT PASSED ITS OWN MUTATION TEST AND WAS THEREFORE WORTHLESS — it counted
@@ -47,7 +54,11 @@
 
 import { readFileSync } from 'fs';
 import { drawRadar, drawGauges, drawSevenSeg, sevenSegWidth, drawThreatBoard,
-         drawCountdownOverlay, drawKeyboardStrip, drawWavePreview } from '../game-draw.js';
+         drawCountdownOverlay, drawKeyboardStrip, drawWavePreview,
+         drawShatterPanel, fingerPalette, glassBurst, updateParticles,
+         drawParticles } from '../game-draw.js';
+import { paneCut, drawPane, drawPrism, drawRefract } from '../game-sprites.js';
+import { FINGER_COLORS, FINGER_NAMES } from '../keyboard.js';
 import * as LAY from '../game-layout.js';
 import { GAMES, GAME_ORDER, panelOptionsFor, usesThreatBoard } from '../game-names.js';
 
@@ -73,6 +84,11 @@ function recorder() {
         ops,
         save() {}, restore() {},
         clearRect() {}, setTransform() {},
+        // ⚠️ PRESENT FOR THE SAME REASON translate() IS. drawPane() clips to the
+        // pane before filling its panels; a recorder without clip() would throw,
+        // and a harness that DIES looks exactly like a harness that caught
+        // something. See Part K.
+        clip() {},
         // ⚠️ PRESENT SO A MUTATION CANNOT PASS BY CRASHING. Mutating
         // drawCountdownOverlay() to pulse via ctx.translate() threw a TypeError
         // on a recorder that lacked it, which LOOKS like a caught mutation and
@@ -115,6 +131,21 @@ function recorder() {
         createRadialGradient() { return { addColorStop() {} }; },
     };
     return ctx;
+}
+
+/**
+ * A reproducible `rand`. ⚠️ paneCut() TAKES ONE FOR THE REASON rockOutline() DID:
+ * a pane field that cannot be reproduced in a harness is one whose "it only
+ * looks wrong sometimes" report cannot be investigated.
+ */
+function seeded(n) {
+    let x = n >>> 0 || 1;
+    return () => {
+        x ^= x << 13; x >>>= 0;
+        x ^= x >> 17;
+        x ^= x << 5; x >>>= 0;
+        return x / 4294967296;
+    };
 }
 
 /** Reduced motion answers TRUE in node (no matchMedia), so opt out explicitly. */
@@ -1331,6 +1362,220 @@ console.log('\nJ — ROUND 114: THE ARCADE FLOOR, AND ONE RECORD OF WHICH GAME')
     ok(/grid-template-columns:\s*200px minmax\(724px, 1fr\) 240px;/.test(code),
        'and the stage grid is unchanged');
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u2019s');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THE ART IS THE TEACHING CLAIM IN THIS GAME, WHICH IS WHY IT GETS A
+// HARNESS AND ESCAPE KEY'S FROG DOES NOT. Round 116 made every target a leaded
+// pane with ONE PANEL PER LETTER, coloured by the finger that types it, and
+// gave the ship a prism that throws a ray in that same colour. ⭐ THAT CLAIM IS
+// ONLY TRUE WHILE THERE IS ONE COPY OF THE COLOUR LIST. A hardcoded rainbow in
+// game-shatter.js would look IDENTICAL on screen and be a lie, and no amount of
+// reading either file would tell you which — so it is checked by arithmetic.
+//
+// ⚠️ WHAT THIS PART MAY NOT DO, same rule as the rest of the file: no literal
+// pixel positions. Every assertion is a RELATIONSHIP that must survive someone
+// resizing a pane.
+{
+    // ── K1. the palette is keyboard.js's, in order ──────────────────────────
+    const fan = fingerPalette();
+    ok(fan.length === FINGER_NAMES.length,
+       '\u26a0\u26a0 fingerPalette() has one colour per finger (' + fan.length + ')');
+    ok(fan.every((c, i) => c === FINGER_COLORS[FINGER_NAMES[i]]),
+       '\u2b50\u2b50 and every entry IS keyboard.js\u2019s \u2014 the prism throws the ' +
+       'same spectrum the keyboard paints, or the colour on the glass stops ' +
+       'meaning the key');
+
+    // ── K2. one panel per letter, in the word's own colours ─────────────────
+    // ⚠️ DRIVEN, NOT READ. A regex over game-sprites.js cannot tell you that the
+    // fifth letter landed on the fourth panel.
+    const word = 'unusual';
+    const colors = ['#111111', '#222222', '#333333', '#444444',
+                    '#555555', '#666666', '#777777'];
+    const c = recorder();
+    const cut = paneCut(seeded(7), word.length);
+    drawPane(c, 300, 200, cut, {
+        halfW: 70, halfH: 14, text: word, typed: word.length, size: 16,
+        colors, base: '#000000', rim: '#ffffff', lineWidth: 2, tSec: 0,
+    });
+    const fills = c.ops.filter(o => o.op === 'fill');
+    for (let i = 0; i < colors.length; i++) {
+        ok(fills.some(f => f.color === colors[i]),
+           'panel ' + i + ' is filled in its own letter\u2019s colour');
+    }
+    const letters = c.ops.filter(o => o.op === 'text').map(o => o.text).join('');
+    ok(letters === word,
+       '\u26a0 every letter of the word is drawn exactly once, in order (' +
+       letters + ')');
+
+    // ⭐ AND THE LETTERS MARCH LEFT TO RIGHT, EVENLY. The panel boundary and the
+    // letter over it are the same number; this is the assertion that catches
+    // them drifting apart.
+    const xs = c.ops.filter(o => o.op === 'text').map(o => o.x);
+    const gaps = xs.slice(1).map((x, i) => x - xs[i]);
+    ok(gaps.every(g => g > 0),
+       '\u26a0 letters advance rightwards across the pane');
+    ok(Math.max(...gaps) - Math.min(...gaps) < 0.001,
+       '\u2b50\u2b50 and by an EQUAL step \u2014 one letter per panel, evenly cut');
+
+    // ⚠️⚠️ AND THE LEAD STAYS ON THE BOUNDARY THE LETTERS WERE SPACED AGAINST.
+    // ⭐ THE FIRST DRAFT OF THIS PART DID NOT CHECK THIS AND WAS WRONG NOT TO:
+    // mutation-testing it (lean applied at the top of each came and not undone
+    // at the bottom) left all 269 assertions green. The letters CANNOT drift —
+    // they are drawn at the nominal panel centre — so a lean that walks the
+    // glass out from under them is invisible to every assertion above. The
+    // cames lean for the hand-cut look and must still be CENTRED on their
+    // boundary, or the panels stop having equal average width and each letter
+    // slowly stops sitting on its own pane.
+    const cames = c.ops.filter(o => o.op === 'stroke' && o.pts.length === 2);
+    ok(cames.length >= (word.length - 1),
+       'every interior boundary is leaded (' + cames.length + ')');
+    const pw = (70 * 2) / word.length;
+    for (let i = 1; i < word.length; i++) {
+        const boundary = -70 + i * pw;
+        ok(cames.some(k => Math.abs((k.pts[0][0] + k.pts[1][0]) / 2 - boundary) < 0.001),
+           '\u26a0\u26a0 came ' + i + ' is CENTRED on its boundary \u2014 it leans at ' +
+           'the top and unleans at the bottom, so the glass never walks out ' +
+           'from under the letters');
+    }
+
+    // ── K3. an untyped pane lights nothing but its NEXT panel ───────────────
+    // ⚠️ THIS IS THE PROGRESS DISPLAY. If it goes green on a pane with zero
+    // letters typed showing seven lit panels, the art is lying about how far
+    // through the word the student is.
+    const c0 = recorder();
+    drawPane(c0, 300, 200, paneCut(seeded(7), word.length), {
+        halfW: 70, halfH: 14, text: word, typed: 0, size: 16,
+        colors, base: '#000000', rim: '#ffffff', tSec: 0,
+    });
+    const lit0 = colors.filter(col => c0.ops.some(o => o.op === 'fill' && o.color === col));
+    ok(lit0.length === 1 && lit0[0] === colors[0],
+       '\u26a0\u26a0 a fresh pane paints ONE panel \u2014 the next letter\u2019s \u2014 and ' +
+       'leaves the rest dark (' + lit0.length + ')');
+
+    const c3 = recorder();
+    drawPane(c3, 300, 200, paneCut(seeded(7), word.length), {
+        halfW: 70, halfH: 14, text: word, typed: 3, size: 16,
+        colors, base: '#000000', rim: '#ffffff', tSec: 0,
+    });
+    const lit3 = colors.filter(col => c3.ops.some(o => o.op === 'fill' && o.color === col));
+    ok(lit3.length === 4,
+       '\u2b50 three typed letters light three panels plus the next one (' +
+       lit3.length + ')');
+    // ⚠️ AND THE LIT ONES ARE STRONGER THAN THE NEXT ONE. Two facts, two
+    // strengths: how far through, and which finger is coming.
+    const alphaOf = col => {
+        const f = c3.ops.find(o => o.op === 'fill' && o.color === col);
+        return f ? f.alpha : null;
+    };
+    ok(alphaOf(colors[0]) > alphaOf(colors[3]),
+       '\u26a0\u26a0 a TYPED panel is painted harder than the NEXT one, so the two ' +
+       'signals cannot be confused for each other');
+
+    // ── K4. the rim carries state and the panels do not ─────────────────────
+    // ⚠️ THE DANGER COLOUR IS NOT NEGOTIABLE. Round 116 restyled everything
+    // around it; a red that drifted to amber with the art would be the art
+    // overruling the teaching.
+    const cNear = recorder();
+    drawPane(cNear, 300, 200, paneCut(seeded(3), 4), {
+        halfW: 40, halfH: 14, text: 'they', typed: 1, size: 16,
+        colors: colors.slice(0, 4), rim: '#ff5566', glow: '#ff5566',
+        crack: 1, tSec: 0,
+    });
+    ok(cNear.ops.some(o => o.op === 'stroke' && o.color === '#ff5566'),
+       'the rim of a pane about to land is stroked red');
+    const cFar = recorder();
+    drawPane(cFar, 300, 200, paneCut(seeded(3), 4), {
+        halfW: 40, halfH: 14, text: 'they', typed: 1, size: 16,
+        colors: colors.slice(0, 4), rim: '#ff5566', crack: 0, tSec: 0,
+    });
+    ok(cNear.ops.filter(o => o.op === 'stroke').length >
+       cFar.ops.filter(o => o.op === 'stroke').length,
+       '\u2b50 and it CRAZES as it closes \u2014 the same pane draws more strokes ' +
+       'with crack set than without, on the pane itself where the eyes are');
+
+    // ── K5. a piece is a different SHAPE, not a smaller one ─────────────────
+    // ⚠️ THE DISTINCTION HAS TO SURVIVE A RESIZE. Round 106's filled-vs-hollow
+    // rock was a difference of degree and Jake's whole note about it was that
+    // degree reads as a mistake.
+    const outline = (piece) => {
+        const cc = recorder();
+        drawPane(cc, 0, 0, paneCut(seeded(11), 4), {
+            halfW: 40, halfH: 14, text: 'time', typed: 0, size: 16,
+            colors: colors.slice(0, 4), rim: '#fff', piece, tSec: 0,
+        });
+        // the LAST stroked path is the rim; the silhouette is its point count
+        const strokes = cc.ops.filter(o => o.op === 'stroke');
+        return strokes[strokes.length - 1].pts.length;
+    };
+    ok(outline(false) !== outline(true),
+       '\u26a0\u26a0 a splinter and a window are cut with a different number of ' +
+       'edges (' + outline(false) + ' vs ' + outline(true) + ')');
+
+    // ── K6. the prism throws the whole spectrum, and whites out on a miss ───
+    const cp = recorder();
+    drawPrism(cp, 200, 200, 24, 0, { fan, flare: 0 });
+    for (const col of fan) {
+        ok(cp.ops.some(o => o.op === 'stroke' && o.color === col),
+           'the resting prism disperses ' + col);
+    }
+    ok(cp.ops.some(o => o.op === 'stroke' && /rgba\(255,255,255/.test(o.color)),
+       '\u2b50 and white light enters it \u2014 a prism with nothing going in is a ' +
+       'triangle');
+
+    // ⚠️ A WRONG KEY MUST NOT PRODUCE A COLOURED RAY. "No light came out" is
+    // the whole reading of a mistake in this game.
+    const cs = recorder();
+    drawRefract(cs, 0, 0, 50, 50, '#43A047', 1);
+    ok(cs.ops.some(o => o.op === 'fill' && o.color === '#43A047'),
+       'a correct key throws a ray in that key\u2019s finger colour');
+    const cs0 = recorder();
+    drawRefract(cs0, 0, 0, 50, 50, '#43A047', 0);
+    ok(cs0.ops.length === 0,
+       '\u26a0\u26a0 and a spent shot draws NOTHING rather than a zero-width ' +
+       'artefact left on the field');
+
+    // ── K7. shards are glass, and the shared particle still carries squares ─
+    // ⚠️⚠️ THIS IS THE ONE THAT PROTECTS THE OTHER TWO GAMES. glassBurst() adds
+    // OPTIONAL fields to the SHARED particle; an unguarded spin increment would
+    // make every square particle in Deadline and Escape Key NaN, which is
+    // invisible on screen until something reads a position.
+    const list = [];
+    glassBurst(list, 10, 10, ['#ff0000', '#00ff00'], 6, 100, seeded(5));
+    list.push({ x: 0, y: 0, vx: 1, vy: 1, life: 1, max: 1, color: '#fff' });
+    updateParticles(list, 0.016);
+    ok(list.every(p => Number.isFinite(p.x) && Number.isFinite(p.y)),
+       '\u26a0\u26a0 a plain square particle survives the shard update with finite ' +
+       'coordinates');
+    const plain = list[list.length - 1];
+    ok(plain.spin === undefined || Number.isFinite(plain.spin),
+       '\u26a0 and never picks up a NaN spin');
+    ok(list.filter(p => p.shard).every(p => Number.isFinite(p.spin)),
+       'while every shard does tumble');
+    const cg = recorder();
+    drawParticles(cg, list);
+    ok(cg.ops.some(o => o.op === 'fillRect'),
+       'the square particle is still drawn as a square');
+    ok(cg.ops.filter(o => o.op === 'fill').length >= 6,
+       '\u2b50 and each shard as a filled sliver');
+
+    // ── K8. the left panel is still deliberately useless ────────────────────
+    // ⚠️ THE LABEL CHANGED AND THE RULE DID NOT. Jake: *"It's just window
+    // dressing... Only the 'Can I warp yet?' bar is important."* A rose window
+    // that started labelling its contacts would be a different panel.
+    const cw = recorder();
+    drawShatterPanel(cw, { W: 200, H: 420, charge: 0.5, warps: 1, maxWarps: 3,
+                           contacts: [{ r: 0.8, angle: 0.3 }, { r: 0.1, angle: 2 }] });
+    const texts = cw.ops.filter(o => o.op === 'text').map(o => o.text);
+    ok(texts.some(t => /ROSE WINDOW/.test(t)),
+       'the left panel is a rose window now');
+    ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) && !/WARP|ROSE|WINDOW|SPACE|CLEAR|TO|CHARGE/i.test(t)),
+       '\u26a0\u26a0 and NOTHING on it is labelled \u2014 a readable radar is exactly ' +
+       'what Jake ruled it must not become');
+}
+
 
 console.log(fail
     ? `\narcade-panels-test: ${pass} passed, ${fail} FAILED`

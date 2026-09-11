@@ -1,3 +1,9 @@
+// tests/arcade-pool-test.mjs v1.1.0 — Round 116 (Sun): Part F, the order the
+// words arrive in. ⚠️ WRITTEN RED AGAINST THE SHIPPED CODE FIRST (Rule 10) —
+// three assertions failed, printing Jake's own complaint back: *"the words are
+// coming through alphabetically...which is kind of lame."* Nothing here had ever
+// asked about the SEQUENCE a student receives, only whether the pool was big
+// enough and legal.
 // tests/arcade-pool-test.mjs v1.0.0 — DOES EVERY LEVEL GET A PLAYABLE BOARD?
 // Round 104 (Bar-Let).
 //
@@ -282,6 +288,102 @@ console.log('\nPART E — ⚠️⚠️ THE STUDENT CHOOSES THE SCOPE, AND `full`
     ok(arcadePool({ game: 'escape', scope: 'full', round: 1 }).source === 'words',
        'and Escape Key to the word banks');
     ok(SCOPES.length === 2, 'there are exactly two scopes, and the picker offers both');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nF — THE WORDS DO NOT ARRIVE IN ALPHABETICAL ORDER');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ JAKE, 2026-09-10, PLAYING THE BUILD: *"the words are coming through
+// alphabetically...which is kind of lame."* He is right and it was never
+// anybody's decision — it is three correct choices meeting.
+//   1. `shatter-words.js` and every bank in `word-banks.js` are STORED
+//      alphabetically, which is right: they are hand-curated lists and a human
+//      has to be able to find a word in them.
+//   2. `wordsForKeys()` and `gradedOrder()` both PRESERVE input order, which is
+//      also right — neither has any business inventing one.
+//   3. `GameDirector.nextTarget()` walks `targets` with a cursor and wraps,
+//      which is right too: learn.js hands it the sentences of a passage and
+//      they must arrive in the order the author wrote them.
+// ⭐ NOBODY CHOSE ALPHABETICAL. THE ORDER FELL OUT OF STORAGE ORDER, and it
+// reached a classroom because no harness had ever looked at the SEQUENCE a
+// student receives — only at whether the pool was big enough and legal.
+//
+// ⚠️⚠️ AND THE FIX BELONGS IN THE POOL, NOT IN THE DIRECTOR. Shuffling inside
+// nextTarget() would also shuffle the passages learn.js feeds it, and would
+// destroy Shatter's easy-band-first ramp. The pool is the thing that knows what
+// order it wants; the director is the thing that must honour it.
+//
+// ⚠️ ESCAPE KEY IS DELIBERATELY NOT IN THIS PART: `wordAvoiding()` samples its
+// pool at random already, so it never had the defect and asserting it here
+// would suggest the fix reached further than it did.
+{
+    const seeded = n => { let x = n >>> 0 || 1; return () => {
+        x ^= x << 13; x >>>= 0; x ^= x >> 17; x ^= x << 5; x >>>= 0;
+        return x / 4294967296; }; };
+    const isSorted = a => a.every((w, i) => i === 0 || a[i - 1] <= w);
+
+    // ── F1. the stored lists really are alphabetical, which is the premise ──
+    ok(isSorted(SHATTER_WORDS.map(e => e.w).slice(0, 150)),
+       'shatter-words.js is STORED alphabetically (this is fine, and is the cause)');
+    ok(isSorted(BANKS[String(MIN_LEN)].map(e => e.w)),
+       'and so is every word bank');
+
+    // ── F2. what the student actually receives ─────────────────────────────
+    const shat = shatterPool({ scope: 'full', rand: seeded(11) }).targets;
+    ok(!isSorted(shat.slice(0, 40)),
+       '\u26a0\u26a0 THE DEFECT: the first 40 panes of a full-scope Shatter run are ' +
+       'NOT alphabetical (' + shat.slice(0, 4).join(' ') + ')');
+
+    const lvl = poolForLevel({ keySet: null, round: 6, scope: 'full',
+                               rand: seeded(11) });
+    ok(lvl.source === 'words', 'round 6 at full scope really does deal words');
+    ok(!isSorted(lvl.targets.slice(0, 40)),
+       '\u26a0\u26a0 and neither are Deadline\u2019s (' +
+       lvl.targets.slice(0, 4).join(' ') + ')');
+
+    // ── F3. the difficulty ramp SURVIVES the shuffle ───────────────────────
+    // ⚠️⚠️ THIS IS THE ASSERTION THAT STOPS THE FIX BEING A REGRESSION.
+    // gradedOrder()'s comment is right that shuffling the whole list would hand
+    // a Unit-2 student `accomplishment` as their opening pane. ⭐ THE ORDER THAT
+    // MATTERS IS THE BAND, NOT THE ALPHABET — shuffling WITHIN each band keeps
+    // every easy word ahead of every medium one and still kills the march.
+    const grade = new Map(SHATTER_WORDS.map(e => [e.w, e.grade]));
+    const bands = shat.map(w => grade.get(w) === 'easy' ? 0 : 1);
+    ok(bands.every((b, i) => i === 0 || bands[i - 1] <= b),
+       '\u2b50\u2b50 every easy word still comes before every harder one \u2014 the ' +
+       'free difficulty ramp is untouched');
+    ok(shat.length === new Set(shat).size,
+       'and no word is dealt twice or lost in the shuffle');
+    ok(shat.length === SHATTER_WORDS.filter(
+           e => splittable(e.w) && !firstBlocked(e.w)).length,
+       'the pool is exactly as large as it was');
+
+    // ── F4. reproducible, because `rand` is injected ───────────────────────
+    // ⚠️ A POOL THAT CANNOT BE REPRODUCED IN A HARNESS is one whose "it dealt me
+    // three impossible words in a row" report cannot be investigated. Same rule
+    // as every board in this repo.
+    const a = shatterPool({ scope: 'full', rand: seeded(5) }).targets;
+    const b = shatterPool({ scope: 'full', rand: seeded(5) }).targets;
+    const c = shatterPool({ scope: 'full', rand: seeded(6) }).targets;
+    ok(JSON.stringify(a) === JSON.stringify(b),
+       'one seed, one order \u2014 the shuffle is reproducible');
+    ok(JSON.stringify(a) !== JSON.stringify(c),
+       '\u26a0 and a different seed really does deal a different order');
+
+    // ── F5. a level-scoped pool is shuffled too ────────────────────────────
+    // ⚠️ THE EARLY UNITS ARE WHERE THE MARCH IS MOST VISIBLE, because the pool
+    // is smallest and a student sees it wrap.
+    const home = shatterPool({ scope: 'level', keySet: [...'asdfghjkl'],
+                               rand: seeded(3) });
+    ok(home.targets.length > 0, 'a home-row student still gets a pool');
+    if (home.source === 'morphemes') {
+        ok(!isSorted(home.targets.slice(0, 20)),
+           '\u26a0 and it is not alphabetical either');
+    } else {
+        ok(!isSorted(home.targets.slice(0, 20)),
+           '\u26a0 letter groups were already random, and stay that way');
+    }
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

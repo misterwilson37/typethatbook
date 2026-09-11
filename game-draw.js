@@ -1,3 +1,9 @@
+// game-draw.js v1.14.0 — Round 116 (Sun): the glass round. glassBurst() and
+// shard particles (additive fields on the SHARED particle, so the other two
+// games are untouched), fingerPalette() so Shatter's prism can throw a spectrum
+// without a second copy of keyboard.js's colours, and drawShatterPanel()'s
+// tracery restyled as a rose window. ⚠️ The panel's RULE is unchanged: it is
+// still deliberately unreadable, and only the warp meter matters.
 // game-draw.js v1.13.0 — Round 114 (Carriage): ⭐ peekStaging() — the spawn
 //   telegraph as arithmetic. The kaiju leaned the wrong way entering from the
 //   right, for the SECOND time; Round 112's screen-angle fix was right and had
@@ -81,7 +87,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.13.0';
+export const GAME_DRAW_VERSION = '1.14.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -124,6 +130,23 @@ export function fingerIndexOfChar(ch) {
 export function fingerColorOf(ch, fallback) {
     const i = fingerIndexOfChar(ch);
     return i == null ? (fallback || '#7fd7ff') : FINGER_COLORS[FINGER_NAMES[i]];
+}
+
+/**
+ * The eight finger colours, left pinky to right pinky.
+ *
+ * ⚠️⚠️ THIS EXISTS SO SHATTER'S PRISM CAN THROW A SPECTRUM WITHOUT A PALETTE
+ * LITERAL. game-sprites.js is deliberately pure and imports nothing, so the fan
+ * of colours leaving the prism has to arrive as an argument — and the only
+ * honest source for it is the same map keyboard.js paints the keys with.
+ * ⭐ A HARDCODED RAINBOW IN THE VIEW WOULD LOOK IDENTICAL AND BE WRONG: the whole
+ * teaching claim of this art is that the colour on the glass is the colour on
+ * the key, and that claim is only true while there is one copy of the list.
+ * game-assumptions-test.mjs Part J guards the import; this is what keeps the
+ * arcade on the right side of it.
+ */
+export function fingerPalette() {
+    return FINGER_NAMES.map(n => FINGER_COLORS[n]);
 }
 
 /**
@@ -611,12 +634,48 @@ export function burst(list, x, y, color, n = 18, speed = 180, rand = Math.random
     }
 }
 
+/**
+ * A burst of GLASS: spinning triangular shards in the colours of the panels
+ * they came from.
+ *
+ * ⚠️⚠️ IT IS burst() WITH TWO EXTRA FIELDS AND NOT A SECOND PARTICLE SYSTEM.
+ * `shard` and `spin` are optional on the shared particle, so updateParticles()
+ * and drawParticles() carry both kinds and Deadline and Escape Key are
+ * untouched — a parallel list with its own update loop is how two games come to
+ * disagree about what a second is.
+ *
+ * ⭐ THE COLOURS ARE THE PANE'S OWN PANELS, PASSED IN. A word typed with four
+ * fingers breaks into shards in those four colours, so what is on the floor
+ * afterwards is a record of what the student just did.
+ *
+ * @param {string[]} colors  cycled through, so a short word still fills a burst
+ */
+export function glassBurst(list, x, y, colors, n = 18, speed = 190, rand = Math.random) {
+    const pal = (colors && colors.length) ? colors : ['#cfe6ff'];
+    for (let i = 0; i < n; i++) {
+        const a = rand() * Math.PI * 2;
+        const s = speed * (0.25 + rand() * 0.85);
+        list.push({
+            x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+            life: 0.45 + rand() * 0.6, max: 1.05,
+            color: pal[i % pal.length],
+            shard: 3 + rand() * 4.5,
+            spin: rand() * Math.PI * 2,
+            spinRate: (rand() - 0.5) * 9,
+        });
+    }
+}
+
 export function updateParticles(list, dt) {
     for (let i = list.length - 1; i >= 0; i--) {
         const p = list[i];
         p.x += p.vx * dt;
         p.y += p.vy * dt;
         p.vy += 40 * dt;
+        // ⚠️ GUARDED, BECAUSE MOST PARTICLES IN THIS APP HAVE NO SPIN. An
+        // unconditional `p.spin += undefined * dt` makes every square particle's
+        // spin NaN, which is invisible until something reads it.
+        if (p.spinRate) p.spin = (p.spin || 0) + p.spinRate * dt;
         p.life -= dt;
         if (p.life <= 0) list.splice(i, 1);
     }
@@ -627,6 +686,20 @@ export function drawParticles(ctx, list) {
     for (const p of list) {
         ctx.globalAlpha = Math.max(0, Math.min(1, p.life / p.max));
         ctx.fillStyle = p.color;
+        if (p.shard) {
+            // A sliver, not a square: long on one axis, pointed, and tumbling.
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.spin || 0);
+            ctx.beginPath();
+            ctx.moveTo(p.shard, 0);
+            ctx.lineTo(-p.shard * 0.55, p.shard * 0.5);
+            ctx.lineTo(-p.shard * 0.3, -p.shard * 0.62);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            continue;
+        }
         ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
     }
     ctx.restore();
@@ -1874,27 +1947,41 @@ export function drawShatterPanel(ctx, o) {
 
     ctx.font = 'bold 11px "Courier Prime", monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#5d7characters'.slice(0, 0) || '#5d7290';
-    ctx.fillText('RADAR', pad, pad - 4);
+    ctx.fillStyle = '#5d7290';
+    ctx.fillText('ROSE WINDOW', pad, pad - 4);
 
-    ctx.strokeStyle = 'rgba(0,229,255,0.25)';
+    // ⚠️⚠️ THE LABEL CHANGED AND THE RULE DID NOT. Jake: *"It's just window
+    // dressing... Only the 'Can I warp yet?' bar is important."* This half is
+    // still deliberately unreadable — the tracery is now a rose window because
+    // the game is stained glass, and a round window with eight lights is what
+    // that panel was already drawing.
+    ctx.strokeStyle = 'rgba(120,170,255,0.22)';
+    ctx.lineWidth = 1;
     for (const k of [1, 0.66, 0.33]) {
         ctx.beginPath(); ctx.arc(cx, cy, rr * k, 0, Math.PI * 2); ctx.stroke();
     }
-    ctx.beginPath(); ctx.moveTo(cx - rr, cy); ctx.lineTo(cx + rr, cy);
-    ctx.moveTo(cx, cy - rr); ctx.lineTo(cx, cy + rr); ctx.stroke();
+    // The eight lights, one per finger's worth of the circle. Spokes rather than
+    // a crosshair: a crosshair is an instrument, a rose window is a window.
+    for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * rr * 0.33, cy + Math.sin(a) * rr * 0.33);
+        ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+        ctx.stroke();
+    }
 
-    // ⚠️ CONTACTS ARE DOTS AND CARRY NO TEXT. Labelling them would make the radar
-    // readable, which is exactly what it must not be — see the header.
+    // ⚠️ CONTACTS ARE GLINTS AND CARRY NO TEXT. Labelling them would make the
+    // panel readable, which is exactly what it must not be — see the header.
     for (const c of (o.contacts || [])) {
         const d = Math.max(0, Math.min(1.15, c.r)) * rr;
         ctx.beginPath();
         ctx.arc(cx + Math.cos(c.angle) * d, cy + Math.sin(c.angle) * d, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = c.r <= 0.25 ? '#ff5566' : 'rgba(0,229,255,0.75)';
+        ctx.fillStyle = c.r <= 0.25 ? '#ff5566' : 'rgba(160,205,255,0.8)';
         ctx.fill();
     }
+    // The oculus: the prism at the centre of the window.
     ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-    ctx.fillStyle = '#00ffff'; ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.fill();
 
     // ── the half that matters ───────────────────────────────────────────────
     const my = H - meterH - pad + 8;

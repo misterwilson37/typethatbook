@@ -1,3 +1,11 @@
+// game-chrome.js v1.10.0 — Round 116 (Sun): ⚠⚠ `pauseKey` MOVES OUT OF
+// showReady() AND INTO MOUNT SCOPE. It was declared inside the function that
+// paints the get-ready panel while destroy() removed its listener at mount
+// scope — so every teardown threw a ReferenceError and skipped everything after
+// it (the panel, the bar, and in the caller the canvas and board.destroy()),
+// and the listener was re-added on every restart so Escape paused and unpaused
+// in one press. Found by tests/arcade-mount-test.mjs, the first harness that
+// calls mount(). See the block above pauseKey().
 // game-chrome.js v1.9.0 — Round 111 (Bar-Let): THE WHOLE RUN IS REACHABLE FROM
 //   THE HOME ROW — Enter starts, Enter plays again, Escape pauses, Enter or
 //   Escape resumes. ⚠️⚠️ THE START HANDLER USED TO REMOVE ITSELF AT COUNTDOWN, so
@@ -92,7 +100,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.9.0';
+export const GAME_CHROME_VERSION = '1.10.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -343,7 +351,9 @@ export function mountChrome(container, opts) {
             row,
         ]);
         // Enter or Space also starts, since their hands are already on the keys.
-        // ⭐⭐ ESCAPE PAUSES ANY GAME. Jake, 2026-09-09: *"The escape key should pause
+    }
+
+    // ⭐⭐ ESCAPE PAUSES ANY GAME. Jake, 2026-09-09: *"The escape key should pause
     // any game - this gives the hover mechanic to work (hover over a word to see
     // what book it came from and/or what morphemes mean)."*
     // ⚠️ IT LIVES IN THE CHROME, NOT IN THE THREE VIEWS. Pause is already this
@@ -353,6 +363,26 @@ export function mountChrome(container, opts) {
     // before it reaches them.
     // ⚠️ NOT WHILE THE GET-READY PANEL IS UP: there is nothing to pause yet, and
     // Escape there would look like it did nothing.
+    //
+    // ⚠️⚠️ v1.10.0: THIS FUNCTION AND ITS TWO LISTENERS WERE INSIDE showReady(),
+    // AND THAT WAS TWO DEFECTS AT ONCE. ⭐ FOUND BY DRIVING mount() UNDER jsdom,
+    // NOT BY READING — all 97 harnesses were green over both of them, because
+    // every arcade harness reads these modules as text and HANDOFF's rule 2 says
+    // exactly this: a green suite does not mean the page works.
+    //   1. `destroy()` calls `removeEventListener(..., pauseKey)` at MOUNT scope,
+    //      where the name did not exist — so **every teardown threw a
+    //      ReferenceError**, and every statement after that line was skipped.
+    //      In game-shatter.js's destroy() those are the canvas removal and
+    //      `board.destroy()`; in this file they are the panel and the control
+    //      bar. arcade.html destroys and re-mounts on every launch, so switching
+    //      cabinets stacked a dead canvas and a dead bar on the page each time.
+    //   2. showReady() runs again on every RESTART, so the listeners were added
+    //      a second, third and fourth time. Escape then called setPaused() twice
+    //      per press — pause, immediately unpause — so **Escape-to-pause silently
+    //      stopped working after the first "play again"**, which is also the
+    //      precondition Jake asked for the hover card to hang off.
+    // ⭐ REGISTERED ONCE, AT MOUNT SCOPE, WHERE destroy() CAN SEE THEM. Both
+    // halves are pinned in tests/arcade-mount-test.mjs.
     function pauseKey(e) {
         if (e.key !== 'Escape') return;
         if (phase !== 'playing' && phase !== 'paused') return;
@@ -362,7 +392,6 @@ export function mountChrome(container, opts) {
     }
     window.addEventListener('keydown', pauseKey, true);
     window.addEventListener('keydown', readyKey, true);
-    }
 
     /**
      * ⚠️⚠️ THE WHOLE RUN IS REACHABLE FROM THE HOME ROW. Jake, 2026-09-10:
