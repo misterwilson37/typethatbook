@@ -17,7 +17,15 @@
 
     <div id="hud">
         <div class="hud-section left">
-            <a id="back-btn" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;">← Home</a>
+            <!-- ⭐ THE MODE PILL, PAINTED BY site-nav.js — ONE RECORD OF THE SITE MAP for
+     all four pages. Hand-copying it would be four records, and the day Arcade is
+     renamed is the day they start disagreeing. ⚠️ Its own module, importing no
+     Firebase: a student who cannot reach the SDK must still be able to leave
+     this page. -->
+            <!-- ⚠️ THIS REPLACES THE "← Home" LINK. A Library tab and a Home link
+                 are two records of one route, and the tab also says where the
+                 student IS, which the link never did. -->
+            <span id="site-nav" style="margin-right:12px"></span>
             <!-- ⚠️ IDENTICAL TO game.html's SLOT, ON PURPOSE. Same ids, same
                  positions, same strings from hud.js. A student moving between
                  School and Library should not have to relearn the top bar.
@@ -136,5 +144,9 @@
     <!-- ⚠️ SEPARATE TAG, NOT AN IMPORT INSIDE learn.js. Its own module graph, so
          if this file is missing or fails, the lesson page still runs. -->
     <script type="module" src="update-gate.js"></script>
+<script type="module">
+import { mountSiteNav } from './site-nav.js';
+mountSiteNav('#site-nav', 'school', 'learn');
+</script>
 </body>
 </html>

@@ -528,10 +528,12 @@
             <!-- Mode toggle. There was a "back-to-landing" link, but it lived inside
                  the library view where nobody found it; a student who picked Library
                  had no visible route back to the school side. -->
-            <nav class="mode-toggle" aria-label="Switch mode">
-                <a href="learn.html" id="mode-school" class="mode-btn">School</a>
-                <button type="button" id="mode-library" class="mode-btn active">Library</button>
-            </nav>
+<!-- ⭐ THE MODE PILL, PAINTED BY site-nav.js — ONE RECORD OF THE SITE MAP for
+     all four pages. Hand-copying it would be four records, and the day Arcade is
+     renamed is the day they start disagreeing. ⚠️ Its own module, importing no
+     Firebase: a student who cannot reach the SDK must still be able to leave
+     this page. -->
+            <span id="site-nav"></span>
         <!-- ⚠️ DAILY IS DELIBERATELY ABSENT HERE (v3.15.0). It was built and then
              removed on Jake's ruling: "it just looks out of place — weekly is
              what matters most there." The landing page is where a child checks
@@ -2616,5 +2618,9 @@
             <div id="about-body"></div>
         </div>
     </div>
+<script type="module">
+import { mountSiteNav } from './site-nav.js';
+mountSiteNav('#site-nav', 'library');
+</script>
 </body>
 </html>
