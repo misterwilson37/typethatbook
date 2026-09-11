@@ -1,31 +1,203 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- learn.html v1.2.0 — versioned the same way style.css is: a comment near
-         the top, parsed by versions.js. Bump when this file's markup changes.
-         v1.1.0: loads update-gate.js from its OWN script tag, below. It is a
-         separate module graph on purpose — a 404 on that file cannot stop the
-         lesson page from booting, and adding it required no edit to learn.js.
-         See update-gate.js's header for how to trigger a building-wide reload. -->
+    <!-- learn2.html v0.1.0-staging — A STAGING FORK OF learn.html, NOT THE
+         PRODUCTION PAGE. See HANDOFF-learn2.md before touching this or
+         learn2.js. Round 102 (name TBD by whichever instance next opens this).
+
+         ⚠️⚠️ WHY A FORK, NOT A FLAG IN learn.js: Deadline's keystrokes never
+         touch learn.js's drillPos/learnLastInputTime, so the graded-time gate
+         four counting bugs died to make singular (tests/open-unit-test.mjs
+         Part E, brace-matched against `../learn.js` by hardcoded filename)
+         cannot see them without a second increment site living IN learn.js —
+         which is exactly what that harness exists to catch. Forking to a new
+         file the harness has never heard of was Jake's call, 2026-09-09, over
+         the alternative of touching the harness or the production file.
+         ⚠️⚠️ THIS MEANS learn2.js CARRIES ITS OWN FULL COPY OF THE GRADING/TIME
+         ENGINE. That is deliberately, temporarily, a Rule 9 exception — same
+         role tools/game-lab.html and (until wired) arcade.html already played:
+         real and playable, NOT the page every student is on. Deliberately
+         ABSENT from versions.js, same as the arcade was while inert. It must
+         be reconciled — promoted over learn.html, or folded back in behind a
+         flag — before it is the page a whole roster uses. Read HANDOFF-learn2.md
+         before doing either.
+
+         Otherwise byte-for-byte learn.html v1.2.0's own markup and header;
+         see that file for the pre-existing history this fork inherited. -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeThatBook — School</title>
+    <title>TypeThatBook — School (learn2 staging)</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* ═══════════════════════════════════════════════════════════════════
+           ⚠️⚠️ THE GAME STEP IS THE ARCADE'S LAYOUT NOW. Round 114 (Carriage).
+           ═══════════════════════════════════════════════════════════════════
+           Jake, 2026-09-10, on a live lesson: *"the game is a mess due to the
+           layout that's there... this is very definitely nigh impossible for
+           students."*
+
+           ⭐ HE WAS RIGHT AND IT WAS NOT A DIFFICULTY PROBLEM, IT WAS AN ASPECT
+           RATIO. The old rule below was `width: 100%` of an uncapped body, which
+           on his screen measured ~2380x521 — a 4.6:1 strip. arcade.html's stage
+           is ~816x581, or 1.4:1, because `.wrap` caps at 1320px and two side
+           columns take 440px of it. ⚠️ SO WORDS WERE SPREAD ACROSS 2.9x THE
+           HORIZONTAL DISTANCE A STUDENT SCANS IN THE ARCADE, in a strip less
+           than half as tall — and every one of Deadline's lane positions, dome
+           radii and spawn spreads is computed from the play canvas's own `W`.
+           The game was tuned against 816px and handed 2380.
+
+           ⚠️ THE OLD COMMENT CLAIMED THIS WAS "close to arcade.html's #stage
+           (78vh, 420px floor)" AND IT WAS TRUE ABOUT THE HEIGHT ONLY. Matching
+           one dimension of a two-dimensional playfield is not matching it, and
+           the height was never the part that mattered.
+
+           ⭐ Jake's ruling, Option C of four: constrained stage PLUS the panels,
+           keeping a slim lesson HUD. So this is arcade.html's `.stage-grid`,
+           values copied rather than reinvented — see the ⚠️ notes in that file
+           for why each number is what it is, especially the 724px play-column
+           floor and the `stretch`/`min-height: 0` pair.
+           ⚠️ THESE MUST TRACK arcade.html. If the two pages lay Deadline out
+           differently then a lesson run and an arcade run are not the same
+           difficulty, and the whole "type the same run in School and see whether
+           the numbers line up" comparison is void. */
+
+        /* ⚠️ THE ARCADE'S TOKENS, DEFINED LOCALLY. style.css carries NONE of
+           these — checked, all six absent — so referencing them bare would have
+           silently resolved to nothing and produced unstyled cards. Scoped to
+           the game wrap so no lesson chrome inherits them. */
+        #game-wrap {
+            --panel: #0b1018; --rule: #1d2735;
+            --ink: #cfe0ea; --ink-dim: #8aa2b4; --ink-ghost: #5f7387;
+            --accent: #bfe9ff; --accent-line: #2b6c8a; --accent-fill: #164055;
+            --good: #8fe8c8; --warn: #ffd27d; --bad: #ff8f8f;
+            /* ⚠️⚠️ THE ARCADE'S VOID, SET EXPLICITLY. Jake, 2026-09-10: *"the
+               background should probably be black instead of white."* style.css
+               is a LIGHT theme, so every pixel of this game area that was not
+               covered by a card or the play canvas came out white — around the
+               grid, in the gutters, and in the band under the frame. The arcade
+               never had this because its own body sets --bg: #06090f.
+               ⚠️ SET HERE RATHER THAN ON body: this is the only part of the
+               lesson that is a dark console, and painting the whole page black
+               would take the typed runs and the result modal with it. */
+            background: #06090f;
+            max-width: 1320px; margin: 0 auto; padding: 12px 18px;
+            font-family: "Courier Prime", ui-monospace, monospace;
+            /* ═══════════════════════════════════════════════════════════════
+               ⚠️⚠️ THE FLANKS ARE SIZED BY WHAT IS LEFT, NOT BY A vh FRACTION.
+               ═══════════════════════════════════════════════════════════════
+               Jake, 2026-09-10: *"the side panels are loading too tall."*
+
+               ⭐ AND THE CAUSE IS THAT arcade.html HAS NOTHING ABOVE ITS STAGE
+               AND THIS PAGE HAS 285px OF IT — the lesson HUD, two progress bars
+               and the FINAL RUN label. So `78vh` copied straight across meant
+               285 + 1158 = 1443px of a 1484px window before the cards added
+               their own min-content on top, and the flanks ran off the bottom
+               of the screen.
+               ⚠️ A vh FRACTION CANNOT KNOW THE HUD EXISTS. That is the whole
+               defect: it is measured against the viewport, and the box actually
+               available is the viewport minus whatever chrome the lesson is
+               already showing — which changes with the lesson title wrapping.
+
+               ⭐ SO THE HEIGHT COMES FROM FLEX INSTEAD. #drill-view is already
+               `flex: 1; display: flex; flex-direction: column` (style.css), so
+               claiming the remaining main-axis space is exact, self-adjusting,
+               and needs no magic number. ⚠️ `min-height: 0` IS LOAD-BEARING —
+               without it a flex item refuses to shrink below its content's
+               min-content size, which is precisely the overflow being fixed. */
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        #game-wrap.hidden { display: none; }
+        #game-wrap .stage-grid {
+            display: grid;
+            grid-template-columns: 200px minmax(724px, 1fr) 240px;
+            /* ⚠️ ONE ROW, CAPPED AT THE CONTAINER. `minmax(0, 1fr)` is what stops
+               the row growing to its tallest item's min-content — which is how
+               the cards outgrew the play frame. The stage owns the row; the
+               flanks fit inside it, which is arcade.html's stated principle made
+               explicit rather than emergent. */
+            grid-template-rows: minmax(0, 1fr);
+            gap: 14px;
+            align-items: stretch;
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+        #game-wrap .side-card {
+            background: linear-gradient(180deg, #0d141d 0%, #0a1017 100%);
+            border: 1px solid var(--rule);
+            border-top: 1px solid rgba(120,170,220,0.28);
+            border-radius: 10px; padding: 12px;
+            min-height: 0; overflow: hidden;
+            display: flex; flex-direction: column;
+            box-shadow: inset 0 1px 0 rgba(143,232,200,0.06);
+        }
+        #game-wrap .side-card h2 {
+            font-size: .68rem; letter-spacing: 1px; color: var(--ink-ghost);
+            margin: 0 0 10px; font-weight: 400;
+        }
+        #game-wrap .panel-canvas { display: block; width: 100%; margin-bottom: 12px; }
+        /* ⚠️ 100% OF THE GRID ROW, NOT 78vh. See #game-wrap's note: the row is
+           now the space left under the lesson chrome, so the play canvas and both
+           flanks are the same definite height by construction and none of them
+           can push the others past the fold.
+           ⚠️ THE 420px FLOOR STAYS, and it is a MIN on the wrap rather than here
+           — a floor on the cell alone would let the cell outgrow its own row. */
+        #game-mount { position: relative; width: 100%; height: 100%; min-height: 0; }
+        #game-mount.hidden { display: none; }
+        #game-wrap .stage-grid { min-height: 420px; }
+        /* ⚠️ 200 → 120 for the same reason as the gauge below: the radar shares a
+           card with the 104px threat board, and the two floors together were more
+           than the shorter card could give. */
+        #game-wrap #radar-canvas { flex: 1 1 auto; min-height: 120px; margin-bottom: 8px; }
+        #game-wrap #threat-canvas { flex: 0 0 auto; height: 104px; margin-bottom: 0; }
+        /* ⚠️ SAME COLLAPSE RULE AS arcade.html: only Deadline draws a threat
+           board, and an unpainted 104px canvas is 104px of dead space. Deadline
+           is the ONLY game a lesson ever mounts, so this never fires today —
+           it is here so the two pages cannot drift. */
+        #game-wrap #radar-col.no-threat #threat-canvas { display: none; }
+        /* ⚠️⚠️ A LOWER FLOOR THAN arcade.html's 260px, DELIBERATELY, AND THIS IS
+           THE ONE PLACE THE TWO PAGES SHOULD DIFFER. The console card here is as
+           tall as the space left under the lesson HUD rather than 78vh, so the
+           arcade's floor plus four buttons plus game-chrome.js's own 34px-each
+           minimum added up to more than the card had — and game-chrome.js's
+           header records Round 101 hitting exactly this: *"Four 40px buttons plus
+           the canvas floor was contributing more min-content height than #stage
+           gives the row, which pushed the flanks past the play frame."*
+           ⚠️ THE FLOOR IS NOT A TARGET SIZE. On a real screen the gauge is
+           whatever the card leaves it; this only decides what happens when there
+           is no room to spare, and DONE must never be the thing that gets
+           clipped — it is the only way off this page for a student on an iPad
+           with no keyboard.
+           ⭐ THIS DOES NOT AFFECT DIFFICULTY. Deadline's lanes, dome radii and
+           spawn spread all come from the PLAY canvas's own W, which Part A and B
+           of tests/lesson-game-layout-test.mjs pin to the arcade exactly. */
+        #game-wrap #gauge-canvas { flex: 1 1 auto; min-height: 150px; max-height: 420px; }
+        #game-wrap #controls-col .panel-canvas { margin-bottom: 4px; }
+        #game-wrap #controls-col .gc-bar-card { flex: 1 1 auto; min-height: 0; }
+        #game-wrap #controls-col .gc-bar-card .gc-btn { flex: 1 1 auto; max-height: 68px; }
+        /* ⚠️ FOLD ORDER IS JAKE'S RULING (arcade.html): the radar stays, the
+           controls drop below the frame, and THE PLAY COLUMN NEVER GOES BELOW
+           724px at any breakpoint. That is the constraint to test. */
+        @media (max-width: 1150px) {
+            #game-wrap .stage-grid { grid-template-columns: 200px minmax(724px, 1fr); }
+            #game-wrap #controls-col { grid-column: 1 / -1; min-height: 0; }
+            #game-wrap #controls-col .gc-bar-card { flex-direction: row; flex-wrap: wrap; }
+            #game-wrap #controls-col .gc-bar-card .gc-btn { width: auto; }
+        }
+        @media (max-width: 820px) {
+            #game-wrap .stage-grid { grid-template-columns: minmax(0, 1fr); }
+            #game-wrap #radar-col { display: none; }
+        }
+    </style>
 </head>
 <body>
 
     <div id="hud">
         <div class="hud-section left">
-            <!-- ⭐ THE MODE PILL, PAINTED BY site-nav.js — ONE RECORD OF THE SITE MAP for
-     all four pages. Hand-copying it would be four records, and the day Arcade is
-     renamed is the day they start disagreeing. ⚠️ Its own module, importing no
-     Firebase: a student who cannot reach the SDK must still be able to leave
-     this page. -->
-            <!-- ⚠️ THIS REPLACES THE "← Home" LINK. A Library tab and a Home link
-                 are two records of one route, and the tab also says where the
-                 student IS, which the link never did. -->
-            <span id="site-nav" style="margin-right:12px"></span>
+            <a id="back-btn" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;">← Home</a>
             <!-- ⚠️ IDENTICAL TO game.html's SLOT, ON PURPOSE. Same ids, same
                  positions, same strings from hud.js. A student moving between
                  School and Library should not have to relearn the top bar.
@@ -98,6 +270,16 @@
                     <div id="intro-keyboard-wrap">
                         <div id="intro-keyboard"></div>
                     </div>
+                    <!-- ⚠️ THE RUN PICKER LIVES ON THE INTRO PANEL AND NOWHERE
+                         ELSE, AND THAT PLACEMENT IS A RULING, NOT A LAYOUT
+                         CHOICE. ROADMAP item 8: a focusable control reachable
+                         by Tab from a TYPING view eats keystrokes the child
+                         should have been credited for — which is why the font
+                         picker went to the map and why #done-btn carries
+                         tabindex="-1". The intro panel is not a typing view, so
+                         buttons here are free. DO NOT MOVE THIS INTO
+                         #active-drill. -->
+                    <div id="intro-run-picker"></div>
                     <button class="intro-start-btn" id="intro-start-btn">Start Lesson →</button>
                 </div>
             </div>
@@ -124,6 +306,36 @@
                     <div class="dm-remediation" id="dm-remediation"></div>
                     <div class="dm-btns"  id="dm-btns"></div>
                 </div>
+
+                <!-- ⚠️ STATIC MARKUP, JS ONLY TOGGLES .hidden — same convention
+                     as every other view in this file. learn2.js's beginGameStep()
+                     mounts Deadline here for a lesson's final run; beginStep()'s
+                     typed path never touches this element.
+                     ⚠️⚠️ THE THREE COLUMNS ARE arcade.html's, ID FOR ID, because
+                     learn2.js hands them to panelOptionsFor() — THE SAME function
+                     arcade.html calls. Rename an id here and the panel goes blank
+                     with no error, which is exactly the defect Jake reported on
+                     the arcade earlier the same day. See game-names.js.
+                     ⚠️ AND THEY ARE THREE SIBLING COLUMNS, NOT ONE WIDE CANVAS
+                     WITH AN INSET PLAYFIELD. game-deadline.js computes lane
+                     positions and dome radii from the play canvas's own `W`, and
+                     the dome radius IS the coverage test that gives the city six
+                     lives instead of three. An inset rect puts all of that in
+                     play; siblings put none of it in play. -->
+                <div id="game-wrap" class="hidden">
+                    <div class="stage-grid">
+                        <div class="side-card" id="radar-col">
+                            <h2>RADAR</h2>
+                            <canvas id="radar-canvas" class="panel-canvas"></canvas>
+                            <canvas id="threat-canvas" class="panel-canvas"></canvas>
+                        </div>
+                        <div id="game-mount"></div>
+                        <div class="side-card" id="controls-col">
+                            <h2>CONSOLE</h2>
+                            <canvas id="gauge-canvas" class="panel-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div><!-- /drill-view -->
@@ -139,14 +351,10 @@
         <div id="footer-full" class="build-list"></div>
     </footer>
 
-    <script type="module" src="learn.js"></script>
+    <script type="module" src="learn2.js"></script>
 
-    <!-- ⚠️ SEPARATE TAG, NOT AN IMPORT INSIDE learn.js. Its own module graph, so
+    <!-- ⚠️ SEPARATE TAG, NOT AN IMPORT INSIDE learn2.js. Its own module graph, so
          if this file is missing or fails, the lesson page still runs. -->
     <script type="module" src="update-gate.js"></script>
-<script type="module">
-import { mountSiteNav } from './site-nav.js';
-mountSiteNav('#site-nav', 'school', 'learn');
-</script>
 </body>
 </html>
