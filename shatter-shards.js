@@ -1,3 +1,15 @@
+// shatter-shards.js v1.4.0 — SHARDS. Round 117 (Bennett): HYPERSPACE, and the
+// collision bug that was the real cause of "too easy".
+//
+// v1.4.0 — ⭐⭐ THE WARP IS A JUMP, NOT A SHOVE. The prism relocates to the
+//   quietest point on the map, which on a radar-centred field means the whole
+//   field translates rigidly under it. Velocities untouched; density exactly
+//   preserved. And a warp costs twice Shatter's clears here, via a hook on the
+//   base rather than a copied warp().
+// v1.3.0 — ⚠⚠ THE PANE'S SIZE IS IN THE HIT TEST. It was not, and that was the
+//   whole of "never had any threat at all": a nine-letter window was DRAWN at
+//   0.25 and could hurt you only within 0.10. Deleting the wandering budget fell
+//   out of it for free — see WANDER_CROSSINGS' obituary below.
 // shatter-shards.js v1.2.0 — SHARDS. Round 116 (Sun).
 //
 // ⚠️ Round 117 (Corona): THE HEADER SAID v1.1.0 OVER A CONSTANT READING '1.2.0'.
@@ -99,7 +111,7 @@ import {
     paneRadius, PANE_CELL, PANE_HIT_FRACTION,
 } from './shatter-board.js';
 
-export const SHATTER_SHARDS_VERSION = '1.3.0';
+export const SHATTER_SHARDS_VERSION = '1.4.0';
 
 /**
  * How close a pane's CENTRE may come to the prism's centre before they touch.
@@ -108,6 +120,21 @@ export const SHATTER_SHARDS_VERSION = '1.3.0';
  * ⚠️ THE PANE TERM IS IN FIELD UNITS because `PANE_CELL` is a fraction of
  * SPAWN_R — the same call the view makes in pixels with a pixel cell.
  */
+/**
+ * Wrap one coordinate back into the field. ⚠️ ONE FUNCTION, because advance() and
+ * the warp must agree about where the edges are — two copies of a modulus is how
+ * a pane ends up half a field from where the radar says it is.
+ * ⚠️ A LOOP, NOT A SINGLE ADD: a warp offset can carry a pane more than one field
+ * width, which the single `if` in advance()'s per-frame step never could.
+ */
+export function wrapCoord(v) {
+    const span = WRAP_EDGE * 2;
+    let x = v;
+    while (x < -WRAP_EDGE) x += span;
+    while (x > WRAP_EDGE) x -= span;
+    return x;
+}
+
 export function reachOf(rock) {
     return PRISM_R + paneRadius(rock && rock.text, PANE_CELL) * PANE_HIT_FRACTION;
 }
@@ -138,11 +165,33 @@ export const PRISM_R = 0.10;
 // TWO SPAWN RADII WIDE, so this is the distance term in speed = distance / time.
 const CROSSING = SPAWN_R * 2;
 
-// How hard a warp shoves. ⚠️ EXPRESSED AS THE SAME DISTANCE Shatter's WARP_PUSH
-// MOVES A PANE, delivered as velocity over one second rather than teleported —
-// a pane that jumped 0.45 of the field would be somewhere else entirely and the
-// student would lose track of the word they were typing.
-const WARP_KICK = WARP_PUSH;
+// ⚠️⚠️ HOW MANY CLEARS A WARP COSTS HERE — ROADMAP 116h.3, Round 117.
+// `WARP_CLEARS` is 8 and was priced for SHATTER, where panes arrive and die on a
+// timer so clears are scarce. In Shards nothing arrives: a typing student clears
+// far more, and a warp at Shatter's price is close to free.
+// ⚠️ IT IS PASSED TO THE BASE AS `warpClears`, NOT ENFORCED BY OVERRIDING warp()
+// — `warps`, `charge` and `canWarp()` all read the price, so a local override
+// would leave the meter and the pips disagreeing with the cost.
+export const SHARDS_WARP_CLEARS = WARP_CLEARS * 2;
+
+// ⚠️⚠️ HOW MANY OFFSETS THE JUMP CONSIDERS. The prism cannot steer, so the board
+// picks the destination; this is how hard it looks. ⭐ NOT MORE, because every
+// candidate costs a pass over every pane and this runs inside a keystroke.
+const WARP_CANDIDATES = 64;
+
+// ⚠️⚠️ HOW FAR AHEAD A CANDIDATE IS JUDGED, IN MILLISECONDS.
+// ⭐ SCORING ONLY THE PRESENT WOULD DROP THE STUDENT INTO A LOVELY EMPTY POCKET
+// WITH SOMETHING FAST ALREADY INBOUND, which is a worse feeling than not warping
+// at all — the student spent an earned charge and was hit anyway.
+const WARP_LOOKAHEAD_MS = 1500;
+
+// ⚠️⚠️ HOW MANY INSTANTS INSIDE THAT WINDOW ARE SAMPLED, AND THE HARNESS FOUND
+// WHY MORE THAN TWO ARE NEEDED. Scoring only `now` and `now + 1500` lets a fast
+// pane TRANSIT THE PRISM BETWEEN THE SAMPLES and score as safe at both ends —
+// at these speeds a pane covers well over a third of the field in 1.5 seconds,
+// so the gap between two samples is wider than the prism is. ⭐ A LOOKAHEAD THAT
+// CAN STEP OVER THE THING IT IS LOOKING FOR IS NOT A LOOKAHEAD.
+const WARP_LOOKAHEAD_STEPS = 6;
 
 // ⚠️⚠️⚠️ THE WANDERING BUDGET IS DELETED — ROADMAP 116h.1, Round 117 (Bennett).
 //
@@ -203,6 +252,16 @@ export const PIECE_SPEED_GAIN = 1.5;
  * one it has, and the view not knowing is the entire point of the seam.
  */
 export class ShardsBoard extends ShatterBoard {
+
+    /**
+     * ⚠️ THE ONLY OPTION THIS BOARD ADDS, AND IT IS ADDED BY *SUPPLYING* ONE THE
+     * BASE ALREADY ACCEPTS rather than by growing a new config shape — a second
+     * shape would make `game-shatter.js` branch on which board it has, and the
+     * view not knowing is the entire point of the seam.
+     */
+    constructor(o) {
+        super(Object.assign({ warpClears: SHARDS_WARP_CLEARS }, o || {}));
+    }
 
     /**
      * ⚠️ FIELD COORDINATES AND A DIRECTION, LIKE THE BASE. See ShatterBoard's
@@ -319,10 +378,11 @@ export class ShardsBoard extends ShatterBoard {
             // was tested at its pre-wrap position could register a hit on the
             // frame it teleported, which from the student's seat is being killed
             // by something off screen.
-            if (rock.x < -WRAP_EDGE) rock.x += WRAP_EDGE * 2;
-            else if (rock.x > WRAP_EDGE) rock.x -= WRAP_EDGE * 2;
-            if (rock.y < -WRAP_EDGE) rock.y += WRAP_EDGE * 2;
-            else if (rock.y > WRAP_EDGE) rock.y -= WRAP_EDGE * 2;
+            // ⚠️ wrapCoord(), NOT AN INLINE MODULUS — Round 117. The warp moves
+            // panes by up to a whole field width, so the edges have to be
+            // described in exactly one place or the two callers disagree.
+            rock.x = wrapCoord(rock.x);
+            rock.y = wrapCoord(rock.y);
 
             // ⚠️⚠️ THE PANE'S OWN SIZE IS IN THE TEST — Round 117. `paneRadius()`
             // is shatter-board.js's, the same function the view draws with, so a
@@ -393,30 +453,92 @@ export class ShardsBoard extends ShatterBoard {
     }
 
     /**
-     * ⚠️ THE WARP SHOVES AND DESTROYS NOTHING — the base's rule, unchanged, and
-     * the reason it exists is unchanged too: a warp that cleared the board would
-     * let a student bank typing time without typing.
+     * ⭐⭐ HYPERSPACE. The prism JUMPS to the quietest point on the map, and
+     * because the prism is the origin of a radar-relative field, that inverts to
+     * THE WHOLE FIELD TRANSLATING UNDER IT.
      *
-     * ⭐ HERE IT IS A VELOCITY KICK, NOT A TELEPORT. Moving every pane 0.45 of
-     * the field instantly would put the word the student is halfway through
-     * somewhere they have to find again. Shoving them outward lets the eye
-     * follow.
+     * Jake, 2026-09-11: *"Warp doesn't work the way I meant it to — namely, that
+     * the ship jumps somewhere with fewer asteroids on the same map. Given the
+     * nature of the radar, that really means everything else has to jump, I
+     * guess, but it just removing **everything** makes the game far too easy."*
+     * And later, exactly: *"none of the panes of glass would be gone — you're
+     * just further away."*
      *
-     * ⚠️ THE ECONOMY IS THE BASE'S. `canWarp`, `charge`, `warps` and the
-     * "one warp spent, not the whole stack" rule are all inherited; only the
-     * physics of the shove is here.
+     * ⚠️⚠️ IT IS HYPERSPACE, NOT THRUST, AND THAT DISTINCTION IS THE WHOLE
+     * DESIGN. Thrust is steered and continuous; the student's hands are on the
+     * home row and there is nothing to steer with, so a shove has a direction
+     * nobody chose. Hyperspace is a DISCRETE RELOCATION WITH NO HEADING — the
+     * one Asteroids control that fits a player with no directional input.
+     *
+     * ⭐⭐ VELOCITIES ARE UNTOUCHED, AND THAT IS NOT AN OVERSIGHT. The ship
+     * teleported; it did not accelerate. So every pane keeps its speed and its
+     * bearing, the whole constellation moves rigidly, and the radar needs no
+     * change at all because it reads `place()` which reads x and y. ⚠️ A RIGID
+     * TRANSLATION IS THE LEAST DISORIENTING REARRANGEMENT THERE IS: the eye
+     * tracks one pattern sliding, not eight objects scattering, so the word the
+     * student was halfway through is still findable.
+     *
+     * ⚠️⚠️ DENSITY IS EXACTLY PRESERVED — THE PANE COUNT IS IDENTICAL AND SO IS
+     * EVERY PAIRWISE DISTANCE. That is the point rather than a limitation: it
+     * buys the student BREATHING ROOM without buying them fewer words, so a warp
+     * can never become a way to bank typing time without typing. ⭐ THE OLD PUSH
+     * FAILED PRECISELY HERE — shoving everything outward thinned the field, which
+     * is why Jake said it made the game far too easy.
      */
     warp(nowMs) {
         if (!this.canWarp(nowMs)) return false;
+        const jump = this._bestJump();
         for (const rock of this.rocks) {
-            const m = Math.hypot(rock.x, rock.y);
-            const dx = m < 1e-6 ? 0 : rock.x / m;
-            const dy = m < 1e-6 ? -1 : rock.y / m;
-            rock.vx += dx * WARP_KICK;
-            rock.vy += dy * WARP_KICK;
+            rock.x = wrapCoord(rock.x - jump.x);
+            rock.y = wrapCoord(rock.y - jump.y);
+            // ⚠️ NO vx / vy LINE HERE. See the header — adding one turns
+            // hyperspace back into the shove this replaced.
         }
-        this.clearsSinceWarp -= WARP_CLEARS;
+        this.clearsSinceWarp -= this.warpClears;
         return true;
+    }
+
+    /**
+     * Where to jump. ⚠️ THE FIELD IS A TORUS, so any offset is reachable and the
+     * only question is which is quietest.
+     *
+     * ⭐ SCORED ON THE NEAREST PANE NOW **AND** ONE AND A HALF SECONDS FROM NOW,
+     * TAKING THE WORSE OF THE TWO. A present-only score picks empty pockets that
+     * a fast pane is already crossing into, and a student who spends an earned
+     * charge and is hit anyway has learnt that the control is a lie.
+     *
+     * ⚠️ CANDIDATES COME FROM `this.rand`, so a seeded run is reproducible and a
+     * harness can drive it.
+     */
+    _bestJump() {
+        let best = { x: 0, y: 0 }, bestScore = -Infinity;
+        // ⚠️⚠️ CANDIDATE ZERO IS "DO NOT MOVE", AND IT IS NOT A FORMALITY — the
+        // harness caught a jump that left the student WORSE OFF (clearance 1.076
+        // → 0.481) on a board that was already quiet. A finite random sample can
+        // simply fail to contain a good offset, and a warp that makes things
+        // worse is the one outcome a student will never forgive: they spent a
+        // charge they earned by typing. ⭐ INCLUDING THE IDENTITY MAKES
+        // "never worse than not warping" a PROPERTY rather than a probability.
+        for (let i = 0; i <= WARP_CANDIDATES; i++) {
+            const jx = i === 0 ? 0 : (this.rand() * 2 - 1) * WRAP_EDGE;
+            const jy = i === 0 ? 0 : (this.rand() * 2 - 1) * WRAP_EDGE;
+            let worst = Infinity;
+            for (const rock of this.rocks) {
+                // ⚠️ CLEARANCE, NOT RAW RANGE: a big window at 0.4 is closer to
+                // touching you than a splinter at 0.3. The same reachOf() the hit
+                // test uses, so "safe" here means what "hit" means there.
+                const reach = reachOf(rock);
+                for (let k = 0; k <= WARP_LOOKAHEAD_STEPS; k++) {
+                    const dt = WARP_LOOKAHEAD_MS * k / WARP_LOOKAHEAD_STEPS;
+                    const x = wrapCoord(rock.x + rock.vx * dt - jx);
+                    const y = wrapCoord(rock.y + rock.vy * dt - jy);
+                    const clear = Math.hypot(x, y) - reach;
+                    if (clear < worst) worst = clear;
+                }
+            }
+            if (worst > bestScore) { bestScore = worst; best = { x: jx, y: jy }; }
+        }
+        return best;
     }
 
 }

@@ -64,7 +64,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.5.0';
+export const SHATTER_BOARD_VERSION = '1.6.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -409,6 +409,17 @@ export class ShatterBoard {
         this.rocks = [];
         this.locked = null;
         this.clearsSinceWarp = 0;
+        // ⚠️⚠️ THE PRICE OF A WARP IS AN INSTANCE FIELD, NOT THE CONSTANT
+        // DIRECTLY — v1.6.0, Round 117 (Bennett), ROADMAP 116h.3. WARP_CLEARS
+        // was priced for SHATTER, where clears are scarce because panes arrive
+        // and die on a timer. In Shards nothing arrives, so a student who is
+        // typing clears far more and a warp at the same price is nearly free.
+        // ⭐ A HOOK RATHER THAN A COPIED warp(): this file's own standing rule is
+        // that a subclass reaching down to change two lines of a method means the
+        // base wanted a seam. `warps`, `charge` and `canWarp()` ALL read the
+        // price, so a subclass overriding only warp() would have left the meter
+        // and the pips disagreeing with the cost — three readers, one number.
+        this.warpClears = c.warpClears > 0 ? c.warpClears : WARP_CLEARS;
         this.lastClearAt = -Infinity;
         this._lastAt = null;
     }
@@ -726,7 +737,7 @@ export class ShatterBoard {
 
     /** How many whole warps are banked, 0..MAX_WARPS. */
     get warps() {
-        return Math.min(MAX_WARPS, Math.floor(this.clearsSinceWarp / WARP_CLEARS));
+        return Math.min(MAX_WARPS, Math.floor(this.clearsSinceWarp / this.warpClears));
     }
 
     /**
@@ -737,7 +748,7 @@ export class ShatterBoard {
      */
     get charge() {
         if (this.warps >= MAX_WARPS) return 1;
-        return (this.clearsSinceWarp % WARP_CLEARS) / WARP_CLEARS;
+        return (this.clearsSinceWarp % this.warpClears) / this.warpClears;
     }
 
     /** All three conditions. Each closes a different hole; see the header. */
@@ -761,7 +772,7 @@ export class ShatterBoard {
         // ⚠️ ONE WARP IS SPENT, NOT THE WHOLE STACK. Zeroing the counter would
         // throw away the other two the student deliberately saved, which is the
         // opposite of what hoarding is supposed to buy them.
-        this.clearsSinceWarp -= WARP_CLEARS;
+        this.clearsSinceWarp -= this.warpClears;
         return true;
     }
 

@@ -112,7 +112,7 @@ harness has to fail against a real student's history before the fix and pass
 after. Check whether `arcade.html` already knows the furthest-reached lesson or
 has to be told.
 
-### 116h — ⚠️ PARTS 1 AND 2 CLOSED (Round 117). PARTS 3 AND 4 STILL OPEN.
+### 116h — ✅ ALL FOUR PARTS CLOSED (Round 117, Bennett).
 
 ✅ **THE ROOT CAUSE WAS A COLLISION BUG, NOT A BALANCE PROBLEM.** The pane's own
 size was not in the hit test — `hypot(x,y) <= 0.10` while a nine-letter window
@@ -137,11 +137,21 @@ FAIRNESS ORDERING, NOT THE IDLE FLOOR** — it is the only value where a slow ty
 outlives an idle one (108s vs 86s); at 3+ they invert. Idle survival 265s → 86s;
 worst first threat 269s → 46s.
 
-⚠️⚠️ **3 AND 4 ARE UNTOUCHED.** The translation design is settled: prism jumps to
-P, every pane becomes `pane − P` wrapped, **velocities untouched** — fewer lines
-than today's shove, and the radar needs no change. Score candidates on the nearest
-pane now AND ~1.5s ahead. `WARP_CLEARS` wants a `this.warpClears` hook on the base
-rather than a copied `warp()`.
+✅ **3 — `SHARDS_WARP_CLEARS = 16`,** twice Shatter's, supplied through a new
+`this.warpClears` hook on the base. ⚠️ A hook rather than a copied `warp()`:
+`warps`, `charge` and `canWarp()` all read the price, so overriding only `warp()`
+would leave the meter promising a warp the board refuses.
+
+✅ **4 — HYPERSPACE.** The prism jumps to the quietest point; the field
+translates rigidly under it. **Velocities untouched** — it teleported, it did not
+accelerate — so density is exactly preserved, the constellation is intact, and
+the radar needed no change at all. ⭐ Two things the harness found: the
+**identity offset must be a candidate** (the first version left a student worse
+off, 1.076 → 0.481, because a finite random sample can miss), and **two sample
+instants were not enough** (a pane covers a third of the field in 1.5s and could
+transit the prism between them). ⚠️⚠️ **A WARP IS NEVER WORSE THAN NOT WARPING AND
+IS NEVER SAFE** — on a crowded board there may be no safe point, and a warp that
+guaranteed survival would be a shield on a meter earned by typing.
 
 The original brief is kept below as the record.
 

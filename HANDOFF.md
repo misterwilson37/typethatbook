@@ -168,7 +168,42 @@
 > **Before → after (idle, 8 seeds, 5 min, 20 WPM gate):** survived **265s → 86s**;
 > worst first threat **269s → 46s**; and **slow 108s now beats idle 86s**.
 >
-> ### ⚠️⚠️ NOT STARTED: 116h.3 (warp price) AND 116h.4 (the translation)
+> ### ✅ 116h.3 AND 116h.4 — DONE. HYPERSPACE.
+>
+> * **`shatter-board.js` v1.6.0 grew `this.warpClears`**, and `warps`, `charge`
+>   and `canWarp()` all read it. ⚠️ **A HOOK, NOT A COPIED `warp()`** — three
+>   readers share the price, so a subclass overriding only `warp()` would have
+>   left the pips promising a warp the board refuses. `SHARDS_WARP_CLEARS` is
+>   **16**, twice Shatter's, because clears are far more plentiful where nothing
+>   arrives on a timer. Shatter's own price is untouched.
+> * **`shatter-shards.js` v1.4.0 — `warp()` translates the field.** Prism jumps
+>   to P; every pane becomes `pane − P`, wrapped. ⭐⭐ **VELOCITIES UNTOUCHED —
+>   the ship teleported, it did not accelerate.** Mutation-verified: multiply one
+>   `vx` by 1.01 and the assertion goes red. The radar needed no change.
+> * `_bestJump()` scores **64 random offsets plus the identity**, on the worst
+>   clearance over a 1.5s window.
+>
+> ⚠️⚠️ **TWO THINGS THE HARNESS FOUND THAT I HAD NOT THOUGHT OF:**
+> 1. **The identity candidate is load-bearing.** A finite random sample can fail
+>    to contain a good offset, and the first version left a student WORSE off
+>    (clearance 1.076 → 0.481) on an already-quiet board. ⭐ Including "do not
+>    move" makes *never worse than not warping* a **property**, not a probability.
+>    A student will forgive a wasted charge; they will not forgive a harmful one.
+> 2. **Two sample instants were not enough.** At these speeds a pane crosses over
+>    a third of the field in 1.5s, so it could **transit the prism between the
+>    samples** and score safe at both ends. Now 7 samples. ⚠️ A lookahead that can
+>    step over the thing it is looking for is not a lookahead.
+>
+> ⚠️⚠️ **AND WHAT THE WARP DELIBERATELY DOES NOT BUY: SAFETY.** On a crowded board
+> there may be no safe point at all — every reachable offset still has something
+> crossing it, the identity wins or ties, and the student is merely no worse off.
+> ⭐ **THAT IS THE DESIGN, NOT A DEFECT TO TUNE AWAY:** a warp that guaranteed
+> survival is a shield, and a shield on a meter earned by clearing is a way to
+> bank typing time without typing — the hole "a warp destroys nothing" exists to
+> close. **Never worse, usually better, never safe.** Part G says so in writing
+> rather than asserting the opposite.
+>
+> ### ⚠️ WHAT REMAINS OF 116h
 >
 > ⭐ **THE DESIGN IS SETTLED AND IS SMALLER THAN IT LOOKS.** Prism jumps to P →
 > every pane becomes `pane − P`, wrapped. **Velocities are untouched** — the ship
@@ -207,8 +242,8 @@
 > ## VERSION STAMPS THIS ROUND
 >
 > `game-shell.js` **v1.8.0** · `arcade.html` **v3.21.0** ·
-> `shatter-board.js` **v1.5.0** · `shatter-shards.js` **v1.3.0** ·
-> `game-shatter.js` **v1.7.0** · `tests/shatter-shards-test.mjs` **v1.1.0** ·
+> `shatter-board.js` **v1.6.0** · `shatter-shards.js` **v1.4.0** ·
+> `game-shatter.js` **v1.7.0** · `tests/shatter-shards-test.mjs` **v1.2.0** ·
 > `shatter-shards.js` **v1.2.0** (header corrected to match its constant — it
 > read v1.1.0 over a `'1.2.0'`; no code change) ·
 > `tests/arcade-scope-menu-test.mjs` **v1.0.0, new** ·

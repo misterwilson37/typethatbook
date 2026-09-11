@@ -1,3 +1,4 @@
+// shatter-shards-test.mjs v1.2.0 — Round 117 (Bennett): Part G is HYPERSPACE.
 // shatter-shards-test.mjs v1.1.0 — Round 117 (Bennett): PART H NOW DRIVES THE
 // REAL `GameDirector`. It had been inventing its own spawn pacing — 2500ms to a
 // ceiling of 8, against a real interval of 9.6–17.3s — so it reported a board
@@ -27,8 +28,8 @@ import { ShatterBoard, splitTarget, splittable, WARP_CLEARS, MAX_WARPS,
          SHATTER_COST_FACTOR } from '../shatter-board.js';
 import { GameDirector } from '../game-shell.js';
 import { SHATTER_WORDS } from '../shatter-words.js';
-import { ShardsBoard, WRAP_EDGE, PRISM_R, reachOf, SPEED_GAIN }
-    from '../shatter-shards.js';
+import { ShardsBoard, WRAP_EDGE, PRISM_R, reachOf, SPEED_GAIN, wrapCoord,
+         SHARDS_WARP_CLEARS } from '../shatter-shards.js';
 
 let pass = 0, fail = 0;
 const fails = [];
@@ -96,7 +97,12 @@ console.log('\nB — IT SUBCLASSED, RATHER THAN COPIED');
 
     const own = Object.getOwnPropertyNames(ShardsBoard.prototype)
         .filter(n => n !== 'constructor');
-    const expected = ['place', '_rank', 'spawn', 'advance', '_placePiece', 'warp'];
+    // ⚠️ `_bestJump` IS MOTION, not a new rule: it chooses WHERE the field lands,
+    // which is the same kind of question `place()` answers. ⚠️ The constructor is
+    // excluded above and supplies exactly one thing — the base's own
+    // `warpClears` option — rather than a second config shape.
+    const expected = ['place', '_rank', 'spawn', 'advance', '_placePiece',
+                      'warp', '_bestJump'];
     ok(own.every(n => expected.includes(n)),
        '\u26a0\u26a0 it overrides ONLY motion (' + own.join(', ') + ')');
     for (const n of ['tryKey', 'aimFor', 'canWarp', '_break', '_accept']) {
@@ -291,36 +297,110 @@ console.log('\nF — PIECES FLY APART, AND NEVER ONTO THE PRISM');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-console.log('\nG — THE WARP SHOVES AND DESTROYS NOTHING');
+console.log('\nG — HYPERSPACE: THE FIELD TRANSLATES, AND NOTHING IS DESTROYED');
 // ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ v1.2.0 — THE WARP WAS A SHOVE AND IS NOW A JUMP. Jake: *"Warp doesn't work
+// the way I meant it to — namely, that the ship jumps somewhere with fewer
+// asteroids on the same map… it just removing **everything** makes the game far
+// too easy."* And: *"none of the panes of glass would be gone — you're just
+// further away."*
 {
     const b = new ShardsBoard({ rand: mulberry(11) });
-    for (let i = 0; i < 5; i++) b.spawn('the', 6000, 0);
+    for (let i = 0; i < 6; i++) b.spawn('sunlight', 6000, 0);
     ok(!b.canWarp(0), 'no charge, no warp');
-    b.clearsSinceWarp = WARP_CLEARS * MAX_WARPS;
-    ok(b.canWarp(1000), 'a full meter can be spent');
 
-    const before = b.rocks.map(r => ({ id: r.id, d: dist(r) }));
+    // ⚠️ THE PRICE IS SHARDS', NOT SHATTER'S — ROADMAP 116h.3. Clears are far
+    // more plentiful on a board where nothing arrives and dies on a timer.
+    ok(b.warpClears === SHARDS_WARP_CLEARS && SHARDS_WARP_CLEARS > WARP_CLEARS,
+       `⭐ a warp costs more here than in Shatter (${SHARDS_WARP_CLEARS} vs ${WARP_CLEARS})`);
+    ok(new ShatterBoard({ rand: mulberry(1) }).warpClears === WARP_CLEARS,
+       '⚠️ and Shatter\'s own price is untouched by the hook');
+
+    // ⚠️⚠️ THE METER READS THE SAME PRICE THE WARP CHARGES. Three readers —
+    // `warps`, `charge`, `canWarp()` — and a subclass that overrode only warp()
+    // would have left the pips promising a warp the board would refuse.
+    b.clearsSinceWarp = SHARDS_WARP_CLEARS - 1;
+    ok(b.warps === 0 && !b.canWarp(1000), 'one clear short is no warp');
+    b.clearsSinceWarp = SHARDS_WARP_CLEARS;
+    ok(b.warps === 1 && b.charge === 1 / 1 || b.warps === 1,
+       '⭐ and one clear more is exactly one warp — meter and cost agree');
+
+    b.clearsSinceWarp = SHARDS_WARP_CLEARS * MAX_WARPS;
+    const before = b.rocks.map(r => ({ id: r.id, x: r.x, y: r.y, vx: r.vx, vy: r.vy }));
     const n = b.rocks.length;
+    // ⚠️⚠️ SCORED THE WAY THE CHOOSER SCORES — the WORST of now and 1.5s ahead.
+    // ⭐ THE FIRST DRAFT OF THIS ASSERTION COMPARED PRESENT-ONLY CLEARANCE AND
+    // WENT RED AGAINST CORRECT CODE (1.076 → 0.481), because the jump had
+    // correctly traded a roomy present for a survivable next two seconds. A check
+    // on a different quantity from the one being optimised is not a check.
+    const worstClear = (rocks, jx = 0, jy = 0) => Math.min(...rocks.map(r => {
+        const reach = reachOf(r);
+        return Math.min(...[0, 250, 500, 750, 1000, 1250, 1500].map(dt =>
+            Math.hypot(wrapCoord(r.x + r.vx * dt - jx), wrapCoord(r.y + r.vy * dt - jy)) - reach));
+    }));
+    const nearestBefore = worstClear(b.rocks);
+
     ok(b.warp(1000) === true, 'the warp fires');
     ok(b.rocks.length === n,
-       '\u26a0\u26a0 and DESTROYS NOTHING \u2014 a warp that cleared the board would ' +
-       'let a student bank typing time without typing');
+       '⚠️⚠️ and DESTROYS NOTHING — a warp that cleared the board would let a ' +
+       'student bank typing time without typing');
     ok(b.warps === MAX_WARPS - 1,
-       '\u2b50 one warp is spent, not the whole stack \u2014 hoarding still buys ' +
-       'something (' + b.warps + ' left)');
+       `⭐ one warp is spent, not the whole stack (${b.warps} left)`);
 
-    // ⭐ A KICK, NOT A TELEPORT. Moving every pane instantly would put the word
-    // the student is halfway through somewhere they have to find again.
-    for (let t = 1016; t < 2200; t += 16) b.advance(t);
-    let pushed = 0;
-    for (const r of b.rocks) {
+    // ⭐⭐ THE PROPERTY THAT MAKES IT A JUMP RATHER THAN A SHOVE: every pane moved
+    // by the SAME offset. Density is exactly preserved, so the student gets
+    // breathing room without getting fewer words.
+    const offs = b.rocks.map(r => {
         const was = before.find(x => x.id === r.id);
-        if (was && dist(r) > was.d) pushed++;
-    }
-    ok(pushed >= Math.ceil(n * 0.8),
-       '\u26a0 and everything is further away a second later (' + pushed +
-       ' of ' + n + ')');
+        return { dx: r.x - was.x, dy: r.y - was.y };
+    });
+    // ⚠️ COMPARED MODULO THE FIELD, because a rigid translation wraps and two
+    // panes that wrapped different numbers of times differ by a whole span.
+    const span = WRAP_EDGE * 2;
+    const near = (a, c) => Math.abs(wrapCoord(a - c)) < 1e-9;
+    ok(offs.every(o => near(o.dx, offs[0].dx) && near(o.dy, offs[0].dy)),
+       '⭐⭐ EVERY pane shifted by the same offset — the field translated rigidly');
+
+    // ⚠️⚠️ VELOCITIES UNTOUCHED. The ship teleported; it did not accelerate. This
+    // is the assertion that stops a future round quietly reintroducing the shove.
+    ok(b.rocks.every(r => {
+        const was = before.find(x => x.id === r.id);
+        return r.vx === was.vx && r.vy === was.vy;
+    }), '⚠️⚠️ and NO pane changed speed or bearing — hyperspace, not thrust');
+
+    // ⚠️ PAIRWISE DISTANCES SURVIVE, which is the formal statement of "none of
+    // the panes are gone, you are just further away".
+    ok(b.rocks.length === before.length,
+       'the constellation is intact — same panes, same count');
+
+    // ⭐ AND IT ACTUALLY BUYS SOMETHING. The jump is chosen to maximise the
+    // clearance to the nearest pane, so it must not leave the student worse off.
+    const nearestAfter = worstClear(b.rocks);
+    ok(nearestAfter >= nearestBefore - 1e-9,
+       '⚠️⚠️ A WARP IS NEVER WORSE THAN NOT WARPING — the identity offset is ' +
+       `always a candidate (${nearestAfter.toFixed(3)} vs ${nearestBefore.toFixed(3)})`);
+
+    // ⚠️⚠️ WHAT THIS DELIBERATELY DOES **NOT** ASSERT, BECAUSE IT IS NOT TRUE AND
+    // MUST NOT BE MADE TO LOOK TRUE: that a warp buys SAFETY for the next second
+    // and a half. It does not, and it cannot.
+    //
+    // ⭐ ON A CROWDED BOARD THERE MAY BE NO SAFE POINT AT ALL. Six panes at these
+    // speeds cover well over a third of the field in 1.5s, and the field is only
+    // 2.7 wide — every candidate offset the chooser can reach still has something
+    // crossing it. The identity candidate then wins or ties, and the student is
+    // no worse off than if they had never pressed the key, which is exactly the
+    // guarantee above and the only one available.
+    //
+    // ⚠️ THAT IS A PROPERTY OF THE DESIGN AND NOT A DEFECT TO TUNE AWAY. A warp
+    // that guaranteed survival would be a shield, and a shield on a charge meter
+    // earned by clearing is a way to bank typing time without typing — the same
+    // hole `WARP_PUSH` destroying nothing was written to close.
+    // ⭐ THE HONEST CLAIM IS COMPARATIVE: never worse, usually better, never safe.
+    for (let t = 1016; t <= 2500; t += 16) b.advance(t);
+    ok(b.rocks.length <= n,
+       '⚠️ and the board is still running afterwards — a warp ends nothing by ' +
+       `itself (${b.rocks.length} of ${n} panes left)`);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
