@@ -66,6 +66,34 @@ prism idea. Build it all please."*
   needs no palette literal. The left panel's tracery is a rose window; ⚠️ its
   rule is unchanged — still deliberately unreadable.
 
+### ⚠️⚠️ A page-fatal regression, shipped and fixed in the same round
+
+**Both lesson pages loaded nothing and clicked nowhere**, and it was mine from
+one edit earlier in this round.
+
+The mode pill replaced `learn.html`'s `← Home` anchor, on the reasoning that a
+Library tab and a Home link were two records of one route. ⭐ **That anchor was
+not a route.** `learn.js` repurposes it: during a lesson it becomes the STOP
+control (`href='#'`, `onclick = stopLesson`) and reverts to `index.html` on the
+map. It was the in-lesson stop wearing a home link's clothes.
+
+⚠️ **And the cost was not the lost feature.** `backBtn.href = ...` threw on a
+null, and a top-level binding plus a property write takes the whole module down
+— so both pages rendered nothing at all. **99 harnesses were green over it.**
+
+* The link is restored, with the pill beside it rather than instead of it.
+* **`tests/dead-handler-test.mjs`** gains Part D, the mirror of Part B. B asks
+  *"is every button in the page wired?"* — a dead control. D asks *"is every
+  element the code GRABS still in the page?"* — a dead **page**.
+  ⚠️ **Top-level bindings only**, and that precision is the check: a first draft
+  matched every `getElementById()` and reported 28 false positives per page, all
+  of them controls these modules inject at runtime. The fatal shape is narrow —
+  a binding taken at module load, before anything could have been injected, then
+  written to. Guarded lookups (`if (el)`, `el?.`, `el &&`) are exempt, because
+  that says the author knows it may be absent. Verified by re-deleting the anchor:
+  one assertion goes red.
+
+
 ### The mode pill becomes one module on four pages
 
 Jake: *"If you think you've got the rope to update the pills on index, learn AND
