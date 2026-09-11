@@ -21,6 +21,39 @@ from the old game.** Two candidates fit:
 ONE.** Rule 3's whole lesson is that a round which picks for Jake spends the
 next three rounds putting it back. Ask.
 
+### 116d — DRIFT AND WRAP: A PROTOTYPE EXISTS; THE MEASUREMENT DOES NOT
+
+Jake: *"How big of a risk is it to try the wrap and the tumble? Can we do it in
+a separate file to see if you can manage it? Or is it really an either or
+thing?"*
+
+**Not either/or, and the code risk is small.** `shatter-board.js` is pure with a
+narrow interface (`spawn`, `advance`, `tryKey`, `canWarp`, `warp`, `rocks`,
+`locked`); a drift board is a drop-in. The tumble already shipped and is
+independent of all this.
+
+⚠️⚠️ **THE RISK IS PACING, NOT CODE.** `lifetimeFor()` guarantees a word is
+clearable at the student's gate and the 990-trial corpus sweep is what
+established it. **Wrap deletes arrival, so it deletes the thing that guarantee
+is about.** Pressure becomes DENSITY — uncleared panes accumulate until one
+hits the prism — and ⭐ **NOBODY HAS EVER MEASURED WHETHER A 15 WPM CHILD
+SURVIVES DENSITY.**
+
+**Round 116 shipped a toy, not a branch:** `shatter-drift-lab.html`, playable,
+importing the real `game-sprites.js`, `game-draw.js` and `splitTarget()` so only
+motion differs. ⚠️ It is not linked, writes nothing and grades nothing, and
+every number in it is a guess typed to make it playable. ⚠️ **A SECOND LIVE
+BOARD BEHIND A FLAG WAS DELIBERATELY NOT BUILT** — rule 5, and exactly what
+`tools/game-lab.html` was deleted for.
+
+**To close it, in this order:**
+1. ⚠️ **A HARNESS FIRST** (Rule 10): drive a drift board headless over many
+   seeded runs and answer *how long does a 15 / 25 / 40 WPM student last*. No
+   drift board becomes authoritative before that number exists.
+2. `shatter-drift.js` implementing `ShatterBoard`'s interface.
+3. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY** (Rule 9), and delete the lab
+   page with it.
+
 ### 116b — DEADLINE AND ESCAPE KEY HAVE STILL NEVER BEEN MOUNTED BY A HARNESS
 
 ⚠️⚠️ **THE CHEAPEST LARGE WIN AVAILABLE.** `tests/arcade-mount-test.mjs` (Round

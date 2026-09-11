@@ -1,4 +1,18 @@
-// game-shatter.js v1.3.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let), 116 (Sun).
+// game-shatter.js v1.4.0 — SHATTER. Rounds 103, 106, 109 (Bar-Let), 116 (Sun).
+//
+// v1.4.0 — ⭐⭐ THIS VIEW NO LONGER KNOWS WHAT A POLAR COORDINATE IS. Jake:
+//   *"What about a shatter 2 and have kids try both?"* — two motion models
+//   offered side by side for a rotation. ⚠️⚠️ THE WHOLE RISK IN THAT PLAN IS
+//   RULE 5: two GAMES is fine and the registry is built for it, but two COPIES
+//   of one game is what `tools/game-lab.html` was deleted for. This file read
+//   `rock.r` and `rock.angle` in nine places, so a drift board would have
+//   forced a second VIEW — and from that moment every change to the glass
+//   would have had to be made twice.
+//   It now asks `board.place()` where a pane is and how urgent it is, and
+//   `toPixels()` is the only geometry left in the file. ⚠️ NOTHING ON SCREEN
+//   MOVED: shatter-board-test.mjs Part H sweeps 400 positions and asserts the
+//   new path lands every pane on the same pixel the old px() did.
+//
 //
 // v1.3.0 — ⭐⭐ STAINED GLASS, AND A PRISM FOR A SHIP.
 //   ⚠️⚠️ THIS IS THE THIRD TIME THIS FILE HAS REDRAWN ITS TARGETS AND THE FIRST
@@ -117,13 +131,17 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.3.0';
+export const GAME_SHATTER_VERSION = '1.4.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
 const SHIP_R = 26;          // the prism's own radius in px
 const RING_MARGIN = 30;     // gap between the spawn ring and the canvas edge
-const DANGER_R = 0.22;      // board-space radius at which a pane reads as close
+// ⚠️ A THREAT LEVEL, NOT A RADIUS, SINCE v1.4.0. The board decides what makes a
+// pane urgent (this one derives it from range; a drift board would fold in
+// closing speed); the view decides only how urgent is urgent enough to go red.
+// ⭐ 0.78 IS THE OLD `r <= 0.22` EXACTLY, since this board's threat is 1 - r.
+const DANGER_T = 0.78;
 const HUD_H = 46;
 // ⚠️ FETCHED ONCE AND NEVER WRITTEN. The palette is keyboard.js's; this is a
 // cached read of it, not a second home for it. See game-draw.js's
@@ -240,9 +258,34 @@ export function mount(container, opts) {
      * of a rock's life — the second the student most needs to read — is the one
      * second it is unreadable.
      */
-    function px(rock) {
-        const rr = SHIP_R + Math.max(0, rock.r) * (ringR - SHIP_R);
-        return { x: cx + Math.cos(rock.angle) * rr, y: cy + Math.sin(rock.angle) * rr };
+    function px(rock) { return toPixels(board.place(rock)); }
+
+    /**
+     * Field coordinates → pixels. ⚠️⚠️ THE ONLY PLACE IN THIS FILE THAT KNOWS
+     * HOW BIG THE FIELD IS, and since v1.4.0 the only place that does any
+     * geometry at all — everything else asks `board.place()`.
+     *
+     * ⚠️ THE HULL OFFSET IS A DRAWING NUDGE AND LIVES HERE ON PURPOSE. Mapping
+     * a field origin straight to the canvas centre piles every arriving pane on
+     * top of the prism, so the last second of a pane's life — the second the
+     * student most needs to read — is the one second it is unreadable. ⭐ It
+     * applies to any board: "do not draw under the ship" is a fact about the
+     * sprite, not about how the panes move.
+     */
+    /** A field magnitude → a pixel radius from the prism. The radial half of
+     *  toPixels(), shared so the rings and the warp cannot disagree with the
+     *  panes about how big the field is. */
+    function toPixelRadius(m) { return SHIP_R + Math.max(0, m) * (ringR - SHIP_R); }
+
+    function toPixels(g) {
+        const m = Math.hypot(g.x, g.y);
+        // ⚠️⚠️ THE DIRECTION COMES FROM `g.dx/g.dy`, NOT FROM NORMALISING x,y.
+        // At the origin — a pane at the moment of impact — x and y are both
+        // zero and normalising loses the side it arrived from, putting every
+        // arriving pane straight up. shatter-board-test.mjs Part H caught that
+        // on its first run; see place()'s header.
+        const rr = toPixelRadius(m);
+        return { x: cx + g.dx * rr, y: cy + g.dy * rr };
     }
 
     /**
@@ -605,7 +648,9 @@ export function mount(container, opts) {
                 // ⚠️ THE RADAR SEES EVERY ROCK, INCLUDING ONES STILL OUT PAST THE
                 // RING — that is the *"you could see meteors coming before they
                 // appear"* Jake asked for, and it is the only thing it adds.
-                contacts: board.rocks.map(r => ({ r: r.r, angle: r.angle })),
+                // ⚠️ FIELD COORDINATES NOW, NOT POLAR. The panel maps them; this
+                // file no longer knows an angle from a radius.
+                contacts: board.rocks.map(r => board.place(r)),
                 warps: board.warps, maxWarps: MAX_WARPS, charge: board.charge,
             });
         }
@@ -706,7 +751,9 @@ export function mount(container, opts) {
         ctx.strokeStyle = 'rgba(255,80,90,0.30)';
         ctx.setLineDash([5, 7]);
         ctx.beginPath();
-        ctx.arc(cx, cy, SHIP_R + DANGER_R * (ringR - SHIP_R), 0, Math.PI * 2);
+        // ⚠️ DRAWN THROUGH toPixels() LIKE EVERYTHING ELSE, so the ring cannot
+        // drift away from the threshold it is illustrating.
+        ctx.arc(cx, cy, toPixelRadius(1 - DANGER_T), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
     }
@@ -714,12 +761,18 @@ export function mount(container, opts) {
     function drawPanes(tSec) {
         // ⚠️ FARTHEST FIRST, so a near pane is never drawn under a far one. The
         // near pane is the one the prism is pointing at.
-        const sorted = board.rocks.slice().sort((a, b) => b.r - a.r);
+        // ⚠️ ONE place() PER PANE PER FRAME, CACHED. It is a pure read, but the
+        // sort, the position and the threat all want it and a drift board's may
+        // not be as cheap as this one's.
+        const seen = board.rocks.map(rock => ({ rock, g: board.place(rock) }));
+        // ⚠️ LEAST URGENT FIRST, so a pane about to land is never drawn under a
+        // distant one. The near pane is the one the prism is pointing at.
+        seen.sort((a, b) => a.g.threat - b.g.threat);
         const size = Math.max(14, Math.round(ringR * 0.07));
-        for (const rock of sorted) {
+        for (const { rock, g } of seen) {
             decorate(rock);
-            const p = px(rock);
-            const near = rock.r <= DANGER_R;
+            const p = toPixels(g);
+            const near = g.threat >= DANGER_T;
             const isLocked = rock === board.locked;
             // ⭐ THE PANE IS SIZED TO ITS OWN WORD, because the word is drawn
             // across it. That is legitimate here in a way it was not on Escape
@@ -754,7 +807,8 @@ export function mount(container, opts) {
                 // ⭐ IT CRAZES AS IT CLOSES. The danger ring says where the line
                 // is; the crazing says this particular pane has crossed it, on
                 // the pane itself, where the student's eyes already are.
-                crack: near ? Math.min(1, (DANGER_R - rock.r) / DANGER_R + 0.25) : 0,
+                crack: near
+                    ? Math.min(1, (g.threat - DANGER_T) / (1 - DANGER_T) + 0.25) : 0,
                 tSec,
             });
         }
@@ -798,8 +852,8 @@ export function mount(container, opts) {
             // ⭐ EIGHT RINGS, ONE PER FINGER, SLIGHTLY APART — the spectrum
             // spreading, which is what a prism does and what the warp costs:
             // eight cleared words' worth of colour going back out.
-            const r = SHIP_R + (k - i * 0.035) * (ringR - SHIP_R) * 1.05;
-            if (r <= SHIP_R) continue;
+            const r = toPixelRadius((k - i * 0.035) * 1.05);
+            if (r <= SHIP_R + 0.5) continue;
             ctx.globalAlpha = warpRing.t * 0.55;
             ctx.strokeStyle = FAN[i];
             ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();

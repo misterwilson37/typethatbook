@@ -1,3 +1,7 @@
+// game-draw.js v1.15.0 — Round 116 (Sun): drawShatterPanel()'s contacts are
+// FIELD COORDINATES, not polar. ⚠️ The panes' motion model is the board's
+// business and the arcade is about to have two of them; a panel taking
+// `{r, angle}` would only work for a board whose panes converge.
 // game-draw.js v1.14.0 — Round 116 (Sun): the glass round. glassBurst() and
 // shard particles (additive fields on the SHARED particle, so the other two
 // games are untouched), fingerPalette() so Shatter's prism can throw a spectrum
@@ -87,7 +91,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.14.0';
+export const GAME_DRAW_VERSION = '1.15.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -1972,11 +1976,14 @@ export function drawShatterPanel(ctx, o) {
 
     // ⚠️ CONTACTS ARE GLINTS AND CARRY NO TEXT. Labelling them would make the
     // panel readable, which is exactly what it must not be — see the header.
+    // ⚠️⚠️ FIELD COORDINATES SINCE v1.15.0, NOT POLAR. The panes' motion model is
+    // the board's business and the arcade is about to have two of them; a panel
+    // that took `{r, angle}` would only work for a board whose panes converge.
+    // ⭐ `{x, y, threat}` is what ShatterBoard.place() returns, unchanged.
     for (const c of (o.contacts || [])) {
-        const d = Math.max(0, Math.min(1.15, c.r)) * rr;
         ctx.beginPath();
-        ctx.arc(cx + Math.cos(c.angle) * d, cy + Math.sin(c.angle) * d, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = c.r <= 0.25 ? '#ff5566' : 'rgba(160,205,255,0.8)';
+        ctx.arc(cx + (c.x || 0) * rr, cy + (c.y || 0) * rr, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = (c.threat || 0) >= 0.75 ? '#ff5566' : 'rgba(160,205,255,0.8)';
         ctx.fill();
     }
     // The oculus: the prism at the centre of the window.

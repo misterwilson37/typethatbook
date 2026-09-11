@@ -1,27 +1,9 @@
-// shatter-board.js v1.2.0 — Round 115 (Tower): THE RETHINK OF HOW FAST A ROCK
-//   COMES. Jake, 2026-09-10: *"Rocks should come in a little faster, too - they
-//   were sooooo slow (I'm not sure what the math is based on, but it needs to be
-//   rethought)."*
-//   ⚠️⚠️ THE MATH WAS: journey = QUEUE_DEPTH (4) × the time to type the word AND
-//   its pieces (2N chars) at the gate. At 15 WPM an 8-letter rock took ~50 s to
-//   cross the ring. Two of those factors were buying nothing a student could see:
-//   the depth-4 buffer exists so a push game can hold several targets in flight,
-//   and the 2N existed because pieces inherited whatever runway the parent had left.
-//   ⭐ NOW, THREE RULES:
-//   1. TRAVEL_SLACK caps a rock's journey at 2.4 × the time to type ITS OWN word
-//      at the gate (`targetWPM` passed to the constructor). The shell's lifetime
-//      still wins whenever it is SHORTER — so the late-game ramp is untouched and
-//      only the glacial early game changes.
-//   2. SPLIT_KICK: breaking a rock knocks its pieces OUTWARD (physics, and Jake's
-//      "rocks should literally break"). That kick is what pays for the pieces, so
-//      the parent no longer has to carry their typing time in its own journey.
-//      Still one-way: it only ever lengthens a journey.
-//   3. ORBIT: rocks spiral in rather than crawl in, faster as they close. The
-//      visible motion is angular; the closing speed is still the fair radial
-//      rule above. ⚠️ THE RADIAL RULE IS THE GATE — never let angular speed feed it.
-//   tests/shatter-board-test.mjs Part S sweeps the fairness claim with the cap on.
-//
-// (v1.1.0 follows.)
+// shatter-board.js v1.2.0 — Round 116 (Sun): ⭐ place(), THE VIEW SEAM. The
+// view read `rock.r` and `rock.angle` in nine places, so a second motion model
+// would have forced a second VIEW and every change to the glass would have had
+// to be made twice. ⚠️ Rules and numbers are UNCHANGED — this version adds one
+// pure read and nothing else; tests/shatter-board-test.mjs Part H proves the
+// seam reproduces the view's old arithmetic exactly.
 // shatter-board.js v1.1.0 — SHATTER'S BOARD, WITH NO CANVAS IN IT.
 // Round 103, Round 109 (Bar-Let).
 //
@@ -118,17 +100,6 @@ export const SPLIT_MIN_R = 0.30;
 
 // How far apart the pieces fan, in radians, total across the group.
 export const SPLIT_SPREAD = 0.55;
-
-// ⭐ v1.2.0 — see the header. SLACK × own-word typing time is the journey cap;
-// KICK is how far a break throws the pieces back out; ORBIT is rad/s at r = 0,
-// softened by ORBIT_SOFT so the spiral tightens as it closes.
-// ⚠️ SLACK ≥ ~2.2 IS LOAD-BEARING: pieces start ≥ SPLIT_MIN_R + SPLIT_KICK = 0.55
-// out at the parent's speed, and must still leave time to type N more chars.
-export const TRAVEL_SLACK = 2.4;
-export const SPLIT_KICK = 0.25;
-export const SPLIT_MAX_R = 0.95;
-export const ORBIT = 0.30;
-export const ORBIT_SOFT = 0.4;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️ THE WARP IS EARNED, AND ITS KEY IS THE ROUND 101 RULING ONE LEVEL DOWN
@@ -354,14 +325,73 @@ export class ShatterBoard {
     constructor(o) {
         const c = o || {};
         this.rand = c.rand || Math.random;
-        // ⭐ v1.2.0 — optional. Without it there is no travel cap (the old rule),
-        // which is what keeps every pre-1.2 caller and harness meaningful.
-        this.cps = c.targetWPM > 0 ? (c.targetWPM * 5) / 60 : 0;
         this.rocks = [];
         this.locked = null;
         this.clearsSinceWarp = 0;
         this.lastClearAt = -Infinity;
         this._lastAt = null;
+    }
+
+    // ── THE VIEW SEAM ───────────────────────────────────────────────────────
+    //
+    // ⚠️⚠️ ADDED IN v1.2.0 SO A SECOND BOARD CAN EXIST WITHOUT A SECOND VIEW.
+    // Jake, 2026-09-10: *"What about a shatter 2 and have kids try both?"* —
+    // two motion models, offered side by side for a rotation, and the kids
+    // decide.
+    //
+    // ⭐ THE WHOLE RISK IN THAT PLAN IS RULE 5, AND THIS IS WHERE IT IS PAID.
+    // Two games existing is fine; the registry is built for it and Deadline and
+    // Escape Key already coexist. What is NOT fine is two COPIES OF ONE THING
+    // drifting apart. `game-shatter.js` read `rock.r` and `rock.angle` in nine
+    // places, so a drift board would have forced a second view — and from that
+    // moment every change to the glass would have to be made twice, which is
+    // exactly what `tools/game-lab.html` was deleted for.
+    //
+    // ⚠️ SO THE VIEW MUST NOT KNOW WHAT POLAR COORDINATES ARE. It asks the board
+    // where a pane is and how urgent it is; the board answers in a space that
+    // any motion model can produce.
+    //
+    // ⚠️⚠️ AND THIS IS STILL NOT PIXELS. The board owns the rules and the view
+    // owns the pixels, and that split is older than this seam. `place()` returns
+    // a FIELD coordinate — the prism at the origin, 1.0 at the spawn ring — and
+    // the view alone decides how many pixels that is.
+
+    /**
+     * Where a pane is, and how close it is to hurting you.
+     *
+     * @returns {object} { x, y, threat }
+     *   x, y    field coordinates. The prism is at (0, 0); a magnitude of 1 is
+     *           the spawn ring. ⚠️ MAY EXCEED 1 — a warped pane is pushed back
+     *           out and a drift board will carry panes past the edge entirely.
+     *   dx, dy  the UNIT direction from the prism to the pane.
+     *   threat  0..1, rising as impact approaches. ⭐ IT IS NOT DISTANCE, and
+     *           the difference is the point of the seam: this board derives it
+     *           from `r` because its panes converge, and a drift board would
+     *           derive it from closing speed as well as range. The view wants
+     *           "how worried should this look", which is one question with two
+     *           right answers.
+     *
+     * ⚠️⚠️ WHY `dx, dy` EXIST AT ALL — THE ORIGIN IS A SINGULARITY, AND THE
+     * HARNESS CAUGHT IT. At `r <= 0` a pane sits exactly on the prism, so
+     * `x, y` are both zero and THE DIRECTION IS GONE. The view's old px() kept
+     * the angle there (it offset by the hull radius before applying it), so a
+     * pane at impact was drawn on the hull *on the side it came from*. Rebuilt
+     * naively the seam lost that and put every arriving pane straight up —
+     * 52px out, which Part H reported on its first run.
+     * ⭐ AND IT IS NOT A CORNER CASE TO WAVE AWAY: the frame that draws a pane
+     * at r ≈ 0 is the frame the student is about to be hit in, which is the one
+     * they most need to read correctly.
+     */
+    place(rock) {
+        const r = Math.max(0, rock.r);
+        const dx = Math.cos(rock.angle), dy = Math.sin(rock.angle);
+        return {
+            x: dx * r, y: dy * r, dx, dy,
+            // ⚠️ CLAMPED AT BOTH ENDS. A pane warped out past the ring has a
+            // NEGATIVE threat under `1 - r` and would read as safer than
+            // nothing, which is not a state the view has a colour for.
+            threat: Math.max(0, Math.min(1, 1 - r)),
+        };
     }
 
     // ── population ──────────────────────────────────────────────────────────
@@ -373,11 +403,7 @@ export class ShatterBoard {
      *                             priced for the word AND its pieces.
      */
     spawn(text, lifetimeMs, nowMs) {
-        let life = Math.max(1, lifetimeMs || 1);
-        const t = String(text || '');
-        if (this.cps > 0 && t.length) {
-            life = Math.min(life, (TRAVEL_SLACK * t.length / this.cps) * 1000);
-        }
+        const life = Math.max(1, lifetimeMs || 1);
         const rock = {
             id: NEXT_ID++,
             text: String(text || ''),
@@ -389,8 +415,6 @@ export class ShatterBoard {
             // frame would ACCELERATE under a student's own success, which is the
             // ramp applied twice.
             dr: SPAWN_R / life,
-            // ⭐ v1.2.0 — the spiral's direction. Pieces inherit it.
-            orbit: this.rand() < 0.5 ? -1 : 1,
             terminal: false,
             parent: null,
         };
@@ -415,8 +439,6 @@ export class ShatterBoard {
         const alive = [];
         for (const rock of this.rocks) {
             rock.r -= rock.dr * dt;
-            // ⭐ v1.2.0 — ANGULAR ONLY. Never touches r; see the header.
-            if (rock.orbit) rock.angle += rock.orbit * ORBIT / (ORBIT_SOFT + Math.max(0, rock.r)) * dt / 1000;
             if (rock.r <= IMPACT_R) { rock.r = IMPACT_R; arrived.push(rock); }
             else alive.push(rock);
         }
@@ -560,8 +582,7 @@ export class ShatterBoard {
         if (parts.length < 2) return [];
 
         // ⚠️ THE FLOOR ONLY EVER PUSHES PIECES OUTWARD. See SPLIT_MIN_R.
-        // ⭐ v1.2.0 — THE KICK. Only ever outward, capped short of the ring.
-        const r = Math.min(SPLIT_MAX_R, Math.max(rock.r, SPLIT_MIN_R) + SPLIT_KICK);
+        const r = Math.max(rock.r, SPLIT_MIN_R);
         const spread = SPLIT_SPREAD;
         const pieces = [];
         for (let i = 0; i < parts.length; i++) {
@@ -573,10 +594,6 @@ export class ShatterBoard {
                 typed: 0,
                 r,
                 angle: rock.angle + off,
-                orbit: rock.orbit,
-                // ⭐ v1.2.0 — remembered so the view can fly the piece out FROM the
-                // break instead of teleporting it to its new radius.
-                bornR: rock.r, bornAngle: rock.angle,
                 dr: rock.dr,   // ⚠️ ONE JOURNEY, ONE SPEED. See the header.
                 terminal: true,
                 parent: rock.id,

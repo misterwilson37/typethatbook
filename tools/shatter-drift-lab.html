@@ -1,0 +1,321 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Shatter — DRIFT + WRAP prototype</title>
+<!--
+  ⚠️⚠️ THIS IS A PROTOTYPE AND IT SHIPS NOTHING. It is not linked from anywhere,
+  it touches no Firebase, it writes no time, it grades nothing. Open it locally
+  next to the real modules and play it.
+
+  ⚠️ WHY IT IS A PAGE AND NOT A SECOND BOARD IN THE APP: HANDOFF rule 5 — ONE
+  INSTANCE. Two live boards behind a flag is exactly the mistake game-lab.html
+  was deleted for: a bug found in one is useless when the other runs different
+  code. The question here is not "can this be built" (it can, easily) but
+  "does it FEEL right and can a 15 WPM child survive it", and that question
+  needs a toy, not a deployment.
+
+  ⭐ WHAT IT SHARES WITH THE REAL GAME, SO THE COMPARISON IS HONEST:
+     game-sprites.js  — the panes, the prism, the shots. Identical.
+     game-draw.js     — the shards, the finger palette. Identical.
+     shatter-board.js — splitTarget()/splittable(), the SPLIT LADDER. Identical.
+  ⚠️ WHAT IT DELIBERATELY DOES NOT SHARE, BECAUSE IT IS THE THING UNDER TEST:
+     motion. The real board moves panes radially inward on a per-target
+     lifetime the director issues. This one gives them free 2D velocity and
+     wraps them at the edges, with NO lifetime and NO arrival.
+
+  ⚠️⚠️ THE NUMBERS BELOW ARE GUESSES AND ARE LABELLED AS SUCH. In the real game
+  every one of them would have to come from game-shell.js and be proved against
+  the corpus. Do not copy them anywhere.
+-->
+<style>
+  :root { --ink:#cfe6ff; --dim:#6f86a8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#04060e; color:var(--dim);
+         font:13px/1.5 "Courier Prime", ui-monospace, monospace; }
+  header { padding:12px 16px; border-bottom:1px solid rgba(70,90,130,.4);
+           display:flex; gap:20px; align-items:baseline; flex-wrap:wrap; }
+  h1 { margin:0; font-size:15px; color:var(--ink); }
+  .warn { color:#ffb454; }
+  .row { padding:8px 16px; display:flex; gap:18px; flex-wrap:wrap;
+         align-items:center; border-bottom:1px solid rgba(70,90,130,.25); }
+  label { display:flex; gap:6px; align-items:center; }
+  input[type=range] { width:120px; }
+  canvas { display:block; width:100%; height:calc(100vh - 150px); }
+  #hud { padding:6px 16px; color:var(--ink); }
+  b { color:#ffd700; }
+</style>
+
+<header>
+  <h1>Shatter — DRIFT + WRAP prototype</h1>
+  <span class="warn">⚠ ships nothing · writes nothing · numbers are guesses</span>
+</header>
+
+<div class="row">
+  <label>drift speed <input id="spd" type="range" min="6" max="90" value="26"></label>
+  <label>spawn every <input id="gap" type="range" min="800" max="6000" step="100" value="2600"></label>
+  <label>tumble <input id="tum" type="checkbox" checked></label>
+  <label>wrap <input id="wrap" type="checkbox" checked></label>
+  <label>trails <input id="trail" type="checkbox"></label>
+  <button id="go" type="button">restart</button>
+</div>
+
+<div id="hud">click the canvas, then type · <b>space</b> warps · <b>esc</b> drops the lock</div>
+<canvas id="c" tabindex="0"></canvas>
+
+<script type="module">
+// ⭐ THE REAL ART AND THE REAL SPLIT RULES. Only motion is local.
+import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
+import { fingerColorOf, fingerPalette, glassBurst, updateParticles,
+         drawParticles, makeStars, drawStars } from './game-draw.js';
+import { splitTarget, splittable, MAX_WARPS, WARP_CLEARS } from './shatter-board.js';
+
+const WORDS = ['unusually','sunlight','carefully','remarking','delighted',
+               'dismounted','affections','mistakes','appeared','unfolded',
+               'accents','acted','active','advances','amusement']
+              .filter(splittable);
+
+const FAN = fingerPalette();
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W=0, H=0, cx=0, cy=0, stars=[];
+const SHIP_R = 26;
+
+// ── the drift board ─────────────────────────────────────────────────────────
+// ⚠️⚠️ THIS IS THE PART THAT IS NOT THE REAL GAME. Cartesian position and
+// velocity, edge wrap, and NO LIFETIME — a pane that is never typed never
+// arrives and never expires. It just keeps going round.
+//
+// ⚠️ AND THAT IS THE WHOLE PACING QUESTION, STATED AS CODE: in the shipped
+// board, pressure is TIME (each pane has a deadline the director priced against
+// the student's gate, and the 990-trial sweep proved it clearable). Here
+// pressure is DENSITY — uncleared panes accumulate until one hits the prism.
+// ⭐ NOBODY HAS EVER MEASURED WHETHER A 15 WPM CHILD SURVIVES DENSITY.
+let panes = [], locked = null, shots = [], particles = [], warpRing = null;
+let clears = 0, lives = 3, flare = 0, banner = null, dead = false;
+let typed = 0, missed = 0, startedAt = null, nextSpawn = 0, id = 1;
+
+function layout() {
+  const dpr = devicePixelRatio || 1;
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cx = W/2; cy = H/2;
+  stars = makeStars(W, H, 55, Math.random);
+}
+
+function spawn() {
+  const text = WORDS[Math.floor(Math.random()*WORDS.length)];
+  const size = 18;
+  const r = Math.max(size*1.35, text.length*size*0.40);
+  // Enter from a random edge, heading roughly across the field. ⚠️ NOT AIMED AT
+  // THE PRISM — an aimed pane is the radial board with extra steps, and the
+  // whole point of wrap is that a pane you ignore comes back later from
+  // somewhere else.
+  const edge = Math.floor(Math.random()*4);
+  let x, y;
+  if (edge === 0) { x = -r; y = Math.random()*H; }
+  else if (edge === 1) { x = W+r; y = Math.random()*H; }
+  else if (edge === 2) { x = Math.random()*W; y = -r; }
+  else { x = Math.random()*W; y = H+r; }
+  const toC = Math.atan2(cy-y, cx-x) + (Math.random()-0.5)*1.5;
+  const v = +document.getElementById('spd').value;
+  const p = {
+    id: id++, text, typedN: 0, x, y, r, size,
+    vx: Math.cos(toC)*v, vy: Math.sin(toC)*v,
+    parent: null,
+    cut: paneCut(Math.random, text.length),
+    colors: Array.from(text, ch => fingerColorOf(ch, '#9fb6d8')),
+  };
+  panes.push(p);
+  return p;
+}
+
+function wrapPane(p) {
+  const m = p.r + 8;
+  if (!document.getElementById('wrap').checked) {
+    // ⚠️ WITH WRAP OFF, A PANE THAT LEAVES IS GONE. That is the control
+    // condition and it is deliberately bad: it lets a student survive by
+    // ignoring everything, which is why the shipped board has arrival.
+    return (p.x < -m*3 || p.x > W+m*3 || p.y < -m*3 || p.y > H+m*3);
+  }
+  if (p.x < -m) p.x = W+m; else if (p.x > W+m) p.x = -m;
+  if (p.y < -m) p.y = H+m; else if (p.y > H+m) p.y = -m;
+  return false;
+}
+
+function nearest(ch) {
+  let best = null, bd = Infinity;
+  for (const p of panes) {
+    if (p.text[p.typedN] !== ch) continue;
+    const d = Math.hypot(p.x-cx, p.y-cy);
+    if (d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+function breakPane(p) {
+  panes = panes.filter(q => q !== p);
+  if (locked === p) locked = null;
+  clears = Math.min(MAX_WARPS*WARP_CLEARS, clears+1);
+  glassBurst(particles, p.x, p.y, p.colors, 26, 210, Math.random);
+  if (p.parent != null) return;
+  const parts = splitTarget(p.text);
+  if (parts.length < 2) return;
+  // ⭐ PIECES FLY APART. In the radial board they fan outward on the same
+  // heading; here they inherit the parent's velocity plus a kick, which is what
+  // a thing breaking actually does and is only possible because motion is free.
+  parts.forEach((t, i) => {
+    const a = (i/(parts.length-1||1) - 0.5) * 2.2;
+    const sp = 34 + Math.random()*26;
+    panes.push({
+      id: id++, text: t, typedN: 0, x: p.x, y: p.y,
+      r: Math.max(p.size*1.35, t.length*p.size*0.40), size: p.size,
+      vx: p.vx + Math.cos(a)*sp, vy: p.vy + Math.sin(a)*sp,
+      parent: p.id,
+      cut: paneCut(Math.random, t.length),
+      colors: Array.from(t, ch => fingerColorOf(ch, '#9fb6d8')),
+    });
+  });
+  banner = { text:'SHATTERED', until: performance.now()+700 };
+}
+
+function key(e) {
+  if (dead) return;
+  if (e.key === 'Escape') { e.preventDefault(); locked = null; return; }
+  if (e.key.length !== 1 || e.metaKey || e.ctrlKey || e.altKey) return;
+  e.preventDefault();
+  if (startedAt == null) startedAt = performance.now();
+
+  if (e.key === ' ' && Math.floor(clears/WARP_CLEARS) >= 1 &&
+      !(locked && locked.typedN > 0)) {
+    clears -= WARP_CLEARS;
+    warpRing = { t: 1 };
+    // ⚠️ THE WARP SHOVES, IT DOES NOT DESTROY — same rule as the shipped board.
+    for (const p of panes) {
+      const a = Math.atan2(p.y-cy, p.x-cx);
+      p.vx += Math.cos(a)*140; p.vy += Math.sin(a)*140;
+    }
+    glassBurst(particles, cx, cy, FAN, 30, 260, Math.random);
+    return;
+  }
+  if (e.key === ' ') return;
+
+  let t = (locked && panes.includes(locked) && locked.text[locked.typedN] === e.key)
+        ? locked : nearest(e.key);
+  if (!t) { missed++; flare = 1; locked = null; return; }
+  locked = t;
+  const a = Math.atan2(t.y-cy, t.x-cx);
+  shots.push({ x0: cx+Math.cos(a)*SHIP_R*0.78, y0: cy+Math.sin(a)*SHIP_R*0.78,
+               x1: t.x, y1: t.y, color: fingerColorOf(e.key,'#cfe6ff'), t: 1 });
+  t.typedN++; typed++;
+  if (t.typedN >= t.text.length) breakPane(t);
+}
+
+function hit(p) {
+  panes = panes.filter(q => q !== p);
+  if (locked === p) locked = null;
+  glassBurst(particles, p.x, p.y, p.colors.concat('#ff3355'), 34, 260, Math.random);
+  flare = 1;
+  lives--;
+  banner = { text: lives > 0 ? 'GLASS DOWN' : 'PRISM DOWN', until: performance.now()+1200 };
+  if (lives <= 0) dead = true;
+}
+
+let last = null;
+function frame(ts) {
+  requestAnimationFrame(frame);
+  if (last == null) last = ts;
+  const dt = Math.min(0.05, (ts-last)/1000); last = ts;
+  const now = performance.now();
+
+  if (!dead) {
+    if (now > nextSpawn) {
+      nextSpawn = now + (+document.getElementById('gap').value);
+      spawn();
+    }
+    for (const p of panes.slice()) {
+      p.x += p.vx*dt; p.y += p.vy*dt;
+      if (wrapPane(p)) { panes = panes.filter(q => q !== p); continue; }
+      if (Math.hypot(p.x-cx, p.y-cy) < p.r*0.55 + SHIP_R) hit(p);
+    }
+  }
+  updateParticles(particles, dt);
+  if (flare > 0) flare = Math.max(0, flare - dt*4.5);
+  for (let i = shots.length-1; i >= 0; i--) {
+    shots[i].t -= dt*(1000/150);
+    if (shots[i].t <= 0) shots.splice(i,1);
+  }
+  if (warpRing) { warpRing.t -= dt*1.6; if (warpRing.t <= 0) warpRing = null; }
+
+  // ── paint ────────────────────────────────────────────────────────────────
+  if (document.getElementById('trail').checked) {
+    ctx.fillStyle = 'rgba(4,6,14,0.18)'; ctx.fillRect(0,0,W,H);
+  } else {
+    ctx.fillStyle = '#04060e'; ctx.fillRect(0,0,W,H);
+    const g = ctx.createRadialGradient(cx,cy,20,cx,cy,Math.min(W,H)*0.6);
+    g.addColorStop(0,'rgba(96,132,205,0.20)'); g.addColorStop(1,'rgba(4,6,14,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+    drawStars(ctx, stars, ts/1000);
+  }
+
+  const sorted = panes.slice().sort(
+    (a,b) => Math.hypot(b.x-cx,b.y-cy) - Math.hypot(a.x-cx,a.y-cy));
+  const tum = document.getElementById('tum').checked;
+  for (const p of sorted) {
+    const close = Math.hypot(p.x-cx,p.y-cy) < Math.min(W,H)*0.18;
+    const isL = p === locked;
+    drawPane(ctx, p.x, p.y, p.r, p.cut, {
+      text: p.text, typed: p.typedN, total: p.text.length, size: p.size,
+      colors: p.colors, locked: isL, piece: p.parent != null,
+      base: p.parent != null ? 'rgba(16,11,28,0.82)' : 'rgba(6,10,20,0.86)',
+      rim: close ? '#ff5566' : (isL ? '#ffd700' : fingerColorOf(p.text[p.typedN]||p.text[0],'#cfe6ff')),
+      lineWidth: isL ? 2.6 : 1.8,
+      glow: close ? '#ff5566' : (isL ? '#ffd700' : null),
+      crack: close ? 0.8 : 0, tSec: ts/1000, tumble: tum,
+    });
+  }
+  for (const s of shots) drawRefract(ctx, s.x0,s.y0,s.x1,s.y1, s.color, s.t);
+
+  let aim = null;
+  if (locked && panes.includes(locked)) aim = Math.atan2(locked.y-cy, locked.x-cx);
+  drawPrism(ctx, cx, cy, SHIP_R*0.8, aim, { fan: FAN, flare });
+
+  if (warpRing) {
+    ctx.save(); ctx.lineWidth = 3;
+    for (let i=0;i<FAN.length;i++) {
+      const rr = SHIP_R + ((1-warpRing.t) - i*0.035) * Math.min(W,H)*0.55;
+      if (rr <= SHIP_R) continue;
+      ctx.globalAlpha = warpRing.t*0.55; ctx.strokeStyle = FAN[i];
+      ctx.beginPath(); ctx.arc(cx,cy,rr,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  drawParticles(ctx, particles);
+
+  if (banner && now < banner.until) {
+    ctx.save();
+    ctx.font = 'bold 22px "Courier Prime", monospace';
+    ctx.textAlign = 'center'; ctx.fillStyle = '#ffd700';
+    ctx.fillText(banner.text, cx, cy + Math.min(W,H)*0.3);
+    ctx.restore();
+  }
+
+  const secs = startedAt ? (now-startedAt)/1000 : 0;
+  const wpm = secs > 1 ? Math.round((typed/5)/(secs/60)) : 0;
+  const acc = (typed+missed) ? Math.round(typed/(typed+missed)*100) : 100;
+  document.getElementById('hud').innerHTML =
+    `<b>${wpm}</b> wpm · <b>${acc}%</b> · panes on screen <b>${panes.length}</b> ` +
+    `· lives <b>${lives}</b> · warps <b>${Math.floor(clears/WARP_CLEARS)}</b>` +
+    (dead ? ' · <b>DEAD</b> — press restart' : '') +
+    ' &nbsp; <span style="opacity:.6">density is the pressure here, not time</span>';
+}
+
+function restart() {
+  panes = []; locked = null; shots = []; particles = []; warpRing = null;
+  clears = 0; lives = 3; flare = 0; banner = null; dead = false;
+  typed = 0; missed = 0; startedAt = null; nextSpawn = 0; last = null;
+  layout(); cv.focus();
+}
+document.getElementById('go').addEventListener('click', restart);
+addEventListener('resize', layout);
+addEventListener('keydown', key);
+layout(); cv.focus(); requestAnimationFrame(frame);
+</script>

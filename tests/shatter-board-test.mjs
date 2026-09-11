@@ -1,3 +1,4 @@
+// tests/shatter-board-test.mjs v1.1.0 — Round 116 (Sun): Part H, the view seam.
 // tests/shatter-board-test.mjs v1.0.0 — CAN A GATE-SPEED CHILD CLEAR A ROCK
 // THAT COSTS TWICE WHAT IT LOOKS LIKE IT COSTS? Round 103 (Bar-Let).
 //
@@ -366,7 +367,7 @@ console.log('\nPART G — ⚠️⚠️ CAN A CHILD AT THE GATE ACTUALLY SURVIVE 
 
 const STEP_MS = 20;
 
-function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = true, cap = false }) {
+function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = true }) {
     const rand = mulberry(seed);
     const pool = makeArcadeTargets(HOME, 400, 4, mulberry(seed + 500))
         .filter(splittable);
@@ -379,8 +380,7 @@ function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = tr
         targets: pool, targetWPM: gate, minAccuracy: 85, shields,
         endless: true, costFactor: split ? SHATTER_COST_FACTOR : 1, rand,
     });
-    // ⭐ v1.2.0 — `cap` turns on the TRAVEL_SLACK journey cap (Part S).
-    const b = new ShatterBoard({ rand, targetWPM: cap ? gate : 0 });
+    const b = new ShatterBoard({ rand });
 
     const perKeyMs = 1000 / charsPerSecondFor(wpm);
     let nextKeyAt = 0;
@@ -486,38 +486,100 @@ function play({ wpm, gate, seed, seconds, shields = 3, typist = true, split = tr
        'more rocks are cleared than spawned, because every target becomes several');
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-console.log('\nPART S   v1.2.0: THE ROCKS COME FASTER, AND A GATE-SPEED CHILD STILL LIVES');
-// ════════════════════════════════════════════════════════════════════════════
-// Jake: "they were sooooo slow". The cap shortens journeys; this is the proof it
-// did not make the game unfair. Same typist, same seeds, cap ON.
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nH — place(): THE VIEW SEAM REPRODUCES THE ARITHMETIC IT REPLACED');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ THIS IS A REFACTOR HARNESS AND IT HAS EXACTLY ONE JOB: prove that moving
+// the view off `rock.r` / `rock.angle` CHANGED NOTHING ON SCREEN.
+//
+// Jake, 2026-09-10: *"What about a shatter 2 and have kids try both?"* Two
+// motion models, offered side by side for a rotation. ⭐ THE WHOLE RISK IN THAT
+// PLAN IS RULE 5: two games is fine, two COPIES of one game is what
+// `tools/game-lab.html` was deleted for. `game-shatter.js` read polar
+// coordinates in nine places, so a drift board would have forced a second VIEW
+// — and from then on every change to the glass would have to be made twice.
+//
+// ⚠️ SO THE SEAM LANDS FIRST, WITH THE SECOND BOARD NOT YET WRITTEN, and this
+// part is what makes that safe: the refactor is only trustworthy if the
+// existing game is provably unchanged through it.
+//
+// ⚠️⚠️ IT REPRODUCES THE OLD VIEW ARITHMETIC LITERALLY, COPIED FROM
+// game-shatter.js v1.3.0's px(). ⭐ THAT COPY IS THE POINT AND IS NOT A RULE 9
+// VIOLATION: it is a FROZEN RECORD OF THE PREVIOUS BEHAVIOUR, not a second
+// live implementation. ⚠️ IF A FUTURE ROUND DELIBERATELY CHANGES THE MAPPING,
+// THIS PART SHOULD GO RED AND SHOULD THEN BE DELETED — not updated to agree.
+// A refactor harness that is kept in step with the thing it was pinning has
+// stopped being a refactor harness.
 {
-    const { TRAVEL_SLACK, SPLIT_KICK } = await import('../shatter-board.js');
-    const b0 = new ShatterBoard({ rand: mulberry(9) });
-    const b1 = new ShatterBoard({ rand: mulberry(9), targetWPM: 15 });
-    const slowR = b0.spawn('railway', 50000, 0), fastR = b1.spawn('railway', 50000, 0);
-    ok(fastR.dr > slowR.dr * 2,
-       `S1 at 15 WPM a 7-letter rock crosses ${(fastR.dr / slowR.dr).toFixed(1)}x faster than the old 50 s journey`);
-    ok(Math.abs(1 / fastR.dr - TRAVEL_SLACK * 7 / (15 * 5 / 60) * 1000) < 1,
-       'S2 and the cap is exactly TRAVEL_SLACK x the time to type its own word at the gate');
-    const b2 = new ShatterBoard({ rand: mulberry(9), targetWPM: 15 });
-    const quick = b2.spawn('railway', 3000, 0);
-    ok(Math.abs(1 / quick.dr - 3000) < 1e-6, 'S3 a SHORTER shell lifetime still wins \u2014 the late ramp is untouched');
+    const OLD_SHIP_R = 26, OLD_RING = 300, OLD_CX = 400, OLD_CY = 250;
+    /** game-shatter.js v1.3.0's px(), verbatim. */
+    const oldPx = (rock) => {
+        const rr = OLD_SHIP_R + Math.max(0, rock.r) * (OLD_RING - OLD_SHIP_R);
+        return { x: OLD_CX + Math.cos(rock.angle) * rr,
+                 y: OLD_CY + Math.sin(rock.angle) * rr };
+    };
+    /** game-shatter.js v1.4.0's toPixels(), verbatim. */
+    const newPx = (g) => {
+        const m = Math.hypot(g.x, g.y);
+        const rr = OLD_SHIP_R + m * (OLD_RING - OLD_SHIP_R);
+        return { x: OLD_CX + g.dx * rr, y: OLD_CY + g.dy * rr };
+    };
 
-    let brief = 0, worst = Infinity;
-    for (let s = 1; s <= 20; s++) {
-        const r = play({ wpm: 15, gate: 15, seed: s, seconds: 600, cap: true });
-        worst = Math.min(worst, r.lasted);
-        if (r.lasted < 90) brief++;
+    const b = new ShatterBoard({ rand: mulberry(31) });
+    let worst = 0, worstT = 0, n = 0;
+    for (let i = 0; i < 400; i++) {
+        // ⚠️ EVERY RADIUS THE BOARD CAN PRODUCE, NOT JUST THE TIDY ONES: 0 is
+        // impact, > 1 is a pane a warp has shoved back out past the ring, and
+        // the old code clamped negatives with Math.max(0, r).
+        const r = -0.1 + (i / 399) * 1.5;
+        const angle = (i * 0.37) % (Math.PI * 2);
+        const rock = { r, angle };
+        const g = b.place(rock);
+        const a = oldPx(rock), c = newPx(g);
+        worst = Math.max(worst, Math.abs(a.x - c.x), Math.abs(a.y - c.y));
+        // The view's danger test: `r <= 0.22` became `threat >= 0.78`.
+        const oldNear = r <= 0.22, newNear = g.threat >= 0.78;
+        if (oldNear !== newNear) worstT++;
+        n++;
     }
-    ok(brief === 0, `S4 with the cap on, every gate-speed run still lasts 90 s+ (worst ${Math.round(worst)} s)`);
-    let camper = 0;
-    for (let s = 1; s <= 20; s++) if (play({ wpm: 15, gate: 15, seed: s, seconds: 300, typist: false, cap: true }).d.over) camper++;
-    ok(camper === 20, 'S5 and a student who types nothing still loses, 20 of 20');
-    const a = play({ wpm: 15, gate: 15, seed: 4, seconds: 600, cap: true });
-    const z = play({ wpm: 30, gate: 15, seed: 4, seconds: 600, cap: true });
-    ok(z.lasted > a.lasted, `S6 a faster typist still outlasts a gate-speed one (${Math.round(z.lasted)} vs ${Math.round(a.lasted)} s)`);
-    ok(SPLIT_KICK > 0, 'S7 pieces are knocked outward on a break');
+    ok(n === 400, 'swept 400 positions across the whole radius range');
+    ok(worst < 1e-9,
+       '\u26a0\u26a0 place() + toPixels() lands every pane on the SAME PIXEL the old ' +
+       'px() did (worst drift ' + worst.toExponential(2) + ')');
+    ok(worstT === 0,
+       '\u26a0\u26a0 and `threat >= 0.78` is `r <= 0.22` exactly \u2014 the danger ring, ' +
+       'the red rim and the crazing all still trigger in the same place');
+
+    // ⚠️ CLAMPED AT BOTH ENDS. A warped pane past the ring has a NEGATIVE
+    // threat under a bare `1 - r`, which would read as safer than nothing —
+    // and the view has no colour for that.
+    ok(b.place({ r: 1.6, angle: 0 }).threat === 0,
+       'a pane shoved out past the ring is threat 0, never negative');
+    ok(b.place({ r: -0.3, angle: 0 }).threat === 1,
+       'and one at or past impact is threat 1, never above');
+
+    // ⭐ THE ORDER THE VIEW DRAWS IN IS PRESERVED. It sorted by descending `r`;
+    // it now sorts by ascending threat, and those must be the same order or a
+    // pane about to land starts being painted underneath a distant one.
+    const rocks = [0.9, 0.1, 0.5, 1.2, 0.0].map((r, i) => ({ r, angle: i }));
+    const byOld = rocks.slice().sort((x, y) => y.r - x.r).map(k => k.r);
+    const byNew = rocks.slice()
+        .sort((x, y) => b.place(x).threat - b.place(y).threat).map(k => k.r);
+    ok(JSON.stringify(byOld) === JSON.stringify(byNew),
+       '\u2b50 least-urgent-first is the same order as farthest-first (' +
+       byNew.join(',') + ')');
+
+    // ⚠️ AND IT IS A PURE READ. A seam that mutated the board would be a second
+    // way to move a pane, and the view calls it several times a frame.
+    const live = new ShatterBoard({ rand: mulberry(32) });
+    live.spawn('unusually', 8000, 0);
+    live.spawn('sunlight', 9000, 0);
+    const before = JSON.stringify(live.rocks);
+    for (let i = 0; i < 50; i++) live.rocks.forEach(k => live.place(k));
+    ok(JSON.stringify(live.rocks) === before,
+       '\u26a0\u26a0 place() mutates nothing \u2014 the view calls it several times a ' +
+       'frame and it must never be a second way to move a pane');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

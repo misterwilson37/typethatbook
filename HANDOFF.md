@@ -20,9 +20,9 @@
 > TOUCHING IT** — the rejected designs are recorded there with his words, and
 > the failure mode is very easy to walk back into.
 >
-> **Expected stamps:** `game-shatter.js` **v1.3.0**, `game-sprites.js` **v1.5.0**,
-> `game-draw.js` **v1.14.0**, `game-chrome.js` **v1.10.0**,
-> `arcade-pool.js` **v2.1.0**.
+> **Expected stamps:** `game-shatter.js` **v1.4.0**, `game-sprites.js` **v1.5.0**,
+> `game-draw.js` **v1.15.0**, `game-chrome.js` **v1.10.0**,
+> `arcade-pool.js` **v2.1.0**, `shatter-board.js` **v1.2.0**.
 >
 > ---
 >
@@ -67,6 +67,42 @@
 > the parse half and `arcade-panels-test.mjs` closed the panel-drawing half, but
 > **nothing had ever executed a frame loop, an input path, a spawn or a
 > teardown.** It found the chrome bug in its first minute.
+>
+> ---
+>
+> ## ▶ THE NEXT ROUND'S JOB IS ALREADY DECIDED
+>
+> Jake: *"What about a shatter 2 and have kids try both?"* — **yes, and Round
+> 116 shipped step 1 of it.** ⭐ The pacing objection I had been raising is much
+> weaker than I made it: the clearability sweep matters because a GRADED run
+> must be passable, and **Shatter is not graded**. A 15 WPM kid who dies in
+> forty seconds under a density model still banks every second they typed. "Can
+> a slow kid survive it" is a FUN question, and thirty twelve-year-olds in a
+> rotation answer that far better than a seeded simulation.
+>
+> **Step 1, done:** `shatter-board.js` v1.2.0 grew `place()`, and
+> `game-shatter.js` v1.4.0 no longer knows what a polar coordinate is.
+> ⚠️ `shatter-board-test.mjs` Part H proves the refactor changed nothing —
+> 400 positions, same pixel, same danger threshold, same draw order. It caught a
+> real defect on its first run: at `r <= 0` the field origin is a singularity
+> and the pane's direction is lost, so every arriving pane was being drawn
+> straight up instead of on the side it came from. Hence `dx, dy` on the seam.
+>
+> **Steps 2–4, for whoever is next:**
+> 2. `shatter-drift.js` against that interface, registered as a new id in
+>    `game-names.js` (ids are frozen forever; `drift` is proposed, **titles are
+>    one line and Jake's call**). ⚠️ Not "Shatter 2" — a sequel number tells a
+>    kid the second one is better and biases the very preference the experiment
+>    is trying to measure.
+> 3. Both in the picker for **one rotation, nine weeks**.
+> 4. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY AS THE DECISION** (Rule 9). The
+>    date exists because without one this quietly becomes two boards forever,
+>    and the next game added has to work with both.
+>
+> ⭐ `shatter-drift-lab.html` is a playable prototype of the drift model —
+> standalone, not linked, writes nothing, imports the real art and the real
+> split ladder so only motion differs. ⚠️ **EVERY NUMBER IN IT IS A GUESS** and
+> none came from `game-shell.js`. See `HOW-TO-RUN-THE-LABS.md`.
 >
 > ---
 >

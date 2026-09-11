@@ -66,6 +66,40 @@ prism idea. Build it all please."*
   needs no palette literal. The left panel's tracery is a rose window; ⚠️ its
   rule is unchanged — still deliberately unreadable.
 
+### The view seam — step 1 of two Shatters
+
+Jake: *"What about a shatter 2 and have kids try both?"*
+
+* **`shatter-board.js` 1.1.0 → 1.2.0.** ⭐ `place(rock)` → `{x, y, dx, dy,
+  threat}`. Rules and numbers **unchanged**; this adds one pure read.
+* **`game-shatter.js` 1.3.0 → 1.4.0.** ⚠️⚠️ **The view no longer knows what a
+  polar coordinate is.** It read `rock.r`/`rock.angle` in nine places, so a
+  second motion model would have forced a second *view* — and every change to
+  the glass would then have to be made twice, which is exactly what
+  `tools/game-lab.html` was deleted for. `toPixels()` is the only geometry left.
+* **`game-draw.js` 1.14.0 → 1.15.0.** `drawShatterPanel()` takes field
+  coordinates instead of `{r, angle}`.
+* **`tests/shatter-board-test.mjs`** Part H, a **refactor harness**: 400
+  positions across the whole radius range, asserting the new path lands every
+  pane on the same pixel, trips the danger threshold in the same place, draws in
+  the same order, and mutates nothing. ⚠️ It went red on its first run and
+  found a real defect — at `r <= 0` the field origin is a singularity, so an
+  arriving pane lost the side it came from and was drawn straight up, 52px out.
+  Hence `dx, dy` on the seam. ⭐ That frame is the one the student is about to
+  be hit in. Four mutations run, all caught.
+  ⚠️ **It copies the old `px()` verbatim on purpose** — a frozen record of
+  previous behaviour, not a second live implementation. If a future round
+  deliberately changes the mapping this part should go red and then be
+  *deleted*, not updated to agree.
+* **`shatter-drift-lab.html`** — playable drift/wrap prototype. Standalone, not
+  linked, writes nothing, grades nothing; imports the real `game-sprites.js`,
+  `game-draw.js` and `splitTarget()` so only motion differs. ⚠️ Every number in
+  it is a guess. See `HOW-TO-RUN-THE-LABS.md`.
+
+⭐ **The pacing objection was overstated and is withdrawn.** The clearability
+sweep matters because a *graded* run must be passable; Shatter is not graded.
+A slow student who dies quickly still banks every second they typed.
+
 ### ⚠️⚠️ The words were arriving in alphabetical order
 
 Jake, mid-round: *"the words are coming through alphabetically...which is kind
