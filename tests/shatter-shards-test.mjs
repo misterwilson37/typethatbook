@@ -283,6 +283,19 @@ console.log('\nF — PIECES FLY APART, AND NEVER ONTO THE PRISM');
     ok(spread > 0.3,
        '\u2b50\u2b50 and they really diverge (' + spread.toFixed(2) + ' rad) rather ' +
        'than travelling as one clump');
+    // ⚠️⚠️ PIECES BREAK **AWAY** FROM THE PRISM — Round 118, a live defect.
+    // Jake: *"the shards need to break away from the player… they came in AT
+    // SPEED. It was rough."* ⭐ THE OLD CODE FANNED THEM AROUND THE PARENT'S
+    // HEADING, and the parent was heading at you — that is WHY you typed it. So
+    // every piece was aimed at the student and PIECE_SPEED_GAIN made it faster.
+    // ⚠️ ASSERTED AS RADIAL VELOCITY, NOT AS AN ANGLE: what a child feels is
+    // whether the range is opening, and `dot(v, r̂) > 0` is that exact sentence.
+    const radialOut = p => {
+        const m = Math.hypot(p.x, p.y) || 1;
+        return (p.vx * p.x + p.vy * p.y) / m;
+    };
+    ok(pieces.every(p => radialOut(p) > 0),
+       '⚠️⚠️ every piece is OPENING range on the prism, not closing it');
     ok(pieces.every(p => dist(p) >= 0.29),
        '\u26a0\u26a0 no piece is born on top of the prism \u2014 breaking a word must ' +
        'never be punished with a hit the student could not avoid');

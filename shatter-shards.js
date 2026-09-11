@@ -244,6 +244,13 @@ export const SPEED_GAIN = 2.5;
 // making the field calmer than an untouched one.
 export const PIECE_SPEED_GAIN = 1.5;
 
+// ⚠️ HOW MUCH OF THE PARENT'S OWN VELOCITY A PIECE KEEPS. Round 118.
+// ⭐ NOT ZERO, or a break reads as a starburst from a standing start and the
+// glass loses the sense of having been travelling. ⭐ NOT ONE, or the inherited
+// inbound bearing overwhelms the outward kick and the pieces still arrive at the
+// student — which is the defect this pairs with.
+export const PIECE_DRIFT_SHARE = 0.35;
+
 /**
  * Panes drift and wrap; nothing arrives.
  *
@@ -429,7 +436,33 @@ export class ShardsBoard extends ShatterBoard {
         // scatters harder. ⚠️ Not a constant: a fixed kick would dominate a slow
         // student's board and be invisible on a fast one.
         const spread = n === 1 ? 0 : (i / (n - 1) - 0.5) * 2.0;
-        const base = Math.atan2(rock.vy, rock.vx);
+
+        // ⚠️⚠️⚠️ THE SPREAD IS BUILT AROUND THE **OUTWARD RADIAL**, NOT THE
+        // PARENT'S HEADING. Round 118 (Underwood) — a live defect kids were
+        // playing.
+        //
+        // Jake, 2026-09-11: *"If we're upping the panes of glass, then the shards
+        // need to break **away** from the player… the shards came in AT SPEED. It
+        // was rough."*
+        //
+        // ⭐ AND THE CAUSE IS A TRAP THAT LOOKS CORRECT: `atan2(vy, vx)` is the
+        // parent's bearing, and **you typed that pane precisely BECAUSE it was
+        // closing on you.** So the parent's heading is, reliably, straight at the
+        // prism. Fanning the pieces around it aimed every one of them at the
+        // student, and PIECE_SPEED_GAIN then made them 1.5× faster than the
+        // window they came from. **Clearing a word threw fast glass in your face.**
+        //
+        // ⚠️ IT WAS ALSO INTERNALLY INCOHERENT. `SPLIT_MIN_R` above already shoves
+        // pieces outward in POSITION, so position said "away" while velocity said
+        // "toward" — the two halves of one decision disagreeing.
+        //
+        // ⚠️ THE PARENT'S VELOCITY IS STILL INHERITED, at PIECE_DRIFT_SHARE, so a
+        // break still looks like a break rather than a starburst. What changed is
+        // which direction the KICK points.
+        const m2 = Math.hypot(rock.x, rock.y);
+        const base = m2 < 1e-6
+            ? Math.atan2(rock.vy, rock.vx)   // dead centre: no radial exists
+            : Math.atan2(rock.y, rock.x);
         const kick = rock.speed * 0.85;
         const spd = rock.speed * PIECE_SPEED_GAIN;
         return {
@@ -439,8 +472,10 @@ export class ShardsBoard extends ShatterBoard {
             // ⚠️ SCALED, NOT JUST KICKED. The kick alone changes HEADING more
             // than pace; PIECE_SPEED_GAIN is what makes a splinter genuinely
             // quicker than the window it came from.
-            vx: (rock.vx + Math.cos(base + spread) * kick) * PIECE_SPEED_GAIN,
-            vy: (rock.vy + Math.sin(base + spread) * kick) * PIECE_SPEED_GAIN,
+            vx: (rock.vx * PIECE_DRIFT_SHARE + Math.cos(base + spread) * kick)
+                * PIECE_SPEED_GAIN,
+            vy: (rock.vy * PIECE_DRIFT_SHARE + Math.sin(base + spread) * kick)
+                * PIECE_SPEED_GAIN,
             speed: spd,
             depth: (rock.depth || 0) + 1,
             // ⚠️ SAME RULE AS THE BASE — see MAX_SPLIT_DEPTH there. Two levels on

@@ -112,6 +112,22 @@ harness has to fail against a real student's history before the fix and pass
 after. Check whether `arcade.html` already knows the furthest-reached lesson or
 has to be told.
 
+### 118a — ⚠️ THE CALIBRATOR IS BUILT AND **NOT YET WIRED**
+
+✅ `typing-calibrator.js` v1.0.0 and `game-shell.js` v1.9.0 (`calibratedWPM`,
+`onScreenTarget`, `adaptive`, `difficulty`). 41 assertions.
+⚠️⚠️ **`adaptive` IS NEVER SET TRUE BY ANY VIEW — THE ENGINE IS INERT.** Next
+round wires `game-shatter.js` (spawned / keyed / finished / dropped), adds
+`adaptive: true` to `arcadeConfig()` **for the arcade only, never a lesson**, and
+builds the three-button play-again card. ⭐ An engine nobody calls is dead code;
+do not let it sit two rounds.
+
+### 118b — ✅ SHARDS BROKE **INTO** THE STUDENT (Round 118)
+
+`_placePiece()` fanned pieces around the parent's heading — and the parent was
+heading at you, which is why you typed it. Fixed to the outward radial with
+`PIECE_DRIFT_SHARE = 0.35`. Slow-typist survival 108s → 123s.
+
 ### 116h — ✅ ALL FOUR PARTS CLOSED (Round 117, Bennett).
 
 ✅ **THE ROOT CAUSE WAS A COLLISION BUG, NOT A BALANCE PROBLEM.** The pane's own

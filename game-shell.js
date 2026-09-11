@@ -1,3 +1,9 @@
+// game-shell.js v1.9.0 — Round 118 (Underwood): THE DIRECTOR MEASURES THE CHILD.
+// ROADMAP 118a. `calibratedWPM` is now the ONE number `intervalMs` and
+// `lifetimeFor()` read, and before comfort it is the floor rather than a guess.
+// ⚠️ OPT-IN VIA `adaptive` — a host that says nothing is byte-for-byte what it
+// was, because a graded lesson's pacing guarantee is a promise about a FIXED
+// number and must never move under a student mid-run.
 // game-shell.js v1.8.0 — Round 117 (Corona): `arcadeLessonMenu()`, ROADMAP 116g.
 // The WORDS control filtered the arcade's word POOL and not the lesson PICKER
 // beside it, so a child who chose *from my lessons so far* was still offered
@@ -148,9 +154,10 @@
 // (4 typed / 1 wrong reads 75%, but 5 charged / 1 wrong reads 80%), and accuracy
 // is the number a lesson is actually gated on.
 
+import { TypingCalibrator, budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.8.0';
+export const GAME_SHELL_VERSION = '1.9.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -672,6 +679,28 @@ export class GameDirector {
             : (c.quotaChars > 0 ? c.quotaChars
                : this.targets.reduce((n, t) => n + t.length, 0) * this.costFactor);
 
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ THE CALIBRATOR — v1.9.0, Round 118 (Underwood). ROADMAP 118a.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake: *"When I choose 100 (what I type), deadline is impossible — even
+        // for me… What engine could we build that would gauge where students are
+        // and then adjust the game appropriately?"*
+        //
+        // ⭐⭐ IT REPLACES `arcadeTargetWPM()`'s FURTHEST-LESSON-GATE HEURISTIC
+        // RATHER THAN SITTING BESIDE IT. Rule 9: two answers to "how fast is this
+        // child" is the defect, not the feature. The gate number survives ONLY as
+        // the pre-comfort seed, and `calibratedWPM` is the single reader.
+        //
+        // ⚠️ OPT-IN. A host that passes nothing gets `targetWPM` exactly as
+        // before, so missions, the lab and every graded path are byte-for-byte
+        // what they were. **The calibrator must never touch a graded run** — a
+        // lesson's pacing guarantee is a promise about a fixed number.
+        this.adaptive = !!c.adaptive;
+        this.difficulty = c.difficulty || 'medium';
+        this.calibrator = c.calibrator || new TypingCalibrator(
+            { floorWPM: c.floorWPM });
+
         this.clock = new GameClock();
         this.chars = 0;          // keystrokes that were part of a target
         this.mistakes = 0;       // of those, wrong ones
@@ -718,6 +747,40 @@ export class GameDirector {
     }
 
     /**
+     * ⚠️⚠️ THE ONE NUMBER THE PACING READS. Rule 9: `intervalMs` and
+     * `lifetimeFor()` used to read `this.targetWPM` directly, and now BOTH read
+     * this — so there is exactly one answer to "how fast is this child".
+     *
+     * ⭐ BEFORE COMFORT IT IS THE SEED, AFTER COMFORT IT IS THE MEASUREMENT.
+     * Jake: *"start the ramp when the comfort strikes."* Calibration is therefore
+     * the opening ramp and not a phase the child sits through — the game is
+     * finding them before, and stretching them after.
+     *
+     * ⚠️ THE SEED IS DELIBERATELY THE GENTLER OF THE TWO. An adaptive run opens
+     * at the floor rather than at the lesson gate, because a child who is about
+     * to be measured should not be punished for the first twenty seconds by a
+     * guess. **Non-adaptive hosts are untouched.**
+     */
+    get calibratedWPM() {
+        if (!this.adaptive) return this.targetWPM;
+        return this.calibrator.confident
+            ? this.calibrator.wpm
+            : Math.min(this.targetWPM, this.calibrator.floorWPM);
+    }
+
+    /**
+     * ⚠️ HOW MANY PANES THIS CHILD SHOULD BE HOLDING. A view passes this to
+     * `spawnDue()` in place of MIN_ON_SCREEN's global 1.
+     * ⭐ THE PER-STUDENT VERSION OF THE EXPERIMENT THAT FAILED AS A GLOBAL: at 3
+     * the corpus sweep collapsed from 99.9% to 53.2%, because it averaged over
+     * every child including the ones it was hurting.
+     */
+    get onScreenTarget() {
+        if (!this.adaptive) return MIN_ON_SCREEN;
+        return Math.max(MIN_ON_SCREEN, this.calibrator.onScreenTarget);
+    }
+
+    /**
      * ⚠️⚠️ THE INTERVAL IS SET BY THE TARGET JUST HANDED OUT, NOT BY THE CHUNK
      * MEAN. This was a real bug, found by Rule 10 against the authored corpus and
      * by nothing else:
@@ -745,7 +808,12 @@ export class GameDirector {
      */
     get intervalMs() {
         const chars = this._lastInterval != null ? this._lastInterval : this.avgChars;
-        return spawnIntervalMs(chars * this.costFactor, this.targetWPM, this.pressure);
+        // ⚠️⚠️ THE DIFFICULTY DIAL MULTIPLIES **TIME**, NOT DEMAND — see
+        // budgetScale(). Applied to demand it would have to choose between speed
+        // and pane count, and hitting both would compound to ±44% behind labels
+        // promising ±20%.
+        return spawnIntervalMs(chars * this.costFactor, this.calibratedWPM, this.pressure)
+            * budgetScale(this.adaptive ? this.difficulty : 'medium');
     }
 
     /**
@@ -755,8 +823,9 @@ export class GameDirector {
      */
     lifetimeFor(text) {
         const chars = ((text || '').length || this.avgChars) * this.costFactor;
-        return travelMs(spawnIntervalMs(chars, this.targetWPM, this.pressure),
-                        queueDepthFor(this.pressure));
+        return travelMs(spawnIntervalMs(chars, this.calibratedWPM, this.pressure),
+                        queueDepthFor(this.pressure))
+            * budgetScale(this.adaptive ? this.difficulty : 'medium');
     }
 
     /** Kept for callers that want a representative number for a HUD or a log. */
@@ -786,7 +855,7 @@ export class GameDirector {
      */
     spawnDue(nowMs, onScreen = 0) {
         if (this.over) return false;
-        if (onScreen < MIN_ON_SCREEN) return true;
+        if (onScreen < this.onScreenTarget) return true;
         if (this._lastSpawnAt == null) return true;
         return (nowMs - this._lastSpawnAt) >= this.intervalMs;
     }

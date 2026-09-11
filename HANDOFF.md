@@ -1,6 +1,125 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-11 by Round 117 (Bennett), for whoever is next
+> ## ▶ START HERE — written 2026-09-11 by Round 118 (Underwood), for whoever is next
+>
+> **Instance name: Underwood.** ⚠️ Checked against the whole repo, not just the
+> five docs — *Corona* and *Sholes* are both taken and only a repo-wide grep says
+> so (`Sholes` is Round 14, in `docs/DESIGN-TELEMETRY.md`).
+>
+> **ALL 101 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️ READ THIS FIRST: THE ENGINE IS BUILT AND NOTHING CALLS IT YET
+>
+> `adaptive` is **never set true by any view.** `typing-calibrator.js` and the
+> `GameDirector` integration are complete, harnessed and inert. ⭐ **THAT IS
+> DELIBERATE AND IT IS ALSO A DEBT** — an engine nobody calls is dead code, and
+> the next round must either wire it or delete it. Do not let it sit two rounds.
+>
+> **What is missing, exactly:**
+> 1. Views must call `d.calibrator.spawned(id, chars, now, onScreen)`,
+>    `.keyed(id, now)` on each **correct** key, `.finished(id, now)` on a clear,
+>    and `.dropped(id)` on a hit or teardown. `game-shatter.js` is the first
+>    target since Shards is where the density question lives.
+> 2. The play-again card's three buttons (see below).
+> 3. ⚠️ `arcadeConfig()` must pass `adaptive: true` **for the arcade only** —
+>    never for a lesson.
+>
+> ---
+>
+> ## ✅ THE LIVE DEFECT: SHARDS BROKE **INTO** THE STUDENT
+>
+> Jake: *"the shards need to break away from the player… the shards came in AT
+> SPEED. It was rough."*
+>
+> ⭐⭐ **THE CAUSE IS A TRAP THAT LOOKS CORRECT.** `_placePiece()` fanned the
+> pieces around `atan2(rock.vy, rock.vx)` — the parent's heading — and **you typed
+> that pane precisely BECAUSE it was closing on you.** So the parent's bearing was
+> reliably straight at the prism, every piece inherited it, and
+> `PIECE_SPEED_GAIN` then made them 1.5× faster than the window they came from.
+> **Clearing a word threw fast glass in your face.**
+>
+> ⚠️ It was also internally incoherent: `SPLIT_MIN_R` already shoved pieces
+> outward in POSITION, so position said "away" while velocity said "toward".
+>
+> Fixed to the outward radial, with `PIECE_DRIFT_SHARE = 0.35` of the parent's
+> velocity kept so a break still looks like a break. ⭐ **Slow-typist survival
+> went 108s → 123s from this alone.** Pinned as radial velocity (`dot(v, r̂) > 0`)
+> because that is the sentence a child feels; mutation-verified.
+>
+> ---
+>
+> ## ✅ ROADMAP 118a — THE CALIBRATOR
+>
+> Jake: *"When I choose 100 (what I type), deadline is impossible — even for me."*
+>
+> ⭐⭐ **HE IS NOT SLOWER THAN HE THINKS. GAME WPM AND PROSE WPM ARE DIFFERENT
+> QUANTITIES WEARING THE SAME NAME**, and `peekNext()` already carried the
+> measurement: **a 100 WPM typist measures 44 in-game; a 30 WPM typist measures
+> 22.** Locate-and-read costs a roughly constant amount per word, so the penalty
+> is a rounding error at 20 and half your speed at 100. The picker pushed work at
+> the number the student typed in — **2.3× what is physically available.**
+> ⚠️ Same defect class as 116g: a control that names a promise and means something
+> else.
+>
+> ### ⭐ TWO NUMBERS, AND THEY POINT AT DIFFERENT KNOBS
+>
+> * **Burst speed** — first key to last, over characters. Sets **how fast**.
+> * **Acquisition** — spawn to first correct key. Sets **how many**.
+>
+> ⚠️⚠️ **THEY MOVE IN OPPOSITE DIRECTIONS ON THE SAME KNOB.** More panes LOWER
+> acquisition for a fast typist (read-ahead is free, and one-word-on-screen is
+> what cost Jake 56 WPM) and RAISE it for a child who is hunting. ⭐ **THAT IS WHY
+> `MIN_ON_SCREEN = 3` COLLAPSED THE CORPUS SWEEP TO 53.2% AS A GLOBAL AND IS RIGHT
+> PER-STUDENT** — the sweep averaged over the children it was hurting.
+>
+> ### ⚠️ THE RULES BAKED IN, AND WHY
+>
+> * **Nothing is stored.** Jake: *"getting the math every time — that way the game
+>   is always the same."* No Firestore read, nothing stale, works for guests, no
+>   Rule 9 conversation. Rule 10 by construction.
+> * ⚠️⚠️ **THE NUMBER NEVER REACHES A SCREEN. RULE 11.** It is not `netWPM()` —
+>   different window, denominator and purpose. Two numbers called WPM that
+>   disagree is a thing this project has paid for twice. **The student sees a
+>   difficulty, never a speed.**
+> * **Median, and samples capped at 4s.** A twelve-second stare moves the estimate
+>   by under 35%. A burst with a hole in it is **discarded, not averaged across** —
+>   a child who types in confident chunks is most beginners.
+> * **Comfort starts the ramp** and is never un-struck. Easing off mid-run rewards
+>   sandbagging and teaches that slowing down makes the game kinder.
+> * **A child who froze gets `FLOOR_WPM = 8`,** not the lesson gate. They are
+>   telling you something.
+> * ⚠️ **`calibratedWPM` REPLACED `targetWPM` in `intervalMs` and `lifetimeFor()`.**
+>   One reader. The gate survives only as the pre-comfort seed.
+>
+> ### ⚠️⚠️ THE HARNESS CAUGHT ITS OWN AUTHOR
+>
+> I counted **n characters across n−1 inter-key gaps**. That overstated every
+> child by `n/(n−1)` — 14% on an eight-letter word, **25% on a five-letter one**,
+> i.e. **worst for the children on the earliest lessons**, who would have been
+> handed a game paced for a typist a quarter faster than they are.
+>
+> ### ⚠️ EASY / MEDIUM / HARD SCALES **TIME**, NOT DEMAND
+>
+> 1.2 / 1.0 / 0.8 on the time budget. ⭐ Applied to "demand" it would have to
+> choose between speed and pane count, and hitting both compounds to **±44%
+> behind labels promising ±20%**. Time is one monotone quantity a child can
+> predict.
+>
+> ---
+>
+> ## ⚠️ WHAT IS UNPROVEN AND NEEDS THE ROTATION
+>
+> * `MIN_SAMPLES = 4` is the **first number to challenge with real children**.
+>   Fewer and one fluke sets the run; more and calibration outlasts their patience.
+> * The `onScreenTarget` thresholds (600ms / 1200ms) are reasoned, **not measured
+>   against anyone**.
+> * Idle occupancy in Shards is **2.4 panes** and may now be too sparse — the
+>   director's 16s interval was priced for a board where panes leave.
+>
+
+> ## ▶ PREVIOUS START HERE — Round 117 (Bennett)
 >
 > **Instance name: Bennett** — the Bennett, 1910, one of the smallest portables
 > ever built. Checked against all five doc files AND against the whole repo: the
@@ -440,7 +559,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **100 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **101 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**

@@ -1,5 +1,51 @@
 # CHANGELOG — TypeThatBook
 
+## Round 118 (Underwood) — measure the child, and stop the glass flying at them
+
+Jake: *"What engine could we build that would gauge where students are and then
+adjust the game appropriately?"* — and *"the shards need to break **away** from
+the player."*
+
+### ✅ A LIVE DEFECT: SHARDS BROKE INTO THE STUDENT
+
+`_placePiece()` fanned pieces around `atan2(rock.vy, rock.vx)`. ⭐⭐ **THE PARENT
+WAS HEADING AT YOU — THAT IS WHY YOU TYPED IT** — so every piece was aimed at the
+prism and `PIECE_SPEED_GAIN` made it 1.5× faster. Clearing a word threw fast
+glass in your face. ⚠️ It also contradicted `SPLIT_MIN_R`, which already pushed
+pieces outward in POSITION. Now built on the outward radial, keeping
+`PIECE_DRIFT_SHARE = 0.35` of the parent's velocity so a break still reads as a
+break. Slow-typist survival **108s → 123s**. Pinned as `dot(v, r̂) > 0`;
+mutation-verified.
+
+### ✅ ROADMAP 118a — `typing-calibrator.js` v1.0.0, `game-shell.js` v1.9.0
+
+⭐⭐ **GAME WPM AND PROSE WPM ARE DIFFERENT QUANTITIES WEARING THE SAME NAME.**
+`peekNext()` already held the proof: 100 WPM measures **44** in-game, 30 measures
+**22**. The picker demanded the typed-in number — **2.3× what is available** —
+which is why Deadline at 100 was impossible even for Jake. Same defect class as
+116g.
+
+Measures **burst speed** (how fast) and **acquisition** (how many) separately,
+because more panes make a fast reader faster and a hunting child slower — the
+per-student answer to the `MIN_ON_SCREEN = 3` experiment that collapsed the
+corpus sweep to 53.2% as a global.
+
+* ⚠️ **Nothing stored** — derived fresh each run. Rule 10 by construction.
+* ⚠️⚠️ **Never displayed. Rule 11.** It is not `netWPM()`; two numbers called WPM
+  that disagree is a bill this project has paid twice.
+* Median, 4s sample cap, gapped bursts discarded, comfort starts the ramp and is
+  never un-struck, `FLOOR_WPM = 8` for a child who froze.
+* Easy/medium/hard scales **time** (1.2/1.0/0.8), not demand — demand would
+  compound to ±44% behind ±20% labels.
+* ⚠️⚠️ **INERT: `adaptive` is never set true by any view.** Wiring is next round.
+
+⚠️⚠️ **THE HARNESS CAUGHT ITS OWN AUTHOR:** n characters counted across n−1
+inter-key gaps, overstating every child by 14% on eight-letter words and **25% on
+five-letter ones — worst for the youngest students.**
+
+**ALL 101 HARNESSES PASS.**
+
+
 ## Round 117 (Bennett) — a red suite the documents called green, and a control that lied
 
 Instance name: **Bennett** — the Bennett, 1910, one of the smallest portables
