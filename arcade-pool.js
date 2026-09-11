@@ -1,3 +1,6 @@
+// arcade-pool.js v2.2.0 — Round 116 (Sun): Shards gets the SAME words as
+// Shatter. It was missing from arcadePool()'s id branch and was being dealt the
+// plain word banks.
 // arcade-pool.js v2.1.0 — Round 116 (Sun): ⭐ THE WORDS STOP ARRIVING IN
 // ALPHABETICAL ORDER. Jake, playing the build: *"the words are coming through
 // alphabetically...which is kind of lame."* Shuffled within the difficulty
@@ -55,7 +58,7 @@ import { splitTarget, splittable } from './shatter-board.js';
 import { makeArcadeTargets, ARCADE_GROUP_SIZE } from './game-shell.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const ARCADE_POOL_VERSION = '2.1.0';
+export const ARCADE_POOL_VERSION = '2.2.0';
 
 /** The two scopes a student may choose between. ⚠️ NEITHER IS THE DEFAULT-CORRECT
  *  ONE; the picker asks and the answer is theirs. */
@@ -322,6 +325,17 @@ export function shatterPool({ scope = 'level', keySet, count = 200, rand = Math.
  */
 export function arcadePool({ game, scope = 'level', keySet, round = 1,
                              count = 200, rand = Math.random }) {
-    if (game === 'shatter') return shatterPool({ scope, keySet, count, rand });
+    // ⚠️⚠️ SHARDS WAS MISSING HERE AND FELL THROUGH TO poolForLevel(), so it was
+    // dealt the plain word banks instead of the morpheme-splittable words.
+    // Jake, 2026-09-11: *"Shards just got the whole word pool, which made it play
+    // a little weird."* ⭐ EXACTLY THE DEFECT THIS FUNCTION'S HEADER WARNS ABOUT,
+    // one round after it was written: *"two pages each branching on game id is
+    // two places to add the fourth game to"* — and then the fourth game was added
+    // and this branch was not. ⚠️ A LIST OF IDS IS STILL A SECOND RECORD OF WHICH
+    // GAMES SHATTER; if a fifth appears, it belongs in game-names.js as a flag,
+    // not here.
+    if (game === 'shatter' || game === 'shards') {
+        return shatterPool({ scope, keySet, count, rand });
+    }
     return poolForLevel({ keySet, round, scope, count, rand });
 }

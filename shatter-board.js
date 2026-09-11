@@ -1,3 +1,5 @@
+// shatter-board.js v1.4.0 — Round 116 (Sun): a word breaks TWICE. See
+// MAX_SPLIT_DEPTH.
 // shatter-board.js v1.3.0 — Round 116 (Sun): ⭐ `_rank()` and `_placePiece()`,
 // the two hooks shatter-shards.js subclasses. Pure refactor of lines that were
 // already here; this file's harness is unmodified and still passes, which is the
@@ -62,12 +64,20 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.3.0';
+export const SHATTER_BOARD_VERSION = '1.4.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
 // exactly 2 rather than leaving it as "about 2, depending on the word".
-export const SHATTER_COST_FACTOR = 2;
+// ⚠️⚠️ 2 → 3 IN ROUND 116, BECAUSE A WORD NOW BREAKS TWICE. This is the number
+// game-shell.js prices a target's lifetime with: an N-character word costs the
+// student N keystrokes for the parent, N for its pieces, and N again for the
+// pieces of those — so 3N is the ceiling, and the gate has to be told.
+// ⭐ IT IS NOT A DIFFICULTY KNOB. Leaving it at 2 would not have made Shatter
+// harder in an interesting way; it would have made the director price every
+// word at two-thirds of the work it actually demands, and then blame the
+// student for missing a quota that was never reachable.
+export const SHATTER_COST_FACTOR = 3;
 
 // Rocks live in normalised polar space: r = 1 at the spawn ring, r = 0 at the
 // student. ⚠️ NO PIXELS IN THIS FILE. The view multiplies by whatever the canvas
@@ -103,6 +113,28 @@ export const IMPACT_R = 0;
 // clearability claim in the harness still holds — more runway is strictly
 // easier. That one-way property is what makes it safe.
 export const SPLIT_MIN_R = 0.30;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⭐ A WORD BREAKS TWICE — Jake, 2026-09-11
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// *"it should split into 2 or 3 and then split again - if there's no boundary
+// except the fact it has letters, it may as well split twice."*
+//
+// ⚠️ THE LADDER ALWAYS COULD DO THIS; `_break()` just refused. Every piece was
+// stamped `terminal: true`, so `unusually` → `un` `usual` `ly` and stopped —
+// even though `usual` splits perfectly well at rung 3. The one-level rule was
+// never reasoned about; it was the simplest thing that worked in Round 103.
+//
+// ⭐ DEPTH, NOT A BOOLEAN. A piece is terminal because of how far down the
+// ladder it already is, which is a fact about the piece; `terminal: true` was a
+// fact about who made it.
+export const MAX_SPLIT_DEPTH = 2;
+
+// ⚠️ AND A FLOOR, OR THE SECOND SPLIT PRODUCES RUBBLE. `us`+`ual` is a typing
+// drill; `u`+`s` is a keystroke with a box round it, and three of those on
+// screen is clutter a student cannot aim at.
+export const MIN_RESPLIT_LEN = 4;
 
 // How far apart the pieces fan, in radians, total across the group.
 export const SPLIT_SPREAD = 0.55;
@@ -430,6 +462,7 @@ export class ShatterBoard {
             // frame would ACCELERATE under a student's own success, which is the
             // ramp applied twice.
             dr: SPAWN_R / life,
+            depth: 0,
             terminal: false,
             parent: null,
         };
@@ -496,13 +529,18 @@ export class ShatterBoard {
      */
     _placePiece(rock, text, i, n) {
         const off = n === 1 ? 0 : (i / (n - 1) - 0.5) * SPLIT_SPREAD;
+        const depth = (rock.depth || 0) + 1;
         return {
             id: nextTargetId(),
             text, typed: 0,
             r: Math.max(rock.r, SPLIT_MIN_R),
             angle: rock.angle + off,
             dr: rock.dr,   // ⚠️ ONE JOURNEY, ONE SPEED. See the header.
-            terminal: true,
+            depth,
+            // ⚠️ SEE MAX_SPLIT_DEPTH. A piece stops splitting because of how far
+            // down the ladder it is, or because it is too short to break into
+            // anything a student could aim at — not because a piece is a piece.
+            terminal: depth >= MAX_SPLIT_DEPTH || text.length < MIN_RESPLIT_LEN,
             parent: rock.id,
         };
     }
@@ -624,7 +662,7 @@ export class ShatterBoard {
      * A rock was typed out. It becomes its pieces — or nothing, if it was one.
      *
      * ⚠️⚠️ PIECES ARE `terminal` AND DO NOT SPLIT AGAIN. That is what fixes the
-     * cost of a target at exactly 2N and lets `SHATTER_COST_FACTOR` be a constant
+     * cost of a target at exactly 3N and lets `SHATTER_COST_FACTOR` be a constant
      * rather than a per-word estimate. A recursive split would price a
      * three-part word differently from a two-part one and the director would be
      * pacing against a number nobody could state.

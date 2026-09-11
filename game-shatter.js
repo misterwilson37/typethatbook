@@ -1,3 +1,14 @@
+// game-shatter.js v1.6.0 — Round 116 (Sun): ⭐ THE PRISM SHATTERS IN SLOW MOTION.
+//   Jake: *"when the ship gets hit, it should shatter into all the colors.
+//   Ideally in slow motion."* The burst is the WHOLE finger spectrum, not the
+//   pane's palette — the prism has been refracting all eight fingers all game,
+//   and this is the only moment they appear at once.
+//   ⚠️⚠️ THE SLOWDOWN NEEDED A SECOND CLOCK, AND THE SPLIT IS THE CAREFUL PART:
+//   the BOARD runs on `bNow`, which slows; the DIRECTOR keeps wall clock, so the
+//   seconds a student banks are untouched. Every board call reads `bNow` so the
+//   board is internally consistent — a warp cooldown measured on one clock and
+//   spent on another is the Rule 11 shape. ⚠️ `bNow` only ever runs SLOWER than
+//   wall clock; one that could run faster would bank time nobody typed in.
 // game-shatter.js v1.5.0 — Round 116 (Sun), after Jake played it:
 //   • ⭐ THE COUNTDOWN IS THE SEVEN-SEGMENT ONE NOW. *"the countdown at the
 //     beginning of shatter is not the digital countdown of deadline, and I think
@@ -150,7 +161,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.5.0';
+export const GAME_SHATTER_VERSION = '1.6.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -383,6 +394,19 @@ export function mount(container, opts) {
     // throwing no ray — which is exactly Jake's "fizzle at the tip" and was
     // already built; it was just being drowned out by the flick.
     let lastAim = null;
+    // ⚠️⚠️ A SEPARATE CLOCK FOR THE BOARD, SO A HIT CAN SLOW TIME WITHOUT
+    // SLOWING THE GRADE. Jake, 2026-09-11: *"when the ship gets hit, it should
+    // shatter into all the colors. Ideally in slow motion."*
+    //
+    // ⭐ THE BOARD GETS `bNow`, THE DIRECTOR KEEPS WALL CLOCK. Every board call —
+    // advance, tryKey, canWarp, warp — reads one clock and it is internally
+    // consistent; the seconds a student banks come from the director and are
+    // untouched. ⚠️ MIXING THEM WOULD BE THE RULE 11 SHAPE: a warp cooldown
+    // measured on one clock and spent on another.
+    // ⚠️ AND IT ONLY EVER RUNS SLOWER, NEVER FASTER. A board clock that could
+    // outrun the wall clock would let a student bank time they did not type in.
+    let bNow = 0;
+    let slowMo = 0;   // 0..1, decaying; 1 is the instant of the hit
     let ended = false;
     let rafId = null, lastFrame = null, tickAcc = 0;
     // ⚠️ HIGH-WATER MARK, NOT AN ACCUMULATOR — see bankWholeSeconds().
@@ -410,8 +434,8 @@ export function mount(container, opts) {
         // full, nothing half-typed, and past the reflex grace after a clear —
         // live in shatter-board.js and are tested there. A copy of any of them
         // here would be the second home this split exists to prevent.
-        if (e.key === ' ' && board.canWarp(now)) {
-            board.warp(now);
+        if (e.key === ' ' && board.canWarp(bNow)) {
+            board.warp(bNow);
             sfx.free();
             // ⭐ THE WARP IS THE PRISM FIRING IN EVERY DIRECTION AT ONCE, which
             // is the picture the mechanic was always drawing: the panes are
@@ -437,7 +461,7 @@ export function mount(container, opts) {
         const before = new Map();
         for (const k of board.rocks) before.set(k.id, { p: px(k), colors: k.colors });
 
-        const r = board.tryKey(e.key, now);
+        const r = board.tryKey(e.key, bNow);
 
         // ⚠️⚠️ IGNORED IS NOT CORRECT AND NOT WRONG. A space at a word boundary
         // must reach the director as NEITHER. `keyResult(true)` here would let a
@@ -522,6 +546,21 @@ export function mount(container, opts) {
         // the damage; the shards carry the identification.
         glassBurst(particles, p.x, p.y, (rock.colors || []).concat('#ff3355'),
                    Math.round(34 * motionScale()), 260, rand);
+        // ⭐⭐ THE PRISM COMES APART IN EVERY COLOUR IT EVER THREW. Jake:
+        // *"when the ship gets hit, it should shatter into all the colors.
+        // Ideally in slow motion."* ⚠️ THE WHOLE SPECTRUM, not the pane's
+        // palette — the pane is one word and the prism is the thing that has
+        // been refracting all eight fingers all game. It is the only moment in
+        // Shatter where the entire finger map appears at once, which is what
+        // makes a hit feel like something breaking rather than a counter
+        // decrementing.
+        // ⚠️ SLOW, WIDE AND NOT CAPPED BY motionScale()'s COUNT the way the pane
+        // burst is: this happens at most three times in a run.
+        glassBurst(particles, cx, cy, FAN, Math.round(52 * motionScale()), 150, rand);
+        // ⚠️ AND THE SLOW MOTION ANSWERS TO REDUCED MOTION, like everything else
+        // here. Scaled rather than switched off — a student on that setting
+        // still gets the beat, just less of it.
+        slowMo = Math.max(slowMo, motionScale());
         flash = 0.4;
         flare = 1;
         sfx.hit();
@@ -580,6 +619,7 @@ export function mount(container, opts) {
         // previous run paints on the countdown of the next one, which reads as
         // the game firing at a pane that is not there.
         shots = []; flare = 0; warpRing = null; lastAim = null; countdown = null;
+        bNow = 0; slowMo = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         idleMs = 0; lastKeyAt = 0;
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous run's
@@ -605,7 +645,7 @@ export function mount(container, opts) {
             // ⚠️ THE BOARD IS ADVANCED WITH `now`, NOT WITH dt. It keeps its own
             // last-seen timestamp, so a clamped dt here cannot desynchronise the
             // rocks from the lifetimes the director issued them.
-            for (const gone of board.advance(now)) {
+            for (const gone of board.advance(bNow)) {
                 takeHit(gone, now);
                 if (ended) break;
             }
@@ -620,7 +660,7 @@ export function mount(container, opts) {
                 // Re-rolling the corners and the came leans each frame makes the
                 // glass BOIL, which reads as a rendering fault rather than as a
                 // window.
-                if (t) decorate(board.spawn(t.text, t.lifetimeMs, now));
+                if (t) decorate(board.spawn(t.text, t.lifetimeMs, bNow));
             }
         }
 
@@ -635,6 +675,11 @@ export function mount(container, opts) {
         // game does not come back with every shot already expired — and a
         // hidden tab cannot fast-forward it, because dt is clamped above.
         if (flare > 0) flare = Math.max(0, flare - dt * 4.5);
+        // ⚠️ THE SLOWDOWN IS GENEROUS AND SHORT. Long enough to read the glass
+        // coming apart, short enough that a student is not waiting to play.
+        if (slowMo > 0) slowMo = Math.max(0, slowMo - dt * 1.15);
+        const scale = 1 - 0.78 * slowMo;
+        bNow += dt * 1000 * scale;
         if (shots.length) {
             for (let i = shots.length - 1; i >= 0; i--) {
                 shots[i].t -= dt * (1000 / SHOT_MS);

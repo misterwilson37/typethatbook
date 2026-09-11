@@ -90,9 +90,10 @@
 
 import {
     ShatterBoard, SPAWN_R, SPLIT_MIN_R, WARP_PUSH, WARP_CLEARS, nextTargetId,
+    MAX_SPLIT_DEPTH, MIN_RESPLIT_LEN,
 } from './shatter-board.js';
 
-export const SHATTER_SHARDS_VERSION = '1.1.0';
+export const SHATTER_SHARDS_VERSION = '1.2.0';
 
 // ⚠️ THE FIELD IS A SQUARE THAT CONTAINS THE SPAWN RING, NOT THE RING ITSELF.
 // Wrapping on a circle means a pane leaves and re-enters at the antipode, which
@@ -210,6 +211,7 @@ export class ShardsBoard extends ShatterBoard {
             vx: Math.cos(a) * speed,
             vy: Math.sin(a) * speed,
             speed,
+            depth: 0,
             // ⚠️ AN ABSOLUTE TIMESTAMP, NOT A COUNTDOWN. advance() is driven by
             // the view's clock and a paused game must not burn a pane's budget;
             // `_lastAt` already handles the gap, and a decrementing counter would
@@ -300,12 +302,17 @@ export class ShardsBoard extends ShatterBoard {
             vx: rock.vx + Math.cos(base + spread) * kick,
             vy: rock.vy + Math.sin(base + spread) * kick,
             speed: rock.speed,
+            depth: (rock.depth || 0) + 1,
             // ⚠️ PIECES INHERIT THE REMAINING BUDGET, THEY DO NOT GET A FRESH
             // ONE. A full budget per piece is precisely the bug this fixes: it
             // would mean breaking a word BOUGHT the student more clutter, for
             // longer, the slower they were.
             leavesAt: rock.leavesAt,
-            terminal: true,
+            // ⚠️ SAME RULE AS THE BASE — see MAX_SPLIT_DEPTH there. Two levels on
+            // one board and one on the other would be two different games
+            // wearing the same split ladder.
+            terminal: (rock.depth || 0) + 1 >= MAX_SPLIT_DEPTH
+                || text.length < MIN_RESPLIT_LEN,
             parent: rock.id,
         };
     }
