@@ -1,3 +1,6 @@
+// game-draw.js v1.16.0 — Round 116 (Sun): the glass-particle field renames
+// `shard` → `sliver`, to keep it out of the way of the `shards` game id, which
+// is frozen in Firestore forever. Pure rename; no behaviour.
 // game-draw.js v1.15.0 — Round 116 (Sun): drawShatterPanel()'s contacts are
 // FIELD COORDINATES, not polar. ⚠️ The panes' motion model is the board's
 // business and the arcade is about to have two of them; a panel taking
@@ -91,7 +94,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.15.0';
+export const GAME_DRAW_VERSION = '1.16.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -639,8 +642,16 @@ export function burst(list, x, y, color, n = 18, speed = 180, rand = Math.random
 }
 
 /**
- * A burst of GLASS: spinning triangular shards in the colours of the panels
+ * A burst of GLASS: spinning triangular slivers in the colours of the cells
  * they came from.
+ *
+ * ⚠️⚠️ THE PARTICLE FIELD IS `sliver`, NOT `shard`, AND THAT IS DELIBERATE.
+ * Round 116 named the second Shatter cabinet **Shards** (Jake's, and better
+ * than the `drift` I proposed — Shatter/Shards says "same world, different
+ * physics" where Drift says "different game"). ⭐ THE GAME ID IS FROZEN IN
+ * FIRESTORE FOREVER AND A PARTICLE PROPERTY IS NOT, so the half that could
+ * move, moved. A codebase where `shard` means both the debris and a cabinet is
+ * a trap for whoever greps it in two years.
  *
  * ⚠️⚠️ IT IS burst() WITH TWO EXTRA FIELDS AND NOT A SECOND PARTICLE SYSTEM.
  * `shard` and `spin` are optional on the shared particle, so updateParticles()
@@ -663,7 +674,7 @@ export function glassBurst(list, x, y, colors, n = 18, speed = 190, rand = Math.
             x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
             life: 0.45 + rand() * 0.6, max: 1.05,
             color: pal[i % pal.length],
-            shard: 3 + rand() * 4.5,
+            sliver: 3 + rand() * 4.5,
             spin: rand() * Math.PI * 2,
             spinRate: (rand() - 0.5) * 9,
         });
@@ -690,15 +701,15 @@ export function drawParticles(ctx, list) {
     for (const p of list) {
         ctx.globalAlpha = Math.max(0, Math.min(1, p.life / p.max));
         ctx.fillStyle = p.color;
-        if (p.shard) {
-            // A sliver, not a square: long on one axis, pointed, and tumbling.
+        if (p.sliver) {
+            // Long on one axis, pointed, and tumbling — not a square.
             ctx.save();
             ctx.translate(p.x, p.y);
             ctx.rotate(p.spin || 0);
             ctx.beginPath();
-            ctx.moveTo(p.shard, 0);
-            ctx.lineTo(-p.shard * 0.55, p.shard * 0.5);
-            ctx.lineTo(-p.shard * 0.3, -p.shard * 0.62);
+            ctx.moveTo(p.sliver, 0);
+            ctx.lineTo(-p.sliver * 0.55, p.sliver * 0.5);
+            ctx.lineTo(-p.sliver * 0.3, -p.sliver * 0.62);
             ctx.closePath();
             ctx.fill();
             ctx.restore();

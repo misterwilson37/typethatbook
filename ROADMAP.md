@@ -50,7 +50,11 @@ BOARD BEHIND A FLAG WAS DELIBERATELY NOT BUILT** — rule 5, and exactly what
 1. ⚠️ **A HARNESS FIRST** (Rule 10): drive a drift board headless over many
    seeded runs and answer *how long does a 15 / 25 / 40 WPM student last*. No
    drift board becomes authoritative before that number exists.
-2. `shatter-drift.js` implementing `ShatterBoard`'s interface.
+2. `shatter-shards.js` implementing `ShatterBoard`'s interface, id **`shards`**,
+   title **Shards** (Jake's name — *Shatter / Shards* reads as siblings rather
+   than a sequel, which is what the experiment needs). ⚠️ The id freezes in
+   Firestore on ship; the particle field was renamed `shard` → `sliver` in
+   Round 116 to keep the word unambiguous.
 3. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY** (Rule 9), and delete the lab
    page with it.
 

@@ -21,8 +21,9 @@
 > the failure mode is very easy to walk back into.
 >
 > **Expected stamps:** `game-shatter.js` **v1.4.0**, `game-sprites.js` **v1.5.0**,
-> `game-draw.js` **v1.15.0**, `game-chrome.js` **v1.10.0**,
-> `arcade-pool.js` **v2.1.0**, `shatter-board.js` **v1.2.0**.
+> `game-chrome.js` **v1.10.0**,
+> `arcade-pool.js` **v2.1.0**, `shatter-board.js` **v1.2.0**,
+> `game-draw.js` **v1.16.0**.
 >
 > ---
 >
@@ -89,11 +90,19 @@
 > straight up instead of on the side it came from. Hence `dx, dy` on the seam.
 >
 > **Steps 2–4, for whoever is next:**
-> 2. `shatter-drift.js` against that interface, registered as a new id in
->    `game-names.js` (ids are frozen forever; `drift` is proposed, **titles are
->    one line and Jake's call**). ⚠️ Not "Shatter 2" — a sequel number tells a
->    kid the second one is better and biases the very preference the experiment
->    is trying to measure.
+> 2. **`shatter-shards.js`, id `shards`, title *Shards*** — Jake named it, and
+>    it is better than the `drift` I proposed. ⭐ **THE PAIR IS THE ARGUMENT:**
+>    the two games share everything except motion, and *Shatter / Shards* says
+>    "same world, different physics" where *Drift* says "different game". It
+>    also points at the thing that is actually better about the drift model —
+>    under free motion the pieces inherit the parent's velocity and genuinely
+>    fly apart, instead of fanning out on a shared heading because they must
+>    share its lifetime. ⚠️ Not "Shatter 2": a sequel number tells a kid the
+>    second one is better and biases the very preference being measured.
+>    ⚠️⚠️ **THE ID IS FROZEN IN FIRESTORE THE MOMENT IT SHIPS.** Round 116
+>    pre-emptively renamed the glass-particle field `shard` → `sliver`
+>    (game-draw.js v1.16.0, pure rename) so `shard` does not mean both the
+>    debris and a cabinet. The half that could move, moved.
 > 3. Both in the picker for **one rotation, nine weeks**.
 > 4. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY AS THE DECISION** (Rule 9). The
 >    date exists because without one this quietly becomes two boards forever,
