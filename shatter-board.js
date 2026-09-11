@@ -1,3 +1,7 @@
+// shatter-board.js v1.7.0 — Round 119 (Hammond): `release()`, bound to Backspace
+// because Escape both released the lock and paused the game. See its header —
+// dropping the lock without wiping `typed` leaves a pane whose next wanted
+// letter is invisible, which is what made Jake's `affectionate` unclearable.
 // shatter-board.js v1.4.0 — Round 116 (Sun): a word breaks TWICE. See
 // MAX_SPLIT_DEPTH.
 // shatter-board.js v1.3.0 — Round 116 (Sun): ⭐ `_rank()` and `_placePiece()`,
@@ -64,7 +68,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.6.0';
+export const SHATTER_BOARD_VERSION = '1.7.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -631,6 +635,30 @@ export class ShatterBoard {
      * prototypes all dropped unmatched keys on the floor, which meant a student
      * could mash for a minute at 100% accuracy.
      */
+    /**
+     * ⚠️⚠️ LET GO OF THE WORD, AND WIPE THE HALF-TYPED PROGRESS WITH IT.
+     * Round 119 (Hammond). Jake, after playing: *"I tried to type the `ate` in
+     * `affectionate` something like 10 times before it took out that word — it
+     * kept finding other candidates, so they just started to clump. I couldn't
+     * clear anything out."*
+     *
+     * ⭐⭐ DROPPING THE LOCK ALONE IS NOT ENOUGH, AND THAT IS THE WHOLE BUG.
+     * `tryKey()`'s abandon path already sets `this.locked = null` and
+     * deliberately KEEPS `typed` — *"they may come back to it"*. But a pane
+     * carrying three invisible characters of progress is a pane whose next
+     * wanted letter is not the one the student can see, so every attempt to
+     * restart it is charged as a mistake, and on a crowded board there is
+     * nothing on screen that says why. ⚠️ THE KEPT PROGRESS IS A KINDNESS THAT
+     * TURNS INTO A TRAP the moment the student stops wanting to come back.
+     *
+     * ⚠️ IT COSTS NOTHING AND CANNOT BE EXPLOITED. The student still types every
+     * character of every pane they clear; this only ever throws work AWAY.
+     */
+    release() {
+        if (this.locked) this.locked.typed = 0;
+        this.locked = null;
+    }
+
     tryKey(ch, nowMs) {
         const miss = { correct: false, ignored: false, cleared: null, pieces: [] };
 

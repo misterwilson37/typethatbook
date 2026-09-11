@@ -1,3 +1,10 @@
+// game-deadline.js v1.14.0 — Round 119 (Hammond): ⚠️⚠️ BACKSPACE LETS GO OF THE
+// WORD. Escape released the lock AND paused the game in one keystroke since
+// Round 109 — `stopPropagation()` does not stop a sibling listener on the same
+// target, so the arbitration that file documents never happened — ⭐ AND HERE THAT WAS A TRAP,
+// NOT A MISSING CONVENIENCE: every key goes to `locked`, and the auto-lock skips
+// any target with `typed > 0`, so a student who locked the wrong word was stuck
+// in it until it landed. A student reported it. See onKeyDown().
 // game-deadline.js v1.13.0 — Round 119 (Hammond): DEADLINE MEASURES THE CHILD
 // TOO, and `restart()` stops halving the city's health.
 //
@@ -338,7 +345,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.13.0';
+export const GAME_DEADLINE_VERSION = '1.14.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -786,11 +793,57 @@ export function mount(container, opts) {
         // DIRECTOR. Before the countdown finishes there is nothing to type at,
         // and a key charged then would be a mistake the student never made.
         if (!started || (chrome && chrome.phase === 'paused')) return;
-        if (e.key === 'Escape') {
-            // ⚠️ ABANDONING A LOCK IS FREE. It is the whole lane mechanic: the
-            // student is choosing which landmark to save, and charging them an
-            // error for a tactical decision would make the depth a trap.
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ BACKSPACE LETS GO OF THE WORD. ESCAPE CANNOT, AND HAS NOT SINCE
+        // ROUND 109.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-11, and a student reported it the same day:
+        // *"There's no escape key. So if I think I'm typing one word, but I'm
+        // actually typing another, there's no way to get out of it to start a
+        // new word... when the sky is covered in words, you can't tell where
+        // you're missing. Maybe the backspace/delete key could clear it out?"*
+        //
+        // ⭐⭐ HE IS RIGHT, AND THE CAUSE IS NOT THE ONE IT LOOKS LIKE. The
+        // handler was here the whole time and it FIRED. `game-chrome.js` v1.8.0
+        // bound Escape to PAUSE and calls `stopPropagation()`, believing that
+        // settled it — its header says *"pausing outranks that"*.
+        // ⚠️⚠️ IT DOES NOT. `stopPropagation()` STOPS OTHER *TARGETS*, NOT OTHER
+        // LISTENERS ON THE SAME ONE — that is `stopImmediatePropagation()`. Both
+        // handlers are bound to `window` in the capture phase, so Escape did
+        // BOTH THINGS AT ONCE: it released the lock and it paused the game.
+        // ⭐ SO THE MECHANIC WAS ALIVE AND UNUSABLE. You cannot abandon a word
+        // without freezing the game behind a pause panel, and the pause is the
+        // only half a student can see — press Escape to escape the word, and
+        // what happens is the game stops. Press it again to resume and the lock
+        // is released a second time. Jake reported it as *"there's no escape
+        // key"* because that is exactly what it is to play.
+        // ⚠️⚠️ AN ARBITRATION THAT DOES NOT ARBITRATE IS WORSE THAN NONE: the
+        // author made a deliberate choice, wrote it down, and the code quietly
+        // did something neither option described.
+        //
+        // ⚠️⚠️ AND IT IS NOT A LOST CONVENIENCE, IT IS A TRAP. A half-typed target
+        // wants a letter the student cannot see, so every attempt to start it
+        // over is charged as a mistake with nothing on screen to explain why.
+        //
+        // ⭐ BACKSPACE IS A BETTER KEY THAN ESCAPE EVER WAS. It already means
+        // *undo what I just typed* to every human who has used a keyboard, it is
+        // on the home-row reach, and it collides with nothing. Delete is
+        // accepted as its twin because Mac keyboards label that key `delete`.
+        // ⚠️ IT IS FREE — NOT a keyResult. Abandoning a lock is a tactical
+        // decision, not a mistake; this file has said so since Round 87.
+        //
+        // ⚠️⚠️ AND IT IS WORST OF ALL HERE. Once `locked` is set EVERY key goes to
+        // it, right or wrong — and the auto-lock below skips any target with
+        // `typed > 0` as *"already someone's business"*, so an abandoned
+        // half-typed word can never be re-acquired either. ⭐ A STUDENT WHO
+        // LOCKED THE WRONG WORD WAS STUCK IN IT UNTIL IT LANDED. That is why
+        // `typed` is reset and not merely released: without the reset, Backspace
+        // would free the student and leave a permanently untypeable missile
+        // falling on a landmark.
+        if (e.key === 'Backspace' || e.key === 'Delete') {
             e.preventDefault();
+            if (locked && live.includes(locked)) locked.typed = 0;
             locked = null;
             return;
         }
@@ -2036,7 +2089,7 @@ export function mount(container, opts) {
         barHost: (opts && opts.barHost) || null,
         title: 'Deadline',
         hint: 'Words are falling on Nashville. Type the one closest to the ground. '
-            + 'Esc gives up on a word so you can save a different landmark.',
+            + 'Backspace gives up on a word so you can save a different landmark.',
         muted: isMuted(),
         keysOn: kbOn,
         // ⚠️ RE-LAYS OUT IMMEDIATELY. kbH feeds the ground line, the dome radii

@@ -170,6 +170,79 @@ round wires `game-shatter.js` (spawned / keyed / finished / dropped), adds
 builds the three-button play-again card. ⭐ An engine nobody calls is dead code;
 do not let it sit two rounds.
 
+### 119f — ✅ ESCAPE DID TWO JOBS AT ONCE (Round 119). BACKSPACE NOW LETS GO.
+
+A student told Jake there was no escape key; he hit it the same day.
+
+⭐⭐ **THE CAUSE IS NOT THE ONE IT LOOKS LIKE.** `game-chrome.js` v1.8.0 binds
+Escape to pause in the capture phase and calls `stopPropagation()`, and its
+header says *"pausing outranks that"*. ⚠️⚠️ **`stopPropagation()` STOPS OTHER
+TARGETS, NOT OTHER LISTENERS ON THE SAME ONE** — that is
+`stopImmediatePropagation()` — and both handlers sit on `window`. **So Escape
+released the lock AND paused the game, in one keystroke.**
+
+⭐ **ALIVE AND UNUSABLE IS WORSE THAN DEAD:** you could not let go of a word
+without freezing the game, and the freeze is the only half a student sees.
+⚠️⚠️ **AND IN DEADLINE IT WAS A TRAP** — every key goes to `locked`, and the
+auto-lock skips any target with `typed > 0`, so a student who locked the wrong
+word was **stuck in it until it landed**.
+
+✅ **Backspace / Delete, in all three views.** One key, one job. ⚠️ It wipes
+`typed` as well as the lock: a pane carrying invisible progress wants a letter
+the student cannot see, so every restart is charged as a mistake with nothing on
+screen to explain why — and in Deadline, without the reset the freed student
+would leave a permanently untypeable missile falling. ✅ Four hints fixed.
+
+⚠️ **`game-chrome.js` IS UNTOUCHED AND STILL CLAIMS AN ARBITRATION IT DOES NOT
+PERFORM.** Harmless while no view binds Escape (Part D3 pins it). **If a future
+round binds Escape in a view, it gets both behaviours again.** Fix the comment or
+switch to `stopImmediatePropagation()` — a small, separate round.
+
+### 119d — ⚠️ SHARDS' CALIBRATION OPENING IS TOO SLOW. **DECOUPLE, DO NOT TUNE.**
+
+Jake: *"shards took a very long time to pick up. Four individual words each
+slowly moving in was...painful."* ⭐ That is the ramp working as designed and
+feeling awful: `onScreenTarget` is 1 until four PARENT words clear, at an 8 WPM
+seed.
+
+⚠️⚠️ **DO NOT LOWER `MIN_SAMPLES` AND DO NOT RAISE THE SEED.** Jake's own
+suggestion is better and the module half-argues it already: *"wouldn't typing one
+word and getting the shards give you the test you need for the measure?"*
+
+⭐ **PARTLY — AND THE SPLIT IS THE ANSWER.** A sample carries two numbers.
+**Burst speed from a piece is valid** (same fingers, same letters). **Acquisition
+from a piece is not** (born where the student is already looking; see 118a's
+ruling, which stands). ⚠️ The calibrator COUPLES them into one `confident` flag,
+so excluding pieces to protect acquisition also throws away ~¾ of the available
+SPEED samples — which is precisely why comfort takes so long in Shatter/Shards
+and not in Deadline.
+
+**The change:** `wpm` believable once four SPEED samples exist, pieces included;
+`onScreenTarget` still gated on four real ACQUISITIONS. ⚠️ It finishes the
+decomposition `typing-calibrator.js`'s header already argues for rather than
+moving a constant. ⭐ **AND IT NEEDS A HARNESS THAT FAILS FIRST** on the thing
+Jake felt: *how many seconds of play before comfort strikes*, per game.
+
+⚠️ Jake also asked *"maybe if we spawn two words at the same time at that rate"*.
+That is a different knob — `onScreenTarget`'s pre-comfort floor — and it should
+be decided AFTER the decoupling, because the decoupling may remove the symptom.
+
+### 119e — ⚠️⚠️ "HOW SLOW DO YOU HAVE TO TYPE TO GET KILLED?" IS UNANSWERED
+
+Jake asked, playing Shards: *"I mean, how slow does one have to type to get
+killed by those words? It feels like forever!"* — and he is right that it is the
+question that decides whether any of the pacing work is real.
+
+⚠️⚠️ **ROUND 119 BUILT A SWEEP AND THREW IT AWAY.** It reported every typist
+dying in ~40s, against Jake's own two untouched minutes and Round 117's recorded
+86s idle / 123s slow. ⭐ **WHEN A MODEL DISAGREES WITH BOTH THE CLASSROOM AND THE
+EXISTING MEASUREMENT, THE MODEL IS WRONG** — that one typed `rocks[0]` rather
+than the nearest pane, so it was not playing the game.
+
+⭐ **REPORTING THOSE NUMBERS WOULD HAVE BEEN ROUND 117'S DEFECT EXACTLY.** Use
+`shatter-shards-test.mjs` Part H, which already drives a real typist against a
+real director, and extend THAT rather than writing a third simulation.
+
 ### 119c — ✅ PLAY AGAIN HALVED THE CITY (Round 119, found while wiring)
 
 `game-deadline.js`'s mount built its director with `shields: shieldCount * 2` —

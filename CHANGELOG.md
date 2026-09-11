@@ -120,6 +120,29 @@ dereferenced null. ⚠️⚠️ A stack trace is not a finding: a harness that d
 defect it is hunting reports nothing about the other assertions in the part.
 Null-safe now; M7 prints `6 → 3`.
 
+### ⚠️⚠️⚠️ ESCAPE DID TWO JOBS AT ONCE — BACKSPACE NOW LETS GO OF THE WORD
+
+A student reported it; Jake hit it the same day. ⭐⭐ **MY FIRST DIAGNOSIS WAS
+WRONG AND THE MUTATION TEST CORRECTED IT.** I recorded that `game-chrome.js`
+v1.8.0 had made Escape *unreachable* via `stopPropagation()`. ⚠️⚠️
+**`stopPropagation()` stops other TARGETS, not other LISTENERS on the same one** —
+that is `stopImmediatePropagation()` — and both handlers sit on `window`. **So
+Escape released the lock AND paused the game in one keystroke.**
+
+⭐ Alive and unusable is worse than dead. ⚠️⚠️ And in Deadline it was a trap: every
+key goes to `locked`, the auto-lock skips any target with `typed > 0`, so a
+student who locked the wrong word was **stuck in it until it landed**.
+
+✅ **Backspace / Delete in all three views** (`game-shatter.js` v1.9.0,
+`game-deadline.js` v1.14.0, `game-escape.js` v2.5.0, `shatter-board.js` v1.7.0's
+`release()`). One key, one job. ⚠️ It wipes `typed` as well as the lock — Jake
+typed the `ate` in `affectionate` ten times against invisible progress. ✅ Four
+on-screen hints fixed; Part D asserts no hint names a key its view does not
+handle. `tests/abandon-lock-test.mjs` v1.0.0, 23 assertions.
+
+⚠️ `game-chrome.js` still claims an arbitration it does not perform — harmless
+while no view binds Escape, and ROADMAP 119f says so.
+
 ### ⚠️ NOT DONE, ON PURPOSE
 
 **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms thresholds are
@@ -127,11 +150,12 @@ exactly where Round 118 left them — reasoned, not measured, and the instructio
 was to wire first. The three-button play-again card is ROADMAP 119a; Escape Key's
 wirability is ROADMAP 119b and needs a ruling, not a round.
 
-**102 harnesses pass** after `npm install`.
+**103 harnesses pass** after `npm install`.
 
 **Upload set:** `game-shell.js`, `game-shatter.js`, `game-deadline.js`,
-`game-escape.js`, `tests/adaptive-arcade-test.mjs`, `tests/run-all-tests.mjs`,
-`HANDOFF.md`, `ROADMAP.md`, `CHANGELOG.md`.
+`game-escape.js`, `shatter-board.js`, `tests/adaptive-arcade-test.mjs`,
+`tests/abandon-lock-test.mjs`, `tests/run-all-tests.mjs`, `HANDOFF.md`,
+`ROADMAP.md`, `CHANGELOG.md`.
 **Delete:** `dead-handler-test.mjs` (repo root only — keep `tests/`). ✅ Jake
 confirmed done.
 

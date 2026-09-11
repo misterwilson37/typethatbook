@@ -10,7 +10,7 @@
 > (14, and only in `docs/DESIGN-TELEMETRY.md`), *Sun*, *Bennett*, *Tower*,
 > *Imperial*, *Duplex*, *Bar-Let*, *Chicago*, *Underwood* are all taken.
 >
-> **ALL 102 HARNESSES PASS.**
+> **ALL 103 HARNESSES PASS.**
 >
 > ---
 >
@@ -162,6 +162,110 @@
 >
 > ---
 >
+> ## ⚠️⚠️⚠️ THE BIGGEST FIND OF THE ROUND: **ESCAPE DID TWO JOBS AT ONCE**
+>
+> A student told Jake there was no escape key; he hit it the same day.
+> *"If I think I'm typing one word, but I'm actually typing another, there's no
+> way to get out of it to start a new word... when the sky is covered in words,
+> you can't tell where you're missing."*
+>
+> ⭐⭐ **THE CAUSE IS NOT THE ONE IT LOOKS LIKE, AND MY FIRST WRITE-UP OF IT WAS
+> WRONG.** I recorded that `game-chrome.js` v1.8.0 had made Escape *unreachable*
+> in all three views — it binds Escape to pause in the capture phase and calls
+> `stopPropagation()`, and its header says *"pausing outranks that"*.
+>
+> ⚠️⚠️ **`stopPropagation()` STOPS OTHER *TARGETS*, NOT OTHER LISTENERS ON THE
+> SAME ONE.** That is `stopImmediatePropagation()`. Both handlers are bound to
+> `window`, so **Escape did both things in one keystroke**: released the lock and
+> paused the game.
+>
+> ⭐ **ALIVE AND UNUSABLE IS A WORSE DEFECT THAN DEAD.** You could not let go of a
+> word without freezing the game behind a pause panel, and the freeze is the only
+> half a student can see. Press Escape to escape the word and what happens is the
+> game stops. Jake reported it as *"there's no escape key"* because that is
+> exactly what it is to play.
+> ⚠️⚠️ **AN ARBITRATION THAT DOES NOT ARBITRATE IS WORSE THAN NONE**: the author
+> chose, wrote the choice down, and the code did something neither option
+> described — and a green suite agreed with the comment for ten rounds.
+>
+> ### ⚠️⚠️ AND IN DEADLINE IT WAS A TRAP, NOT A LOST CONVENIENCE
+>
+> Once `locked` is set, **every** key goes to it, right or wrong — and the
+> auto-lock skips any target with `typed > 0` as *"already someone's business"*.
+> ⭐ **SO A STUDENT WHO LOCKED THE WRONG WORD WAS STUCK IN IT UNTIL IT LANDED**,
+> and the half-typed word could never be re-acquired by anyone.
+>
+> ### ✅ THE FIX — BACKSPACE / DELETE, IN ALL THREE VIEWS
+>
+> ⭐ **ONE KEY, ONE JOB.** Backspace already means *undo what I just typed* to
+> every human, it is on the home-row reach, and it collides with nothing. Delete
+> is its twin because Mac keyboards label that key `delete` — and that is what
+> this building has.
+>
+> ⚠️⚠️ **IT WIPES `typed`, NOT JUST THE LOCK, AND THAT HALF IS THE POINT.** Jake:
+> *"I tried to type the `ate` in `affectionate` something like 10 times before it
+> took out that word."* A pane carrying invisible progress wants a letter the
+> student cannot see, so every attempt to restart it is charged as a mistake with
+> nothing on screen to explain why. In Deadline the reset is load-bearing for a
+> second reason: without it, Backspace would free the student and leave a
+> permanently untypeable missile falling on a landmark.
+> ⚠️ It is **free** — not a `keyResult`. Abandoning a lock has been a tactical
+> decision, not a mistake, since Round 87.
+>
+> ✅ **AND FOUR HINTS WERE FIXED.** The code was one side of the failure; the
+> other was four sentences on screen naming Esc, in a hint a child reads
+> precisely when they are stuck. Part D asserts no hint may name a key its view
+> does not handle.
+>
+> ⚠️ **`game-chrome.js` IS UNTOUCHED AND STILL CLAIMS AN ARBITRATION IT DOES NOT
+> PERFORM.** It is harmless now because no view binds Escape any more (Part D3
+> pins that), but **if a future round binds Escape in a view again, it will get
+> both behaviours and the comment will lie a second time.** Either fix the
+> comment or switch it to `stopImmediatePropagation()`. ⭐ I left it rather than
+> change pause semantics in a round that was already three defects deep.
+>
+> ---
+>
+> ## ⚠️ SHARDS' OPENING IS TOO SLOW, AND I DID **NOT** TUNE IT
+>
+> Jake: *"shards took a very long time to pick up. Four individual words each
+> slowly moving in was... painful."* ⭐ **HE IS DESCRIBING THE CALIBRATION RAMP
+> WORKING AS DESIGNED AND FEELING AWFUL** — `onScreenTarget` is 1 until four
+> parent words are cleared, and the seed is 8 WPM.
+>
+> ⚠️⚠️ **HIS OWN SUGGESTION IS BETTER THAN A CONSTANT CHANGE, AND IT IS ALREADY
+> HALF-ARGUED IN `typing-calibrator.js`:** *"wouldn't typing one word and getting
+> the shards give you the test you need for the measure?"*
+> ⭐ **PARTLY YES, AND THE MODULE'S OWN HEADER SAYS WHY IT IS ONLY PARTLY.** A
+> sample carries TWO numbers. **Burst speed from a piece is perfectly valid** —
+> it is the same fingers typing the same letters. **Acquisition from a piece is
+> not** — it is born where the student is already looking. ⚠️ The calibrator
+> couples them into one `confident` flag, so excluding pieces to protect
+> acquisition also throws away three-quarters of the available SPEED samples.
+>
+> ⭐ **SO THE FIX IS TO DECOUPLE THEM, NOT TO LOWER `MIN_SAMPLES`:** `wpm`
+> believable once four SPEED samples exist (pieces included, ~3× sooner in
+> Shatter/Shards), `onScreenTarget` still gated on four real ACQUISITIONS. That
+> finishes the decomposition the module already argues for rather than tuning a
+> number. **ROADMAP 119d. Do not do it before reading that item.**
+>
+> ---
+>
+> ## ⚠️⚠️ I COULD NOT ANSWER "HOW SLOW DO YOU HAVE TO TYPE TO GET KILLED?"
+>
+> Jake asked, and it is the right question. I built a headless sweep and **threw
+> it away**: it reported everyone dying in ~40 seconds, which disagrees with
+> Jake's own two untouched minutes AND with Round 117's recorded 86s idle / 123s
+> slow. ⭐ **WHEN A MODEL DISAGREES WITH BOTH THE CLASSROOM AND THE EXISTING
+> MEASUREMENT, THE MODEL IS WRONG** — mine typed `rocks[0]` instead of the
+> nearest pane, so it was not playing the game.
+> ⚠️⚠️ **REPORTING THOSE NUMBERS WOULD HAVE BEEN ROUND 117'S DEFECT EXACTLY**: a
+> harness inventing its own pacing and being believed. `shatter-shards-test.mjs`
+> Part H already drives a real typist against a real director and is where this
+> question should be answered. **ROADMAP 119e.**
+>
+> ---
+>
 > ## ⚠️ WHAT I DID **NOT** DO, ON PURPOSE
 >
 > * **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms
@@ -218,13 +322,14 @@
 > ## VERSION STAMPS THIS ROUND
 >
 > `game-shell.js` **v1.10.0** · `game-shatter.js` **v1.8.0** ·
-> `game-deadline.js` **v1.13.0** · `game-escape.js` **v2.4.0** (header only —
-> the ruling IS the change; no code moved) ·
+> `game-deadline.js` **v1.14.0** ·
+> `game-escape.js` **v2.5.0** · `shatter-board.js` **v1.7.0** (`release()`) ·
 > `tests/adaptive-arcade-test.mjs` **v1.1.0, new** ·
-> `tests/run-all-tests.mjs` **v1.30.0** ·
+> `tests/abandon-lock-test.mjs` **v1.0.0, new** ·
+> `tests/run-all-tests.mjs` **v1.31.0** ·
 > `dead-handler-test.mjs` (repo root) **deleted — Jake confirmed done**.
 >
-> **ALL 102 HARNESSES PASS.**
+> **ALL 103 HARNESSES PASS.**
 >
 > ---
 
@@ -787,7 +892,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **102 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **103 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**

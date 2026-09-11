@@ -1,3 +1,9 @@
+// game-shatter.js v1.9.0 — Round 119 (Hammond): ⚠️⚠️ BACKSPACE LETS GO OF THE
+// WORD. Escape did release the lock — AND PAUSED THE GAME IN THE SAME KEYSTROKE,
+// because game-chrome.js's `stopPropagation()` does not stop a sibling listener
+// on the same target. Alive and unusable. See onKeyDown(). Jake typed the `ate` in `affectionate` ten times and
+// could not clear it; `release()` wipes the invisible progress as well as the
+// lock, which is the half that makes the word typeable again.
 // game-shatter.js v1.8.0 — Round 119 (Hammond): ⭐ THE CALIBRATOR IS WIRED, AND
 // THIS IS THE FIRST VIEW THAT MEASURES THE CHILD IN FRONT OF IT.
 // ROADMAP 118a. `typing-calibrator.js` and the `GameDirector` integration
@@ -197,7 +203,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.8.0';
+export const GAME_SHATTER_VERSION = '1.9.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -479,7 +485,55 @@ export function mount(container, opts) {
         // ⚠️ READ THE REAL OS STATE, EVERY KEYSTROKE. Matching is case-sensitive,
         // so Caps Lock makes every keystroke wrong and the student has no idea why.
         if (typeof e.getModifierState === 'function') capsOn = e.getModifierState('CapsLock');
-        if (e.key === 'Escape') { e.preventDefault(); board.locked = null; return; }
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ BACKSPACE LETS GO OF THE WORD. ESCAPE CANNOT, AND HAS NOT SINCE
+        // ROUND 109.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-11, and a student reported it the same day:
+        // *"There's no escape key. So if I think I'm typing one word, but I'm
+        // actually typing another, there's no way to get out of it to start a
+        // new word... when the sky is covered in words, you can't tell where
+        // you're missing. Maybe the backspace/delete key could clear it out?"*
+        //
+        // ⭐⭐ HE IS RIGHT, AND THE CAUSE IS NOT THE ONE IT LOOKS LIKE. The
+        // handler was here the whole time and it FIRED. `game-chrome.js` v1.8.0
+        // bound Escape to PAUSE and calls `stopPropagation()`, believing that
+        // settled it — its header says *"pausing outranks that"*.
+        // ⚠️⚠️ IT DOES NOT. `stopPropagation()` STOPS OTHER *TARGETS*, NOT OTHER
+        // LISTENERS ON THE SAME ONE — that is `stopImmediatePropagation()`. Both
+        // handlers are bound to `window` in the capture phase, so Escape did
+        // BOTH THINGS AT ONCE: it released the lock and it paused the game.
+        // ⭐ SO THE MECHANIC WAS ALIVE AND UNUSABLE. You cannot abandon a word
+        // without freezing the game behind a pause panel, and the pause is the
+        // only half a student can see — press Escape to escape the word, and
+        // what happens is the game stops. Press it again to resume and the lock
+        // is released a second time. Jake reported it as *"there's no escape
+        // key"* because that is exactly what it is to play.
+        // ⚠️⚠️ AN ARBITRATION THAT DOES NOT ARBITRATE IS WORSE THAN NONE: the
+        // author made a deliberate choice, wrote it down, and the code quietly
+        // did something neither option described.
+        //
+        // ⚠️⚠️ AND IT IS NOT A LOST CONVENIENCE, IT IS A TRAP. A half-typed target
+        // wants a letter the student cannot see, so every attempt to start it
+        // over is charged as a mistake with nothing on screen to explain why.
+        //
+        // ⭐ BACKSPACE IS A BETTER KEY THAN ESCAPE EVER WAS. It already means
+        // *undo what I just typed* to every human who has used a keyboard, it is
+        // on the home-row reach, and it collides with nothing. Delete is
+        // accepted as its twin because Mac keyboards label that key `delete`.
+        // ⚠️ IT IS FREE — NOT a keyResult. Abandoning a lock is a tactical
+        // decision, not a mistake; this file has said so since Round 87.
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.preventDefault();
+            board.release();
+            return;
+        }
+        // ⚠️ ESCAPE IS DELIBERATELY NOT HANDLED HERE ANY MORE. It is
+        // game-chrome.js's pause key, and one key doing two jobs is what made
+        // this unusable. ⭐ ONE KEY, ONE JOB — and now that no view binds Escape,
+        // that file's `stopPropagation()` has nothing left to arbitrate.
+
         if (e.key.length !== 1) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         e.preventDefault();
@@ -1183,13 +1237,13 @@ export function mount(container, opts) {
               + 'word you ignore comes back. Type one to light it up and shatter '
               + 'it, and its pieces really do fly apart. Clearing panes charges '
               + 'the WARP meter; Space shoves everything away from your prism. '
-              + 'Esc lets go of the word you are on.'
+              + 'Backspace lets go of the word you are on and wipes it clean.'
             : 'Each word is a pane of glass, one panel per letter, coloured for '
             + 'the finger that types it. Light up every panel and the pane '
             + 'shatters — into its pieces, which you have to type too. Go for '
             + 'whatever is closest to your prism. Clearing panes charges the WARP '
-            + 'meter; Space pushes everything back. Esc lets go of the word you '
-            + 'are on.',
+            + 'meter; Space pushes everything back. Backspace lets go of the word '
+            + 'you are on and wipes it clean so you can start it again.',
         muted: isMuted(),
         onStart() { started = true; lastFrame = null; },
         // ⚠️ SUPPLYING THIS SUPPRESSES game-chrome.js's OWN DOM NUMERAL, which

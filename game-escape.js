@@ -1,3 +1,8 @@
+// game-escape.js v2.5.0 — Round 119 (Hammond): Backspace clears what you typed.
+// ⚠️ `board.clearTyped()` was bound to Escape, which also pauses — one keystroke,
+// two actions, because `stopPropagation()` does not stop a sibling listener on
+// the same target. The clear worked and no student could use it without freezing
+// the game first. Same one-line rebind as the other two views.
 // game-escape.js v2.4.0 — Round 119 (Hammond): ⚠️⚠️ ESCAPE KEY IS DELIBERATELY
 // NOT ADAPTIVE, FOR EVER. NO CODE CHANGED; THIS RULING IS THE CHANGE.
 //
@@ -196,7 +201,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.4.0';
+export const GAME_ESCAPE_VERSION = '2.5.0';
 
 /**
  * @param {HTMLElement} container
@@ -379,7 +384,48 @@ export function mount(container, opts) {
         // so Caps Lock makes every keystroke wrong and the student has no idea
         // why. See game-draw.js's drawCapsWarning header.
         if (typeof e.getModifierState === 'function') capsOn = e.getModifierState('CapsLock');
-        if (e.key === 'Escape') { e.preventDefault(); board.clearTyped(); return; }
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ BACKSPACE LETS GO OF THE WORD. ESCAPE CANNOT, AND HAS NOT SINCE
+        // ROUND 109.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-11, and a student reported it the same day:
+        // *"There's no escape key. So if I think I'm typing one word, but I'm
+        // actually typing another, there's no way to get out of it to start a
+        // new word... when the sky is covered in words, you can't tell where
+        // you're missing. Maybe the backspace/delete key could clear it out?"*
+        //
+        // ⭐⭐ HE IS RIGHT, AND THE CAUSE IS NOT THE ONE IT LOOKS LIKE. The
+        // handler was here the whole time and it FIRED. `game-chrome.js` v1.8.0
+        // bound Escape to PAUSE and calls `stopPropagation()`, believing that
+        // settled it — its header says *"pausing outranks that"*.
+        // ⚠️⚠️ IT DOES NOT. `stopPropagation()` STOPS OTHER *TARGETS*, NOT OTHER
+        // LISTENERS ON THE SAME ONE — that is `stopImmediatePropagation()`. Both
+        // handlers are bound to `window` in the capture phase, so Escape did
+        // BOTH THINGS AT ONCE: it released the lock and it paused the game.
+        // ⭐ SO THE MECHANIC WAS ALIVE AND UNUSABLE. You cannot abandon a word
+        // without freezing the game behind a pause panel, and the pause is the
+        // only half a student can see — press Escape to escape the word, and
+        // what happens is the game stops. Press it again to resume and the lock
+        // is released a second time. Jake reported it as *"there's no escape
+        // key"* because that is exactly what it is to play.
+        // ⚠️⚠️ AN ARBITRATION THAT DOES NOT ARBITRATE IS WORSE THAN NONE: the
+        // author made a deliberate choice, wrote it down, and the code quietly
+        // did something neither option described.
+        //
+        // ⚠️⚠️ AND IT IS NOT A LOST CONVENIENCE, IT IS A TRAP. A half-typed target
+        // wants a letter the student cannot see, so every attempt to start it
+        // over is charged as a mistake with nothing on screen to explain why.
+        //
+        // ⭐ BACKSPACE IS A BETTER KEY THAN ESCAPE EVER WAS. It already means
+        // *undo what I just typed* to every human who has used a keyboard, it is
+        // on the home-row reach, and it collides with nothing. Delete is
+        // accepted as its twin because Mac keyboards label that key `delete`.
+        // ⚠️ IT IS FREE — NOT a keyResult. Abandoning a lock is a tactical
+        // decision, not a mistake; this file has said so since Round 87.
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            e.preventDefault(); board.clearTyped(); return;
+        }
         if (e.key.length !== 1) return;
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         e.preventDefault();
@@ -1078,7 +1124,7 @@ export function mount(container, opts) {
         title: 'Escape Key',
         hint: 'Type a word next to you to move onto it. Your row and column are '
             + 'tinted — that is where creatures come from, so keep moving. '
-            + 'Esc clears what you have typed.',
+            + 'Backspace clears what you have typed.',
         muted: isMuted(),
         onStart() { started = true; lastFrame = null; stepAccMs = 0; },
         // ⚠️ THE BUTTON ONLY APPEARS BECAUSE THIS VIEW NOW OFFERS THE STRIP.
