@@ -1,7 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.17.0 — Round 116 (Sun): THE ARCADE STOPS LOOKING LIKE A
+<!-- arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
+     in front of the arcade floor rather than a block above it — stacked, it
+     pushed the cabinets down and a student had to scroll to reach the thing they
+     wanted next. And the cabinet art is redrawn: Shatter's thumbnail was still
+     advertising ROCKS, which is a different game from the one behind the button,
+     and Shards had no art at all — a blank screen on a cabinet a child is being
+     asked to choose. ⚠️ The two share an art language and a glow on purpose: one
+     world, two physics.
+     arcade.html v3.19.0 — Round 116 (Sun): ⚠️⚠️ THE ARCADE WORDMARK WAS
+     INVISIBLE ON SAFARI. v3.18.0 set it with `<g fill="var(--accent)">` — a
+     presentation ATTRIBUTE — and Safari does not resolve custom properties
+     there, so the glyphs painted black on a near-black bar and the page stopped
+     naming itself on every iPad in the building. It looked right in Chrome,
+     which is how it shipped. Fill moved to a CSS rule, and the word now exists
+     as TEXT in the markup that the SVG replaces only on success: a decorative
+     upgrade must never be able to subtract the name of the page.
+     arcade.html v3.18.0 — Round 116 (Sun): ⚠️⚠️ THE PAGE FINALLY LOADS COURIER
+     PRIME. Every rule in this file has named the face since Round 82 and nothing
+     ever fetched it, so every student has read the arcade in their device's
+     fallback monospace while every other page rendered in the real one. ⭐ That
+     is most of what "feels like an entirely different site" actually WAS, and it
+     survived thirty-odd rounds because a missing font is not an error: nothing
+     throws, nothing logs, and it looks fine unless another tab is open beside
+     it. Also: the header becomes a three-column grid — navigation left, the
+     wordmark CENTRED ON THE PAGE rather than between its neighbours, clocks
+     right. ⚠️ `1fr auto 1fr`, not space-between, or the title slides sideways
+     whenever a student's name or a clock changes width.
+     arcade.html v3.17.0 — Round 116 (Sun): THE ARCADE STOPS LOOKING LIKE A
      DIFFERENT SITE. Jake: *"the current layout just feels like an entirely
      different site."* The marquee card becomes a full-bleed sticky SITE HEADER
      on the library's skeleton, with a three-way School/Library/Arcade pill and
@@ -150,6 +177,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
+<!-- ⚠️⚠️ THE ARCADE HAS NEVER LOADED COURIER PRIME. Every rule in this file
+     since Round 82 has said `font-family: "Courier Prime", ui-monospace,
+     monospace` and NOTHING EVER FETCHED IT, so every student has been reading
+     this page in their device's fallback monospace while index.html, learn.html,
+     reports.html and admin.html all render in the real face.
+     ⭐ THAT IS MOST OF WHY THE ARCADE "feels like an entirely different site" —
+     Jake diagnosed the symptom twice and the cause was one missing <link>. It
+     survived because a fallback font is not an ERROR: nothing throws, nothing
+     logs, and the page looks fine unless you have another tab open beside it.
+     ⚠️ THE SAME URL AS index.html, DELIBERATELY, so the browser serves both from
+     one cache entry. Bitter comes along because the bar and the cards are chrome
+     but the page's prose is not, and mono everywhere was the other half of the
+     complaint. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Bitter:wght@400;600;700&display=swap" rel="stylesheet">
 <title>Arcade — TypeThatBook</title>
 <style>
     :root {
@@ -353,23 +396,53 @@
        padding, so the bar breaks out of it with negative margins rather than
        being moved outside — moving it would put it above the element that
        centres the page and it would stop agreeing with the content width. */
+    /* ⚠️⚠️ A THREE-COLUMN GRID, NOT flex/space-between, AND THAT IS THE WHOLE
+       REASON THE TITLE SITS STILL. With flex, the centre block is only centred
+       when the two sides happen to be equal widths — so the wordmark would shift
+       sideways the moment a student's name got longer or the clocks went from
+       "—" to "1:21". `1fr auto 1fr` pins the middle to the PAGE, and the sides
+       are free to be whatever width they need. */
     .site-header {
         position: sticky; top: 0; z-index: 100;
         margin: -18px -18px 18px; padding: 12px 24px;
-        display: flex; align-items: center; justify-content: space-between;
-        gap: 14px; flex-wrap: wrap;
+        display: grid; grid-template-columns: 1fr auto 1fr;
+        align-items: center; gap: 14px;
         background: var(--panel); border-bottom: 1px solid var(--rule);
     }
     .hdr-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-    .hdr-right { display: flex; align-items: center; gap: 16px; }
+    /* ⚠️ justify-self, NOT margin:auto — the grid already owns the centring and
+       a margin here would fight it. */
+    .hdr-mid { justify-self: center; min-width: 0; }
+    .hdr-right { display: flex; align-items: center; gap: 16px;
+                 justify-self: end; min-width: 0; }
     /* ⚠️ BASELINE, NOT CENTRE. "TypeThatBook" sits on a text baseline and the
        wordmark is a box; centring them floats the display above the word. */
     .site-title { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+    /* ⚠️ index.html's `.site-title`, MEASUREMENT FOR MEASUREMENT — 1.1rem, bold,
+       1px of letter-spacing, Courier Prime. ⭐ It only ever LOOKED different
+       because this page never loaded the face; see the <link> in <head>. The one
+       deliberate change is the colour, which is the arcade's ice blue rather than
+       the library's Carolina blue, because Jake asked for the arcade palette. */
     .site-title .tt {
+        font-family: 'Courier Prime', ui-monospace, monospace;
         font-size: 1.1rem; font-weight: 700; letter-spacing: 1px;
         color: var(--accent);
     }
-    #mq-wordmark { display: block; }
+    /* ⚠️⚠️ THE FILL IS A CSS RULE, NOT A PRESENTATION ATTRIBUTE. v3.18.0 wrote
+       `<g fill="var(--accent)">` and SAFARI DOES NOT RESOLVE var() THERE, so the
+       glyphs fell back to black on a near-black bar and the word simply was not
+       on the page — on iPads, which is what this app runs on. ⚠️ It renders
+       correctly in Chrome, which is why it shipped. ⭐ CSS custom properties
+       belong in CSS; a presentation attribute is an SVG attribute that browsers
+       are only lately and unevenly treating as a style declaration. */
+    #mq-wordmark { display: block; fill: var(--accent); }
+    /* The text the SVG replaces. Same size and spacing as the segments it stands
+       in for, so a failed upgrade is a plain wordmark rather than a broken one. */
+    .tt-arcade {
+        font-family: 'Courier Prime', ui-monospace, monospace;
+        font-size: 1.05rem; font-weight: 700; letter-spacing: 4px;
+        color: var(--accent);
+    }
     .mode-toggle {
         display: inline-flex; border: 1px solid var(--rule); border-radius: 999px;
         overflow: hidden; background: #070b11; flex-shrink: 0;
@@ -396,6 +469,17 @@
         white-space: nowrap; display: block;
     }
     @media (max-width: 720px) {
+        /* ⚠️ THE CENTRE COLUMN STOPS BEING A COLUMN. At phone width `1fr auto
+           1fr` squeezes the wordmark until it wraps under itself; two rows with
+           the title leading is the same information in the order it is read. */
+        .site-header {
+            grid-template-columns: 1fr auto;
+            grid-template-areas: "mid mid" "left right";
+            row-gap: 10px;
+        }
+        .hdr-mid { grid-area: mid; justify-self: start; }
+        .hdr-left { grid-area: left; }
+        .hdr-right { grid-area: right; }
         .site-header { margin: -12px -12px 14px; padding: 10px 14px; }
         .site-title .tt { font-size: .95rem; }
         .mode-btn { padding: 5px 9px; font-size: .7rem; }
@@ -467,10 +551,27 @@
        so the browser's own back button would leave the arcade entirely. */
     /* ⚠️ SIZED BY ITS CONTENTS, NOT BY THE PAGE. `.panel` is full-width, which
        is right for the picker and wrong for a two-line verdict. */
+    /* ⚠️⚠️ IN FRONT OF THE FLOOR, NOT ABOVE IT. Jake, 2026-09-11: *"The summary
+       card should be in front of the cabinet cards."* Stacked above, it pushed
+       the cabinets down the page and a student finishing a run had to scroll to
+       find the thing they wanted next. ⭐ AS AN OVERLAY THE FLOOR STAYS EXACTLY
+       WHERE IT WAS, so "Pick another cabinet" returns them to a page that has
+       not moved under them.
+       ⚠️ THE SCRIM IS DELIBERATELY LIGHT. This is a result, not a modal: nothing
+       is being asked and nothing is blocked, and dimming the arcade to black
+       would make a summary feel like an error dialog. */
+    .result-scrim {
+        position: fixed; inset: 0; z-index: 200;
+        display: flex; align-items: center; justify-content: center;
+        padding: 20px;
+        background: rgba(4, 6, 14, .72);
+    }
     .result-card {
         background: var(--panel); border: 1px solid var(--rule);
-        border-radius: 10px; padding: 20px 22px; margin: 0 auto 18px;
-        max-width: 420px; text-align: center;
+        border-radius: 10px; padding: 20px 22px;
+        max-width: 420px; width: 100%; text-align: center;
+        box-shadow: 0 18px 48px rgba(0, 0, 0, .55);
+        max-height: 86vh; overflow: auto;
     }
     .result-card table { margin: 10px auto 0; }
     .result-actions {
@@ -523,7 +624,18 @@
              index.html AND learn.html CARRY IT TOO. Right now the arcade is the
              only page in TTB that knows all three places exist. See ROADMAP. -->
         <header class="site-header">
+            <!-- ⚠️ THE NAVIGATION LEADS, left, where a student's eye starts.
+                 ⭐ WHICH ALSO PUTS THE ARCADE'S OWN TAB CLOSEST TO THE PAGE it
+                 belongs to, and the two ways OUT first — this is the page a
+                 child arrives at by accident more than any other. -->
             <div class="hdr-left">
+                <nav class="mode-toggle" aria-label="Switch mode">
+                    <a href="./learn.html" class="mode-btn">School</a>
+                    <a href="./index.html" class="mode-btn">Library</a>
+                    <span class="mode-btn active" aria-current="page">Arcade</span>
+                </nav>
+            </div>
+            <div class="hdr-mid">
                 <div class="site-title">
                     <span class="tt">TypeThatBook</span>
                     <!-- ⭐ ARCADE on the SAME seven-segment device as the game
@@ -533,14 +645,18 @@
                          applies here too, and a wordmark that only appears when
                          Firebase loads is a wordmark that vanishes exactly when
                          somebody is trying to work out what is wrong. -->
+                    <!-- ⚠️⚠️ THE WORD IS IN THE MARKUP AS TEXT, AND THE SVG
+                         REPLACES IT. It is not a nicety: v3.18.0 shipped the
+                         wordmark as an empty <svg> filled in by a module, so ANY
+                         failure — a blocked font CDN, a school filter, a syntax
+                         error in game-draw.js — left the header reading
+                         "TypeThatBook" and nothing else. ⭐ THE PAGE MUST ALWAYS
+                         SAY WHERE YOU ARE, and a decorative upgrade that can
+                         subtract the name of the page is not an upgrade. -->
+                    <span class="tt-arcade" id="mq-arcade-text">ARCADE</span>
                     <svg id="mq-wordmark" width="74" height="22" aria-label="Arcade"
-                         role="img"><g fill="var(--accent)"></g></svg>
+                         role="img" hidden><g></g></svg>
                 </div>
-                <nav class="mode-toggle" aria-label="Switch mode">
-                    <a href="./learn.html" class="mode-btn">School</a>
-                    <a href="./index.html" class="mode-btn">Library</a>
-                    <span class="mode-btn active" aria-current="page">Arcade</span>
-                </nav>
             </div>
             <div class="hdr-right">
                 <!-- ⚠️ THE SAME TWO CLOCKS AS THE LESSON HUD, SAME WORDS. A
@@ -737,7 +853,8 @@
          ⚠️ THE GAME ITSELF CANNOT STAY — finish() destroys the handle and the
          canvas goes with it, which is what stops a dead run from drawing over
          the next one. -->
-    <div class="result-card" id="result" style="display:none">
+    <div class="result-scrim" id="result" style="display:none">
+      <div class="result-card">
         <div id="verdict"></div>
         <table id="compare"></table>
         <div class="result-actions">
@@ -747,6 +864,7 @@
             <button class="play" id="playAgain" type="button">Play again</button>
             <button class="ghost" id="again" type="button">Pick another cabinet</button>
         </div>
+      </div>
     </div>
 </div>
 
@@ -758,6 +876,8 @@
 import { sevenSegGlyphs } from './game-draw.js';
 const H = 16;
 const g = document.querySelector('#mq-wordmark g');
+// ⚠️ THE SWAP HAPPENS ONLY ON SUCCESS, AND AT THE END. If anything above throws,
+// the plain text stays and the header still names the page.
 if (g) {
     const set = sevenSegGlyphs('ARCADE', H);
     const svg = g.closest('svg');
@@ -772,6 +892,9 @@ if (g) {
         `<polygon opacity="${gl.on[i] ? 1 : set.unlitAlpha}" points="${
             p.map(q => q[0].toFixed(2) + ',' + q[1].toFixed(2)).join(' ')}"/>`
     )).join('');
+    svg.hidden = false;
+    const txt = document.getElementById('mq-arcade-text');
+    if (txt) txt.remove();
 }
 </script>
 
@@ -801,7 +924,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.17.0';
+const ARCADE_PAGE_VERSION = '3.20.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1506,22 +1629,81 @@ const CAB_ART = {
         '<text x="44" y="104">jump</text><text x="146" y="104">safe</text></g>' +
         '</svg>',
     shatter:
-        // One long rock splitting into pieces.
+        // ⚠️ ROCKS UNTIL ROUND 116, AND THE CABINET WAS THE LAST PLACE STILL
+        // ADVERTISING THEM. A student choosing from the floor was being shown a
+        // different game from the one behind the button — which is the same
+        // class of stale second record the registry's `unbuilt` flag was.
+        // ⭐ A LEADED PANE, HALF LIT, WITH THE PRISM BELOW IT. The colours are
+        // finger colours from keyboard.js, hand-picked here because this is a
+        // static thumbnail and importing the map to paint six polygons would be
+        // machinery for its own sake. ⚠️ IF THE FINGER PALETTE EVER CHANGES,
+        // THIS IS A PLACE TO COME BACK TO.
         '<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg">' +
-        '<g fill="#243247" stroke="#33475f">' +
-        '<path d="M30 26h70l-6 22H24z"/><path d="M112 26h78l-8 22h-78z"/></g>' +
-        '<g fill="#1b2738" stroke="#2b3c52">' +
-        '<path d="M40 66h44l-4 20H34z"/><path d="M96 66h40l-4 20H92z"/>' +
-        '<path d="M148 66h40l-6 20h-38z"/></g>' +
-        '<g stroke="#ffd27d" stroke-width="1.5" opacity=".8">' +
-        '<path d="M104 24v26M140 62v26M90 62v26"/></g>' +
-        '<g font-family="monospace" font-size="10" fill="#8aa2b4">' +
-        '<text x="60" y="112">break it up</text></g>' +
+        '<g stroke="#05070d" stroke-width="2.5" stroke-linejoin="round">' +
+        // lit cells
+        '<path d="M58 30 L104 22 L112 56 L64 60z" fill="#E91E63" opacity=".82"/>' +
+        '<path d="M104 22 L156 34 L150 62 L112 56z" fill="#FFC107" opacity=".82"/>' +
+        '<path d="M64 60 L112 56 L108 92 L70 86z" fill="#43A047" opacity=".82"/>' +
+        // unlit cells, coloured but dark — the pane is glass before it is lit
+        '<path d="M112 56 L150 62 L146 88 L108 92z" fill="#1E88E5" opacity=".26"/>' +
+        '<path d="M70 86 L108 92 L100 108 L76 102z" fill="#8E24AA" opacity=".26"/>' +
+        '<path d="M108 92 L146 88 L140 104 L100 108z" fill="#00ACC1" opacity=".26"/>' +
+        '</g>' +
+        // the rim
+        '<path d="M58 30 L104 22 L156 34 L146 88 L140 104 L76 102 L64 60z" ' +
+        'fill="none" stroke="#bfe9ff" stroke-width="1.6" opacity=".9"/>' +
+        // the prism, aiming up at it
+        '<path d="M178 122 L166 112 L190 112z" fill="#9fe8ff" opacity=".35" ' +
+        'stroke="#cfe0ea" stroke-width="1.3"/>' +
+        '<path d="M178 110 L150 84" stroke="#FFC107" stroke-width="2.4" ' +
+        'opacity=".85" stroke-linecap="round"/>' +
+        '<g font-family="\'Courier Prime\', monospace" font-size="10" fill="#8aa2b4">' +
+        '<text x="20" y="122">light it up</text></g>' +
+        '</svg>',
+    shards:
+        // ⭐ THE SAME GLASS, DRIFTING. The cabinet has to say what is DIFFERENT
+        // about it in one glance, and the difference is not the panes — it is
+        // that they cross the field and come back. So: two panes mid-flight,
+        // one cut by the edge and re-entering opposite, and motion lines. ⚠️ The
+        // pane art is deliberately the same language as Shatter's above; they
+        // are one world with two physics, and drawing them as unrelated games
+        // would be a lie the floor tells before a student has played either.
+        '<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg">' +
+        '<defs><clipPath id="shardsField"><rect x="0" y="0" width="220" height="132"/>' +
+        '</clipPath></defs><g clip-path="url(#shardsField)">' +
+        // a pane leaving the right edge
+        '<g stroke="#05070d" stroke-width="2.2" stroke-linejoin="round">' +
+        '<path d="M176 26 L216 20 L224 50 L182 56z" fill="#E91E63" opacity=".8"/>' +
+        '<path d="M182 56 L224 50 L220 74 L186 78z" fill="#1E88E5" opacity=".26"/>' +
+        '</g>' +
+        // ...and re-entering on the left, same pane
+        '<g stroke="#05070d" stroke-width="2.2" stroke-linejoin="round">' +
+        '<path d="M-44 26 L-4 20 L4 50 L-38 56z" fill="#E91E63" opacity=".8"/>' +
+        '<path d="M-38 56 L4 50 L0 74 L-34 78z" fill="#1E88E5" opacity=".26"/>' +
+        '</g>' +
+        // a pane tumbling through the middle, foreshortened
+        '<g stroke="#05070d" stroke-width="2.2" stroke-linejoin="round" ' +
+        'transform="translate(96 62) rotate(-14) scale(0.55 1) translate(-96 -62)">' +
+        '<path d="M62 36 L128 28 L136 66 L70 74z" fill="#FFC107" opacity=".8"/>' +
+        '<path d="M70 74 L136 66 L130 96 L76 100z" fill="#43A047" opacity=".8"/>' +
+        '</g>' +
+        // motion, because a still picture of drift is just a picture
+        '<g stroke="#5f7387" stroke-width="1.4" stroke-linecap="round" opacity=".7">' +
+        '<path d="M18 96h26M30 108h26M150 100h24"/></g>' +
+        '</g>' +
+        '<g font-family="\'Courier Prime\', monospace" font-size="10" fill="#8aa2b4">' +
+        '<text x="20" y="122">it comes back around</text></g>' +
         '</svg>',
 };
 
 /** The glow behind each cabinet screen — the game's own accent. */
-const CAB_GLOW = { deadline: '#123049', escape: '#1a2c3f', shatter: '#2a2437' };
+const CAB_GLOW = {
+    deadline: '#123049', escape: '#1a2c3f',
+    // ⚠️ SHATTER AND SHARDS SHARE A GLOW ON PURPOSE. They are one world with two
+    // physics; giving them unrelated colours would make the floor claim a
+    // difference that is not there, before a student has played either.
+    shatter: '#17293a', shards: '#17293a',
+};
 
 /**
  * ⚠️ A CABINET MAY CARRY A HONEST WARNING, AND SHATTER HAS ONE. Jake,
@@ -2068,7 +2250,7 @@ function finishFree(rep) {
     // another" is now a dismissal rather than a navigation, because the
     // cabinets are already on screen behind it.
     $('floor').style.display = 'block';
-    $('result').style.display = 'block';
+    $('result').style.display = 'flex';
     $('compare').innerHTML = '';
     if (!rep) {
         $('verdict').innerHTML =
@@ -2089,7 +2271,7 @@ function finish(rep, r) {
     if (handle) { handle.destroy(); handle = null; }
     $('stageWrap').style.display = 'none';
     $('floor').style.display = 'block';   // see finishFree()
-    $('result').style.display = 'block';
+    $('result').style.display = 'flex';
     if (!rep) {
         $('verdict').innerHTML = '<span class="big">Stopped</span><br>No result \u2014 nothing was saved.';
         $('compare').innerHTML = '';
