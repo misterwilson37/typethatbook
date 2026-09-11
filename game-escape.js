@@ -1,3 +1,36 @@
+// game-escape.js v2.4.0 — Round 119 (Hammond): ⚠️⚠️ ESCAPE KEY IS DELIBERATELY
+// NOT ADAPTIVE, FOR EVER. NO CODE CHANGED; THIS RULING IS THE CHANGE.
+//
+// Jake, 2026-09-11, asked whether the calibrator should be wired here:
+// *"Seems like Escape Key is what it is."*
+//
+// ⭐⭐ AND IT IS NOT A BACKLOG ITEM DRESSED AS A DECISION — BOTH HALVES OF THE
+// CALIBRATOR MEASURE SOMETHING ELSE ON THIS BOARD:
+//
+//   • **ACQUISITION IS NOT LOCATE-AND-READ HERE.** Everywhere else a target
+//     appears and the student hunts for it. Here FOUR CELLS SIT ON SCREEN and
+//     the student CHOOSES one — so "spawn → first correct key" is dominated by
+//     how long they deliberated, and can be ten seconds on a board they read
+//     instantly. Feeding that number to `onScreenTarget` would report the most
+//     confident readers as the ones most in need of a quieter board.
+//   • **`onScreenTarget` HAS NOTHING TO ACT ON.** The cell count is fixed by the
+//     layout, not by a director. There is no "how many to send" question to
+//     answer, which is half of what the engine is for.
+//   • **AND THE PACE IS SET FROM `avgChars`**, not from a per-target length,
+//     because nothing here decides which word the student types next. The one
+//     number `calibratedWPM` would replace is already a different quantity.
+//
+// ⚠️⚠️ SO WIRING IT WOULD PRODUCE A NUMBER THAT MEANS A DIFFERENT THING UNDER
+// THE SAME NAME, which is this project's most expensive recurring defect — the
+// 100 WPM dropdown, `netWPM()` vs calibration WPM, and ROADMAP 116g's lying
+// control are all one shape. ⭐ **DO NOT WIRE THIS TO CLOSE A CHECKBOX.**
+//
+// ⚠️ IT IS ALREADY SAFE, AND NOT BY ACCIDENT. `arcadeConfig()` sets
+// `adaptive: true` and this view comes through it, but game-shell.js v1.10.0
+// only adapts when the VIEW supplies a calibrator. This file supplies none, so
+// it paces at `targetWPM` exactly as it always has. ⭐ THAT IS THE GUARD DOING
+// ITS JOB, not an oversight to tidy up: before v1.10.0 the same flag would have
+// pinned this game at 8 WPM for the whole run.
 // game-escape.js v2.3.0 — Round 114 (Carriage). TWO CHANGES:
 //   • a FIFTH creature in the wave queue, paid for by the collapse of the empty
 //     threat box beside it. ⚠️ THE ROW COUNT IS NO LONGER SPELLED IN TWO FILES —
@@ -163,7 +196,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.3.0';
+export const GAME_ESCAPE_VERSION = '2.4.0';
 
 /**
  * @param {HTMLElement} container

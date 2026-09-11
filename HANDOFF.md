@@ -1,6 +1,234 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-11 by Round 118 (Underwood), for whoever is next
+> ## ▶ START HERE — written 2026-09-11 by Round 119 (Hammond), for whoever is next
+>
+> **Instance name: Hammond.** The Hammond Typewriter Company, 1884 — the machine
+> whose whole idea was that the *type shuttle* could be swapped so one carriage
+> served many alphabets, which is the right name for a round about one director
+> serving children who type at different speeds. ⚠️ Checked with a repo-wide
+> grep, not just the five docs: no `Hammond` anywhere. *Corona* (113), *Sholes*
+> (14, and only in `docs/DESIGN-TELEMETRY.md`), *Sun*, *Bennett*, *Tower*,
+> *Imperial*, *Duplex*, *Bar-Let*, *Chicago*, *Underwood* are all taken.
+>
+> **ALL 102 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ THE ONE-LINE INSTRUCTION WAS A TRAP, AND IT WAS ONE LINE FROM SHIPPING
+>
+> Round 118 left this, and it is correct as far as it goes:
+> *"`adaptive: true` must go into `arcadeConfig()` and nowhere near a lesson
+> path. It's one line and it's the line that could quietly move a graded run's
+> pacing under a student."*
+>
+> ⭐⭐ **BUT `arcadeConfig()` IS NOT SHATTER'S CONFIG.** `isFreePlay()` in
+> `arcade.html` routes **three games** through it — Shatter/Shards, Escape Key,
+> **and Deadline at full scope**. Only Shatter was being wired. For the other two
+> `confident` can never become true, so `calibratedWPM` returns the pre-comfort
+> seed `min(targetWPM, floorWPM)` — **8 WPM, for the whole run, for ever.**
+>
+> Measured against a real `arcadeConfig()` on a 20 WPM arcade gate:
+>
+> | | spawn interval | lifetime of `reading` |
+> |---|---|---|
+> | today | 2400 ms | 16.8 s |
+> | `adaptive: true`, unfed | 6000 ms | 42.0 s |
+>
+> ⚠️⚠️ **AND IT WOULD HAVE SHIPPED GREEN.** Nothing in this repo mounts Deadline
+> or Escape Key against an adaptive config, and nothing did before this round.
+>
+> ⭐ **THE SEED IS THE FLOOR *BECAUSE A MEASUREMENT IS COMING*.** Where none is
+> coming, the floor is not gentleness — it is eight WPM until the bell.
+>
+> ### ⚠️ THE FIX, AND WHY IT IS NOT "DETECT ZERO SAMPLES"
+>
+> `game-shell.js` **v1.10.0** no longer manufactures a calibrator. `adaptive`
+> now requires **both** the host's request *and* a calibrator the view supplied:
+>
+> ```js
+> this.calibrator = c.calibrator || null;
+> this.adaptive = !!c.adaptive && !!this.calibrator;
+> ```
+>
+> ⚠️⚠️ **"NO SAMPLES YET" CANNOT BE THE SIGNAL.** That is exactly what a child who
+> froze looks like, and Jake ruled that child gets the floor (*"I would go with
+> gentlest possible"*). The only honest distinction is structural: **whoever owns
+> the calibrator object is the one feeding it.** A view that supplies one has
+> said so in code, and a view that does not degrades to `targetWPM` — byte-for-
+> byte v1.8.0, asserted as such in Part A4.
+>
+> ---
+>
+> ## ✅ ROADMAP 118a — THE ENGINE IS WIRED. `game-shatter.js` v1.8.0
+>
+> Four calls: `spawned()` at the director's spawn site, `keyed()` on every
+> correct key, `finished()` on a clear, `dropped()` in `takeHit()`.
+>
+> ### ⚠️⚠️ THREE THINGS THAT ARE EASY TO GET WRONG AND ARE NOW PINNED
+>
+> * **`now`, NEVER `bNow`.** The board clock runs at 22% during the shatter
+>   slowdown; a child typing through slow motion is typing in **real** seconds.
+>   Feeding `bNow` would report them up to **4.5× faster than they are**. ⚠️ The
+>   `spawned()` call sits on the line *below* a `board.spawn(..., bNow)` that
+>   correctly takes the board clock — they are one identifier apart. Part E.
+> * **`board.locked` AFTER `tryKey()`, not before.** The re-lock moves the lock:
+>   `unusually` breaks into `un | usual | ly`, and a student who meant `usual`
+>   has their keystrokes transferred. Reading the pre-key lock would credit the
+>   burst to a pane they abandoned. `landed.id` is load-bearing now, not just an
+>   aim for a cosmetic ray.
+> * **A fresh calibrator with every fresh director**, via `newDirector()`. A
+>   calibrator baked into `baseCfg` would be shared across `restart()`, so the
+>   second game opens already `confident` — carrying the first run's median into
+>   a run the student may be playing tired, or pacing for the previous child in
+>   the rotation. ⭐ `reset()` exists and is deliberately unused: `restart()`'s
+>   own rule is fresh objects, not reset ones.
+>
+> ### ⭐ THE RULING: PIECES ARE NOT CALIBRATION SAMPLES
+>
+> Acquisition means locate-and-read. A piece is born **where the student is
+> already looking**, spelling a word they finished half a second ago — its
+> acquisition is near zero for a fast child and a slow one alike.
+> ⚠️⚠️ **FOLDING PIECES IN DRAGS MEDIAN ACQUISITION DOWN → RAISES
+> `onScreenTarget` → PUTS MORE PANES ON THE BOARD**, and more panes is precisely
+> what hurts the hunting child the per-student design exists to protect. It is
+> the `MIN_ON_SCREEN = 3` sweep that collapsed to 53.2%, made again one level
+> down.
+> ⭐ **AND IT NEEDS NO BRANCH IN THE KEY HANDLER.** A piece was never
+> `spawned()`, so the other three calls are no-ops against it by construction.
+> The ruling lives at **one site**; D4 asserts there is exactly one
+> `calibrator.spawned()` in the file.
+>
+> ---
+>
+> ## ✅ AND THEN JAKE ASKED THE RIGHT QUESTION
+>
+> Jake: *"So shatter, shard, and deadline all gauge speed and adapt accordingly?
+> Or do you need to do additional work?"* ⭐⭐ **THE ANSWER WAS NO, AND IT WAS NOT
+> OBVIOUS FROM THE ROUND'S OWN WRITE-UP.** Shatter and Shards are ONE VIEW, so
+> wiring `game-shatter.js` covered two cabinets and read like three. Deadline has
+> its own view and was still pacing every arcade run from the lesson gate.
+>
+> ### ✅ `game-deadline.js` v1.13.0 — THE THIRD CABINET
+>
+> Same four calls. ⚠️ **TARGETS NOW CARRY AN `id`** — they never needed one,
+> because `live` was searched by identity and nothing outside the file cared
+> which word was which, and the calibrator's whole question is *how long did THIS
+> word take to find*.
+> ⚠️ **THE MEASUREMENTS ARE TAKEN ON A GRADED RUN TOO AND DELIBERATELY IGNORED.**
+> game-shell.js decides whether anything reads them; a view that branched on
+> `adaptive` would be a SECOND reader of the flag, which is the shape that let
+> the graded and arcade paths disagree about difficulty in the first place.
+>
+> ### ⚠️⚠️ A LIVE DEFECT FELL OUT OF IT: **PLAY AGAIN HALVED THE CITY**
+>
+> The mount built its director with `shields: shieldCount * 2` — a dome absorbs a
+> hit and the landmark under it takes the next, so a 3-shield difficulty is
+> staged **on screen** as six. ⚠️ `restart()` built `new GameDirector(cfg)` and
+> did not repeat it.
+>
+> ⭐⭐ **SO EVERY REPLAY ENDED AT THREE HITS WITH THREE LANDMARKS STILL STANDING**
+> — the *"the dome doesn't do anything"* complaint the doubling was written to
+> answer, resurrected on the second game of every session and on no other.
+> Measured: `shieldsMax` 6, then 3.
+>
+> ⚠️ **IT IS THE FAILURE `restart()`'s OWN HEADER WARNS ABOUT, SIGN REVERSED** —
+> not a stale value carried forward but an override dropped. Both come from a
+> second place that has to know how the first was built. ⭐ Fixed with
+> `newDirector()`, the same factory `game-shatter.js` grew for the calibrator.
+> **A wiring round found a balance bug because the fix put them in one place.**
+>
+> ### ✅ ESCAPE KEY — JAKE'S RULING, TAKE IT AS DECIDED
+>
+> Jake: *"Seems like Escape Key is what it is."*
+>
+> **`game-escape.js` v2.4.0 — NO CODE CHANGED; THE RULING IS THE CHANGE.** It is
+> written into that file's header and not only into a document, ⚠️ **because a
+> view whose non-wiring looks like unfinished work invites the next round to
+> finish it.** Part I goes red if anyone does.
+> ⭐ **AND IT IS SAFE BY GUARD, NOT BY LUCK:** `arcadeConfig()` asks, and the
+> v1.10.0 guard declines because the view supplies no calibrator. Before that
+> guard the same flag would have pinned it at 8 WPM for the whole run.
+>
+> ---
+>
+> ## ⚠️ THE HARNESS FAILED HARD ONCE, AND THAT WAS ITS OWN DEFECT
+>
+> Mutation 7 (restoring `restart()`'s old director) made Part H **throw** rather
+> than go red: a replay built by `new GameDirector(cfg)` has no calibrator, so
+> `h.debug().calibration.samples` dereferenced null. ⚠️⚠️ **A STACK TRACE IS NOT
+> A FINDING.** A harness that dies on the defect it is hunting reports nothing
+> about the other assertions in the part, which is how a second regression rides
+> along behind the first. H6 is null-safe now, and M7 prints `6 → 3`.
+>
+> ---
+>
+> ## ⚠️ WHAT I DID **NOT** DO, ON PURPOSE
+>
+> * **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms
+>   `onScreenTarget` thresholds are exactly where Round 118 left them. They are
+>   reasoned, not measured, and the instruction was to wire first and measure
+>   before tuning. ⭐ Round 117 spent most of itself discovering a harness that
+>   had been inventing its own spawn pacing for a whole round; the instinct to
+>   tune first is what produced that.
+> * **The play-again card's three buttons are not built.** `difficulty` still
+>   defaults to `'medium'` everywhere, so `budgetScale()` is a no-op multiplier
+>   of 1.0 today. ⚠️ That is the next item and it is small — see ROADMAP 119a.
+> * **Escape Key is not wired and never will be** — Jake ruled it, ROADMAP 119b
+>   records the argument, and the v1.10.0 guard makes it *safe* rather than
+>   merely *current*.
+>
+> ---
+>
+> ## ✅ TWO STALE RECORDS, FOUND AND CLEARED
+>
+> 1. ✅ **`dead-handler-test.mjs` WAS STILL AT THE REPO ROOT.** Round 118's START
+>    HERE says *"both root `.mjs` duplicates are deleted… on Jake's word."* Only
+>    `run-all-tests.mjs` went. The root copy differed from `tests/` by content
+>    (different md5) and could not run from the root anyway. **Deleted this
+>    round.** ⚠️ `docs-vs-repo-test.mjs` could not catch it — Part A walks `.md`
+>    files only, so a document lying about a `.mjs` is outside its reach.
+> 2. ⚠️ **`run-all-tests.mjs` CARRIED v1.29.0 TWICE** — Round 116 stamped it and
+>    Round 117 stamped it again without bumping, so two different registries
+>    share one version number. Recorded in the file's own header rather than
+>    silently renumbered. ⭐ It is Round 117's pass-count lesson one line over:
+>    **a version is a claim, and nothing here reads it.**
+>
+> ---
+>
+> ## ⚠️ WHAT IS STILL UNPROVEN AND NEEDS THE ROTATION
+>
+> ⭐ **NOTHING HAS CHANGED ABOUT THIS LIST, AND THAT IS THE POINT — IT IS NOW
+> MEASURABLE.** The engine was inert last round, so none of these could be
+> answered by playing. They can now.
+>
+> * `MIN_SAMPLES = 4` is still the **first number to challenge with real
+>   children**. In Shatter a sample is one *parent* word, so comfort strikes
+>   after four cleared words — fewer and one fluke sets the run, more and
+>   calibration outlasts a child's patience.
+> * The `onScreenTarget` thresholds (600ms / 1200ms) are **reasoned, not measured
+>   against anyone.**
+> * Idle occupancy in Shards is **2.4 panes** and may now be too sparse.
+> * ⚠️ **NEW, AND ONLY VISIBLE ONCE WIRED:** a calibrated Shatter run opens at
+>   **8 WPM** and holds there until four words are cleared. Nobody has watched a
+>   child sit through that opening. If it reads as *the game is broken* rather
+>   than *the game is warming up*, the answer is the seed, not `MIN_SAMPLES`.
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `game-shell.js` **v1.10.0** · `game-shatter.js` **v1.8.0** ·
+> `game-deadline.js` **v1.13.0** · `game-escape.js` **v2.4.0** (header only —
+> the ruling IS the change; no code moved) ·
+> `tests/adaptive-arcade-test.mjs` **v1.1.0, new** ·
+> `tests/run-all-tests.mjs` **v1.30.0** ·
+> `dead-handler-test.mjs` (repo root) **deleted — Jake confirmed done**.
+>
+> **ALL 102 HARNESSES PASS.**
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-11 by Round 118 (Underwood)
 >
 > **Instance name: Underwood.** ⚠️ Checked against the whole repo, not just the
 > five docs — *Corona* and *Sholes* are both taken and only a repo-wide grep says
@@ -559,7 +787,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **101 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **102 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**

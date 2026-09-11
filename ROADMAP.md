@@ -112,7 +112,55 @@ harness has to fail against a real student's history before the fix and pass
 after. Check whether `arcade.html` already knows the furthest-reached lesson or
 has to be told.
 
-### 118a — ⚠️ THE CALIBRATOR IS BUILT AND **NOT YET WIRED**
+### 118a — ✅ CLOSED (Round 119, Hammond). THE ENGINE IS WIRED, AND THE ONE LINE WAS A TRAP
+
+✅ **`game-shatter.js` v1.8.0 feeds the calibrator** — `spawned()` at the
+director's spawn site, `keyed()` on every correct key, `finished()` on a clear,
+`dropped()` in `takeHit()`. ✅ **`arcadeConfig()` carries `adaptive: true`**, and
+`tests/adaptive-arcade-test.mjs` G3/G4 assert it is set **exactly once in the
+whole file and inside that function**.
+
+⚠️⚠️⚠️ **`arcadeConfig()` IS NOT SHATTER'S CONFIG, AND THAT IS WHAT THE
+INSTRUCTION MISSED.** `isFreePlay()` routes **three games** through it —
+Shatter/Shards, Escape Key, **and Deadline at full scope**. Only Shatter feeds
+the calibrator, so for the other two `confident` can never become true and
+`calibratedWPM` returns the pre-comfort seed `min(targetWPM, floorWPM)`: **8 WPM
+for the whole run, for ever.** Measured on a real 20 WPM arcade gate — spawn
+interval **2400ms → 6000ms**, lifetime of `reading` **16.8s → 42.0s**.
+⚠️ **AND IT WOULD HAVE SHIPPED GREEN**: nothing mounts Deadline or Escape Key
+against an adaptive config.
+
+⭐⭐ **THE SEED IS THE FLOOR *BECAUSE A MEASUREMENT IS COMING*.** Where none is
+coming it is not gentleness, it is eight WPM until the bell.
+
+✅ **`game-shell.js` v1.10.0 — `adaptive` now needs a calibrator the VIEW
+supplied**, and the director no longer manufactures one. ⚠️⚠️ **"ZERO SAMPLES"
+CANNOT BE THE SIGNAL** — that is exactly what a child who froze looks like, and
+Jake ruled that child gets the floor. The only honest distinction is structural:
+whoever owns the object is the one feeding it. An unfed host is byte-for-byte
+v1.8.0 (Part A4).
+
+⭐ **AND ONE RULING WORTH KEEPING: PIECES ARE NOT CALIBRATION SAMPLES.** A piece
+is born where the student is already looking, spelling a word they just typed, so
+folding them in drags acquisition down → raises `onScreenTarget` → puts **more**
+panes in front of the hunting child this design exists to protect. Enforced at
+one site (a piece is never `spawned()`, so the other three calls are no-ops).
+
+✅ **AND THE THIRD CABINET, SAME ROUND: `game-deadline.js` v1.13.0.** ⚠️ Shatter
+and Shards are ONE VIEW and were wired together; Deadline has its own, so until
+this landed *"the arcade adapts"* was two-thirds true. Targets now carry an `id`
+— they never needed one, and the calibrator's whole question is *how long did
+THIS word take to find*, which an anonymous object cannot answer.
+⚠️ **THE MEASUREMENTS ARE TAKEN ON A GRADED RUN TOO AND DELIBERATELY IGNORED.**
+game-shell.js decides whether anything reads them; a view that branched on
+`adaptive` would be a SECOND reader of the flag.
+
+⭐⭐ **SO ALL THREE ADAPTIVE CABINETS ARE WIRED, AND ESCAPE KEY IS RULED OUT ON
+PURPOSE — see 119b.**
+
+**The original text is kept below as the record.**
+
+### ~~118a — ⚠️ THE CALIBRATOR IS BUILT AND **NOT YET WIRED**~~
 
 ✅ `typing-calibrator.js` v1.0.0 and `game-shell.js` v1.9.0 (`calibratedWPM`,
 `onScreenTarget`, `adaptive`, `difficulty`). 41 assertions.
@@ -121,6 +169,79 @@ round wires `game-shatter.js` (spawned / keyed / finished / dropped), adds
 `adaptive: true` to `arcadeConfig()` **for the arcade only, never a lesson**, and
 builds the three-button play-again card. ⭐ An engine nobody calls is dead code;
 do not let it sit two rounds.
+
+### 119c — ✅ PLAY AGAIN HALVED THE CITY (Round 119, found while wiring)
+
+`game-deadline.js`'s mount built its director with `shields: shieldCount * 2` —
+a dome absorbs a hit and the landmark under it takes the next, so a 3-shield
+difficulty is staged **on screen** as six. ⚠️ `restart()` built
+`new GameDirector(cfg)` and did not repeat it.
+
+⭐⭐ **EVERY REPLAY THEREFORE ENDED AT THREE HITS WITH THREE LANDMARKS STILL
+STANDING** — which is the *"the dome doesn't do anything"* complaint the doubling
+was written to answer, resurrected on the second game of every session and on no
+other. Measured: `shieldsMax` 6, then 3.
+
+⚠️ **IT IS THE FAILURE `restart()`'s OWN HEADER WARNS ABOUT, WITH THE SIGN
+REVERSED** — not a stale value carried forward but an override dropped, and both
+come from the same cause: a second place that has to know how the first one was
+built. ✅ Fixed with `newDirector()`, which also carries the calibrator, which is
+why a wiring round found a balance bug. Part H4.
+
+### 119a — ⚠️ THE DIFFICULTY DIAL IS BUILT, REACHABLE BY NOBODY
+
+`budgetScale()` and `DIFFICULTY = { easy: 1.2, medium: 1.0, hard: 0.8 }` ship and
+are read by `intervalMs` and `lifetimeFor()`. ⚠️ **`difficulty` defaults to
+`'medium'` at every call site, so the multiplier is 1.0 everywhere and the dial
+has no user.** It is the *same shape* as 118a one turn later: a built thing
+nothing calls.
+
+**The design is already settled** and is Jake's: three buttons on the play-again
+card, scaling **TIME** and never demand. ⭐ Applied to "demand" it would have to
+choose between speed and pane count, and hitting both compounds to **±44% behind
+labels promising ±20%**; time is one monotone quantity a child can predict.
+
+⚠️ **IT IS A PREFERENCE ON TOP OF A MEASUREMENT, NOT AN OVERRIDE OF ONE** — that
+distinction is exactly what Jake's 100 WPM dropdown proved we must never offer
+again. ⚠️ The card lives in `game-chrome.js`'s `showResult()`; the chosen level
+has to reach `restart()`, which today rebuilds from a frozen `baseCfg`.
+⭐ **DO NOT LET IT REACH A LESSON.** Same rule as `adaptive`, same one line.
+
+### 119b — ✅ CLOSED BY JAKE'S RULING, 2026-09-11. ESCAPE KEY IS WHAT IT IS
+
+Jake: *"Seems like Escape Key is what it is."* **Take this as decided.**
+
+✅ **`game-escape.js` v2.4.0 — NO CODE CHANGED; THE RULING IS THE CHANGE.** It is
+recorded in the file's own header, not only here, because a view whose
+non-wiring looks like unfinished work invites the next round to finish it.
+⚠️ `tests/adaptive-arcade-test.mjs` Part I goes red if anyone does — I2 strips
+comments first, because the ruling block explains at length what it does not do
+and a raw grep reads its own explanation as the behaviour it forbids.
+
+⭐ **AND IT IS SAFE BY GUARD, NOT BY LUCK.** `arcadeConfig()` asks for adaptation
+and this view comes through it; game-shell.js v1.10.0 declines because the view
+supplies no calibrator, so it paces at `targetWPM` exactly as it always has.
+⚠️ Before that guard the same flag would have pinned it at **8 WPM for the whole
+run**. I3/I4 drive that pair.
+
+**The reasoning is kept below, because it is the argument against re-opening it.**
+
+### ~~119b — ⚠️ ESCAPE KEY MAY NOT BE WIRABLE, AND THAT NEEDS A RULING NOT A ROUND~~
+
+Round 119 deliberately did not wire Escape Key, and it is **not** merely
+unfinished work. Escape Key is a **cadence** game: the student chooses which of
+four cells to type, and `avgChars` — not a per-target length — sets the pace.
+
+⚠️ So both halves of the calibrator mean something different there. "Spawn → first
+correct key" is not locate-and-read when four words sat on screen for ten seconds
+before the student picked one, and **`onScreenTarget` has nothing to act on** — the
+board is four cells by construction.
+
+⭐ **THE HONEST OPTIONS ARE: measure burst speed only and leave pane count alone;
+or leave Escape Key non-adaptive for ever and say so in its header.** The
+v1.10.0 guard makes the second one *safe today* rather than merely *current*.
+⚠️ **DO NOT WIRE IT TO CLOSE A CHECKBOX.** A number that means a different thing
+under the same name is this project's most expensive recurring defect.
 
 ### 118b — ✅ SHARDS BROKE **INTO** THE STUDENT (Round 118)
 

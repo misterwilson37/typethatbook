@@ -1,3 +1,21 @@
+// game-shell.js v1.10.0 — Round 119 (Hammond): ⚠️⚠️ `adaptive` NOW REQUIRES A
+// CALIBRATOR THE HOST ACTUALLY FEEDS, and `arcadeConfig()` asks for one.
+// ⚠️⚠️ THE FLAG ALONE WAS A TRAP, AND IT WAS ABOUT TO BE SPRUNG. Round 118 left
+// the instruction "add `adaptive: true` to arcadeConfig()" — one line, correct
+// as far as it goes, and `isFreePlay()` routes THREE games through that config:
+// Shatter/Shards, Escape Key, and Deadline at full scope. Only Shatter feeds the
+// calibrator. For the other two `confident` can never become true, so
+// `calibratedWPM` would have returned `min(targetWPM, floorWPM)` = **8 WPM, for
+// the whole run, forever** — measured on a 20 WPM arcade gate as a 2400ms spawn
+// interval becoming 6000ms and a 16.8s lifetime becoming 42s.
+// ⭐ THE SEED IS THE FLOOR *BECAUSE A MEASUREMENT IS COMING*. Where no
+// measurement is coming the floor is not gentleness, it is a broken game — and
+// it would have shipped green, because no harness mounts Deadline or Escape Key
+// against an adaptive config.
+// ⚠️ SO THE DIRECTOR NO LONGER MANUFACTURES ITS OWN CALIBRATOR. Supplying one is
+// the host's way of saying *I am feeding this*, which is a fact only the view
+// knows and the director cannot guess. An unfed host degrades to `targetWPM`,
+// i.e. byte-for-byte v1.8.0. See the constructor.
 // game-shell.js v1.9.0 — Round 118 (Underwood): THE DIRECTOR MEASURES THE CHILD.
 // ROADMAP 118a. `calibratedWPM` is now the ONE number `intervalMs` and
 // `lifetimeFor()` read, and before comfort it is the floor rather than a guess.
@@ -154,10 +172,14 @@
 // (4 typed / 1 wrong reads 75%, but 5 charged / 1 wrong reads 80%), and accuracy
 // is the number a lesson is actually gated on.
 
-import { TypingCalibrator, budgetScale } from './typing-calibrator.js';
+// ⚠️ v1.10.0 — `TypingCalibrator` IS NO LONGER IMPORTED HERE, and that absence
+// is the change: this file used to `new` one when a host did not supply it,
+// which is what made an unfed `adaptive: true` look wired. The director now
+// only ever borrows a calibrator a view built and feeds.
+import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.9.0';
+export const GAME_SHELL_VERSION = '1.10.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -696,10 +718,38 @@ export class GameDirector {
         // before, so missions, the lab and every graded path are byte-for-byte
         // what they were. **The calibrator must never touch a graded run** — a
         // lesson's pacing guarantee is a promise about a fixed number.
-        this.adaptive = !!c.adaptive;
+        //
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ v1.10.0 — `adaptive` IS A REQUEST FROM THE PAGE; A CALIBRATOR IS
+        // A PROMISE FROM THE VIEW, AND IT TAKES BOTH.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // `arcadeConfig()` sets `adaptive: true` because the arcade is ungraded
+        // and may adapt. But ONE config reaches three views — `isFreePlay()`
+        // sends Shatter, Shards, Escape Key and full-scope Deadline down the
+        // same path — and only a view that calls `spawned/keyed/finished/
+        // dropped` can ever make `confident` true.
+        //
+        // ⚠️⚠️ A VIEW THAT DOES NOT FEED IT WOULD HAVE BEEN PINNED AT THE FLOOR
+        // FOR EVER, because the pre-comfort seed is `min(targetWPM, floorWPM)`.
+        // ⭐ THAT SEED IS GENTLE ONLY BECAUSE A MEASUREMENT IS ON ITS WAY. Where
+        // none is coming it is not a kindness, it is 8 WPM until the bell.
+        //
+        // ⚠️ THE DIRECTOR CANNOT DETECT THIS FROM BEHAVIOUR. "No samples yet" is
+        // exactly what a child who froze looks like, and Jake ruled that child
+        // gets the floor — so zero samples must NOT mean "fall back". The only
+        // honest signal is structural: **whoever owns the calibrator object is
+        // the one feeding it.** A view that supplies one has said so in code.
+        //
+        // ⚠️ AND THE OBJECT IS PER-RUN, NOT PER-CONFIG. `restart()` builds a
+        // fresh director from a stored config; a calibrator baked into that
+        // config would carry the previous run's samples into the next one, and a
+        // second game that opened already-confident is exactly the stale-counter
+        // shape `restart()`'s "fresh, not reset" rule exists to stop. Views
+        // construct a new one alongside each new director.
+        this.calibrator = c.calibrator || null;
+        this.adaptive = !!c.adaptive && !!this.calibrator;
         this.difficulty = c.difficulty || 'medium';
-        this.calibrator = c.calibrator || new TypingCalibrator(
-            { floorWPM: c.floorWPM });
 
         this.clock = new GameClock();
         this.chars = 0;          // keystrokes that were part of a target
@@ -1257,6 +1307,27 @@ export function arcadeConfig({ lessons, progress, bestWPM, targetWPM, levelIdx,
         // flat forever, so a strong typist simply never lost. Now it climbs to
         // SURVIVAL_MAX_WPM like everything else that ramps.
         pressureCeiling: survivalCeilingFor(gate),
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ ROADMAP 118a — THE ONE LINE, AND IT LIVES HERE AND NOWHERE ELSE.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Round 118's instruction, kept verbatim because it is the whole rule:
+        // *"`adaptive: true` must go into `arcadeConfig()` and nowhere near a
+        // lesson path. It's one line and it's the line that could quietly move a
+        // graded run's pacing under a student."*
+        //
+        // ⚠️ `missionConfigFromRun()` IS THE LESSON PATH AND MUST NEVER GROW
+        // THIS FIELD. A graded run's pacing guarantee is a promise about a FIXED
+        // number — the 990-trial clearability sweep is a statement about
+        // `gates.minWPM`, and a run whose pace moved mid-flight would invalidate
+        // it silently and per-student, which is the worst way to break it.
+        // `tests/adaptive-arcade-test.mjs` Part B goes red if it appears there.
+        //
+        // ⚠️ IT IS A REQUEST, NOT A SWITCH. The director also needs a calibrator
+        // from the view — see the constructor. That is what keeps Escape Key and
+        // full-scope Deadline, which come through here and do not measure
+        // anything, running at exactly the pace they ran at yesterday.
+        adaptive: true,
         rand,
     };
 }

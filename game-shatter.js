@@ -1,3 +1,34 @@
+// game-shatter.js v1.8.0 — Round 119 (Hammond): ⭐ THE CALIBRATOR IS WIRED, AND
+// THIS IS THE FIRST VIEW THAT MEASURES THE CHILD IN FRONT OF IT.
+// ROADMAP 118a. `typing-calibrator.js` and the `GameDirector` integration
+// shipped inert in Round 118; this file is what calls them.
+//
+// ⚠️⚠️ FOUR CALLS, AND THE HARD PART IS *WHICH PANE* AND *WHICH CLOCK*.
+//   • `spawned()` at the director's spawn site — NOT on pieces, see below.
+//   • `keyed()` on every CORRECT key, against the pane the key actually landed
+//     on, which after a re-lock is not the pane that was locked before it.
+//   • `finished()` when a pane is typed out, `dropped()` when one hits the prism.
+//
+// ⚠️⚠️ EVERY ONE OF THEM TAKES `now`, THE WALL CLOCK — NEVER `bNow`. The board
+// clock slows to 22% during the shatter effect, and a child typing through slow
+// motion is still typing in real seconds. Feeding `bNow` would report them as
+// up to 4.5× faster than they are and hand them a game paced for a typist who
+// does not exist. ⭐ The rule is the same one the two-clock split already states
+// for the banked seconds: the BOARD runs on `bNow`, anything measuring the
+// STUDENT runs on `now`.
+//
+// ⚠️⚠️ PIECES ARE NOT CALIBRATION SAMPLES, AND THAT IS A DESIGN RULING, NOT AN
+// OVERSIGHT. Acquisition means locate-and-read: find the target, read the word,
+// aim. A piece is born where the student is already looking, spelling a word
+// they finished typing half a second ago — its acquisition is near zero for
+// everybody, fast and slow alike. ⭐ FOLDING PIECES IN WOULD DRAG MEDIAN
+// ACQUISITION DOWN, WHICH RAISES `onScreenTarget`, WHICH PUTS MORE PANES ON THE
+// BOARD — and more panes is precisely what hurts the hunting child the
+// per-student design exists to protect. The `MIN_ON_SCREEN = 3` sweep that
+// collapsed to 53.2% is the same mistake made globally.
+// ⭐ AND IT NEEDS NO BRANCH IN THE KEY HANDLER: a piece was never `spawned()`,
+// so `keyed()`, `finished()` and `dropped()` on a piece id are no-ops by
+// construction. The rule is enforced at one site.
 // game-shatter.js v1.7.0 — Round 117 (Bennett): the pane size rule moves to
 // shatter-board.js so Shards' hit test and this file's draw read ONE formula.
 // ⚠️ NO BEHAVIOUR CHANGE HERE — paneRadius(text, size) returns exactly what the
@@ -142,6 +173,7 @@
 // `ended = true` and ABOVE `d.end()`.
 
 import { GameDirector } from './game-shell.js';
+import { TypingCalibrator } from './typing-calibrator.js';
 import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius } from './shatter-board.js';
 // ⭐ THE SECOND CABINET. Jake: *"build shard, please. I want kids to have that
 // option."* ⚠️⚠️ ONE VIEW, TWO BOARDS — that is the whole reason Round 116 spent
@@ -165,7 +197,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.7.0';
+export const GAME_SHATTER_VERSION = '1.8.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -257,7 +289,29 @@ export function mount(container, opts) {
         endless: true,
     });
 
-    let d = new GameDirector(baseCfg);
+    /**
+     * ⚠️⚠️ A FRESH DIRECTOR *AND* A FRESH CALIBRATOR, TOGETHER, ALWAYS.
+     *
+     * `baseCfg` is built once and reused by `restart()`. Putting the calibrator
+     * in it would share ONE object across every run of the session, so the
+     * second game would open already `confident` — carrying the first game's
+     * median into a run the student may be playing tired, or handing the
+     * keyboard to the next child in the rotation and pacing the game for the
+     * previous one. ⭐ `TypingCalibrator` has a `reset()`, and it is deliberately
+     * NOT used here: `restart()`'s own rule is fresh objects rather than reset
+     * ones, because a reset is a second place that has to know every field.
+     *
+     * ⚠️ AND IT IS WHY `adaptive` WORKS AT ALL. game-shell.js v1.10.0 only
+     * adapts when a calibrator is supplied — supplying one is this file saying
+     * *I feed this*, which is the thing the director cannot check for itself.
+     */
+    function newDirector() {
+        return new GameDirector(Object.assign({}, baseCfg, {
+            calibrator: new TypingCalibrator({}),
+        }));
+    }
+
+    let d = newDirector();
     // ⚠️ THE CABINET PICKS THE BOARD AND NOTHING ELSE CHANGES. `drift: true`
     // arrives from arcade.html via the game registry; every other line in this
     // file is identical for both games, which is the property to protect.
@@ -493,14 +547,27 @@ export function mount(container, opts) {
         // The ray, the panel it lights and the key on keyboard.js's map are the
         // same colour in three places, which is the entire argument for the
         // prism.
+        // ⚠️⚠️ `landed.id` IS LOAD-BEARING NOW, NOT JUST DECORATION. Until v1.8.0
+        // this block existed only to aim a cosmetic ray; it is also the only
+        // place in this file that knows WHICH PANE A KEY ACTUALLY WENT TO, which
+        // is exactly what the calibrator needs. ⭐ AND IT IS STILL DERIVED FROM
+        // THE BOARD RATHER THAN RE-DECIDED HERE — re-deriving the aim (locked,
+        // or nearest-matching, or the re-lock) would be a second copy of
+        // shatter-board.js's dispatch, which this file's header forbids.
         let landed = null;
         if (r.cleared) {
             const live = new Set(board.rocks.map(k => k.id));
             for (const [id, snap] of before) {
-                if (!live.has(id)) { landed = snap; break; }
+                if (!live.has(id)) { landed = { id, p: snap.p, colors: snap.colors }; break; }
             }
         } else if (board.locked) {
-            landed = { p: px(board.locked), colors: board.locked.colors };
+            // ⚠️⚠️ `board.locked` AFTER tryKey(), AND THE RE-LOCK IS WHY THAT
+            // MATTERS. When `unusually` breaks into `un | usual | ly` and the
+            // student means `usual`, the board transfers the keystrokes and the
+            // lock moves — so the pane this key landed on is NOT the pane that
+            // was locked before the call. Reading the pre-key lock would credit
+            // the burst to a pane the student abandoned.
+            landed = { id: board.locked.id, p: px(board.locked), colors: board.locked.colors };
         }
         if (landed) {
             const a = Math.atan2(landed.p.y - cy, landed.p.x - cx);
@@ -511,6 +578,31 @@ export function mount(container, opts) {
                 color: fingerColorOf(e.key, '#cfe6ff'),
                 t: 1,
             });
+        }
+
+        // ── the measurement ─────────────────────────────────────────────────
+        // ⚠️⚠️ `now`, NOT `bNow`. The shatter slowdown runs the board at 22% of
+        // real time; a child typing through it is typing in real seconds, and
+        // charging their burst to the slowed clock would report them up to 4.5×
+        // faster than they are. See the header.
+        //
+        // ⚠️ CORRECT KEYS ONLY, and we are past the `!r.correct` return above.
+        // A mistyped key is accuracy, which netWPM() already owns; folding it in
+        // here would make the pacing number FALL when a child is fast and
+        // sloppy, which is not what "how fast can they type" means for spawning.
+        //
+        // ⚠️ ORDER: keyed() BEFORE finished(). The last character of a word is
+        // both, and the calibrator discards any burst of fewer than two keys —
+        // so skipping the final keyed() would throw away every three-letter
+        // sample and silently bias the estimate toward long words.
+        //
+        // ⭐ NO PIECE FILTER HERE, ON PURPOSE. A piece was never `spawned()`, so
+        // both calls are no-ops against an id the calibrator has never seen. The
+        // ruling lives at one site — the spawn — and cannot drift out of step
+        // with a second test written here.
+        if (landed) {
+            d.calibrator.keyed(landed.id, now);
+            if (r.cleared) d.calibrator.finished(landed.id, now);
         }
 
         if (r.cleared) {
@@ -541,6 +633,16 @@ export function mount(container, opts) {
     }
 
     function takeHit(rock, now) {
+        // ⚠️⚠️ THE PANE THAT LANDED IS NOT A SAMPLE, AND FORGETTING IT IS THE
+        // POINT. A half-typed word the student ran out of time on measures the
+        // BOARD, not the child — `finished()` already refuses it, but the open
+        // record would otherwise sit in the calibrator for the rest of the run
+        // and, in the one case that matters, a pane the student had started and
+        // abandoned could later be re-typed and charged a burst spanning the
+        // abandonment. ⭐ Dropping it is also what keeps `_open` bounded over a
+        // twenty-minute arcade session.
+        // ⚠️ A no-op for a piece, which was never registered. See the header.
+        d.calibrator.dropped(rock.id);
         const p = px(rock);
         // ⚠️ THE PANE BREAKS, AND IT BREAKS IN ITS OWN COLOURS WITH RED THROUGH
         // IT. An all-red burst would be the clearer damage signal and would also
@@ -615,7 +717,10 @@ export function mount(container, opts) {
      * game scoring impossibly high.
      */
     function restart() {
-        d = new GameDirector(baseCfg);
+        // ⚠️ newDirector(), NOT `new GameDirector(baseCfg)`. The calibrator has
+        // to be replaced in the same breath as the director or the replay is
+        // paced for the run the student just lost. See newDirector().
+        d = newDirector();
         board = makeBoard();
         particles = [];
         banner = null; flash = 0;
@@ -664,7 +769,20 @@ export function mount(container, opts) {
                 // Re-rolling the corners and the came leans each frame makes the
                 // glass BOIL, which reads as a rendering fault rather than as a
                 // window.
-                if (t) decorate(board.spawn(t.text, t.lifetimeMs, bNow));
+                if (t) {
+                    const rock = decorate(board.spawn(t.text, t.lifetimeMs, bNow));
+                    // ⚠️⚠️ `now`, NOT `bNow` — the line above takes the board
+                    // clock and this one must not. See the header: acquisition
+                    // is measured against the student's wall clock, and `bNow`
+                    // runs at 22% during the shatter slowdown.
+                    // ⚠️ AFTER the push, so `board.rocks.length` is the board the
+                    // student is actually looking at, pieces included — that is
+                    // what `onScreen` means to the calibrator.
+                    // ⚠️ THE ONLY `spawned()` IN THIS FILE. Pieces are never
+                    // registered; see the header for why that is a ruling.
+                    d.calibrator.spawned(rock.id, rock.text.length, now,
+                                         board.rocks.length);
+                }
             }
         }
 
@@ -1109,5 +1227,39 @@ export function mount(container, opts) {
             particles = [];
         },
         report() { return d.report(performance.now()); },
+        /**
+         * ⚠️⚠️⚠️ DIAGNOSTICS AND HARNESSES ONLY. NOTHING MAY RENDER `calibration`.
+         * RULE 11.
+         *
+         * The calibration WPM is not `netWPM()` — different window (one burst,
+         * not a session), different denominator (characters of target text, not
+         * keystrokes), different purpose (pacing, not assessment). Two numbers
+         * called WPM that disagree is a thing this project has paid for twice,
+         * and the second one always arrives as "it was already on the handle".
+         * ⭐ THE STUDENT SEES A DIFFICULTY, NEVER A SPEED.
+         *
+         * ⚠️ IT EXISTS BECAUSE THE WIRING IS OTHERWISE UNOBSERVABLE, AND THAT IS
+         * NOT A HYPOTHETICAL: Round 118 shipped an engine nothing called and all
+         * 101 harnesses stayed green. The only defence against that repeating is
+         * a test that can mount this view and ask whether the calibrator is
+         * being fed — which means it must also be able to see what is on the
+         * board, or it can only type blind and assert nothing.
+         *
+         * ⚠️ ONE ACCESSOR, NOT TWO. A second debug read is a second thing a page
+         * could start depending on. `tests/adaptive-arcade-test.mjs` Part G goes
+         * red if any file outside `tests/` calls this one.
+         */
+        debug() {
+            return {
+                calibration: d.calibrator ? d.calibrator.snapshot() : null,
+                // ⚠️ COPIES, NOT THE ROCKS. Handing out live board objects would
+                // let a caller mutate the game, and a harness that can reach in
+                // and set `typed` is testing something no student can do.
+                panes: board.rocks.map(r => ({
+                    id: r.id, text: r.text, typed: r.typed,
+                    piece: r.parent != null,
+                })),
+            };
+        },
     };
 }

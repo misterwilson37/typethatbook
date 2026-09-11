@@ -1,5 +1,140 @@
 # CHANGELOG — TypeThatBook
 
+## Round 119 (Hammond) — the engine is wired, and the one line was a trap
+
+Round 118's handoff: *"`adaptive: true` must go into `arcadeConfig()` and nowhere
+near a lesson path. It's one line."*
+
+### ⚠️⚠️⚠️ IT IS ONE LINE, AND ON ITS OWN IT WOULD HAVE BROKEN TWO GAMES
+
+⭐⭐ **`arcadeConfig()` IS NOT SHATTER'S CONFIG.** `isFreePlay()` in `arcade.html`
+routes **three** games through it — Shatter/Shards, Escape Key, **and Deadline at
+full scope**. Only Shatter was being wired, so for the other two `confident` can
+never become true and `calibratedWPM` falls to the pre-comfort seed
+`min(targetWPM, floorWPM)`. Measured against a real `arcadeConfig()` on a 20 WPM
+arcade gate rather than reasoned about:
+
+| | spawn interval | lifetime of `reading` |
+|---|---|---|
+| today | 2400 ms | 16.8 s |
+| `adaptive: true`, unfed | 6000 ms | 42.0 s |
+
+**8 WPM for the whole session, for ever**, on two of the three arcade games.
+⚠️⚠️ **AND IT WOULD HAVE SHIPPED GREEN** — nothing in this repo mounts Deadline or
+Escape Key against an adaptive config.
+
+⭐ **THE SEED IS THE FLOOR *BECAUSE A MEASUREMENT IS COMING*.** Where none is
+coming it is not gentleness, it is a dead game.
+
+**`game-shell.js` v1.10.0** — the director no longer manufactures a calibrator;
+`adaptive` requires the host's request **and** an object the view supplied.
+⚠️⚠️ **"NO SAMPLES YET" CANNOT BE THE SIGNAL** — that is exactly what a child who
+froze looks like, and Jake ruled that child gets the floor. The only honest
+distinction is structural: whoever owns the object is the one feeding it.
+
+### ✅ ROADMAP 118a — `game-shatter.js` v1.8.0 FEEDS IT
+
+`spawned()` at the director's spawn site, `keyed()` on every correct key,
+`finished()` on a clear, `dropped()` in `takeHit()`.
+
+* ⚠️⚠️ **`now`, NEVER `bNow`.** The board clock runs at 22% during the shatter
+  slowdown, and the `spawned()` call sits one line below a `board.spawn(..., bNow)`
+  that correctly takes it. Feeding the board clock would report a child up to
+  **4.5× faster than they are**.
+* ⚠️ **`board.locked` AFTER `tryKey()`.** The re-lock moves the lock — `unusually`
+  breaks into `un | usual | ly` and a student who meant `usual` has their
+  keystrokes transferred — so reading the pre-key lock credits the burst to a
+  pane they abandoned.
+* ⚠️ **A fresh calibrator with every fresh director.** Baked into `baseCfg` it
+  would be shared across `restart()`, and the second game would open already
+  `confident` on the previous run's median — or the previous child's.
+* ⭐ **PIECES ARE NOT SAMPLES**, and it is a ruling. A piece is born where the
+  student is already looking, so folding them in drags acquisition down → raises
+  `onScreenTarget` → puts **more** panes in front of the hunting child. Enforced
+  at one site: a piece is never `spawned()`, so the rest are no-ops.
+
+### `tests/adaptive-arcade-test.mjs` v1.1.0 — 45 assertions, nine mutations
+
+Mounts the **real** view and drives the **real** key handler (Rule 10). ⚠️ Its own
+rAF fake had to become a **queue**: `game-chrome.js`'s countdown runs a second
+loop, and a one-slot fake let the two clobber each other so no countdown ever
+finished and no pane ever spawned — red against correct code.
+
+Mutation-verified nine ways: restoring Round 118's flag (5 red), dropping
+`spawned()` (4), dropping `keyed()` (5), registering pieces (3), feeding `bNow`
+(3), putting `adaptive: true` on `missionConfigFromRun()` (4), restoring
+Deadline's old `restart()` (2, including `6 → 3`), unwiring Deadline's `keyed()`
+(2), and "finishing" Escape Key by wiring it (1).
+
+### ✅ TWO STALE RECORDS CLEARED
+
+* **`dead-handler-test.mjs` was still at the repo root.** Round 118 recorded both
+  root duplicates as deleted, on Jake's word; only `run-all-tests.mjs` went.
+  Deleted. ⚠️ `docs-vs-repo-test.mjs` walks `.md` files only, so a document lying
+  about a `.mjs` is outside its reach.
+* ⚠️ **`run-all-tests.mjs` carried v1.29.0 twice** (Rounds 116 and 117). Recorded
+  in its own header rather than silently renumbered.
+
+### ✅ ALL THREE ADAPTIVE CABINETS — `game-deadline.js` v1.13.0
+
+Jake: *"So shatter, shard, and deadline all gauge speed and adapt accordingly?"*
+⭐ **THE ANSWER WAS NO.** Shatter and Shards are one view, so wiring
+`game-shatter.js` covered two cabinets and read like three; Deadline has its own
+and was still pacing every arcade run from the lesson gate.
+
+Same four calls. ⚠️ Targets now carry an `id` — they never needed one, and the
+calibrator's question is *how long did THIS word take to find*, which an
+anonymous object cannot answer. ⚠️ **The measurements are taken on a graded run
+too and deliberately ignored**: game-shell.js decides whether anything reads
+them, and a view that branched on `adaptive` would be a second reader of the flag.
+
+### ⚠️⚠️ AND A LIVE DEFECT FELL OUT OF IT: PLAY AGAIN HALVED THE CITY
+
+The mount built its director with `shields: shieldCount * 2` — a dome absorbs a
+hit and the landmark under it takes the next, so a 3-shield difficulty is staged
+on screen as six. ⚠️ `restart()` built `new GameDirector(cfg)` and did not repeat
+it. ⭐⭐ **Every replay ended at three hits with three landmarks still standing**
+— the *"the dome doesn't do anything"* complaint the doubling was written to
+answer, resurrected on the second game of every session and on no other.
+Measured: `shieldsMax` 6, then 3.
+
+⚠️ It is the failure `restart()`'s own header warns about with the sign reversed:
+not a stale value carried forward but an override dropped, both from a second
+place that has to know how the first was built. Fixed with `newDirector()` — the
+same factory the calibrator needed, **which is why a wiring round found a balance
+bug**.
+
+### ✅ ESCAPE KEY — JAKE'S RULING
+
+*"Seems like Escape Key is what it is."* **`game-escape.js` v2.4.0 — no code
+changed; the ruling is the change**, written into that file's header and not only
+into a document, because a view whose non-wiring looks like unfinished work
+invites the next round to finish it. ⭐ Safe by guard, not by luck: `arcadeConfig()`
+asks and the v1.10.0 guard declines, where before it would have pinned the game
+at 8 WPM.
+
+### ⚠️ THE HARNESS FAILED HARD ONCE, AND THAT WAS ITS OWN DEFECT
+
+Mutation 7 made Part H **throw** rather than go red — a replay with no calibrator
+dereferenced null. ⚠️⚠️ A stack trace is not a finding: a harness that dies on the
+defect it is hunting reports nothing about the other assertions in the part.
+Null-safe now; M7 prints `6 → 3`.
+
+### ⚠️ NOT DONE, ON PURPOSE
+
+**No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms thresholds are
+exactly where Round 118 left them — reasoned, not measured, and the instruction
+was to wire first. The three-button play-again card is ROADMAP 119a; Escape Key's
+wirability is ROADMAP 119b and needs a ruling, not a round.
+
+**102 harnesses pass** after `npm install`.
+
+**Upload set:** `game-shell.js`, `game-shatter.js`, `game-deadline.js`,
+`game-escape.js`, `tests/adaptive-arcade-test.mjs`, `tests/run-all-tests.mjs`,
+`HANDOFF.md`, `ROADMAP.md`, `CHANGELOG.md`.
+**Delete:** `dead-handler-test.mjs` (repo root only — keep `tests/`). ✅ Jake
+confirmed done.
+
 ## Round 118 (Underwood) — measure the child, and stop the glass flying at them
 
 Jake: *"What engine could we build that would gauge where students are and then

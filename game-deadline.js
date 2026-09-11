@@ -1,3 +1,42 @@
+// game-deadline.js v1.13.0 — Round 119 (Hammond): DEADLINE MEASURES THE CHILD
+// TOO, and `restart()` stops halving the city's health.
+//
+// ⭐ ROADMAP 118a, the third cabinet. Shatter and Shards are one view and were
+// wired together; Deadline has its own and was still pacing every arcade run
+// from the lesson gate. Four calls: `spawned()` at the spawn site, `keyed()` on
+// every correct key, `finished()` on a clear, `dropped()` on impact.
+//
+// ⚠️⚠️ A TARGET NOW CARRIES AN `id`. It did not need one before — `live` was
+// searched by identity and nothing outside this file cared which word was which
+// — and the calibrator's whole question is "how long did THIS pane take to
+// find", which cannot be asked of an anonymous object.
+//
+// ⚠️ THE MEASUREMENTS ARE TAKEN ON A GRADED RUN TOO, AND DELIBERATELY IGNORED.
+// game-shell.js v1.10.0 decides whether anything reads them, and a view that
+// branched on `adaptive` here would be a SECOND reader of the flag — which is
+// the shape that let the graded path and the arcade path disagree about
+// difficulty in the first place. One feeder, one decider.
+//
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ AND A LIVE DEFECT FOUND WHILE WIRING: **PLAY AGAIN HALVED THE CITY.**
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// The mount built its director with `shields: shieldCount * 2` — the doubling
+// that exists because a dome absorbs a hit and the landmark under it takes the
+// next, so a 3-shield difficulty is staged on screen as SIX hits. ⚠️ `restart()`
+// built `new GameDirector(cfg)` and did not repeat it.
+//
+// ⭐⭐ SO EVERY REPLAY ENDED AT THREE HITS WITH THREE BUILDINGS STILL STANDING —
+// which is the *"the dome doesn't do anything"* complaint the doubling was
+// written to answer, resurrected on the second game of every session and on no
+// other. Measured: first run `shieldsMax` 6, after "play again" 3.
+//
+// ⚠️ IT IS EXACTLY THE FAILURE THIS FILE'S `restart()` ALREADY WARNS ABOUT in
+// its own header — "a stale counter survives a restart" — with the sign
+// reversed: not a value carried forward, but an override dropped. Both come from
+// the same cause, a second place that has to know how the first one was built.
+// ⭐ FIXED WITH `newDirector()`, so there is one place. The same factory carries
+// the calibrator, which is why a wiring round found a balance bug.
 // game-deadline.js v1.12.0
 //
 // v1.12.0 — Round 115 (Tower). Quit/Escape after the survival pass ENDS the
@@ -280,6 +319,7 @@
 // what reaches the student who is only here to type.
 
 import { GameDirector } from './game-shell.js';
+import { TypingCalibrator } from './typing-calibrator.js';
 // ⚠️ EVERY NUMBER THAT ONLY DECIDES PIXELS LIVES IN game-layout.js, so UI work
 // can happen in parallel without touching this file. See that file's header for
 // what may and may not move there.
@@ -298,7 +338,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.12.0';
+export const GAME_DEADLINE_VERSION = '1.13.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -467,7 +507,33 @@ export function mount(container, opts) {
     // without re-running the corpus.
     // ⚠️ AND IT IS DELIBERATELY *NOT* `cfg.shields`: the caller asks for a
     // difficulty, the view decides how that difficulty is staged on screen.
-    let d = new GameDirector(Object.assign({}, cfg, { shields: shieldCount * 2 }));
+    /**
+     * ⚠️⚠️ THE ONLY PLACE A DIRECTOR IS BUILT. `restart()` used to build its own
+     * with `new GameDirector(cfg)` and DROPPED the shield doubling above, so
+     * every replay ran a city staged for six hits on a director that ended at
+     * three — game over with three landmarks still standing, which is precisely
+     * the complaint the doubling exists to answer. Measured: 6, then 3.
+     * ⭐ ONE FACTORY, SO THERE IS NOTHING TO FORGET.
+     *
+     * ⚠️ THE CALIBRATOR IS BUILT HERE AND NOWHERE ELSE, FOR THE SAME REASON IT
+     * IS IN game-shatter.js's: baked into `cfg` it would be shared across
+     * restarts, and the second game would open already `confident` on the
+     * previous run's median — or on the previous child's, in a rotation of
+     * thirty. ⭐ `reset()` exists and is deliberately unused; fresh objects, not
+     * reset ones.
+     */
+    function newDirector() {
+        return new GameDirector(Object.assign({}, cfg, {
+            shields: shieldCount * 2,
+            calibrator: new TypingCalibrator({}),
+        }));
+    }
+
+    let d = newDirector();
+    // ⚠️ TARGET IDS. See the header: the calibrator asks how long THIS word took
+    // to find, which an anonymous object cannot answer. Monotonic per mount and
+    // never reused, so a stale id can never collide with a live pane.
+    let nextTargetId = 1;
     let capsOn = false;
     let started = false;   // set by the countdown; spawns wait for it
 
@@ -683,7 +749,9 @@ export function mount(container, opts) {
         const aimY = dome.active ? dome.y - dome.radius : dome.y;
         const dist = Math.hypot(dome.x - startX, aimY - startY);
         const secs = Math.max(0.6, t.lifetimeMs / 1000);
+        const id = nextTargetId++;
         live.push({
+            id,
             text: t.text, typed: 0,
             x: startX, y: startY,
             tx: dome.x, ty: aimY,
@@ -693,6 +761,12 @@ export function mount(container, opts) {
             kind: Math.floor(rand() * 3),
             spin: rand() * Math.PI * 2,
         });
+        // ⚠️ AFTER THE PUSH, so `live.length` is the sky the student is actually
+        // looking at. ⚠️ `now` is the wall clock and this view has no second one
+        // — there is no slow-motion here — but the argument is named for the
+        // same reason game-shatter.js's is: acquisition is a fact about a child,
+        // not about a board.
+        d.calibrator.spawned(id, t.text.length, now, live.length);
     }
 
     /** How close to impact, 0..1. The auto-lock's sort key. */
@@ -787,6 +861,14 @@ export function mount(container, opts) {
 
     function accept(target, ch, now) {
         d.keyResult(true, now);
+        // ⚠️ CORRECT KEYS ONLY, and this function is the correct-key path —
+        // reject() is the other one. A mistyped key is accuracy, which netWPM()
+        // owns; folding it in would make the PACING number fall when a child is
+        // fast and sloppy, which is not what "how fast can they type" means.
+        // ⚠️ BEFORE the clear below, because the last character of a word is both
+        // a key and the finish, and the calibrator discards bursts of fewer than
+        // two keys — skipping it would throw away every short word.
+        d.calibrator.keyed(target.id, now);
         // A key they had missed and have now landed goes from red to corrected.
         const k = String(ch).toLowerCase();
         if (keyStates[k] === 'miss') keyStates[k] = 'fixed';
@@ -798,6 +880,7 @@ export function mount(container, opts) {
             // finished kept flying and could still take a dome — punishing them
             // for the flight time of their own feedback animation.
             d.cleared(target.text, now);
+            d.calibrator.finished(target.id, now);
             sfx.clear();
             live = live.filter(x => x !== target);
             if (locked === target) locked = null;
@@ -907,6 +990,11 @@ export function mount(container, opts) {
                 e.spin += dt * 1.6;
 
                 if (threat(e) >= 1) {
+                    // ⚠️ A WORD THAT LANDED IS NOT A SAMPLE. It measures the SKY
+                    // — how fast the director was pushing — not the child, and
+                    // `finished()` would refuse it anyway. Dropping it is what
+                    // keeps the open set bounded over a long survival run.
+                    d.calibrator.dropped(e.id);
                     live.splice(i, 1);
                     if (locked === e) locked = null;
                     burst(particles, e.x, e.y, '#ff8800', Math.round(30 * motionScale()), 260);
@@ -1897,7 +1985,9 @@ export function mount(container, opts) {
      * impossibly high.
      */
     function restart() {
-        d = new GameDirector(cfg);
+        // ⚠️ newDirector(), NOT `new GameDirector(cfg)`. That line is what halved
+        // the city on every replay for as long as "play again" has existed.
+        d = newDirector();
         live = []; missiles = []; particles = [];
         locked = null; banner = null; flash = 0; countdown = null;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
@@ -2007,5 +2097,31 @@ export function mount(container, opts) {
         },
         /** For a host that wants the numbers without waiting for onEnd. */
         report() { return d.report(performance.now()); },
+        /**
+         * ⚠️⚠️⚠️ DIAGNOSTICS AND HARNESSES ONLY. NOTHING MAY RENDER
+         * `calibration`. RULE 11 — it is not `netWPM()`: different window (one
+         * burst, not a session), different denominator (characters of target
+         * text, not keystrokes), different purpose (pacing, not assessment).
+         * ⭐ THE STUDENT SEES A DIFFICULTY, NEVER A SPEED.
+         *
+         * ⚠️ THE SAME SHAPE game-shatter.js CARRIES, AND FOR THE SAME REASON:
+         * Round 118 shipped an engine nothing called and 101 harnesses stayed
+         * green. The only defence is a test that can mount this view and ask
+         * whether the calibrator is being fed — which means seeing the sky too,
+         * or it can only type blind and assert nothing.
+         * ⚠️ `tests/adaptive-arcade-test.mjs` Part G goes red if any file
+         * outside `tests/` calls it.
+         */
+        debug() {
+            return {
+                calibration: d.calibrator ? d.calibrator.snapshot() : null,
+                shieldsMax: d.shieldsMax,
+                over: d.over,
+                // ⚠️ COPIES, NOT THE LIVE TARGETS. A harness that could reach in
+                // and set `typed` would be testing something no student can do.
+                panes: live.map(e => ({ id: e.id, text: e.text, typed: e.typed,
+                                        piece: false })),
+            };
+        },
     };
 }
