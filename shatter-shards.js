@@ -1,4 +1,9 @@
-// shatter-shards.js v1.1.0 — SHARDS. Round 116 (Sun).
+// shatter-shards.js v1.2.0 — SHARDS. Round 116 (Sun).
+//
+// ⚠️ Round 117 (Corona): THE HEADER SAID v1.1.0 OVER A CONSTANT READING '1.2.0'.
+// Corrected, no code change. The constant is what the build panel reports, so
+// the header was the half that was wrong — the third time this file's siblings
+// have recorded that exact drift (see arcade.html's own two).
 //
 // v1.1.0 — ⚠️⚠️ PANES NOW LEAVE. v1.0.0 punished slow typists for playing; see
 //   the wandering-budget block below, which is the most important thing in this

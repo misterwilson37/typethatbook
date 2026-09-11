@@ -1,3 +1,10 @@
+// tests/shatter-board-test.mjs v1.2.0 — Round 117 (Corona): Part B repaired.
+// ⚠⚠ IT HAD BEEN RED FOR A WHOLE ROUND. Round 116 moved SHATTER_COST_FACTOR 2 → 3
+// and raised MAX_SPLIT_DEPTH to 2; this file went on asserting 2, a terminal
+// first-rung piece, and an EQUALITY on the total clear cost that is false for
+// nearly every real word — 3N is a CEILING, as shatter-board.js's own header says.
+// ⭐ SEVEN ASSERTIONS, ON THE ONE HARNESS THAT GUARDS THE NUMBER PRICING EVERY
+// SHATTER GATE, while CHANGELOG.md claimed these checks read the constant.
 // tests/shatter-board-test.mjs v1.1.0 — Round 116 (Sun): Part H, the view seam.
 // tests/shatter-board-test.mjs v1.0.0 — CAN A GATE-SPEED CHILD CLEAR A ROCK
 // THAT COSTS TWICE WHAT IT LOOKS LIKE IT COSTS? Round 103 (Bar-Let).
@@ -18,6 +25,7 @@ import {
     ShatterBoard, splitTarget, splittable,
     SHATTER_COST_FACTOR, SPLIT_MIN_R, SPAWN_R,
     WARP_CLEARS, WARP_GRACE_MS, WARP_PUSH, MAX_WARPS,
+    MIN_RESPLIT_LEN, MAX_SPLIT_DEPTH,
     SHATTER_BOARD_VERSION,
 } from '../shatter-board.js';
 import {
@@ -119,7 +127,14 @@ console.log('\nPART B — ⚠️⚠️ THE FACTOR OF TWO, AS ARITHMETIC');
 // This is the part that would have shipped a game every child failed.
 
 {
-    ok(SHATTER_COST_FACTOR === 2, 'one target costs twice its own characters');
+    // ⚠️⚠️ 2 → 3 IN ROUND 116 AND THIS FILE WAS NOT MOVED WITH IT, so the one
+    // harness whose job is to guard the number that prices every Shatter gate
+    // was red for a whole round — while CHANGELOG.md claimed these checks
+    // "read SHATTER_COST_FACTOR now". ⭐ THEY DID NOT; this line hardcoded 2.
+    // Round 117 (Corona) repaired it. The lesson is the project's own: a
+    // constant and the harness that pins it must move in ONE edit.
+    ok(SHATTER_COST_FACTOR === 3,
+       'one target costs three times its own characters — a word breaks twice');
 
     const targets = ['unusually', 'accomplishment'];
     const naive = new GameDirector({ targets, targetWPM: 15, endless: true });
@@ -128,10 +143,10 @@ console.log('\nPART B — ⚠️⚠️ THE FACTOR OF TWO, AS ARITHMETIC');
 
     const t = real.nextTarget(0);
     const n = naive.nextTarget(0);
-    ok(Math.abs(t.lifetimeMs - n.lifetimeMs * 2) < 1,
-       'a Shatter rock gets exactly double the journey of an unpriced one');
-    ok(Math.abs(real.intervalMs - naive.intervalMs * 2) < 1,
-       'and rocks arrive half as often, which is the same statement');
+    ok(Math.abs(t.lifetimeMs - n.lifetimeMs * SHATTER_COST_FACTOR) < 1,
+       'a Shatter rock gets exactly triple the journey of an unpriced one');
+    ok(Math.abs(real.intervalMs - naive.intervalMs * SHATTER_COST_FACTOR) < 1,
+       'and rocks arrive a third as often, which is the same statement');
 
     // ⭐ THE CLAIM STATED THE WAY IT MATTERS: what WPM does clearing one rock in
     // one interval actually demand?
@@ -143,7 +158,7 @@ console.log('\nPART B — ⚠️⚠️ THE FACTOR OF TWO, AS ARITHMETIC');
 
     // ⚠️ AND WHAT IT WOULD HAVE BEEN. Kept as the number, not as a warning.
     const wrong = (chars / 5) / (spawnIntervalMs('unusually'.length, 15, 1.0) / 60000);
-    ok(wrong > 29 && wrong < 31,
+    ok(wrong > 44 && wrong < 46,
        `an unpriced rock would have demanded ${wrong.toFixed(0)} WPM on a 15 WPM gate`);
 
     // ⚠️ THE DEFAULT IS THE OLD BEHAVIOUR EXACTLY. Deadline and Escape Key pass
@@ -157,7 +172,7 @@ console.log('\nPART B — ⚠️⚠️ THE FACTOR OF TWO, AS ARITHMETIC');
     const mission = new GameDirector({ targets, targetWPM: 15,
                                        costFactor: SHATTER_COST_FACTOR });
     const raw = targets.reduce((a, b) => a + b.length, 0);
-    ok(mission.quotaChars === raw * 2,
+    ok(mission.quotaChars === raw * SHATTER_COST_FACTOR,
        'the DEFAULTED quota is in keystrokes, because cleared() fires per rock');
     const told = new GameDirector({ targets, targetWPM: 15, quotaChars: 40,
                                     costFactor: SHATTER_COST_FACTOR });
@@ -228,11 +243,16 @@ console.log('\nPART D — the split, and the one journey it does not reset');
     ok(relock.correct && b.locked.text === 'usual' && b.locked.typed === 2,
        '⭐ THE RE-LOCK — `u`+`s` opens no other rock, so the student always meant `usual`');
 
-    // ⚠️ PIECES DO NOT SPLIT AGAIN. This is what pins the cost at exactly 2N.
+    // ⚠️⚠️ A PIECE SPLITS ONCE MORE, AND THEN STOPS. Round 116 raised
+    // MAX_SPLIT_DEPTH to 2, which is exactly why SHATTER_COST_FACTOR went to 3.
+    // ⭐ THE LADDER MUST TERMINATE OR THE COST IS UNSTATABLE: `usual` is long
+    // enough to break again, and what it breaks into is not.
     let sub = null;
     for (const ch of 'ual') sub = b.tryKey(ch, 2100);
-    ok(sub.cleared === 'usual' && sub.pieces.length === 0,
-       'a piece is terminal — a recursive split would make the cost unstatable');
+    ok(sub.cleared === 'usual' && sub.pieces.length > 0,
+       'a piece long enough to break, breaks — the second rung of the ladder');
+    ok(sub.pieces.every(p => p.terminal),
+       '⚠️ and its pieces are all terminal, so the ladder ends at depth 2');
 
     // ⭐ THE FLOOR. A rock broken on the doorstep must not scatter pieces that
     // are already on top of the student.
@@ -244,10 +264,27 @@ console.log('\nPART D — the split, and the one journey it does not reset');
     ok(lr.pieces.every(p => p.r >= SPLIT_MIN_R - 1e-9),
        `pieces from a last-instant break start at least ${SPLIT_MIN_R} out`);
 
-    // ⚠️ AND THE TOTAL COST IS THE NUMBER PART B PRICED.
-    const cost = 'unusually'.length + splitTarget('unusually').join('').length;
-    ok(cost === 'unusually'.length * SHATTER_COST_FACTOR,
-       'the keystrokes to fully clear one target are exactly 2N, as the shell was told');
+    // ⚠️⚠️ AND THE TOTAL COST IS THE NUMBER PART B PRICED — AS A CEILING, WHICH
+    // IS WHAT shatter-board.js's own header SAYS IT IS (*"so 3N is the
+    // ceiling"*) AND WHAT THE OLD ASSERTION DID NOT.
+    //
+    // ⭐ THE DIFFERENCE IS NOT PEDANTRY, IT IS THE DIRECTION OF THE ERROR. Only
+    // a piece of 4+ characters breaks again, so the third rung is paid on SOME
+    // words and not others: `unusually` costs 9 + 9 + 5 = 23 against a 27
+    // ceiling. An equality assertion is therefore false for nearly every real
+    // word, and the only safe direction is that the shell is told a price the
+    // student can never EXCEED — over-pricing buys a child time; under-pricing
+    // hands them a quota that was never reachable, which is the defect Part B
+    // exists to prevent.
+    const rung1 = splitTarget('unusually');
+    let cost = 'unusually'.length + rung1.join('').length;
+    for (const p of rung1) {
+        if (p.length >= MIN_RESPLIT_LEN) cost += splitTarget(p).join('').length;
+    }
+    const ceiling = 'unusually'.length * SHATTER_COST_FACTOR;
+    ok(cost <= ceiling && cost > 'unusually'.length * 2,
+       `fully clearing one target costs ${cost} keystrokes against a ${ceiling} ` +
+       'ceiling — the shell is never told LESS than the work it demands');
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

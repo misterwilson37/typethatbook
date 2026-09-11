@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
+<!-- arcade.html v3.21.0 — Round 117 (Corona): ROADMAP 116g. The LESSON picker is
+     capped by the WORDS control, so "from my lessons so far" finally means it.
+     ⚠️ A student with NO history still gets the whole course — see fillLessons().
+arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
      in front of the arcade floor rather than a block above it — stacked, it
      pushed the cabinets down and a student had to scroll to reach the thing they
      wanted next. And the cabinet art is redrawn: Shatter's thumbnail was still
@@ -931,7 +934,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.20.0';
+const ARCADE_PAGE_VERSION = '3.21.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1018,7 +1021,7 @@ import { GAMES, GAME_ORDER, titleOf, panelOptionsFor, usesThreatBoard } from './
 // "Cannot declare an imported binding name twice". ⚠️⚠️ A NEW IMPORT LINE MUST BE
 // CHECKED AGAINST THE EXISTING ONES IN THE SAME MODULE BLOCK; nothing in the
 // harness suite loads this page, so only a browser could have caught it.
-import { arcadeConfig, arcadeWindow, arcadeTargetWPM } from './game-shell.js';
+import { arcadeConfig, arcadeWindow, arcadeTargetWPM, arcadeLessonMenu } from './game-shell.js';
 import { poolProviderFor, arcadePool } from './arcade-pool.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
@@ -1355,20 +1358,50 @@ function keyPracticeFor(lesson) {
 // after their last pass. NOT "passed" — Jake asked for any lesson they have
 // ACCESSED, and a student mid-way through a unit should be able to play it.
 
-function fillLessons() {
+/**
+ * ⚠️⚠️ THE MENU IS CAPPED BY THE **WORDS** CONTROL — ROADMAP 116g, Round 117.
+ *
+ * Jake, 2026-09-11: *"if a student picks 'What I know so far' in deadline, it
+ * still gives him access to literally every lesson. The lesson menu should be
+ * locked to exactly what the kid has gotten to."*
+ *
+ * ⭐ THE CAP IS arcadeLessonMenu()'s, NOT THIS FILE'S. The window arithmetic is
+ * spelled once in game-shell.js beside arcadeWindow(), for the reason that
+ * function's own header gives: two windows over one list means the arcade draws
+ * its letters from one lesson and its menu from another. ⚠️ AND A PAGE CANNOT BE
+ * IMPORTED, so a rule written here could only be checked by grepping this file;
+ * written there it is driven against the real corpus by
+ * tests/arcade-scope-menu-test.mjs.
+ *
+ * @param {number} [keepLessonId] a PLAYABLE index to re-select if it survives
+ *        the cap. ⚠️ THE SCOPE ROW RE-RUNS THIS, and a student who had chosen a
+ *        lesson and then flipped WORDS must not silently land on a different one.
+ */
+function fillLessons(keepLessonId) {
     const sel = $('lesson');
     sel.innerHTML = '';
-    PLAYABLE.forEach((p, i) => {
+    const offered = arcadeLessonMenu({
+        lessons: LESSONS, progress: PROGRESS, scope: chosenScope(), playable: PLAYABLE });
+    for (const i of offered) {
+        const p = PLAYABLE[i];
         const o = document.createElement('option');
+        // ⚠️⚠️ THE VALUE IS THE **PLAYABLE** INDEX, NOT THE MENU POSITION.
+        // currentRun(), currentLesson() and fillRuns() all subscript PLAYABLE
+        // with it, so a renumbered menu would point every one of them at the
+        // wrong lesson the first time the cap removed anything.
         o.value = String(i);
         const done = PROGRESS[p.lesson.id] && PROGRESS[p.lesson.id].passed ? ' \u2713' : '';
         o.textContent = (p.lesson.title || p.lesson.id) + done;
         sel.appendChild(o);
-    });
-    sel.disabled = !PLAYABLE.length;
+    }
+    sel.disabled = !offered.length;
     // ⚠️ DEFAULTS TO THE FURTHEST LESSON OPEN TO THEM, not the first. Jake's
     // case is a student who has just finished a lesson and wants to compare it.
-    sel.value = String(Math.max(0, PLAYABLE.length - 1));
+    // ⭐ AND "OPEN TO THEM" NOW MEANS THE CAPPED LIST, which is the same sentence
+    // it always was — it just finally has a shorter list to be true of.
+    const last = offered.length ? String(offered[offered.length - 1]) : '';
+    sel.value = (keepLessonId != null && offered.includes(keepLessonId))
+        ? String(keepLessonId) : last;
     fillRuns();
 }
 
@@ -1543,6 +1576,16 @@ function applyGameMode() {
     // the state unreachable from the state it hides in.
     $('row-scope').style.display = '';
     $('row-freespeed').style.display = fullPool ? '' : 'none';
+    // ⚠️⚠️ THE SCOPE CONTROL CHANGES WHAT THE LESSON MENU MAY OFFER, so the
+    // menu is rebuilt here — ROADMAP 116g. Without this the cap would apply only
+    // on first load, and a student who switched WORDS back to "from my lessons
+    // so far" would keep the whole course in the picker: the exact lie the item
+    // exists to remove, reachable in one click.
+    // ⚠️ ONLY WHEN THE ROW IS LIVE. Rebuilding a hidden picker resets a
+    // student's choice for a control they cannot see, and free play does not read
+    // it at all.
+    // ⚠️ THE CURRENT CHOICE IS CARRIED THROUGH and kept if it survives the cap.
+    if (!free && PLAYABLE.length) fillLessons(Number($('lesson').value));
     // ⚠️ HERE RATHER THAN ON THE GAME DROPDOWN'S OWN LISTENER. The blurb depends
     // on isFreePlay(), which the SCOPE row can change without the game changing,
     // so hanging this off `change` on #game would leave a stale paragraph every

@@ -58,7 +58,38 @@ BOARD BEHIND A FLAG WAS DELIBERATELY NOT BUILT** — rule 5, and exactly what
 3. ⚠️⚠️ **DELETE THE LOSER IN THE SAME DEPLOY** (Rule 9), and delete the lab
    page with it.
 
-### 116g — ⚠️ "WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU
+### 116g — ✅ CLOSED (Round 117, Bennett). THE LESSON MENU NO LONGER LIES
+
+✅ **`game-shell.js` v1.8.0 `arcadeLessonMenu()`; `arcade.html` v3.21.0 calls it
+from `fillLessons()`, and `applyGameMode()` rebuilds the menu when WORDS
+changes** — without that last part the cap would apply only on first load and the
+lie would be one click away. ⚠️ The cap lives beside `arcadeWindow()` rather than
+on the page: that function's header already forbids a second window over the same
+list, and a page cannot be imported, so a rule written there could only be
+grepped rather than driven against real progress data.
+
+⚠️⚠️ **THE EXCEPTION FAILS QUIETLY, NOT LOUDLY, AND THAT IS THE TRAP.**
+`arcadeWindow()` with no progress returns **0** — so the naive fix hands a
+brand-new child a legal, non-empty and entirely wrong menu of ONE. The
+no-history case is answered before the window is consulted at all.
+⚠️ **AND THE CAP IS A `LESSONS` INDEX WHILE THE `<option>` VALUE IS A `PLAYABLE`
+ONE** — `PLAYABLE` drops lessons with no playable run, so comparing them would
+offer work past the window to exactly the students whose course has a gap in it.
+
+⭐ `tests/arcade-scope-menu-test.mjs` drives the real 47-lesson corpus, was
+written before the fix, and is mutation-verified: restoring the shipped
+behaviour turns four assertions red. It also **found a defect in its own
+author's first draft** — see the judgement call below.
+
+⚠️ **ONE JUDGEMENT AT THE EDGE OF JAKE'S RULING, AWAITING HIS OVERRULE IF WRONG:**
+a student with a `lessonProgress` record who has PASSED nothing has still started
+lesson 1, so they are offered **lesson 1 only**, not the whole course. If an
+attempt should count as "haven't done anything", it is one line in
+`arcadeLessonMenu()` and the Part C assertion inverts with it.
+
+The original text is kept below as the record.
+
+### ~~116g — ⚠️ "WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU~~
 
 **Jake, 2026-09-11, playing Deadline:** *"if a student picks 'What I know so far'
 in deadline, it still gives him access to literally every lesson. The lesson menu
@@ -118,6 +149,27 @@ translates under it" — every pane shifts by the same offset, wrapping, so the
 board is genuinely rearranged rather than emptied. ⚠️ A translation preserves
 density, which is exactly why it is the right mechanic and the current push is
 not: it buys the student BREATHING ROOM without buying them fewer words.
+
+⚠️⚠️⚠️ **ROUND 117 AMENDMENT — PART H IS MEASURING A BOARD NO STUDENT PLAYS, SO
+RE-POINT IT AT `GameDirector` BEFORE WRITING THE IDLE FLOOR.** Part H spawns on a
+hardcoded 2500ms timer to a hardcoded ceiling of 8 and never touches the director;
+**the real interval at these gates is 9.6–17.3 seconds.** That is why it reports
+9.3 idle hits and passes while the live game gives ~1.6 over a longer window.
+Driving the real pipeline (8 seeds, 5 minutes, idle, 20 WPM gate): **median first
+threat 138–217s, one seed never hit at all, half the seeds alive at five
+minutes** — Jake's two untouched minutes are the MEDIAN, not bad luck. A typist
+above 60 kpm takes **zero** hits.
+⭐⭐ **AND THE CAUSE IS GEOMETRY, NOT DENSITY — average occupancy for an idle
+student is 7.5 panes, so the board is FULL.** `HIT_R` is 0.10 in a field 2.7
+wide, and **the pane's own size is not in the hit test at all** while
+`drawPanes()` draws a nine-letter window at ≈0.25 field units. Glass visibly
+passes over the prism and nothing happens. Asteroids tests
+`rockRadius + shipRadius`; Shards tests a point. ⚠️ Jake, on the proposed inward
+curve: *"Asteroids is a stressful game, and there's no curve."* He is right —
+Asteroids gets its pressure from big objects, a small screen and **a player who
+moves**, and a curve is a force bolted on to replace all three.
+⭐ **THIS ALSO REFRAMES PART 4: the translation is THRUST**, the mobility
+Asteroids has and Shards lacks, returned as a discrete earned move.
 
 ⚠️ **AND THE MEASUREMENT PROBLEM IS REAL.** `shatter-shards-test.mjs` Part H
 already records that Shards is survive-by-luck and score-by-skill (116e), and it

@@ -1,3 +1,9 @@
+// game-shell.js v1.8.0 — Round 117 (Corona): `arcadeLessonMenu()`, ROADMAP 116g.
+// The WORDS control filtered the arcade's word POOL and not the lesson PICKER
+// beside it, so a child who chose *from my lessons so far* was still offered
+// every lesson in the course. ⭐ THE CAP LIVES HERE, BESIDE arcadeWindow(), for
+// the reason that function's header already gives: two windows over one list
+// means the arcade draws its letters from one lesson and its menu from another.
 // game-shell.js v1.7.0 — Round 104 (Bar-Let): `arcadeWindow()` and `levelIdx`.
 // Jake, 2026-09-09: *"choosing a specific level in the lessons should help decide
 // what characters are available and what the starting speed should be."* ⭐ AND IT
@@ -144,7 +150,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.7.0';
+export const GAME_SHELL_VERSION = '1.8.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -436,6 +442,70 @@ export function arcadeWindow(lessons, progress, levelIdx) {
     // passed — otherwise a student who has never passed anything gets an empty
     // key set and an arcade with no letters in it.
     return Math.min(list.length - 1, furthest + 1);
+}
+
+/**
+ * ⚠️⚠️ WHICH LESSONS THE ARCADE'S PICKER MAY OFFER. ROADMAP 116g, Round 117.
+ *
+ * Jake, 2026-09-11, playing Deadline: *"if a student picks 'What I know so far'
+ * in deadline, it still gives him access to literally every lesson. The lesson
+ * menu should be locked to exactly what the kid has gotten to. Full pool is
+ * available for those kids who haven't done anything."*
+ *
+ * The WORDS control filtered the POOL and not the PICKER beside it, so a child
+ * who chose the honest option was handed Unit 5 anyway. ⭐ THE SETTING WAS
+ * LYING, WHICH IS WORSE THAN NOT OFFERING IT — a control that names a promise
+ * and does not keep it teaches a student to stop reading the controls.
+ *
+ * ⚠️⚠️ IT LIVES HERE, NEXT TO arcadeWindow(), AND NOT IN arcade.html. Two
+ * reasons, and the first is this file's oldest rule: the window arithmetic is
+ * spelled ONCE or the arcade draws its letters from one lesson, its speed from
+ * another and its menu from a third. The second is Rule 10 — `arcade.html` is a
+ * page and cannot be imported, so a rule that lived there could only ever be
+ * checked by grepping its source, and this one is about a student's progress
+ * data rather than about a string.
+ *
+ * @param {object} o
+ *   lessons   {object[]} course order, the same array arcadeKeySet() takes
+ *   progress  {object}   userProgress
+ *   scope     {string}   'level' | 'full' — the WORDS control
+ *   playable  {object[]} the page's PLAYABLE entries, each carrying `idx`,
+ *                        its index into `lessons`
+ * @returns {number[]} positions in `playable` the picker may offer, in order.
+ *
+ * ⚠️⚠️ IT RETURNS POSITIONS IN `playable`, NOT LESSON INDICES, because that is
+ * what the <option> values are subscripted with. `PLAYABLE` drops any lesson
+ * with no playable run, so position 6 in the picker is NOT lesson 6 — comparing
+ * the cap against the picker's own position would offer work past the window to
+ * exactly those students whose course has a gap in it.
+ */
+export function arcadeLessonMenu({ lessons, progress, scope, playable } = {}) {
+    const list = Array.isArray(playable) ? playable : [];
+    const all = list.map((_, i) => i);
+    if (!list.length) return all;
+    // `full` is the student asking for everything. Nothing is withheld.
+    if (scope === 'full') return all;
+
+    // ⚠️⚠️ THE EXCEPTION IS LOAD-BEARING AND IT IS NOT THE EMPTY CASE. Jake:
+    // *"Full pool is available for those kids who haven't done anything."*
+    // ⭐ THE TRAP IS THAT THE OBVIOUS IMPLEMENTATION FAILS THIS QUIETLY RATHER
+    // THAN LOUDLY: arcadeWindow() with no progress returns 0, which is a legal,
+    // non-empty and entirely wrong menu of ONE — a child's first ever visit to
+    // the arcade would offer them "F and J" and nothing else. So the no-history
+    // case is answered HERE, before the window is consulted at all.
+    let history = false;
+    for (const k in (progress || {})) { if (progress[k]) { history = true; break; } }
+    if (!history) return all;
+
+    const upTo = arcadeWindow(Array.isArray(lessons) ? lessons : [], progress);
+    if (upTo < 0) return all;
+    const kept = [];
+    list.forEach((p, i) => { if (p && p.idx <= upTo) kept.push(i); });
+    // ⚠️ AND THE PICKER IS NEVER EMPTY. A student whose reached lessons all
+    // dropped out of PLAYABLE would otherwise get an empty menu beside an
+    // enabled Play button, which reads as a dead button. ⭐ SAME RULING AS THE
+    // no-history CASE: a child never meets a picker with nothing in it.
+    return kept.length ? kept : all;
 }
 
 export function arcadeKeySet(lessons, progress, levelIdx) {

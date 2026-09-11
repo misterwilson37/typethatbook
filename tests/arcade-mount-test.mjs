@@ -1,3 +1,10 @@
+// arcade-mount-test.mjs v1.1.0 — Round 117 (Corona): btn() is visibility-aware.
+// ⚠⚠ A4 WAS RED AGAINST CORRECT CODE. `hidePanel()` adds `display:none` and does
+// NOT empty the panel, and game-shatter supplies `onCountdown`, so the Start
+// button's NODE survives the countdown — hidden. The assertion was written
+// against the other countdown path, where panelHTML() clears the panel.
+// ⭐ FIXED IN THE READER, NOT THE ASSERTION: every btn() call had the same blind
+// spot, including the one that checks the panel APPEARS.
 // arcade-mount-test.mjs v1.0.0 — Round 116 (Sun).
 //
 // ⚠️⚠️ THE FIRST HARNESS IN THIS PROJECT THAT ACTUALLY RUNS A GAME VIEW, AND IT
@@ -84,8 +91,35 @@ const { COUNTDOWN_MS } = await import('../game-chrome.js');
 const fire = key => dom.window.dispatchEvent(
     new dom.window.KeyboardEvent('keydown', { key, bubbles: true }));
 const tick = (n = 1) => new Promise(r => setTimeout(r, n));
+/**
+ * ⚠️⚠️ A BUTTON THE STUDENT CANNOT SEE IS NOT ON OFFER, AND THE FIRST DRAFT OF
+ * THIS HELPER COULD NOT TELL THE DIFFERENCE. Round 117 (Corona) found A4 red
+ * against correct code for exactly that reason.
+ *
+ * `game-chrome.js`'s `hidePanel()` adds `.gc-hidden` — `display:none` — and does
+ * NOT empty the panel. Which path a countdown takes decides whether the Start
+ * button's NODE survives: a host that supplies `onCountdown` (game-shatter has
+ * since Round 99) gets `hidePanel()` alone, so the node stays, hidden; a host
+ * that does not gets `panelHTML([num])`, which clears `panel.textContent` and
+ * takes the node with it. ⭐ THE ASSERTION WAS WRITTEN AGAINST THE SECOND PATH
+ * AND THE VIEW TAKES THE FIRST.
+ *
+ * ⚠️ FIXING THE READER, NOT THE ONE ASSERTION. Every `btn()` call here had the
+ * same blind spot: `btn('Start') != null` would have passed on a get-ready panel
+ * that never became visible, which is the failure it exists to catch.
+ *
+ * ⚠️ IT READS THE CLASS, NOT `getComputedStyle`. jsdom does not apply the
+ * stylesheet this module injects, so a computed-style check would report every
+ * button visible and quietly restore the blind spot.
+ */
+const hidden = el => {
+    for (let n = el; n && n.classList; n = n.parentElement) {
+        if (n.classList.contains('gc-hidden')) return true;
+    }
+    return false;
+};
 const btn = label => [...document.querySelectorAll('button')]
-    .find(b => (b.textContent || '').trim() === label);
+    .find(b => (b.textContent || '').trim() === label && !hidden(b));
 
 // ═════════════════════════════════════════════════════════════════════════════
 console.log('\nA — A VIEW MOUNTS, DRAWS, BANKS AND TEARS DOWN');

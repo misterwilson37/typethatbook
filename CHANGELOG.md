@@ -1,5 +1,191 @@
 # CHANGELOG — TypeThatBook
 
+## Round 117 (Bennett) — a red suite the documents called green, and a control that lied
+
+Instance name: **Bennett** — the Bennett, 1910, one of the smallest portables
+ever built. ⚠️ Checked against CHANGELOG, HANDOFF, ROADMAP, README and
+`tests/README.md`, **and then against the whole repo, which is what saved it**:
+the obvious pick was *Corona* and **it is already taken**. `Sholes` is Round 14,
+in `docs/DESIGN-TELEMETRY.md` — a file the five-document check does not read.
+⭐ **GREP THE REPO, NOT JUST THE DOCS.** Round 113 recorded this exact trap with
+*Yost* and the check is still not wide enough by default.
+
+Jake: *"But the fixes going first. 116h will require some conversation."*
+
+---
+
+### ⚠️⚠️⚠️ THE SUITE I WAS HANDED WAS NOT GREEN, AND HANDOFF SAID IT WAS
+
+HANDOFF's START HERE claimed **99 harnesses pass**. After `npm install`, three
+failed. ⭐ **TWO WERE REAL, AND ONE HAD BEEN RED FOR A WHOLE ROUND ON THE MOST
+IMPORTANT ARITHMETIC IN SHATTER.**
+
+* **`tests/shatter-board-test.mjs` 1.1.0 → 1.2.0 — PART B, SEVEN ASSERTIONS RED.**
+  Round 116 correctly moved `SHATTER_COST_FACTOR` **2 → 3** (a word breaks
+  twice now) and raised `MAX_SPLIT_DEPTH` to 2. This file went on asserting
+  `SHATTER_COST_FACTOR === 2`, `lifetimeMs * 2`, `intervalMs * 2`,
+  `quotaChars === raw * 2`, a 30 WPM figure that is now 45, and that a first-rung
+  piece is terminal — which it no longer is, by design.
+  * ⚠️⚠️ **AND `CHANGELOG.md` ASSERTED THE OPPOSITE.** Round 116's own entry says
+    these checks *"read `SHATTER_COST_FACTOR` now, so the next person to change
+    it is told what"*. **They did not.** The line hardcoded the literal `2`. The
+    one harness whose job is to guard the number that prices every Shatter gate
+    was broken, and the document said it was the thing protecting us.
+  * ⭐ **THE REPAIR FOUND A THIRD DEFECT, AND IT IS THE INTERESTING ONE.** The old
+    check demanded the total cost to fully clear a target **equal** 3N. It is a
+    **CEILING**, not an equality — only a piece of 4+ characters breaks again, so
+    the third rung is paid on some words and not others: `unusually` costs
+    9 + 9 + 5 = **23 against a 27 ceiling**. `shatter-board.js`'s own header says
+    *"so 3N is the ceiling"*; the harness demanded something stronger and false,
+    and would have gone red on any correct future change to the split ladder.
+    ⚠️ **THE DIRECTION OF THE ERROR IS THE POINT, NOT THE PEDANTRY:** the only
+    safe property is that the shell is never told LESS work than the student must
+    do. Over-pricing buys a child time; under-pricing hands them a quota that was
+    never reachable, which is the defect Part B exists to prevent.
+* **`tests/arcade-mount-test.mjs` 1.0.0 → 1.1.0 — A4 WAS RED AGAINST CORRECT
+  CODE.** `game-chrome.js`'s `hidePanel()` adds `.gc-hidden` (`display:none`) and
+  does **not** empty the panel, and `game-shatter.js` has supplied `onCountdown`
+  since Round 99 — so `beginCountdown()` takes the `hidePanel()` branch and the
+  Start button's NODE survives, hidden. The assertion was written against the
+  OTHER path, where `panelHTML([num])` clears `panel.textContent` and takes the
+  node with it.
+  * ⭐ **FIXED IN THE READER, NOT IN THE ONE ASSERTION.** Every `btn()` call in
+    the file had the same blind spot — including `btn('Start') != null`, which
+    would have passed on a get-ready panel that never became visible, i.e. the
+    exact failure it exists to catch. `btn()` now walks ancestors for
+    `.gc-hidden`.
+  * ⚠️ **IT READS THE CLASS, NOT `getComputedStyle`.** jsdom does not apply the
+    stylesheet this module injects, so a computed-style check would report every
+    button visible and quietly restore the blind spot.
+  * ⚠️ **MUTATION-VERIFIED (rule 6):** stub `hidePanel()` out and A4 goes red.
+* **`docs-vs-repo-test.mjs`** — A3 red on `tools/HOW-TO-RUN-THE-LABS.md`, a file
+  Round 116 added without its §9 document-map row; C2 red once the count moved.
+  Both fixed in the same edit, per HANDOFF's standing warning about that phrase.
+
+⭐⭐ **THE LESSON, AND IT IS NOT "RUN THE SUITE".** Rule 1 already says never
+carry a failure count forward without reading an error. ⚠️⚠️ **THIS ROUND ADDS
+THE MIRROR: NEVER CARRY A *PASS* COUNT FORWARD WITHOUT RUNNING IT.** A count
+written into a document is a claim about a command nobody ran, and it is exactly
+as load-bearing as a failure count and considerably more comforting.
+
+---
+
+### ✅ ROADMAP 116g — THE LESSON MENU NO LONGER LIES
+
+Jake, playing Deadline: *"if a student picks 'What I know so far' in deadline, it
+still gives him access to literally every lesson. The lesson menu should be
+locked to exactly what the kid has gotten to. Full pool is available for those
+kids who haven't done anything."*
+
+* **`game-shell.js` 1.7.0 → 1.8.0 — `arcadeLessonMenu()`.** The WORDS control
+  filtered the word POOL and not the PICKER beside it, so a child who chose the
+  honest option was handed Unit 5 anyway. ⭐ **THE SETTING WAS LYING, WHICH IS
+  WORSE THAN NOT OFFERING IT** — a control that names a promise and does not keep
+  it teaches a student to stop reading the controls.
+  * ⚠️ **IT LIVES BESIDE `arcadeWindow()`, NOT ON THE PAGE.** Two reasons. That
+    function's header already forbids a second window over the same list — the
+    arcade would draw its letters from one lesson and its menu from another. And
+    **a page cannot be imported**, so a rule written in `arcade.html` could only
+    ever be checked by grepping its source, while this one is about a student's
+    progress data rather than about a string.
+* **`arcade.html` 3.20.0 → 3.21.0.** `fillLessons()` builds from the capped menu
+  and takes an optional lesson to re-select; `applyGameMode()` rebuilds it
+  whenever WORDS changes.
+  * ⚠️⚠️ **WITHOUT THE REBUILD THE CAP WOULD APPLY ONLY ON FIRST LOAD**, and a
+    student who flipped WORDS back to *from my lessons so far* would keep the
+    whole course in the picker: the same lie, reachable in one click.
+  * ⚠️ **ONLY WHEN THE ROW IS LIVE**, and the current choice is carried through
+    and kept if it survives the cap — rebuilding a hidden picker resets a
+    student's choice for a control they cannot see.
+
+⚠️⚠️ **THREE THINGS THAT ARE EASY TO GET WRONG, NOW PINNED:**
+
+1. **The exception is not the empty case, and the naive fix fails it QUIETLY.**
+   `arcadeWindow()` with no progress returns **0** — a legal, non-empty and
+   entirely wrong menu of ONE. A child's first ever visit to the arcade would
+   offer them *"F and J — Your Home Base"* and nothing else. ⭐ The no-history
+   case is therefore answered BEFORE the window is consulted at all.
+2. **The cap is a `LESSONS` index; the `<option>` value is a `PLAYABLE` one.**
+   `PLAYABLE` drops any lesson with no playable run, so position 6 in the picker
+   is not lesson 6, and `currentRun()`, `currentLesson()` and `fillRuns()` all
+   subscript `PLAYABLE` with that value. Comparing the cap against the picker's
+   own position would offer work past the window to exactly those students whose
+   course has a gap in it.
+3. **The picker is never empty**, whatever the data says — a student whose
+   reached lessons all dropped out of `PLAYABLE` gets the whole list back rather
+   than an empty menu beside an enabled Play button.
+
+* **`tests/arcade-scope-menu-test.mjs` 1.0.0 — NEW.** Drives the real 47-lesson
+  corpus (Rule 10), including a `PLAYABLE` built with deliberate holes, because
+  an index bug is invisible against a gapless three-lesson fixture.
+  * ⚠️ **WRITTEN FIRST AND WATCHED TO FAIL**, then mutation-verified by restoring
+    the shipped behaviour — which turns four assertions red.
+  * ⭐ **AND IT FOUND A DEFECT IN ITS OWN AUTHOR'S FIRST DRAFT**, which is the
+    only reason to believe the rest of it.
+
+⚠️ **ONE JUDGEMENT AT THE EDGE OF JAKE'S RULING, AND IT IS FLAGGED FOR OVERRULE.**
+A student with a `lessonProgress` record who has PASSED nothing has still
+*started* lesson 1 — a document only exists because they attempted it. They are
+therefore treated as having history and offered **lesson 1 only**, not the whole
+course. *"Locked to exactly what the kid has gotten to"* is the rule, they have
+gotten to one lesson, and handing them all 47 under a label reading *from my
+lessons so far* is the same lie, narrower. They are not trapped either: `full` is
+one control away and it is the honest name for what it gives them. ⚠️ **If an
+attempt should count as "haven't done anything", it is one line in
+`arcadeLessonMenu()`** and the Part C assertion inverts with it.
+
+---
+
+### ⚠️ 116h IS UNTOUCHED ON PURPOSE, AND THE FIRST PROPOSAL WAS WRONG
+
+Jake: *"Before you start curving stuff toward the prism, I'd like you to look at
+how asteroids works. Asteroids is a stressful game, and there's no curve."*
+
+⭐ **HE IS RIGHT, AND THE MEASUREMENT BACKS HIM.** Nothing in `shatter-shards.js`
+or `shatter-board.js` was changed this round. Two findings are recorded in
+ROADMAP 116h as an amendment:
+
+* ⚠️⚠️ **`shatter-shards-test.mjs` PART H IS MEASURING A BOARD NO STUDENT PLAYS.**
+  It spawns on a hardcoded 2500ms timer to a hardcoded ceiling of 8 and never
+  touches `GameDirector`; the real interval at these gates is **9.6–17.3
+  seconds**. That is why it reports 9.3 idle hits and passes while the live game
+  gives ≈1.6 over a longer window. **Re-point it at the director BEFORE writing
+  the idle floor**, or the new assertion goes into the same fiction.
+* ⚠️⚠️ **THE CAUSE IS GEOMETRY, NOT DENSITY.** Driving the real pipeline over 8
+  seeds and 5 minutes at a 20 WPM gate: median first threat **138–217s**, one
+  seed never hit at all, half the seeds alive at five minutes, and a typist above
+  60 kpm takes **zero** hits. But average occupancy for the idle student is
+  **7.5 panes** — the board is full. `HIT_R` is 0.10 in a field 2.7 wide, **the
+  pane's own size is not in the hit test at all**, and `drawPanes()` sizes a
+  nine-letter window at ≈**0.25** field units. ⭐ **GLASS VISIBLY PASSES OVER THE
+  PRISM AND NOTHING HAPPENS.** Asteroids tests `rockRadius + shipRadius`; Shards
+  tests a point. It also has big objects, a small screen and **a player who
+  moves** — and a curve is a force bolted on to replace all three.
+* ⭐ **THIS REFRAMES 116h PART 4: the warp translation is THRUST**, the mobility
+  Asteroids has and Shards lacks, returned as a discrete earned move — not a
+  relief mechanic.
+
+---
+
+### HOUSEKEEPING
+
+* **`shatter-shards.js` header corrected to v1.2.0.** It read `v1.1.0` over a
+  `SHATTER_SHARDS_VERSION = '1.2.0'`. No code change; the constant is what the
+  build panel reports, so the header was the half that was wrong. ⚠️ **The third
+  time this exact drift has been recorded in this repo** — `arcade.html` carries
+  two of its own.
+* **`run-all-tests.mjs` 1.28.0 → 1.29.0, IN BOTH COPIES.** ⚠️⚠️ **AND THAT IS THE
+  PROBLEM.** The registry exists twice — repo root and `tests/` — near-identical,
+  and **the root copy cannot run from the root**: it resolves `../game.js` and
+  dies with ENOENT. That is the Rule 9 shape exactly: one quantity, two records.
+  Editing both to keep them in step is the thing Rule 9 exists to stop being
+  normal. ⭐ **DELETING ONE IS A SMALL ROUND AND SHOULD BE SOON.**
+* **HANDOFF and README harness count 99 → 100**, in the same edit, per the
+  standing warning that `docs-vs-repo-test.mjs` C2 reads the first hit.
+
+**ALL 100 HARNESSES PASS.**
+
+
 ## Round 116 (Sun) — Shatter is stained glass, and the ship is a prism
 
 Instance name: **Sun** — the Sun Typewriter Company, New York, c.1901. Checked

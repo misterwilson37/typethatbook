@@ -1,6 +1,182 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-10 by Round 116 (Sun), for whoever is next
+> ## ▶ START HERE — written 2026-09-11 by Round 117 (Bennett), for whoever is next
+>
+> **Instance name: Bennett** — the Bennett, 1910, one of the smallest portables
+> ever built. Checked against all five doc files AND against the whole repo: the
+> obvious pick was *Corona* and **it is already taken**, which is Round 113's
+> trap exactly. ⚠️ `Sholes` is Round 14. **Grep the repo, not just the docs.**
+>
+> ⚠️⚠️ **THIS BLOCK WAS WRITTEN LAST**, per Round 113's rule.
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ THE SUITE I WAS HANDED WAS NOT GREEN, AND THE DOCUMENTS SAID IT WAS
+>
+> **HANDOFF claimed "99 harnesses pass". After `npm install`, three failed.** Two
+> were real and one of those had been red for a whole round on the most important
+> arithmetic in Shatter.
+>
+> 1. ⚠️⚠️ **`shatter-board-test.mjs` Part B — SEVEN ASSERTIONS RED.** Round 116
+>    correctly moved `SHATTER_COST_FACTOR` 2 → 3 and `MAX_SPLIT_DEPTH` to 2. This
+>    file went on asserting `=== 2`, and on asserting that a first-rung piece is
+>    terminal. ⭐ **AND `CHANGELOG.md` SAYS THESE CHECKS "read
+>    `SHATTER_COST_FACTOR` now". THEY DID NOT — the line hardcoded 2.** The one
+>    harness whose job is to guard the number that prices every Shatter gate was
+>    broken, and a document asserted the opposite.
+>    ⚠️ **AND THE REPAIR FOUND A THIRD THING:** the old check demanded the total
+>    clear cost EQUAL 3N. It is a **ceiling**, not an equality — only pieces of 4+
+>    characters break again, so `unusually` costs 9 + 9 + 5 = **23 against a 27
+>    ceiling**. `shatter-board.js`'s own header says "3N is the ceiling"; the
+>    harness demanded something stronger and false. It now asserts the direction
+>    that matters: the shell is never told LESS work than the student must do.
+> 2. ⚠️ **`arcade-mount-test.mjs` A4 was red against correct code.**
+>    `hidePanel()` adds `display:none` and does **not** empty the panel, and
+>    `game-shatter.js` supplies `onCountdown` — so the Start button's NODE
+>    survives the countdown, hidden. The assertion was written against the OTHER
+>    countdown path, where `panelHTML()` clears the panel.
+>    ⭐ **FIXED IN THE READER, NOT THE ASSERTION.** Every `btn()` call had the
+>    same blind spot, including `btn('Start') != null` — which would have passed
+>    on a get-ready panel that never became visible, the failure it exists to
+>    catch. Mutation-verified: stub out `hidePanel()` and A4 goes red.
+> 3. `docs-vs-repo-test.mjs` — A3 was red on `tools/HOW-TO-RUN-THE-LABS.md`,
+>    added by Round 116 without its document-map row. Both fixed.
+>
+> ⭐⭐ **THE LESSON, AND IT IS NOT "RUN THE SUITE".** Rule 1 already says never
+> carry a failure count forward without reading an error. ⚠️ **THIS ROUND ADDS
+> THE MIRROR: NEVER CARRY A *PASS* COUNT FORWARD WITHOUT RUNNING IT.** A count
+> written into a document is a claim about a command nobody ran.
+>
+> ---
+>
+> ## ✅ ROADMAP 116g IS CLOSED — THE LESSON MENU NO LONGER LIES
+>
+> Jake: *"if a student picks 'What I know so far' in deadline, it still gives him
+> access to literally every lesson."*
+>
+> **`game-shell.js` v1.8.0 grew `arcadeLessonMenu()`**, and `arcade.html` v3.21.0
+> calls it from `fillLessons()`. ⚠️ It lives beside `arcadeWindow()` and not on
+> the page, for that function's own stated reason — two windows over one list
+> means the arcade draws its letters from one lesson and its menu from another —
+> and because **a page cannot be imported**, so a rule written there could only
+> ever be grepped, never driven against real progress data.
+>
+> ⚠️⚠️ **THREE THINGS THAT ARE EASY TO GET WRONG AND ARE NOW PINNED:**
+> * **The exception is not the empty case.** `arcadeWindow()` with no progress
+>   returns **0** — a legal, non-empty, entirely wrong menu of ONE. A brand-new
+>   child would be offered "F and J" and nothing else. ⭐ The no-history case is
+>   answered BEFORE the window is consulted.
+> * **The cap is a `LESSONS` index; the `<option>` value is a `PLAYABLE` one.**
+>   `PLAYABLE` drops any lesson with no playable run, so position 6 is not lesson
+>   6. Comparing them would offer work past the window to exactly those students
+>   whose course has a gap in it. Part D drives that case.
+> * **`applyGameMode()` rebuilds the menu when WORDS changes**, or the cap would
+>   apply only on first load and the lie would be one click away.
+>
+> ⚠️ **ONE JUDGEMENT I MADE AT THE EDGE OF JAKE'S RULING, AND HE SHOULD OVERRULE
+> IT IF I GUESSED WRONG.** A student with a `lessonProgress` record who has
+> PASSED nothing has still *started* lesson 1 — the document only exists because
+> they attempted it. I treat them as having history, so they are offered **lesson
+> 1 only**, not the whole course. "Locked to exactly what the kid has gotten to"
+> is the rule and they have gotten to one lesson; handing them all 47 under a
+> label reading *from my lessons so far* is the same lie, narrower. **If an
+> attempt should count as "nothing", it is one line in `arcadeLessonMenu()`** and
+> the Part C assertion inverts with it.
+>
+> ⚠️ Rule 10 was followed in order: the harness was written first, failed
+> (`arcadeLessonMenu` did not exist), and was then **mutation-verified by
+> restoring the shipped behaviour**, which turns four assertions red.
+> ⭐ **AND IT FOUND A DEFECT IN MY OWN FIRST DRAFT** — the started-but-not-passed
+> case above went red before I had thought about it.
+>
+> ---
+>
+> ## ⚠️⚠️ 116h IS UNTOUCHED, ON PURPOSE, AND MY FIRST PROPOSAL WAS WRONG
+>
+> Jake: *"Before you start curving stuff toward the prism, I'd like you to look at
+> how asteroids works. Asteroids is a stressful game, and there's no curve."*
+> ⭐ **HE WAS RIGHT AND THE MEASUREMENT BACKS HIM.** I had proposed giving panes
+> an inward curve. That is a force bolted on to compensate for a geometry error.
+>
+> **What I measured before proposing anything — drive the REAL pipeline**
+> (`arcadeConfig()` → `GameDirector` → `ShardsBoard`, real 47-lesson corpus,
+> 8 seeds, 5-minute runs, idle student at a 20 WPM gate):
+>
+> | seed | first hit | hits in 5 min | dead |
+> |---|---|---|---|
+> | 3 | 138s | 1 | alive |
+> | 11 | 271s | 1 | alive |
+> | 21 | 110s | 3 | 172s |
+> | 37 | 42s | 3 | 173s |
+> | 53 | **never** | 0 | alive |
+> | 71 | 219s | 1 | alive |
+> | 89 | 111s | 3 | 296s |
+> | 101 | 217s | 1 | alive |
+>
+> ⚠️⚠️ **JAKE'S "TWO MINUTES UNTOUCHED WITH NO THREAT" IS THE MEDIAN EXPERIENCE,
+> NOT AN UNLUCKY RUN.** Half the seeds survive five minutes doing nothing. A
+> typist above 60 kpm takes **zero** hits at every speed tested.
+>
+> ⚠️⚠️⚠️ **AND `shatter-shards-test.mjs` PART H IS MEASURING A BOARD NO STUDENT
+> PLAYS.** It reports 9.3 idle hits over three minutes and passes. It never uses
+> the director: it spawns on a hardcoded 2500ms timer to a hardcoded ceiling of 8.
+> **The real interval at these gates is 9.6–17.3 seconds.** ⭐ **SO THE ROADMAP'S
+> INSTRUCTION NEEDS ONE AMENDMENT: re-point Part H at `GameDirector` FIRST, or the
+> new idle-floor assertion is written against the same fiction.**
+>
+> ⭐⭐ **WHY ASTEROIDS IS STRESSFUL WITHOUT A CURVE — three things Shards lacks:**
+> 1. ⚠️ **You move.** Collisions in Asteroids are mostly the player flying into
+>    something. The prism is nailed to the centre, so half the closing speed in
+>    every collision is simply absent.
+> 2. ⚠️⚠️ **Rocks are big, and the collision test knows it.** Asteroids tests
+>    `rockRadius + shipRadius`, dominated by the rock. Shards tests
+>    `hypot(x, y) <= HIT_R` with `HIT_R = 0.10` — **the pane's size is not in the
+>    test at all.** And `drawPanes()` sizes a nine-letter window at about **0.25
+>    in field units, two and a half times the radius at which it can hurt you.**
+>    ⭐ **GLASS VISIBLY PASSES OVER THE PRISM AND NOTHING HAPPENS.** That is not a
+>    difficulty setting; it is a defect, and it is most of what Jake felt.
+>    The arithmetic: a 0.10 disc in a 2.7-wide field is clipped by ~7% of random
+>    crossings; at 0.33 it is ~24%, about eleven times the area.
+> 3. **Waves, not a trickle.** Asteroids starts the screen full and each wave is
+>    bigger. Shards gets one pane every 9.6–17.3 seconds.
+>
+> ⭐ **AND IT REFRAMES 116h.4: the warp-as-translation is not a relief mechanic,
+> it is THRUST** — the mobility Asteroids has and Shards lacks, handed back as a
+> discrete earned move. That is why Jake's instinct on it was right and my
+> "breathing room" framing undersold it.
+>
+> ⚠️ **NOTHING IN 116h WAS CHANGED. Jake asked for the conversation first.**
+>
+> ---
+>
+> ## ⚠️ TWO THINGS I FOUND AND DID NOT FIX
+>
+> 1. ⚠️ **`run-all-tests.mjs` EXISTS TWICE** — at the repo root and in `tests/`,
+>    near-identical, and the **root copy cannot run from the root** (it resolves
+>    `../game.js`). That is a Rule 9 shape: one registry, two records. I edited
+>    BOTH to keep them in step, which is the thing Rule 9 exists to stop being
+>    normal. **Deleting one is a small round and should happen soon.**
+> 2. **114b is unchanged** — the arcade is still absent from `versions.js`
+>    SOURCES, so `docs-vs-repo-test.mjs` prints eight "no readable version stamp;
+>    skipped" notes. ⚠️ Those notes are expected and are not this round's doing.
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `game-shell.js` **v1.8.0** · `arcade.html` **v3.21.0** ·
+> `shatter-shards.js` **v1.2.0** (header corrected to match its constant — it
+> read v1.1.0 over a `'1.2.0'`; no code change) ·
+> `tests/arcade-scope-menu-test.mjs` **v1.0.0, new** ·
+> `tests/shatter-board-test.mjs` **v1.2.0** ·
+> `tests/arcade-mount-test.mjs` **v1.1.0** ·
+> `run-all-tests.mjs` **v1.29.0** (both copies).
+>
+> **ALL 100 HARNESSES PASS.**
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-10 by Round 116 (Sun)
 >
 > **Instance name: Sun** — the Sun Typewriter Company, New York, c.1901. Checked
 > against all five doc files and the 31 names already used: no hit. It is the
@@ -157,7 +333,9 @@
 >    quieter part of the map, which on a radar-centred field means the whole
 >    field translates under it — density preserved, board rearranged — not
 >    everything shoved away.
-> 1. ⚠️ **"WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU** in Deadline —
+> 1. ✅ **CLOSED, ROUND 117 — "WHAT I KNOW SO FAR" NOW LOCKS THE LESSON MENU.**
+>    Original text kept as the record:
+> 1. ~~⚠️ **"WHAT I KNOW SO FAR" DOES NOT LOCK THE LESSON MENU**~~ in Deadline —
 >    ROADMAP 116g. The scope control filters the word pool and not the picker, so
 >    a child who asks for only what they have learned is still offered every
 >    lesson. ⭐ **THE SETTING IS LYING**, which is worse than not offering it.
@@ -183,7 +361,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **99 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **100 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -6037,6 +6215,7 @@ a pointer to a file you should go and read.**
 | ~~`tests/reconcile-test.mjs`~~ | ⚠️⚠️ **THIS FILE DOES NOT EXIST AND THIS ROW POINTED AT NOTHING.** It was listed for its header, which stated what the reconciliation harness did *not* cover. The file is gone — renamed or absorbed — and the row outlived it, sending anyone who took the map seriously looking for something that is not there. **Caught by `docs-vs-repo-test.mjs` on its first run.** Row kept, struck through, because a silently deleted row teaches nothing |
 | `tests/TESTING-ttb-test-epubs.md` | the synthetic EPUB test corpus |
 | `tools/README.md` | 🆕 `audit-versions.mjs` and the two EPUB builders, with their accepted problem count |
+| `tools/HOW-TO-RUN-THE-LABS.md` | 🆕 how to open `shatter-drift-lab.html` and the other standalone benches. ⚠️ **Round 116 added the file and not the row**, and `docs-vs-repo-test.mjs` A3 was red on it for a whole round — the same class of miss the row below it records |
 | `library/gutCleaners/*` | the EPUB-normalisation project's own docs. Separate concern, leave alone |
 | `library/contentCleaner/*` | ⚠️ **THE BOOKCLEAN PROJECT — A SEPARATE PROJECT WITH ITS OWN HANDOFF, ITS OWN INSTANCE-NAMING SERIES AND 22 BATCH READMEs.** Language cleanup of the library's EPUBs. **Not mentioned in this table until Round 81**, which listed only `gutCleaners/` and so read as if that were the whole of it. Same rule: separate concern, leave alone |
 
