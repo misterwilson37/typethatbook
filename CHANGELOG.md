@@ -66,6 +66,144 @@ prism idea. Build it all please."*
   needs no palette literal. The left panel's tracery is a rose window; ⚠️ its
   rule is unchanged — still deliberately unreadable.
 
+### The mode pill becomes one module on four pages
+
+Jake: *"If you think you've got the rope to update the pills on index, learn AND
+learn2, go for it. If there's a way to make it so that when you click on school,
+it offers either learn or learn2…"*
+
+* **`site-nav.js` 1.0.0**, new. ⭐ **One record of the site map.** ⚠️ My earlier
+  estimate of *"four lines per page"* was wrong: `learn.html` and `learn2.html`
+  had no pill at all. Four hand-copied pills would be four records, and the day
+  Arcade gets renamed is the day they disagree — this app has no build step or
+  partials, so a module that paints itself is the only mechanism available. It
+  reads its colours from CSS custom properties with per-page fallbacks, so it
+  never knows which page it is on.
+* ⭐ **The School tab is a menu**, offering *Lessons* and *Lessons (beta)* with a
+  one-line note under each, so a student is told what they are choosing rather
+  than asked to know what "learn2" means. Absolutely positioned, so it overlaps
+  rather than reserving a band of nothing on every page. Closes on outside click
+  and on Escape.
+  ⚠️⚠️ **THAT MENU IS A SYMPTOM AND MUST NOT OUTLIVE ITS CAUSE.** `learn2` is an
+  unreconciled fork — HANDOFF open item 1 since Round 102. Deleting
+  `SCHOOL_PAGES[1]` collapses it back to a plain tab on every page at once.
+* **`index.html`, `learn.html`, `learn2.html`, `arcade.html`** each gain a
+  container and a two-line module import. ⚠️ learn's **"← Home" link is
+  replaced** — a Library tab and a Home link are two records of one route, and
+  the tab also says where the student is.
+* ⚠️ **`done-button-test.mjs` went red, and it was right to be checked.** It pins
+  that *"I'm done"* is never the only way off a typing page — a child who
+  believes leaving loses their minutes will not leave. ⭐ But it pinned the
+  MECHANISM (`id="back-btn"`) and so went red on an improvement, the third time
+  this round a harness has done that. It now asserts the promise, plus a new B4b:
+  if the exit is the pill, the pill must actually be **mounted** and not just an
+  empty container.
+
+
+### After Jake played it — the arcade stops looking like a different site
+
+* ⚠️⚠️ **`arcade.html` HAD NEVER LOADED COURIER PRIME.** Every rule in the file
+  has named the face since Round 82 and **nothing ever fetched it**, so every
+  student read the arcade in their device's fallback monospace while
+  `index.html`, `learn.html`, `reports.html` and `admin.html` all rendered in
+  the real one. ⭐ That is most of what *"feels like an entirely different
+  site"* actually was. It survived thirty-odd rounds because a missing font is
+  not an error: nothing throws, nothing logs, and it looks fine unless another
+  tab is open beside it. **`arcade.html` 3.16.0 → 3.20.0** across four passes:
+  * The marquee card becomes a **full-bleed sticky site header** on
+    `index.html`'s skeleton, with a three-way School / Library / Arcade pill.
+    ⚠️ The pill is the actual fix and is **incomplete until `index.html` and
+    `learn.html` carry it too** — ROADMAP 116f.
+  * **A three-column grid (`1fr auto 1fr`), not `space-between`.** With flex the
+    centre is only centred when the two sides happen to match, so the wordmark
+    would slide sideways the moment a student's name got longer or a clock went
+    from `—` to `1:21`.
+  * ⚠️⚠️ **THE WORDMARK WAS INVISIBLE ON SAFARI FOR ONE BUILD.** It was set with
+    `<g fill="var(--accent)">` — a presentation *attribute*, where Safari does
+    not resolve custom properties — so it painted black on a near-black bar, on
+    every iPad in the building, while looking correct in Chrome. Fill moved to
+    CSS. ⭐ **And the word now exists as TEXT that the SVG replaces only on
+    success**: it had shipped as an empty `<svg>` filled in by a module, so any
+    failure left the header not naming the page. A decorative upgrade must never
+    be able to subtract the name of the page.
+  * The **result card is an overlay in front of the arcade floor**, max-width and
+    centred, with a primary **Play again** above **Pick another cabinet**. It was
+    `.panel` — full width, so a two-line verdict stretched across 1000px, which
+    is what *"tiny and strangely shaped"* meant: sized by the page, not by its
+    contents. Stacked above the floor it also pushed the cabinets down and made a
+    student scroll to reach what they wanted next.
+  * **Cabinet art redrawn.** Shatter's thumbnail was still advertising *rocks* —
+    a different game from the one behind the button — and Shards had no art at
+    all. They share an art language and a glow on purpose: one world, two
+    physics.
+* **`game-draw.js` 1.16.0 → 1.17.0.** `sevenSegGlyphs()` and five letters in
+  `SEG_ON`, so ARCADE is set on the **same seven-segment device the game clocks
+  use** rather than a copy of the geometry. Unlit segments ghosted at the clocks'
+  own alpha — that is what makes it read as a display rather than a typeface, and
+  what stops the authentic lowercase `r` looking like a broken `R`.
+
+### Three things Jake found by playing
+
+* **`game-shatter.js` 1.4.0 → 1.6.0.**
+  * ⭐ **The countdown is the seven-segment one.** *"the countdown at the
+    beginning of shatter is not the digital countdown of deadline."*
+    `game-chrome.js` has offered `onCountdown` since Round 99 and Deadline was
+    the only view that ever took it up — the "option offered at one end,
+    consumed at neither" shape again. ⚠️ **Escape Key still has not.**
+  * ⭐ **The prism holds its bearing through a miss.** *"the prism ship points up
+    on mistakes, which is jarring when your target is below you."* A wrong key
+    drops the lock, which is right; the view read "no lock" as "nowhere to aim"
+    and flicked to its rest pose — a 180° snap at the moment the student is
+    already off balance. ⚠️ **Aim and lock are not the same question.**
+  * ⭐ **The prism shatters in slow motion**, in the whole finger spectrum rather
+    than the pane's palette — it has been refracting all eight fingers all game
+    and this is the only moment they appear at once.
+    ⚠️⚠️ **That needed a second clock, and the split is the careful part:** the
+    BOARD runs on `bNow`, which slows; the DIRECTOR keeps wall clock, so banked
+    seconds are untouched. Every board call reads `bNow` so the board stays
+    internally consistent — a warp cooldown measured on one clock and spent on
+    another is the Rule 11 shape. ⚠️ `bNow` can only ever run *slower*; one that
+    could run faster would bank time nobody typed in.
+* **`game-sprites.js` 1.5.1 → 1.6.0.** The prism **sputters** on a wrong key —
+  six fixed white sparks at the apex. ⚠️ White, never a finger colour: every
+  coloured thing on that field means "this is the finger for this key", and
+  sputtering in the colour of the key they got wrong would teach the wrong
+  association at the moment of peak attention.
+
+### Shards got the wrong words, and a word now breaks twice
+
+* ⚠️⚠️ **`arcade-pool.js` 2.1.0 → 2.2.0 — SHARDS WAS DEALT THE PLAIN WORD
+  BANKS.** `arcadePool()` read `if (game === 'shatter')` and Shards fell through
+  to `poolForLevel()`. Jake: *"Shards just got the whole word pool, which made it
+  play a little weird."* ⭐ **That function's own header, written two rounds
+  earlier, says *"two pages each branching on game id is two places to add the
+  fourth game to"*** — and then the fourth game was added and this branch was
+  not. ⚠️ A list of ids is still a second record of which games shatter; a fifth
+  belongs in `game-names.js` as a flag.
+* **`shatter-board.js` 1.3.0 → 1.4.0 — a word breaks TWICE.** Jake: *"it should
+  split into 2 or 3 and then split again — if there's no boundary except the fact
+  it has letters, it may as well split twice."* ⭐ The ladder always could;
+  `_break()` just stamped every piece `terminal: true`, which was never reasoned
+  about — it was the simplest thing that worked in Round 103. **`MAX_SPLIT_DEPTH`
+  is depth, which is a fact about the piece**, where `terminal: true` was a fact
+  about who made it. `MIN_RESPLIT_LEN` stops the second split producing rubble:
+  `us`+`ual` is a drill, `u`+`s` is a keystroke with a box round it.
+* ⚠️⚠️ **AND THAT FORCED `SHATTER_COST_FACTOR` FROM 2 TO 3.** It is not a
+  difficulty knob — it is the director's statement of how many keystrokes an
+  N-character target demands, and the ladder now demands N + N + N. Leaving it at
+  2 would have priced every word at two-thirds of the work it takes and then
+  failed students against a quota that was never reachable.
+  ⚠️ **Four assertions went red, and every one was RESTATING the constant rather
+  than deriving from it** (`=== 2`, `* 2`, "about 30 WPM", "exactly 2N"). They
+  read `SHATTER_COST_FACTOR` now, so the next person to change it is told what
+  else must move instead of getting a wall of red. The cost check **walks the
+  real ladder**, because the factor is a ceiling — `asdfjk` costs less, and a
+  test demanding exactly 3N would go red on good words.
+* **`shatter-shards.js` 1.1.0 → 1.2.0** takes the same depth rule. Two levels on
+  one board and one on the other would be two different games wearing the same
+  split ladder.
+
+
 ### Shards — the second cabinet
 
 Jake: *"build shard, please. I want kids to have that option."* And:

@@ -73,7 +73,23 @@ console.log('\n─── B. ⚠️ NEVER LOAD-BEARING ───');
         ok(!/>\s*Save\s*</.test(btn), `B2 ⚠️ ${f}: the label is NOT "Save"`);
         // The other exits must survive. This is never the only way out.
         ok(/id="logout-btn"/.test(html), `B3 ${f}: (Logout) still exists`);
-        ok(/id="hud-back-link"|id="back-btn"/.test(html), `B4 ⚠️ ${f}: the back link still exists`);
+        // ⚠️⚠️ THE PROMISE IS "THERE IS ANOTHER WAY OUT", NOT "THERE IS A LINK
+        // CALLED back-btn". Round 116 replaced learn.html's "← Home" with the
+        // shared mode pill, which is a BETTER exit — it offers Library and
+        // Arcade, and says where the student currently is, which the link never
+        // did. ⭐ THE FIRST DRAFT OF THIS CHECK PINNED THE MECHANISM AND WENT RED
+        // ON AN IMPROVEMENT, which is the third time this round a harness has
+        // done that. ⚠️ THE GUARANTEE ITSELF IS NOT NEGOTIABLE: "I'm done" must
+        // never become the only way off a typing page, because a child who
+        // believes leaving loses their minutes will not leave.
+        ok(/id="hud-back-link"|id="back-btn"|id="site-nav"/.test(html),
+           `B4 ⚠️ ${f}: a way out other than "I'm done" still exists`);
+        // ⚠️ AND IF IT IS THE PILL, IT MUST ACTUALLY BE MOUNTED. A container with
+        // nothing painting into it is an exit that does not exist.
+        if (/id="site-nav"/.test(html) && !/id="back-btn"/.test(html)) {
+            ok(/site-nav\.js/.test(html) && /mountSiteNav/.test(html),
+               `B4b ⚠️⚠️ ${f}: the pill is mounted, not just an empty container`);
+        }
     }
     for (const w of WRITERS) {
         const body = decomment(src(w.f));

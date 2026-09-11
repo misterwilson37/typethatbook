@@ -20,54 +20,14 @@
 > TOUCHING IT** — the rejected designs are recorded there with his words, and
 > the failure mode is very easy to walk back into.
 >
-> **Expected stamps:** `game-shatter.js` **v1.4.0**, `game-sprites.js` **v1.5.0**,
-> `game-chrome.js` **v1.10.0**,
-> `arcade-pool.js` **v2.1.0**, `shatter-board.js` **v1.2.0**,
-> `game-draw.js` **v1.16.0**.
+> **Expected stamps:** `arcade.html` **v3.20.0**, `game-shatter.js` **v1.6.0**,
+> `game-sprites.js` **v1.6.0**, `game-draw.js` **v1.17.0**, `game-chrome.js`
+> **v1.10.0**, `game-names.js` **v1.3.0**, `shatter-board.js` **v1.4.0**,
+> `shatter-shards.js` **v1.2.0**, `arcade-pool.js` **v2.2.0**.
 >
-> ---
->
-> ## ⚠️⚠️ TWO DEFECTS FOUND THIS ROUND THAT NOBODY WAS LOOKING FOR
->
-> **1. THE WORDS WERE ARRIVING IN ALPHABETICAL ORDER, IN ALL THREE GAMES THAT
-> WALK A POOL.** Jake, mid-round: *"the words are coming through
-> alphabetically...which is kind of lame."* ⭐ **NOBODY CHOSE IT.** It fell out of
-> three separately-correct decisions meeting: the word lists are STORED A–Z (so a
-> human can find a word in them), `wordsForKeys()` and `gradedOrder()` PRESERVE
-> input order (neither should invent one), and `nextTarget()` walks the array
-> with a wrapping cursor (learn.js hands it the sentences of a passage, which
-> must arrive in the author's order). ⚠️ **THE FIX IS IN `arcade-pool.js`, NOT IN
-> THE DIRECTOR** — shuffling in `nextTarget()` would shuffle learn.js's passages
-> and destroy Shatter's easy-band-first ramp. Shuffled **within** the difficulty
-> band for Shatter, outright for the word banks. Escape Key never had it;
-> `wordAvoiding()` already samples at random.
-> ⭐ **IT REACHED A CLASSROOM BECAUSE NO HARNESS HAD EVER LOOKED AT THE SEQUENCE
-> A STUDENT RECEIVES** — only at whether the pool was big enough and legal.
-> `arcade-pool-test.mjs` Part F now does, and it was written RED against the
-> shipped code first (Rule 10), printing Jake's exact complaint back.
->
-> **2. ⚠️⚠️ EVERY TEARDOWN IN THE ARCADE HAS BEEN THROWING, AND ESCAPE-TO-PAUSE
-> HAS BEEN DEAD AFTER THE FIRST RESTART.** `game-chrome.js` declared `pauseKey`
-> INSIDE `showReady()` while `destroy()` removed its listener at MOUNT scope.
-> * Every `destroy()` threw `ReferenceError: pauseKey is not defined`, so **every
->   statement after that line was skipped** — the panel, the control bar, and in
->   the caller the canvas removal and `board.destroy()`. `arcade.html` destroys
->   and re-mounts on every launch, so **switching cabinets stacked a dead canvas
->   on the page each time.**
-> * `showReady()` runs again on every restart, so the listener was re-added and
->   Escape called `setPaused()` twice per press — pause, immediately unpause.
->   **Escape-to-pause stopped working after the first "play again"**, which is
->   the precondition Jake asked for so the hover card would have something to
->   hang off (see the open list below — that item was blocked on a thing that was
->   already broken).
->
-> ⭐ **BOTH WERE FOUND BY RUNNING THE GAME, NOT BY READING IT**, and that is the
-> real result of this round. `tests/arcade-mount-test.mjs` is **the first harness
-> in this project that calls `mount()`**. HANDOFF rule 2 has said since Round 105
-> that a green suite does not mean the pages load; `module-parse-test.mjs` closed
-> the parse half and `arcade-panels-test.mjs` closed the panel-drawing half, but
-> **nothing had ever executed a frame loop, an input path, a spawn or a
-> teardown.** It found the chrome bug in its first minute.
+> ⚠️ **THE BUILD PANEL IS THE FASTEST WAY TO CHECK THESE.** Round 113 was
+> debugged against a page two builds behind. Ask for the panel before believing
+> a report.
 >
 > ---
 >
@@ -112,6 +72,43 @@
 > standalone, not linked, writes nothing, imports the real art and the real
 > split ladder so only motion differs. ⚠️ **EVERY NUMBER IN IT IS A GUESS** and
 > none came from `game-shell.js`. See `HOW-TO-RUN-THE-LABS.md`.
+>
+> ---
+>
+> ## ⚠️⚠️ FOUR DEFECTS JAKE FOUND BY PLAYING, THAT NO HARNESS COULD HAVE
+>
+> ⭐ **THE PATTERN IS THE POINT: none of these throws, logs, or fails a test.**
+> Every one of them looks exactly like working software from inside node.
+>
+> 1. **`arcade.html` had never loaded Courier Prime.** Every rule named the face
+>    since Round 82; nothing fetched it. Every student read the arcade in a
+>    fallback monospace while every other page used the real one. ⭐ **That was
+>    most of "it feels like an entirely different site"** — a symptom Jake
+>    reported twice before the cause turned out to be one missing `<link>`.
+> 2. ⚠️⚠️ **A wordmark invisible on Safari.** `<g fill="var(--accent)">` — a
+>    presentation ATTRIBUTE, where Safari does not resolve custom properties — so
+>    it painted black on a near-black bar on every iPad, and correct in Chrome.
+>    ⭐ **"INVISIBLE, NOT MISSING" IS NOW THE FIRST THING TO CHECK** when Jake
+>    says something is gone.
+> 3. **Shards was dealt the wrong words.** `arcadePool()` branched on
+>    `game === 'shatter'` and the fourth game fell through to the plain banks —
+>    in the same function whose header warns that a list of ids is a second place
+>    to add a game to.
+> 4. **Shatter's cabinet art still showed rocks**, three versions after the rocks
+>    were deleted. A student choosing from the floor was shown a different game
+>    from the one behind the button.
+>
+> ⚠️ **AND ONE I FOUND MYSELF, WHICH IS THE SAME CLASS:** the per-cell glass
+> bloom set `shadowBlur` in the innermost draw loop — up to twenty blurred fills
+> per pane per frame, and `shadowBlur` is the most expensive operation in Canvas
+> on iOS Safari. Identical output, ~100× the cost, on a 1-to-1 iPad programme.
+> `arcade-panels-test.mjs` K5b now counts shadowBlur WRITES, because the cost is
+> in the assignment and not in the pixels.
+>
+> ⚠️⚠️ **NOTHING VISUAL I PRODUCE IS BROWSER-VERIFIED. I CANNOT RUN ONE.** jsdom
+> proves a render path executes; it says nothing about whether a thing is legible,
+> affordable, or on screen at all. **Chrome-shaped assumptions are the failure
+> mode and Safari is the target.**
 >
 > ---
 >
@@ -8435,3 +8432,83 @@ the next three rounds putting it back.
 ⚠️ **`arcade.html` IS UNCHANGED.** Its build panel reads the runtime constants,
 so the five bumps above appear in it with no edit — which is the property that
 list was built for.
+
+---
+
+## §17. Round 116, continued — what playing it found
+
+⚠️ §16 was written before Jake played the build. Everything below is what
+happened after, and it is the more useful half of the round.
+
+### A. ⭐⭐ FIVE DEFECTS, NONE OF WHICH THROWS, LOGS OR FAILS A TEST
+
+| what | how it looked from node |
+|---|---|
+| `arcade.html` never loaded Courier Prime | correct: every rule names the face |
+| wordmark `fill="var(--accent)"` on an SVG **attribute** | correct: valid CSS value, valid attribute |
+| Shards dealt the plain word banks | correct: `arcadePool()` returned a legal pool |
+| Shatter's cabinet art still showed rocks | correct: valid SVG, renders fine |
+| `shadowBlur` in the per-cell draw loop | correct: identical pixels |
+
+⭐ **EVERY ONE IS A FACT ABOUT A BROWSER, A DEVICE, OR A HUMAN LOOKING AT THE
+SCREEN.** The suite is 99 harnesses deep and could not have caught a single one.
+⚠️⚠️ **THAT IS NOT AN ARGUMENT FOR FEWER HARNESSES** — Part H of the Shards test
+caught a defect no human would have found by playing (a slow typist being hit
+*more* than one who did nothing). It is an argument for knowing which questions
+each instrument can answer, and for shipping to Jake early rather than polishing.
+
+### B. ⚠️ THE TWO SAFARI ONES ARE A CATEGORY, NOT COINCIDENCE
+
+TTB runs on a 1-to-1 iPad programme. Both Safari defects rendered correctly in
+Chrome, which is where they were reasoned about. ⭐ **"INVISIBLE, NOT MISSING" IS
+NOW THE FIRST HYPOTHESIS** when Jake reports something gone: check the fill,
+check the font, check whether an element is present and unreadable before
+assuming it was deleted.
+
+⚠️ Known Safari traps now in play in this repo: `var()` in SVG presentation
+attributes (does not resolve), and `shadowBlur` (ruinous per-call cost). Neither
+has a harness and neither easily could.
+
+### C. ⭐ A WORD BREAKS TWICE, AND THE COST FACTOR HAD TO MOVE WITH IT
+
+Jake: *"if there's no boundary except the fact it has letters, it may as well
+split twice."* The ladder always could — `_break()` stamped every piece
+`terminal: true`, a Round 103 convenience nobody ever revisited.
+⚠️⚠️ **`SHATTER_COST_FACTOR` WENT 2 → 3 IN THE SAME EDIT AND THAT IS THE PART TO
+REMEMBER.** It is the director's statement of how many keystrokes a target really
+demands. A ladder that got deeper while the factor stayed still would have priced
+every word at two-thirds of its real work and then failed students against a
+quota that was never reachable — a pacing bug that looks like a child being slow.
+
+⚠️ **FOUR ASSERTIONS WENT RED AND ALL FOUR WERE RESTATING THE CONSTANT** rather
+than deriving from it: `=== 2`, `* 2`, "about 30 WPM", "exactly 2N". ⭐ **A
+HARNESS THAT HARDCODES A NUMBER IT COULD IMPORT TURNS A DELIBERATE CHANGE INTO A
+WALL OF RED** and teaches the next person that red means "edit the tests". They
+read the constant now. The cost check walks the real ladder, because the factor
+is a CEILING — `asdfjk` costs less, and a check demanding exactly 3N would go red
+on perfectly good words.
+
+### D. ⚠️ SLOW MOTION NEEDED A SECOND CLOCK
+
+The prism shatters in the whole finger spectrum when the student is hit, slowly.
+⭐ **THE BOARD RUNS ON `bNow`, THE DIRECTOR KEEPS WALL CLOCK.** Banked seconds
+are untouched, and every board call — advance, tryKey, canWarp, warp — reads the
+same clock so the board stays internally consistent. ⚠️⚠️ A warp cooldown
+measured on one clock and spent on another is the Rule 11 shape exactly.
+⚠️ **`bNow` CAN ONLY EVER RUN SLOWER THAN WALL CLOCK.** One that could run faster
+would let a student bank time they did not type in.
+
+### E. WHAT IS STILL OWED
+
+* ⚠️ **The mode pill exists on one page of three.** `index.html` and
+  `learn.html` still show two-way pills, so the arcade is the only page that
+  knows all three places exist. ROADMAP 116f. **One edit across both.**
+* **Escape Key still ignores `onCountdown`** and counts down in a different
+  typeface from the one it plays in — the same defect Shatter had.
+* **Deadline and Escape Key have still never been mounted by a harness.**
+  ROADMAP 116b, and the cheapest large win left.
+* ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` is still set, from when Shatter
+  genuinely was rough. **Jake's warning, Jake's to remove.**
+* ⚠️ Shatter's cabinet thumbnail hardcodes six finger colours rather than
+  importing the map. A second copy, knowingly, for six static polygons — flagged
+  in `arcade.html` as a place to revisit if the palette ever changes.

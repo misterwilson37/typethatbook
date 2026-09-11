@@ -201,6 +201,12 @@
         --ink: #cfe0ea; --ink-dim: #8aa2b4; --ink-ghost: #5f7387;
         --accent: #bfe9ff; --accent-line: #2b6c8a; --accent-fill: #164055;
         --good: #8fe8c8; --warn: #ffd27d; --bad: #ff8f8f;
+    /* ⚠️ site-nav.js READS THESE AND HAS NO COLOURS OF ITS OWN. Four pages, four
+       palettes, one pill — the module must not know which page it is on. */
+    --ttb-nav-rule: #1d2735; --ttb-nav-bg: #070b11; --ttb-nav-bg-hover: #111a26;
+    --ttb-nav-ink: #5f7387; --ttb-nav-hover: #cfe0ea;
+    --ttb-nav-accent: #bfe9ff; --ttb-nav-on-accent: #06121a;
+    --ttb-nav-menu-bg: #0b1018;
     }
     * { box-sizing: border-box; }
     body {
@@ -629,11 +635,12 @@
                  belongs to, and the two ways OUT first — this is the page a
                  child arrives at by accident more than any other. -->
             <div class="hdr-left">
-                <nav class="mode-toggle" aria-label="Switch mode">
-                    <a href="./learn.html" class="mode-btn">School</a>
-                    <a href="./index.html" class="mode-btn">Library</a>
-                    <span class="mode-btn active" aria-current="page">Arcade</span>
-                </nav>
+                <!-- ⭐ THE MODE PILL, PAINTED BY site-nav.js — ONE RECORD OF THE SITE MAP for
+                     all four pages. Hand-copying it would be four records, and the day Arcade is
+                     renamed is the day they start disagreeing. ⚠️ Its own module, importing no
+                     Firebase: a student who cannot reach the SDK must still be able to leave
+                     this page. -->
+                <span id="site-nav"></span>
             </div>
             <div class="hdr-mid">
                 <div class="site-title">
@@ -2570,6 +2577,10 @@ const begin = user => { if (started) return; started = true; load(user); };
 const AUTH_TIMEOUT_MS = 6000;
 setTimeout(() => begin(null), AUTH_TIMEOUT_MS);
 onAuthStateChanged(auth, user => begin(user), () => begin(null));
+</script>
+<script type="module">
+import { mountSiteNav } from './site-nav.js';
+mountSiteNav('#site-nav', 'arcade');
 </script>
 </body>
 </html>

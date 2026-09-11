@@ -89,7 +89,7 @@ numbers: make clearing the nearest pane *matter*, e.g. a cleared pane briefly
 suppresses a refill. ⚠️ Do not reach for a smaller `HIT_R` — that makes nobody
 die, which is a different game again.
 
-### 116f — ⚠️ THE MODE PILL EXISTS ON ONE PAGE OUT OF THREE
+### 116f — ✅ DONE (Round 116). THE MODE PILL IS ONE MODULE ON FOUR PAGES
 
 Round 116 gave `arcade.html` a real site header with a three-way
 **School / Library / Arcade** pill, which was the actual fix for *"it feels like
@@ -98,11 +98,18 @@ fine. ⭐ **BUT `index.html` AND `learn.html` STILL SHOW A TWO-WAY PILL**, so th
 arcade is the only page in TTB that knows all three places exist, and a student
 who lands on the library has no visible route to the arcade except the tile.
 
-⚠️ **DO IT AS ONE EDIT ACROSS BOTH PAGES.** A pill that means "two of the three"
-on one page and "three of three" on another is worse than the inconsistency it
-replaces. The markup is four lines and the CSS is already written twice; the
-real work is deciding whether it becomes a shared partial, which this app has no
-mechanism for.
+⭐ **DONE, AND "four lines per page" WAS WRONG** — `learn.html` and `learn2.html`
+had no pill at all. It is now `site-nav.js`, one module painting itself into all
+four pages, reading its colours from CSS custom properties so it need not know
+which page it is on. ⚠️ It replaced learn's "← Home" link: a Library tab and a
+Home link are two records of one route, and the tab also says where the student
+IS.
+
+⚠️⚠️ **THE SCHOOL TAB IS A MENU BECAUSE `learn2` EXISTS, AND THAT MENU IS A
+SYMPTOM.** Jake asked for it and it is genuinely useful today, but the fork is
+still HANDOFF open item 1. ⭐ **WHEN THE FORK IS RECONCILED, DELETE
+`SCHOOL_PAGES[1]` AND THE MENU COLLAPSES TO A PLAIN TAB** — one line, and every
+page follows. Do not let the menu become the reason the fork is tolerable.
 
 ### 116b — DEADLINE AND ESCAPE KEY HAVE STILL NEVER BEEN MOUNTED BY A HARNESS
 
