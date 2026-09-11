@@ -1,3 +1,7 @@
+// game-sprites.js v1.5.1 — ⚠️ PERF: the per-cell bloom stops using shadowBlur.
+//   It was inside the innermost draw loop — up to 20 blurred fills per pane per
+//   frame — and shadowBlur is the most expensive canvas op on iOS Safari, which
+//   is what this app runs on. Additive compositing instead; same read, ~free.
 // game-sprites.js v1.5.0 — THE ARCADE'S ARTWORK. Rounds 106, 112, 116 (Sun).
 //
 // v1.5.0 — ⭐ EVERY CELL IS COLOURED FROM SPAWN, NOT ONLY ONCE IT LIGHTS. Jake:
@@ -65,7 +69,7 @@
 // ⚠️ PURE-ISH: it draws to a 2D context and does nothing else. No DOM, no state,
 // no timers, no Math.random(). Every function takes everything it needs.
 
-export const GAME_SPRITES_VERSION = '1.5.0';
+export const GAME_SPRITES_VERSION = '1.5.1';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ESCAPE KEY — 24×24 PIXEL SPRITES
@@ -618,13 +622,25 @@ export function drawPane(ctx, x, y, r, cut, o) {
         // The lit cells get a little bloom, so "lit" is not only an alpha step
         // — on a small pane at the far end of the field alpha alone is too
         // subtle to read at a glance.
+        //
+        // ⚠️⚠️ ADDITIVE, NOT `shadowBlur`, AND THIS IS A CLASSROOM iPAD
+        // CONSTRAINT RATHER THAN A STYLE CHOICE. The first draft set
+        // `shadowColor`/`shadowBlur` HERE, inside the per-cell loop — up to
+        // twenty blurred fills per pane, times every pane on the field, every
+        // frame. ⭐ shadowBlur IS THE MOST EXPENSIVE OPERATION IN CANVAS ON iOS
+        // SAFARI and TTB runs on a 1-to-1 iPad programme; that draft would have
+        // been the first thing a class noticed, and it would have looked like
+        // "the new game is broken" rather than "the new game is pretty".
+        // ⚠️ `lighter` is a compositing mode, costs essentially nothing, and
+        // reads as light *adding up* — which is what a lit window does anyway.
+        // ⚠️ THE GLOW ON THE RIM (below) IS FINE AND STAYS: it is once per pane,
+        // and only for panes that are locked or about to land.
         if (lit) {
-            ctx.save();
-            ctx.globalAlpha = 0.34;
-            ctx.shadowColor = pal[cut.tint[k] % pal.length];
-            ctx.shadowBlur = Math.max(4, r * 0.14);
+            ctx.globalCompositeOperation = 'lighter';
+            ctx.globalAlpha = 0.22;
             ctx.fill();
-            ctx.restore();
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1;
         }
     }
 

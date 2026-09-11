@@ -96,6 +96,12 @@ function recorder() {
         // and a harness that DIES looks exactly like a harness that caught
         // something. See Part K.
         clip() {},
+        // ⚠️⚠️ shadowBlur IS RECORDED AS AN OP, NOT STORED AS A FIELD, because
+        // the COST is in the assignment, not in the pixels. Setting it once per
+        // cell and setting it once per pane look identical in the output and
+        // differ by two orders of magnitude on an iPad. A plain property could
+        // not tell the two apart. See Part K5b.
+        _shadowBlur: 0,
         // ⚠️ PRESENT SO A MUTATION CANNOT PASS BY CRASHING. Mutating
         // drawCountdownOverlay() to pulse via ctx.translate() threw a TypeError
         // on a recorder that lacked it, which LOOKS like a caught mutation and
@@ -142,6 +148,14 @@ function recorder() {
         createLinearGradient() { return { addColorStop() {} }; },
         createRadialGradient() { return { addColorStop() {} }; },
     };
+    // ⚠️ A SETTER RATHER THAN A FIELD — see `_shadowBlur` above. Every WRITE is
+    // logged, so a harness can ask how many times a draw call reached for the
+    // most expensive operation in Canvas.
+    Object.defineProperty(ctx, 'shadowBlur', {
+        get() { return ctx._shadowBlur; },
+        set(v) { ctx._shadowBlur = v; ops.push({ op: 'shadow', blur: v }); },
+    });
+
     return ctx;
 }
 
@@ -1622,6 +1636,20 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
                                           colors, rim: '#fff', tumble: false });
     } catch (_) { froze = false; }
     ok(froze, '\u26a0 and `tumble: false` holds it flat, for reduced motion');
+
+    // ── K5b. the innermost loop stays cheap ────────────────────────────────
+    // ⚠️⚠️ A PERFORMANCE ASSERTION, AND IT EARNS ITS PLACE. TTB runs on a
+    // classroom iPad programme and `shadowBlur` is the most expensive operation
+    // in Canvas on iOS Safari. v1.5.0 set it once PER LIT CELL — up to twenty
+    // blurred fills per pane, times every pane on the field, every frame.
+    // ⭐ NOTHING ELSE IN THIS SUITE WOULD HAVE CAUGHT IT: the output is
+    // identical, the harness is headless, and the only symptom is a class
+    // saying the new game is broken.
+    const blurs = drawAt(word.length).ops.filter(
+        o => o.op === 'shadow' && o.blur > 0).length;
+    ok(blurs <= 2,
+       '\u26a0\u26a0 a fully lit pane sets shadowBlur at most twice, not once per ' +
+       'cell (' + blurs + ' for ' + nCells + ' cells)');
 
     // ── K6. the rim carries state; the cells do not ────────────────────────
     const cNear = drawAt(1, { rim: '#ff5566', glow: '#ff5566', crack: 1 });
