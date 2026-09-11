@@ -1,4 +1,26 @@
-// game-sprites.js v1.2.0 — THE ARCADE'S ARTWORK. Rounds 106, 112, 116 (Sun).
+// game-sprites.js v1.5.0 — THE ARCADE'S ARTWORK. Rounds 106, 112, 116 (Sun).
+//
+// v1.5.0 — ⭐ EVERY CELL IS COLOURED FROM SPAWN, NOT ONLY ONCE IT LIGHTS. Jake:
+//   *"can you give each pane of glass multiple colors? ... So a four letter
+//   word would have four colors (even if three are the same)?"* ⚠️ v1.4.0
+//   coloured a cell only when it lit, so an untyped window was uniformly dark
+//   and a half-typed one showed two colours out of four. **REAL STAINED GLASS
+//   IS COLOURED WHETHER OR NOT LIGHT IS BEHIND IT** — typing is the light
+//   coming on, not the colour arriving. A frozen `tint` permutation assigns
+//   each cell a letter's colour, shuffled so the tints do not run around the
+//   wheel in order, and `cellTarget()` now guarantees at least one cell per
+//   letter so no colour can be missing.
+//
+// v1.4.0 — ⚠️⚠️ THE PANE IS AN IRREGULAR LEADED WINDOW, NOT A ROW OF STRIPES.
+//   Jake on v1.3.0: *"I was imagining that it would be like an asteroid with
+//   random edges that kind of fill in with random panes. Yours is a word. Split
+//   into letters. It's...not impressive."* Correct. One-panel-per-letter made
+//   the geometry serve the letter count and produced a progress bar with a
+//   glass texture. Irregular silhouette, irregular cells from an off-centre
+//   hub, cells light in a frozen shuffle, word drawn FLAT on top — plus the
+//   Superman II tumble (a plate turning, `scale(cos θ)` under a rotation, never
+//   quite reaching edge-on).
+//
 //
 // v1.2.0 — ⭐ SHATTER IS STAINED GLASS. The rock functions are DELETED, not
 //   deprecated: `rockOutline`, `drawRock`, `drawShip` and `drawTargetWord` had
@@ -43,7 +65,7 @@
 // ⚠️ PURE-ISH: it draws to a 2D context and does nothing else. No DOM, no state,
 // no timers, no Math.random(). Every function takes everything it needs.
 
-export const GAME_SPRITES_VERSION = '1.2.0';
+export const GAME_SPRITES_VERSION = '1.5.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ESCAPE KEY — 24×24 PIXEL SPRITES
@@ -298,9 +320,18 @@ export function drawWeb(ctx, x, y, r) {
 // file imports nothing; game-draw.js owns the one import of keyboard.js's
 // FINGER_COLORS. A palette literal here would be the second copy.
 
-/** How many leaded cells a pane of `n` letters gets. ⚠️ NOT `n`. */
+/**
+ * How many leaded cells a pane of `n` letters gets. ⚠️ NOT `n` — the geometry is
+ * free of the letter count, which is the whole of Jake's note on v1.3.0.
+ *
+ * ⚠️ BUT IT IS NEVER FEWER THAN `n` EITHER, and that is a second, later
+ * constraint: every letter's colour has to appear somewhere in the window, so
+ * there must be at least one cell per letter to put them in. The floor of 6 is
+ * so a two-letter splinter is still a window; the ceiling of 20 is so a very
+ * long word does not become a mosaic of slivers.
+ */
 function cellTarget(n) {
-    return Math.max(6, Math.min(18, n + 4));
+    return Math.max(6, Math.min(20, Math.max(n, n + 4)));
 }
 
 /**
@@ -358,6 +389,34 @@ export function paneCut(rand = Math.random, letters = 6) {
         const t = order[i]; order[i] = order[j]; order[j] = t;
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ WHICH COLOUR EACH CELL IS, FROZEN AT SPAWN — Jake, 2026-09-10
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // *"can you give each pane of glass multiple colors? ... So a four letter
+    // word would have four colors (even if three are the same)?"*
+    //
+    // ⭐ EVERY CELL HAS A COLOUR FROM THE MOMENT IT SPAWNS. v1.4.0 coloured a
+    // cell only once it was lit, so an untyped window was uniformly dark and a
+    // half-typed one showed two colours out of four — which is not stained
+    // glass, it is a glass that gets stained. **REAL STAINED GLASS IS COLOURED
+    // WHETHER OR NOT THERE IS LIGHT BEHIND IT**, and typing is the light coming
+    // on, not the colour arriving.
+    //
+    // ⚠️ `0..cells-1` SHUFFLED, THEN TAKEN MOD THE WORD LENGTH AT DRAW TIME.
+    // That is what guarantees EVERY letter's colour appears: the indices are a
+    // permutation, so mod `n` distributes them as evenly as the counts allow
+    // and no colour can be skipped while cells >= n (which cellTarget() now
+    // guarantees). ⭐ Shuffling the ASSIGNMENT rather than the palette is the
+    // point — colours must not run in sector order around the wheel, or the
+    // window reads as a colour chart.
+    const tint = [];
+    for (let i = 0; i < sectors * rings; i++) tint.push(i);
+    for (let i = tint.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const t = tint[i]; tint[i] = tint[j]; tint[j] = t;
+    }
+
     const cracks = [];
     for (let i = 0; i < 3; i++) {
         cracks.push({ a: rand() * Math.PI * 2, bend: (rand() - 0.5) * 0.9,
@@ -365,7 +424,7 @@ export function paneCut(rand = Math.random, letters = 6) {
     }
 
     return {
-        sectors, rings, angles, reach, inner, hubA, hubR, order, cracks,
+        sectors, rings, angles, reach, inner, hubA, hubR, order, tint, cracks,
         // ── the Superman II tumble ──────────────────────────────────────────
         // ⭐ Jake: *"the glass panes that capture the evil Kryptonians kind of
         // tumble through space."* A flat plate turning in 3D, seen from the
@@ -536,8 +595,7 @@ export function drawPane(ctx, x, y, r, cut, o) {
         // lights the next cell of a frozen shuffle, so the glass fills in
         // scattered rather than sweeping across — which is the difference
         // between a window and a progress bar.
-        const lit = cut.order.indexOf(k);
-        if (lit >= onCount) continue;
+        const lit = cut.order.indexOf(k) < onCount;
         const poly = cells[k];
         ctx.beginPath();
         for (let q = 0; q < poly.length; q++) {
@@ -545,10 +603,29 @@ export function drawPane(ctx, x, y, r, cut, o) {
                     : ctx.lineTo(poly[q][0], poly[q][1]);
         }
         ctx.closePath();
-        ctx.fillStyle = pal[lit % pal.length];
-        ctx.globalAlpha = 0.80;
+        // ⚠️⚠️ THE COLOUR IS THE CELL'S OWN AND NEVER CHANGES. It is NOT keyed
+        // to how far through the word the student is — a cell that changed
+        // colour as it lit would make the finger colours meaningless, which is
+        // the one thing the palette is carrying.
+        ctx.fillStyle = pal[cut.tint[k] % pal.length];
+        // ⭐ UNLIT GLASS IS DIM, NOT ABSENT. A window is coloured before the
+        // sun is behind it. This is also what lets a four-letter word show
+        // four colours from the instant it spawns, which is what Jake asked
+        // for and what "stained glass" actually means.
+        ctx.globalAlpha = lit ? 0.84 : 0.26;
         ctx.fill();
         ctx.globalAlpha = 1;
+        // The lit cells get a little bloom, so "lit" is not only an alpha step
+        // — on a small pane at the far end of the field alpha alone is too
+        // subtle to read at a glance.
+        if (lit) {
+            ctx.save();
+            ctx.globalAlpha = 0.34;
+            ctx.shadowColor = pal[cut.tint[k] % pal.length];
+            ctx.shadowBlur = Math.max(4, r * 0.14);
+            ctx.fill();
+            ctx.restore();
+        }
     }
 
     // The sheen, across the whole window rather than per cell.

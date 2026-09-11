@@ -1,3 +1,9 @@
+// arcade-panels-test.mjs v1.7.0 — Round 116 (Sun): Part K rewritten twice more,
+// for the irregular pane and then for coloured-from-spawn glass. ⚠️⚠️ THE FIRST
+// REWRITE IS THE LESSON: v1.6.0's assertions were all TRUE of a pane Jake
+// looked at and rejected. They pinned "one panel per letter, evenly stepped,
+// marching left to right" — exactly the regularity that was wrong. A harness
+// holds a design still; it cannot tell you the design is bad.
 // arcade-panels-test.mjs v1.6.0 — Round 116 (Sun): Part K, the stained-glass
 // round. ⚠️⚠️ ITS FIRST DRAFT ALSO MISSED SOMETHING — the lean mutation (a came
 // that leans at the top and never unleans) left all 269 assertions green,
@@ -1454,31 +1460,98 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
         }, extra || {}));
         return c;
     };
-    // ⚠️ COUNTS CELL POLYGONS, NOT DISTINCT COLOURS. The colours are cycled
-    // when there are more cells than letters, so counting colours would cap at
-    // the palette size and quietly stop measuring anything.
-    const cellFills = c => c.ops.filter(
-        o => o.op === 'fill' && colors.includes(o.color)).length;
+    // ⚠️ LIT AND UNLIT ARE BOTH FILLS NOW, TOLD APART BY ALPHA. Counting fills
+    // alone would report every pane fully lit at all times.
     const nCells = cut.sectors * cut.rings;
-    ok(cellFills(drawAt(0)) === 0,
-       '\u26a0\u26a0 a fresh pane lights NO cells \u2014 the art never claims progress ' +
-       'the student has not made');
-    ok(cellFills(drawAt(word.length)) === nCells,
-       '\u2b50\u2b50 and a FINISHED word lights EVERY cell (' + nCells + ') \u2014 the ' +
+    const LIT = 0.5;   // anything above this is lit; below it is dim glass
+    const cellFills = c => c.ops.filter(
+        o => o.op === 'fill' && colors.includes(o.color));
+    const litCount = c => cellFills(c).filter(o => o.alpha > LIT).length;
+
+    // ── the colours are THERE before the light is ──────────────────────────
+    // ⚠️⚠️ JAKE, 2026-09-10: *"can you give each pane of glass multiple colors?
+    // ... So a four letter word would have four colors (even if three are the
+    // same)?"* ⭐ v1.4.0 coloured a cell only once it lit, so an untyped window
+    // was uniformly dark and a half-typed one showed two colours out of four.
+    // **REAL STAINED GLASS IS COLOURED WHETHER OR NOT LIGHT IS BEHIND IT.**
+    const fresh = drawAt(0);
+    ok(cellFills(fresh).length === nCells,
+       '\u26a0\u26a0 EVERY cell of an UNTYPED pane is already coloured (' +
+       cellFills(fresh).length + ' of ' + nCells + ')');
+    ok(litCount(fresh) === 0,
+       '\u26a0 and none of them is LIT \u2014 the art never claims progress the ' +
+       'student has not made');
+    // ⚠️⚠️ AND THE COLOUR ASSIGNMENT IS SHUFFLED. Left in index order the tints
+    // run around the wheel sector by sector, which is a colour chart rather
+    // than a window — and it is invisible to every count above, because all
+    // the colours are still present. ⭐ A MUTATION REMOVING THIS SHUFFLE PASSED
+    // 292 ASSERTIONS.
+    ok(cut.tint.some((t, i) => t !== i),
+       '\u26a0\u26a0 the colour assignment is SHUFFLED across the cells, so the ' +
+       'tints do not run in order around the wheel');
+    // ⚠️ AND IT IS A PERMUTATION, which is what guarantees the mod-n spread is
+    // even and no letter\u2019s colour can be crowded out.
+    ok(new Set(cut.tint).size === cut.tint.length,
+       'every cell gets exactly one tint slot, and no slot is used twice');
+
+    const freshColors = new Set(cellFills(fresh).map(o => o.color));
+    ok(freshColors.size === colors.length,
+       '\u2b50\u2b50 and all ' + colors.length + ' of the word\u2019s letter colours are ' +
+       'on the glass from the instant it spawns (' + freshColors.size + ')');
+
+    // ⭐ AND THAT HOLDS AT EVERY WORD LENGTH, which is the real claim. A four
+    // letter word gets four colours even if three of them are the same colour.
+    for (const n of [2, 4, 7, 11, 16]) {
+        const k = paneCut(seeded(9), n);
+        const slots = new Set(k.tint.map(t => t % n));
+        ok(slots.size === n,
+           'a ' + n + '-letter pane shows all ' + n + ' of its letter colours (' +
+           slots.size + ', across ' + (k.sectors * k.rings) + ' cells)');
+    }
+
+    // ── lighting ───────────────────────────────────────────────────────────
+    ok(litCount(drawAt(word.length)) === nCells,
+       '\u2b50\u2b50 a FINISHED word lights EVERY cell (' + nCells + ') \u2014 the ' +
        'window blazes for the instant before it goes, whatever its cell count');
-    const mid = cellFills(drawAt(3));
+    const mid = litCount(drawAt(3));
     ok(mid > 0 && mid < nCells,
-       'and partway through it is partly glazed (' + mid + ' of ' + nCells + ')');
-    ok(cellFills(drawAt(5)) >= mid,
+       'and partway through it is partly lit (' + mid + ' of ' + nCells + ')');
+    ok(litCount(drawAt(5)) >= mid,
        '\u26a0 lighting is monotonic \u2014 a cell never goes dark again');
+
+    // ⚠️⚠️ A CELL'S COLOUR NEVER CHANGES AS IT LIGHTS. v1.4.0 keyed the colour
+    // to the PROGRESS INDEX, so the same piece of glass was a different colour
+    // at every stage — which would make the finger colours mean nothing, and
+    // they are the only thing the palette is carrying.
+    const colourOfCellAt = typed => {
+        const m = new Map();
+        for (const o of cellFills(drawAt(typed))) {
+            m.set(JSON.stringify(o.pts.map(pt => pt.map(v => v.toFixed(4)))), o.color);
+        }
+        return m;
+    };
+    const at0 = colourOfCellAt(0), at4 = colourOfCellAt(4), atAll = colourOfCellAt(word.length);
+    let stable = true;
+    for (const [key, col] of at0) {
+        if (at4.get(key) !== col || atAll.get(key) !== col) stable = false;
+    }
+    ok(stable,
+       '\u26a0\u26a0 each cell keeps ITS OWN colour from spawn to shatter \u2014 the ' +
+       'light comes on, the colour does not arrive');
+    // ⚠️ A NEGATIVE RESULT, KEPT ON PURPOSE. Mutation-testing this by keying the
+    // colour to `order.indexOf(k)` instead of `tint[k]` left all 292 green —
+    // and on inspection that is CORRECT, not a hole: `order` is also a frozen
+    // permutation, so the colour is still stable per cell and all the colours
+    // are still present. It only couples lighting order to colour, which is a
+    // taste question and not a defect. ⭐ DO NOT "FIX" THIS BY ADDING AN
+    // ASSERTION THAT FORBIDS IT; it would go red on code that is fine.
 
     // ⚠️⚠️ WHICH CELL LIT, NOT HOW MANY. A mutation that lit cells in index
     // order — sweeping across the window, exactly the progress bar Jake
     // rejected — passed every count-based assertion above. ⭐ COUNTING CANNOT
     // SEE ORDER; ask the geometry which polygon was actually filled.
     const cellsAt = paneCells(cut, 90);
-    const firstLit = drawAt(1).ops.find(
-        o => o.op === 'fill' && colors.includes(o.color));
+    const firstLit = cellFills(drawAt(1)).find(o => o.alpha > LIT);
     ok(firstLit != null, 'the first key fills exactly one cell');
     const same = (poly, pts) => poly.length === pts.length &&
         poly.every((pt, i) => Math.abs(pt[0] - pts[i][0]) < 1e-9 &&

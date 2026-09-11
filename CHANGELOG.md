@@ -10,15 +10,45 @@ be a prism: white light goes in, and your coloured shots come out. That would be
 super cool. Wanna try to implement it?"* — then, after the design: *"I love your
 prism idea. Build it all please."*
 
-* **`game-sprites.js` 1.1.0 → 1.2.0.** ⭐ A target is a **leaded pane with one
-  panel per letter**, each panel the colour of the finger that types it. It
-  starts dark; a correct key lights its panel from behind; the last key lights
-  the last panel and it shatters. `paneCut()`, `drawPane()`, `drawPrism()`,
-  `drawRefract()`. ⚠️ **`rockOutline`, `drawRock`, `drawShip` and
-  `drawTargetWord` are DELETED, not deprecated** — one caller between them, and
-  keeping them beside their replacements is two answers to one question.
-  `drawTargetWord()`'s red-typed/white-rest scheme in particular was a second,
-  competing progress display. ⚠️ The Escape Key pixel art is untouched.
+* **`game-sprites.js` 1.1.0 → 1.5.0**, in three passes, and the two rejected
+  ones are the interesting part.
+  * **1.2.0/1.3.0 — REJECTED BY JAKE.** A rectangle divided into N equal
+    vertical stripes, one per letter. *"I was imagining that it would be like an
+    asteroid with random edges that kind of fill in with random panes. Yours is
+    a word. Split into letters. It's...not impressive."* ⭐ **He is right and the
+    diagnosis is specific**: that is a progress bar with a glass texture on it.
+    Every real property of stained glass is regularity's opposite. It came from
+    one bad inference — "one panel per letter" sounded like it tied the art to
+    the teaching, so the geometry was made to serve the letter count. ⚠️ **THE
+    TEACHING NEVER NEEDED THE GEOMETRY**; it needs the COLOUR to be the finger's
+    colour, and a cell can be any shape and still be the right colour.
+  * **1.4.0 — the pane becomes a window.** Irregular polygon silhouette (the
+    asteroid shape v1.2.0 had, which was the one right thing it threw away),
+    straight cut edges, leaded into irregular cells from an **off-centre hub**
+    with random sector widths and two rings. ⭐ The cells and the outline are the
+    same arithmetic — the outer edge of the outer ring IS the polygon. Cells
+    light in a **frozen shuffle**, and lighting is a **proportion** of the word
+    rather than one cell per key, so any cell count blazes completely on the
+    last key. The word is drawn **flat on top in screen space**
+    (`drawPaneWord()` — v1.2.0's `drawTargetWord()` restored; deleting it was
+    wrong). Plus the **Superman II tumble** — Jake: *"the glass panes that
+    capture the evil Kryptonians kind of tumble through space."* A flat plate
+    turning in 3D is `scale(cos θ, 1)` under a rotation; ⚠️ it never quite
+    reaches edge-on, because a pane that vanishes for a third of a second is one
+    the student is charged for not typing.
+  * **1.5.0 — every cell is coloured from spawn.** Jake: *"can you give each
+    pane of glass multiple colors? … So a four letter word would have four
+    colors (even if three are the same)?"* ⚠️ 1.4.0 coloured a cell only once it
+    lit, so an untyped window was uniformly dark and a half-typed one showed two
+    colours out of four. ⭐ **REAL STAINED GLASS IS COLOURED WHETHER OR NOT
+    LIGHT IS BEHIND IT** — typing is the light coming on, not the colour
+    arriving. A frozen `tint` permutation gives each cell a letter's colour,
+    shuffled so the tints do not run around the wheel in order, and
+    `cellTarget()` guarantees at least one cell per letter so no colour can go
+    missing. Verified: 2, 4, 7, 11 and 16-letter panes all show every one of
+    their letter colours.
+  * ⚠️ `rockOutline`, `drawRock` and `drawShip` are **deleted**, not deprecated.
+    ⚠️ The Escape Key pixel art is untouched throughout.
 * **`game-shatter.js` 1.2.0 → 1.3.0.** The view: panes, per-key refracted shots
   in the key's finger colour, crazing inside the danger ring, glass shards in
   the pane's own panel colours, a dark nave with a light well instead of a
@@ -80,12 +110,19 @@ of lame."*
   for a 3000ms countdown and went red against good code.
   ⭐ **It drives Shatter only; Deadline and Escape Key have still never been
   mounted.**
-* **`tests/arcade-panels-test.mjs` 1.5.0 → 1.6.0**, Part K (39 assertions).
-  Mutation-verified five ways. ⚠️ **The fifth mutation was not caught by the
-  first draft** — a came leaning at the top and never unleaning left all 269
-  green, because the letters are drawn at the nominal panel centre and cannot
-  drift. The came-centring assertions were added for it; the mutation now takes
-  six red. Second worthless draft this file has shipped.
+* **`tests/arcade-panels-test.mjs` 1.5.0 → 1.7.0**, Part K, rewritten twice.
+  ⚠️⚠️ **THE LESSON IS THE FIRST REWRITE.** v1.6.0's assertions were all *true*
+  of the pane Jake rejected — they pinned "one panel per letter, evenly stepped,
+  marching left to right", which is precisely the regularity that was wrong.
+  ⭐ **A HARNESS CAN ONLY HOLD A DESIGN STILL; IT CANNOT TELL YOU THE DESIGN IS
+  BAD.** What it pins now is irregularity, which is a weaker claim and the
+  honest one. **294 assertions.** Eleven mutations run; three escaped a draft
+  and were closed (one-cell-per-letter passing by coincidence of rounding,
+  lighting by position rather than the shuffle — which counting fills can never
+  see, hence `paneCells()` being exported — and tints running in sector order).
+  ⚠️ One mutation is recorded as a **negative result** rather than closed:
+  keying the colour to `order` instead of `tint` leaves everything green and is
+  genuinely fine, so an assertion forbidding it would go red on good code.
 * **`tests/run-all-tests.mjs` 1.27.0 → 1.28.0.** **97 → 98 harnesses**, bumped in
   HANDOFF and README in the same edit. `README.md` recounted the jsdom harnesses
   as instructed: **fifteen**, not thirteen — it had already drifted by one.

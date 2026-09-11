@@ -9,13 +9,18 @@
 > ⚠️⚠️ **THIS BLOCK WAS WRITTEN LAST**, per Round 113's rule.
 >
 > **What shipped: Shatter is stained glass, and the ship is a prism.** Jake asked
-> for the idea by name and then for all of it. A target is a **leaded pane with
-> one panel per letter**, each panel the colour of the finger that types it. It
-> starts dark; a correct key lights its panel from behind and the prism throws a
-> ray in that same colour to do it; the last key lights the last panel and the
-> pane blows apart into shards of exactly those colours. Full reasoning in §16.
+> for the idea by name and then for all of it. A target is an **irregular leaded
+> window**: an asteroid silhouette cut into irregular cells from an off-centre
+> hub, every cell already coloured by one of the word's letters, lighting up in
+> a frozen shuffle as the student types, tumbling through space like the
+> Phantom Zone panes in Superman II. The prism throws a ray in the typed key's
+> colour to light each one.
 >
-> **Expected stamps:** `game-shatter.js` **v1.3.0**, `game-sprites.js` **v1.2.0**,
+> ⚠️⚠️ **THE ART TOOK THREE PASSES AND JAKE REJECTED TWO. READ §16 BEFORE
+> TOUCHING IT** — the rejected designs are recorded there with his words, and
+> the failure mode is very easy to walk back into.
+>
+> **Expected stamps:** `game-shatter.js` **v1.3.0**, `game-sprites.js` **v1.5.0**,
 > `game-draw.js` **v1.14.0**, `game-chrome.js` **v1.10.0**,
 > `arcade-pool.js` **v2.1.0**.
 >
@@ -8109,6 +8114,40 @@ Hammond, Imperial, Jewett, Lambert, Linotype, Merritt, Mignon, Munson, Noiseless
 Odell, Oliver, Rem-Sho, Remington, Smith-Premier, Tower, Victor, Wellington,
 Yost). No hit.
 
+### A0. ⚠️⚠️ THE ART TOOK THREE PASSES AND JAKE REJECTED TWO — READ THIS FIRST
+
+⭐ **THE FAILURE MODE IS EASY TO WALK BACK INTO, WHICH IS WHY IT IS THE FIRST
+THING IN THIS SECTION AND NOT A FOOTNOTE.**
+
+* **v1.3.0 — REJECTED.** A rectangle divided into N equal vertical stripes, one
+  per letter. Jake: *"I was imagining that it would be like an asteroid with
+  random edges that kind of fill in with random panes. Yours is a word. Split
+  into letters. It's...not impressive."*
+  ⚠️ **THE BAD INFERENCE WAS "ONE PANEL PER LETTER".** It *sounded* like it tied
+  the art to the teaching, so the geometry was built to serve the letter count.
+  ⭐ **THE TEACHING NEVER NEEDED THE GEOMETRY.** It needs the COLOUR to be the
+  finger's colour; a cell can be any shape at all and still be the right
+  colour. Freeing the shape from the letter count cost the teaching nothing and
+  was the entire fix. ⚠️ And equal stripes read as a loading indicator because
+  that is what equal stripes ARE — every real property of stained glass is
+  regularity's opposite.
+* **v1.4.0 — REJECTED (partly).** The window became irregular and correct, but
+  a cell was only *coloured once it lit*. Jake: *"can you give each pane of
+  glass multiple colors? … So a four letter word would have four colors (even
+  if three are the same)?"* ⚠️ An untyped window was uniformly dark and a
+  half-typed one showed two colours out of four. ⭐ **REAL STAINED GLASS IS
+  COLOURED WHETHER OR NOT THERE IS LIGHT BEHIND IT.** Typing is the light
+  coming on, not the colour arriving. That is not a tweak; it is the difference
+  between stained glass and glass that gets stained.
+* **v1.5.0 — what shipped.** Below.
+
+⚠️⚠️ **AND THE HARNESS DID NOT HELP, WHICH IS THE PART TO INTERNALISE.**
+`arcade-panels-test.mjs` Part K passed every assertion against v1.3.0. The
+assertions were *true*: one panel per letter, evenly stepped, letters marching
+left to right. ⭐ **THEY PINNED THE EXACT REGULARITY THAT WAS WRONG.** A harness
+can only hold a design still. It cannot tell you the design is bad, and a round
+that treats green as "Jake will like this" will make this mistake again.
+
 ### A. ⭐⭐ THE ART MAKES AN ARGUMENT NOW, AND THAT IS THE DIFFERENCE
 
 Jake asked for an idea a previous instance had floated: *"Stained glass.
@@ -8128,33 +8167,49 @@ THE ART HAS BEEN AN IDEA RATHER THAN A STYLE.**
   letter at a time by the finger map.** The thing that shatters into coloured
   pieces is glass. It always was.
 
-**A target is a leaded pane with one panel per letter, each panel the colour of
-the finger that types it.** It starts dark. A correct key lights its panel from
-behind, and the prism throws a ray in that same colour to do it. The last key
-lights the last panel and the pane blows apart into shards of exactly those
-colours.
+**A target is an irregular leaded window.** The silhouette is the asteroid shape
+v1.2.0 had — ⭐ the one thing about that version that was right, and which
+v1.3.0 threw away. Straight edges and sharp corners: glass is cut, not eroded.
+It is leaded into irregular cells from an **off-centre hub**, with random sector
+widths and two rings.
 
-⚠️ **THE PROGRESS DISPLAY, THE FINGER DRILL AND THE ART ARE ONE OBJECT NOW**
-rather than three stacked on each other. That is why `drawTargetWord()`'s
-red-typed / white-rest scheme was **deleted** rather than kept — it was a
-second, competing answer to *how far through this word am I*, and two answers to
-one question is the defect this project names most often.
+⭐ **THE CELLS AND THE OUTLINE ARE THE SAME ARITHMETIC** — the outer edge of the
+outer ring *is* the polygon, so they cannot drift apart. `latticePoint()` is the
+only place a point in a pane comes from, and `paneCells()` is the only place a
+cell polygon comes from (it is exported, for the harness: counting how many
+cells lit cannot tell you *which* lit).
 
-**A lit letter goes dark and an unlit one pale**, which is inverted from
-everywhere else in the app and is right here: the letter is a lead glyph and the
-glass behind it is what changed. Brightening the letter as well would put two
-signals on one panel and dim the finger colour that panel exists to teach.
+**Every cell is coloured from the moment it spawns**, by a frozen `tint`
+permutation taken mod the word length. ⚠️ That is what guarantees every letter's
+colour appears — the indices are a permutation, so mod `n` distributes as evenly
+as the counts allow, and `cellTarget()` never returns fewer cells than letters.
+⚠️ The assignment is **shuffled**, or the tints run around the wheel in sector
+order and the window reads as a colour chart. **Unlit glass is dim (alpha .26),
+lit glass blazes (.84 plus a bloom).**
 
-**Parent versus piece stays a difference of KIND.** A whole target is a
-chamfered window — even, architectural, cut by a glazier. A piece is a
-**splinter**, pointed at both ends. ⚠️ Round 106 already learned this one:
-filled-versus-hollow was a difference of degree, and degree reads as a mistake.
+**Lighting is a PROPORTION of the word, not one cell per key.** ⭐ That is what
+finally decoupled the glass from the letters: lighting one cell per key meant
+the cell count had to track the letter count or a finished word left its window
+half dark — which is how v1.3.0 talked itself into one-cell-per-letter in the
+first place. A proportion lets the window be any shape and still blaze
+completely on the last key, which is also a better beat.
 
-**⚠️⚠️ AND THE PANE DOES NOT TUMBLE.** v1.2.0's rocks spun with the word drawn
-flat on top in screen space — fine for a label in front of a rock, impossible
-once each letter must stay over its own panel. A frozen tilt and a slow sway
-instead. ⭐ A sway costs nothing and a spin costs legibility; there was never a
-trade there.
+**The word is drawn FLAT on top, in screen space** (`drawPaneWord()` — v1.2.0's
+`drawTargetWord()`, restored; deleting it in v1.3.0 was wrong). ⚠️ It is outside
+the tumble transform deliberately: a word that tumbled with its pane would be
+unreadable for most of every turn, and the student is being asked to type it.
+⭐ **THIS IS ALSO WHAT FREED THE GEOMETRY** — once the word stopped being built
+out of cells, the cells could be any shape at all.
+
+**⚠️⚠️ AND IT TUMBLES LIKE SUPERMAN II.** Jake: *"the glass panes that capture
+the evil Kryptonians kind of tumble through space."* A flat plate turning in 3D,
+seen side-on, foreshortens to a line and opens out again — which on a 2D canvas
+is `rotate(axis) → scale(cos θ, 1) → rotate(-axis)`. ⚠️ **IT IS NOT A SPIN**:
+v1.2.0's rocks rotated in-plane, a different motion and the one that made the
+word unreadable. ⚠️ **AND IT NEVER REACHES ZERO** (floor 0.16) — a plate exactly
+edge-on is invisible, and a target that disappears for a third of a second is
+one the student is charged for not typing. Reduced motion **scales** it rather
+than freezing it, so that student sees the same game slower.
 
 ### B. ⭐ THE PRISM IS THE SAME TRIANGLE POINTING THE SAME WAY
 
@@ -8323,12 +8378,12 @@ the next three rounds putting it back.
 | file | version | note |
 |---|---|---|
 | `game-shatter.js` | **1.3.0** | panes, shots, prism, cathedral field, new copy |
-| `game-sprites.js` | **1.2.0** | `paneCut`/`drawPane`/`drawPrism`/`drawRefract`; the four rock functions **deleted** |
+| `game-sprites.js` | **1.5.0** | `paneCut`/`paneCells`/`drawPane`/`drawPaneWord`/`drawPrism`/`drawRefract`; the rock functions **deleted** |
 | `game-draw.js` | **1.14.0** | `glassBurst()`, shard particles, `fingerPalette()`, rose-window panel |
 | `game-chrome.js` | **1.10.0** | ⚠️ the teardown and restart fix — §D |
 | `arcade-pool.js` | **2.1.0** | ⚠️ the alphabetical-order fix — §C |
 | `tests/arcade-mount-test.mjs` | **1.0.0** | new; 15 assertions |
-| `tests/arcade-panels-test.mjs` | **1.6.0** | Part K; 276 assertions |
+| `tests/arcade-panels-test.mjs` | **1.7.0** | Part K, rewritten twice; 294 assertions |
 | `tests/arcade-pool-test.mjs` | **1.1.0** | Part F; written red first |
 | `tests/run-all-tests.mjs` | **1.28.0** | registers the new harness |
 
