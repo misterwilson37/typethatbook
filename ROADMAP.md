@@ -239,9 +239,45 @@ dying in ~40s, against Jake's own two untouched minutes and Round 117's recorded
 EXISTING MEASUREMENT, THE MODEL IS WRONG** — that one typed `rocks[0]` rather
 than the nearest pane, so it was not playing the game.
 
-⭐ **REPORTING THOSE NUMBERS WOULD HAVE BEEN ROUND 117'S DEFECT EXACTLY.** Use
-`shatter-shards-test.mjs` Part H, which already drives a real typist against a
-real director, and extend THAT rather than writing a third simulation.
+⭐ **REPORTING THOSE NUMBERS WOULD HAVE BEEN ROUND 117'S DEFECT EXACTLY.**
+
+✅ **AND ROUND 119 BUILT THE INSTRUMENT INSTEAD OF A THIRD SIMULATION.**
+`arcade-telemetry.js` v1.0.0, behind `?telemetry=1`: it records the real board
+and the real director's own numbers from a real run at 4 Hz and downloads a CSV.
+⚠️ **THE NEXT ROUND SHOULD ASK JAKE FOR A TRACE BEFORE TOUCHING ANY CONSTANT.**
+The `onScreen` column is the answer to "is it exponential"; `parents` vs `pieces`
+says which game it is; `intervalMs` against `cleared` says whether the director
+or the board is the one at fault.
+
+### 119g — ⚠️⚠️ SHARDS HAS NO EXPIRY CHANNEL, MEASURED
+
+The director prices arrivals against departures and assumes every target leaves
+within its lifetime. `queueDepthFor()` is literally that ratio — it falls from
+4.0 to 1.5 as pressure rises, so **occupancy is designed to FALL, never grow**.
+
+⚠️⚠️ **SHATTER HONOURS IT EXACTLY AND SHARDS DOES NOT.** Twelve panes, 20s
+lifetime, nobody typing, board only, no director and no simulated typist:
+
+| | 0s | 20s | 40s | 60s | 80s | 120s |
+|---|---|---|---|---|---|---|
+| Shatter (inbound) | 12 | **0** | 0 | 0 | 0 | 0 |
+| Shards (drift/wrap) | 12 | **9** | 9 | **5** | 4 | **1** |
+
+`ShardsBoard.advance()` wraps coordinates forever; a pane leaves only if it
+happens to drift within reach of the prism. ⭐ **SO THE SPAWN SIDE IS REAL AND
+THE DRAIN SIDE IS A COIN FLIP**, and the interval shrinks every time you clear
+one — the faster you play, the faster it fills. That is Jake's *"nothing nothing
+a million"*.
+
+⚠️ **DO NOT FIX THIS BY GUESSING WHAT WRAPPING IS FOR.** Two shapes: give Shards
+a real expiry (a pane that has wrapped N times leaves, or leaves as a miss), or
+feed the director the true departure rate instead of assuming lifetime is it.
+They imply opposite answers to whether wrapping is a mechanic or an accident.
+**Jake's ruling first.**
+
+⚠️ AND IT IS NOT ESTABLISHED THAT DEADLINE SHARES THE ROOT CAUSE. Its words land
+and are removed, so the equilibrium should hold there. Saying "all three games,
+same cause" would be the over-reach that produced the discarded sweep.
 
 ### 119c — ✅ PLAY AGAIN HALVED THE CITY (Round 119, found while wiring)
 

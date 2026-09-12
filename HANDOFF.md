@@ -266,6 +266,62 @@
 >
 > ---
 >
+> ## ✅ PACING TELEMETRY — `?telemetry=1`, AND IT ANSWERS 119e PROPERLY
+>
+> Jake: *"What would be the best way for you to collect real time data? Can you
+> handle video? As I'm playing, I can't really count the appearances, and I'm not
+> sure my brain could count them on replay either."*
+>
+> ⭐⭐ **VIDEO IS THE WRONG INSTRUMENT AND I WOULD BE A BAD READER OF IT.**
+> Counting overlapping panes from pixels is an estimate made by the least
+> reliable tool available, and it **cannot see the half that decides the
+> question** — the spawn interval, the pressure, what the director *believed* the
+> board looked like. ⚠️ A disagreement between the board and the director's model
+> of it is invisible on a screen recording by construction. **The game already
+> knows all of it exactly.**
+>
+> ### HOW TO USE IT
+>
+> Add `?telemetry=1` to the arcade URL. A **Download run data** button appears
+> bottom-right. Play until it goes wrong, press it, send me the CSV. Columns:
+> `t, onScreen, parents, pieces, chars, halfTyped, cleared, pressure,
+> intervalMs, lifetimeMs, pacedWPM, shields, over` at 4 Hz.
+>
+> ⭐ **`parents` AND `pieces` ARE SPLIT ON PURPOSE.** A Shatter board of 3 parents
+> and 9 pieces reads as twelve to a student's eye and as one word's worth of work
+> to the director — collapsing them is how *"the sky is full"* and *"you have
+> three words to type"* are both true at once.
+>
+> ### ⚠️⚠️ THE FOUR RULES IT IS BUILT AROUND
+>
+> 1. **IT MAY NOT CHANGE WHAT IT MEASURES.** Never runs in the frame loop; polls
+>    `debug()` on its own 4 Hz timer. ⭐ A recorder that cost frame time would
+>    make the game stutter, and a stuttering game spawns differently — **the
+>    instrument would manufacture the symptom it was sent to investigate.**
+> 2. **IT ADDS NO COUNTERS — RULE 9.** Every field is a read of a number the game
+>    already keeps. A telemetry module that tallied spawns itself would be a
+>    second record of the spawn count, and the first question in any disagreement
+>    would be which one is right.
+> 3. **STUDENTS NEVER CARRY IT.** A URL flag, not a setting — it dies with the
+>    tab. Nothing anyone can leave switched on for a term.
+> 4. **NO STUDENT-IDENTIFYING DATA, AND NO WORDS.** Only pane *lengths*. The
+>    question is how many and how fast; the text would make the file a transcript
+>    of what a specific child typed, which is a different artefact with different
+>    rules attached. ⚠️ **DOWNLOAD, NEVER UPLOAD** — there is no endpoint, so
+>    there is no place for thirty children's traces to accumulate on a server.
+>
+> ### ⭐ THE RULE 11 GUARD CAUGHT ME, AND I NARROWED IT RATHER THAN DELETING IT
+>
+> Part G used to assert *nobody outside `tests/` calls `debug()`*, and it went red
+> the moment the recorder was wired up. ⚠️⚠️ **BUT "NOBODY MAY READ IT" WAS NEVER
+> THE RULE** — the rule is that the calibration number must never reach a
+> **screen**, and a CSV a teacher downloads is not a screen. G1 now names exactly
+> one permitted caller, and **G2 is the assertion that actually enforces Rule 11**:
+> nothing may assign `calibration` or `pacedWPM` into `innerHTML`/`textContent`.
+> G5 and G6 pin the flag and the no-endpoint rule.
+>
+> ---
+>
 > ## ⚠️ WHAT I DID **NOT** DO, ON PURPOSE
 >
 > * **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms
@@ -322,8 +378,8 @@
 > ## VERSION STAMPS THIS ROUND
 >
 > `game-shell.js` **v1.10.0** · `game-shatter.js` **v1.8.0** ·
-> `game-deadline.js` **v1.14.0** ·
-> `game-escape.js` **v2.5.0** · `shatter-board.js` **v1.7.0** (`release()`) ·
+> `game-deadline.js` **v1.15.0** ·
+> `game-escape.js` **v2.6.0** · `shatter-board.js` **v1.7.0** (`release()`) ·
 > `tests/adaptive-arcade-test.mjs` **v1.1.0, new** ·
 > `tests/abandon-lock-test.mjs` **v1.0.0, new** ·
 > `tests/run-all-tests.mjs` **v1.31.0** ·

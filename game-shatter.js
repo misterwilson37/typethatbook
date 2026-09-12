@@ -1,3 +1,10 @@
+// game-shatter.js v1.10.0 — Round 119 (Hammond): debug() also reports what the
+// DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
+// `arcade-telemetry.js` can record the pacing curve without adding a single
+// counter (Rule 9: every field is a read of a number the game already keeps).
+// ⚠️ Nobody could count panes while playing and a screen recording could not see
+// the director's model at all. ⚠️ RULE 11 STILL HOLDS: `pacedWPM` may be written
+// to a diagnostic CSV and may never reach a screen.
 // game-shatter.js v1.9.0 — Round 119 (Hammond): ⚠️⚠️ BACKSPACE LETS GO OF THE
 // WORD. Escape did release the lock — AND PAUSED THE GAME IN THE SAME KEYSTROKE,
 // because game-chrome.js's `stopPropagation()` does not stop a sibling listener
@@ -203,7 +210,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.9.0';
+export const GAME_SHATTER_VERSION = '1.10.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -1306,6 +1313,22 @@ export function mount(container, opts) {
         debug() {
             return {
                 calibration: d.calibrator ? d.calibrator.snapshot() : null,
+                over: d.over,
+                // ── what the director believes, at the same instant ────
+                // ⚠️ READS, NOT COUNTERS. Rule 9: every one of these is a number
+                // the director already keeps for its own pacing. A telemetry
+                // module that tallied spawns itself would be a second record of
+                // the spawn count, and the first argument in any disagreement
+                // would be which of the two is right.
+                cleared: d._extraCleared,
+                pressure: d.pressure,
+                intervalMs: d.intervalMs,
+                lifetimeMs: d.lifetimeMs,
+                // ⚠️ THE PACE THE DIRECTOR IS USING — NOT netWPM(), NOT A SCORE,
+                // AND NOT FOR A SCREEN. Rule 11: this leaves the machine in a
+                // diagnostic CSV or not at all.
+                pacedWPM: d.calibratedWPM,
+                shields: d.shields,
                 // ⚠️ COPIES, NOT THE ROCKS. Handing out live board objects would
                 // let a caller mutate the game, and a harness that can reach in
                 // and set `typed` is testing something no student can do.

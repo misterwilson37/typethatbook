@@ -1,3 +1,10 @@
+// game-deadline.js v1.15.0 — Round 119 (Hammond): debug() also reports what the
+// DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
+// `arcade-telemetry.js` can record the pacing curve without adding a single
+// counter (Rule 9: every field is a read of a number the game already keeps).
+// ⚠️ Nobody could count panes while playing and a screen recording could not see
+// the director's model at all. ⚠️ RULE 11 STILL HOLDS: `pacedWPM` may be written
+// to a diagnostic CSV and may never reach a screen.
 // game-deadline.js v1.14.0 — Round 119 (Hammond): ⚠️⚠️ BACKSPACE LETS GO OF THE
 // WORD. Escape released the lock AND paused the game in one keystroke since
 // Round 109 — `stopPropagation()` does not stop a sibling listener on the same
@@ -345,7 +352,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.14.0';
+export const GAME_DEADLINE_VERSION = '1.15.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -2170,6 +2177,21 @@ export function mount(container, opts) {
                 calibration: d.calibrator ? d.calibrator.snapshot() : null,
                 shieldsMax: d.shieldsMax,
                 over: d.over,
+                // ── what the director believes, at the same instant ────
+                // ⚠️ READS, NOT COUNTERS. Rule 9: every one of these is a number
+                // the director already keeps for its own pacing. A telemetry
+                // module that tallied spawns itself would be a second record of
+                // the spawn count, and the first argument in any disagreement
+                // would be which of the two is right.
+                cleared: d._extraCleared,
+                pressure: d.pressure,
+                intervalMs: d.intervalMs,
+                lifetimeMs: d.lifetimeMs,
+                // ⚠️ THE PACE THE DIRECTOR IS USING — NOT netWPM(), NOT A SCORE,
+                // AND NOT FOR A SCREEN. Rule 11: this leaves the machine in a
+                // diagnostic CSV or not at all.
+                pacedWPM: d.calibratedWPM,
+                shields: d.shields,
                 // ⚠️ COPIES, NOT THE LIVE TARGETS. A harness that could reach in
                 // and set `typed` would be testing something no student can do.
                 panes: live.map(e => ({ id: e.id, text: e.text, typed: e.typed,

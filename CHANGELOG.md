@@ -143,6 +143,28 @@ handle. `tests/abandon-lock-test.mjs` v1.0.0, 23 assertions.
 ⚠️ `game-chrome.js` still claims an arbitration it does not perform — harmless
 while no view binds Escape, and ROADMAP 119f says so.
 
+### ✅ PACING TELEMETRY — `arcade-telemetry.js` v1.0.0, behind `?telemetry=1`
+
+Nobody can count panes while playing, and video could not see the director's
+model at all. ⭐ The game already knows exactly. Polls the views' existing
+`debug()` at 4 Hz — never in the frame loop, because a recorder that cost frame
+time would make the game stutter and a stuttering game spawns differently.
+⚠️ Adds no counters (Rule 9), records no words and no identity, downloads a CSV
+with no endpoint, and dies with the tab.
+
+⭐ **The Rule 11 guard caught it and was narrowed rather than deleted**: "nobody
+may read `debug()`" was never the rule — "the number never reaches a screen" is.
+G1 names one permitted caller; G2 now asserts nothing assigns `calibration` or
+`pacedWPM` into the DOM.
+
+### ⚠️ MEASURED: SHARDS HAS NO EXPIRY CHANNEL
+
+Board only, no director, no simulated typist — 12 panes, 20s lifetime, nobody
+typing. Shatter: all gone at 20s. Shards: 9 left at 20s, 5 at 60s, 1 still
+circling at 120s. `queueDepthFor()` prices arrivals against departures and
+assumes the lifetime is honoured; in Shards it is not. ROADMAP 119g — **needs
+Jake's ruling on what wrapping is for before any fix.**
+
 ### ⚠️ NOT DONE, ON PURPOSE
 
 **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms thresholds are
@@ -153,7 +175,8 @@ wirability is ROADMAP 119b and needs a ruling, not a round.
 **103 harnesses pass** after `npm install`.
 
 **Upload set:** `game-shell.js`, `game-shatter.js`, `game-deadline.js`,
-`game-escape.js`, `shatter-board.js`, `tests/adaptive-arcade-test.mjs`,
+`game-escape.js`, `shatter-board.js`, `arcade-telemetry.js`, `arcade.html`,
+`tests/adaptive-arcade-test.mjs`,
 `tests/abandon-lock-test.mjs`, `tests/run-all-tests.mjs`, `HANDOFF.md`,
 `ROADMAP.md`, `CHANGELOG.md`.
 **Delete:** `dead-handler-test.mjs` (repo root only — keep `tests/`). ✅ Jake

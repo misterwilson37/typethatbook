@@ -1,7 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.21.0 — Round 117 (Corona): ROADMAP 116g. The LESSON picker is
+<!-- arcade.html v3.22.0 — Round 119 (Hammond): PACING TELEMETRY, off unless the
+     URL says `?telemetry=1`. Jake could not count panes while playing and neither
+     could a screen recording; the game already knows the numbers exactly. It polls
+     the views' existing debug() on its own 4Hz timer and never touches the frame
+     loop — a recorder that cost frame time would make the game stutter, and a
+     stuttering game spawns differently, so the instrument would manufacture the
+     symptom. Downloads a CSV; there is no endpoint. See arcade-telemetry.js.
+     arcade.html v3.21.0 — Round 117 (Corona): ROADMAP 116g. The LESSON picker is
      capped by the WORDS control, so "from my lessons so far" finally means it.
      ⚠️ A student with NO history still gets the whole course — see fillLessons().
 arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
@@ -934,7 +941,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.21.0';
+const ARCADE_PAGE_VERSION = '3.22.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1022,6 +1029,7 @@ import { GAMES, GAME_ORDER, titleOf, panelOptionsFor, usesThreatBoard } from './
 // CHECKED AGAINST THE EXISTING ONES IN THE SAME MODULE BLOCK; nothing in the
 // harness suite loads this page, so only a browser could have caught it.
 import { arcadeConfig, arcadeWindow, arcadeTargetWPM, arcadeLessonMenu } from './game-shell.js';
+import * as TELEMETRY from './arcade-telemetry.js';
 import { poolProviderFor, arcadePool } from './arcade-pool.js';
 // ⚠️ THE BUILD PANEL READS RUNTIME CONSTANTS, NOT HEADER COMMENTS. A header is a
 // comment in the repo; the constant is what the DEPLOYED file says about itself,
@@ -1068,6 +1076,68 @@ let LESSONS = [];
 let PROGRESS = {};
 let PLAYABLE = [];
 let handle = null;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ PACING TELEMETRY — OFF UNLESS THE URL SAYS `?telemetry=1`.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-11: *"As I'm playing, I can't really count the appearances, and
+// I'm not sure my brain could count them on replay either, given how quickly it
+// ramps up."* ⭐ HE IS RIGHT, AND VIDEO WOULD NOT FIX IT — counting overlapping
+// panes from pixels is an estimate by the least reliable instrument available,
+// and it cannot see the director's own numbers at all.
+//
+// ⚠️⚠️ NOT A SETTING. A URL flag dies when the tab closes; a checkbox somewhere
+// is a thing a student finds, or a thing a teacher leaves on for a term. ⭐ THE
+// ONLY PERSON WHO CAN SWITCH THIS ON IS SOMEONE WHO TYPED IT INTO THE ADDRESS
+// BAR ON PURPOSE.
+//
+// ⚠️ IT NEVER TOUCHES THE FRAME LOOP. `record()` polls the view's existing
+// `debug()` on its own 4Hz timer. A recorder that cost frame time would make
+// the game stutter, and a stuttering game spawns differently — the instrument
+// would manufacture the symptom it was sent to investigate.
+let recorder = null;
+
+/**
+ * ⚠️ START RECORDING AND STOP THE PREVIOUS ONE, IN THAT ORDER, AT EVERY MOUNT.
+ * Every launch path already tears down `handle`; this rides the same seam so a
+ * cabinet switch cannot leave a timer polling a destroyed view.
+ */
+function telemetryStart(game, cfg) {
+    telemetryStop();
+    if (!TELEMETRY.enabled()) return;
+    recorder = TELEMETRY.record(
+        () => (handle && handle.debug ? handle.debug() : null),
+        { game, gate: cfg && cfg.targetWPM, costFactor: cfg && cfg.costFactor,
+          adaptive: !!(cfg && cfg.adaptive) });
+    const btn = document.getElementById('telemetryBtn');
+    if (btn) btn.style.display = '';
+}
+
+function telemetryStop() {
+    if (!recorder) return;
+    // ⚠️ THE TRACE IS KEPT, NOT DISCARDED. A run ends the moment the student
+    // dies, which is exactly when they want to press the button — stopping the
+    // timer must not throw the rows away.
+    lastTrace = recorder.stop();
+    recorder = null;
+}
+let lastTrace = null;
+
+if (TELEMETRY.enabled()) {
+    const btn = document.createElement('button');
+    btn.id = 'telemetryBtn';
+    btn.textContent = 'Download run data';
+    btn.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9999;'
+        + 'font:12px ui-monospace,monospace;padding:6px 10px;border-radius:6px;'
+        + 'background:#1b2735;color:#cfe6ff;border:1px solid #2f4a66;cursor:pointer';
+    btn.onclick = () => {
+        // ⚠️ STOP FIRST, so a run still in progress is downloadable mid-flight.
+        if (recorder) telemetryStop();
+        if (lastTrace) TELEMETRY.download(lastTrace);
+    };
+    document.body.appendChild(btn);
+}
 let lastPlayedWPM = null;
 // ⚠️⚠️ WHICH PLAY FUNCTION RAN, SO "Play again" CAN REPEAT IT. ⭐ A FUNCTION
 // REFERENCE, NOT A FLAG: re-deriving the path from isFreePlay() at click time
@@ -2181,6 +2251,7 @@ function play() {
         onQuit: () => { flushArcadeSeconds(); finish(null, r); },
         onEnd:  rep => { flushArcadeSeconds(); finish(rep, r); },
     });
+    telemetryStart('deadline', cfg);
     $('stage').scrollIntoView({ block: 'nearest' });
 }
 
@@ -2284,6 +2355,10 @@ function playFree() {
         onQuit: () => { flushArcadeSeconds(); finishFree(null); },
         onEnd:  rep => { flushArcadeSeconds(); finishFree(rep); },
     });
+    // ⚠️ g.id, NOT A LITERAL. This mount site serves shatter, shards AND escape
+    // — a hard-coded name would mislabel two of the three traces, and a trace
+    // labelled as the wrong cabinet is worse than no trace.
+    telemetryStart(g.id, cfg);
     $('stage').scrollIntoView({ block: 'nearest' });
 }
 

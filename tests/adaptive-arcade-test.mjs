@@ -392,15 +392,43 @@ console.log('\nG — ⚠️⚠️ RULE 11: THE CALIBRATION NUMBER NEVER REACHES 
 // "it was already on the handle".
 {
     const files = readdirSync(ROOT).filter(f => /\.(js|html)$/.test(f));
-    const callers = files.filter(f => /\.debug\(\)/.test(read(f)));
-    ok(callers.length === 0,
-       `⚠️⚠️ G1 NO PAGE OR VIEW CALLS THE HARNESS ACCESSOR (found: ${callers.join(', ') || 'none'})`);
 
-    const leaks = files.filter(f => /calibrat/i.test(read(f))
-                                 && /\.html$/.test(f));
-    ok(leaks.length === 0,
-       `⚠️ G2 NO PAGE MENTIONS CALIBRATION AT ALL (found: ${leaks.join(', ') || 'none'}) — `
-       + 'a page that knows the word is one commit from rendering it beside netWPM()');
+    // ⚠️⚠️ THIS ASSERTION WAS NARROWED IN ROUND 119, AND THE NARROWING IS THE
+    // INTERESTING PART. It used to read "nobody outside tests/ calls debug()",
+    // and it went red the moment `arcade-telemetry.js` was wired up — correctly,
+    // because a page had started reading the accessor.
+    // ⭐ BUT "NOBODY MAY READ IT" WAS NEVER THE RULE. The rule is that the
+    // calibration number must never reach a SCREEN, because it is not netWPM()
+    // and two numbers called WPM that disagree is a thing this project has paid
+    // for twice. A diagnostic CSV that a teacher downloads is not a screen.
+    // ⚠️ SO THE EXEMPTION IS NAMED, NOT INFERRED. Exactly one caller, and if a
+    // second page starts reading `debug()` this goes red again and whoever
+    // added it has to come and justify it here — which is the whole point.
+    const CALLERS_ALLOWED = new Set(['arcade.html']);
+    const callers = files.filter(f => /\.debug\(\)/.test(read(f)));
+    const rogue = callers.filter(f => !CALLERS_ALLOWED.has(f));
+    ok(rogue.length === 0,
+       `⚠️⚠️ G1 ONLY THE NAMED TELEMETRY SEAM READS debug() (rogue: ${rogue.join(', ') || 'none'})`);
+
+    // ⚠️⚠️ AND THIS IS THE ASSERTION THAT ACTUALLY ENFORCES RULE 11. A page may
+    // READ the number; it may not PUT IT ON THE PAGE. Checked against the two
+    // ways anything reaches a student's eye in this app.
+    const RENDERERS = /(innerHTML|textContent|innerText)\s*=[^;\n]*\b(calibration|pacedWPM)\b/;
+    const rendered = files.filter(f => RENDERERS.test(read(f)));
+    ok(rendered.length === 0,
+       `⚠️⚠️⚠️ G2 NOTHING RENDERS THE CALIBRATION NUMBER (found: ${rendered.join(', ') || 'none'}). `
+       + 'It is not netWPM() — different window, different denominator, different '
+       + 'purpose. ⭐ THE STUDENT SEES A DIFFICULTY, NEVER A SPEED');
+
+    // ⚠️ AND THE RECORDER IS OFF BY DEFAULT, WHICH IS A PROPERTY OF THE FLAG AND
+    // NOT OF ANYONE'S DISCIPLINE. A telemetry switch a student can find, or a
+    // teacher can leave on for a term, is a different product.
+    const tele = read('arcade-telemetry.js');
+    ok(/telemetry=1/.test(tele) && !/localStorage|sessionStorage/.test(tele),
+       '⚠️⚠️ G5 RECORDING IS A URL FLAG, NOT A STORED SETTING — it dies with the tab');
+    ok(!/fetch\(|XMLHttpRequest|navigator\.sendBeacon/.test(tele),
+       '⚠️⚠️ G6 THE TRACE IS DOWNLOADED, NEVER UPLOADED. No endpoint means no place '
+       + 'for thirty children\'s traces to accumulate on a server');
 
     // ⚠️⚠️ AND THE ONE LINE, COUNTED. `adaptive:` is set in exactly one place in
     // the whole repo, and that place is arcadeConfig().

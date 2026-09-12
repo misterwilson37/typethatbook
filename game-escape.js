@@ -1,3 +1,10 @@
+// game-escape.js v2.6.0 — Round 119 (Hammond): debug() also reports what the
+// DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
+// `arcade-telemetry.js` can record the pacing curve without adding a single
+// counter (Rule 9: every field is a read of a number the game already keeps).
+// ⚠️ Nobody could count panes while playing and a screen recording could not see
+// the director's model at all. ⚠️ RULE 11 STILL HOLDS: `pacedWPM` may be written
+// to a diagnostic CSV and may never reach a screen.
 // game-escape.js v2.5.0 — Round 119 (Hammond): Backspace clears what you typed.
 // ⚠️ `board.clearTyped()` was bound to Escape, which also pauses — one keystroke,
 // two actions, because `stopPropagation()` does not stop a sibling listener on
@@ -201,7 +208,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.5.0';
+export const GAME_ESCAPE_VERSION = '2.6.0';
 
 /**
  * @param {HTMLElement} container
@@ -1163,5 +1170,43 @@ export function mount(container, opts) {
             ease.clear();
         },
         report() { return d.report(performance.now()); },
+        /**
+         * ⚠️⚠️ DIAGNOSTICS AND HARNESSES ONLY — see game-shatter.js's debug() for
+         * the Rule 11 argument. Escape Key carries one so `arcade-telemetry.js`
+         * can record every cabinet with one sampler; ⭐ A GAME THAT CANNOT BE
+         * MEASURED GETS EXCLUDED FROM THE ANSWER, and Jake's report was about
+         * *all* of them.
+         *
+         * ⚠️ `calibration` IS NULL ON PURPOSE. This view is ruled permanently
+         * non-adaptive (v2.4.0) and supplies no calibrator, so a column of nulls
+         * in the trace is the honest reading rather than a gap.
+         * ⚠️ AND `typed` IS ALWAYS 0 HERE, WHICH IS NOT A BUG. Escape Key has ONE
+         * shared input buffer, not per-cell progress — the student types at the
+         * board, not at a word. Reporting a fake per-word number would make the
+         * `halfTyped` column mean something different in this one game, which is
+         * precisely the kind of same-name-different-quantity defect this project
+         * keeps paying for.
+         */
+        debug() {
+            return {
+                calibration: null,
+                over: d.over,
+                // ── what the director believes, at the same instant ────
+                // ⚠️ READS, NOT COUNTERS. Rule 9: every one of these is a number
+                // the director already keeps for its own pacing. A telemetry
+                // module that tallied spawns itself would be a second record of
+                // the spawn count, and the first argument in any disagreement
+                // would be which of the two is right.
+                cleared: d._extraCleared,
+                pressure: d.pressure,
+                intervalMs: d.intervalMs,
+                lifetimeMs: d.lifetimeMs,
+                pacedWPM: d.calibratedWPM,
+                shields: d.shields,
+                panes: [...board.wordsInUse()].map((w, i) => ({
+                    id: i, text: w, typed: 0, piece: false,
+                })),
+            };
+        },
     };
 }
