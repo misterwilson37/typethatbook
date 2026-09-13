@@ -1,3 +1,7 @@
+// game-shatter.js v1.11.0 — Round 119 (Hammond): ⚠️⚠️ THE BOARD CLOCK NO LONGER
+// RUNS WHILE PAUSED. Measured from a real trace: a 254-second pause handed the
+// first resumed frame a 254,000ms dt and took two of three shields in five
+// seconds. See the frame loop.
 // game-shatter.js v1.10.0 — Round 119 (Hammond): debug() also reports what the
 // DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
 // `arcade-telemetry.js` can record the pacing curve without adding a single
@@ -210,7 +214,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.10.0';
+export const GAME_SHATTER_VERSION = '1.11.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -862,7 +866,33 @@ export function mount(container, opts) {
         // coming apart, short enough that a student is not waiting to play.
         if (slowMo > 0) slowMo = Math.max(0, slowMo - dt * 1.15);
         const scale = 1 - 0.78 * slowMo;
-        bNow += dt * 1000 * scale;
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ THE BOARD CLOCK STOPS WHEN THE BOARD STOPS. IT DID NOT, AND IT
+        // COST JAKE TWO OF THREE LIVES IN FIVE SECONDS.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Measured, from a real run (`ttb-shards-1789246174158.csv`): paused for
+        // **254 seconds**, and within 5 seconds of resuming the shields went
+        // 3 → 1. Jake: *"some shards were ZOOMING across the screen, which seems
+        // like a bug."*
+        //
+        // ⚠️⚠️ `dt` IS CLAMPED TO 50ms AND THAT IS NOT THE CLAMP THAT MATTERED.
+        // The per-frame clamp stops ONE long frame from teleporting anything.
+        // But this line ran on EVERY frame including paused ones, while
+        // `board.advance(bNow)` above runs only when `!paused` — so `bNow` walked
+        // forward through the whole pause and the board did not.
+        // ⭐⭐ THE FIRST RESUMED FRAME THEN HANDED advance() A dt OF 254,000ms,
+        // and `rock.x += rock.vx * dt` moved every pane a quarter of an hour's
+        // worth of travel in one step. The collision test runs ONCE after that
+        // jump, so panes either tunnelled straight through the prism or landed
+        // on it — which is not a game, it is a coin toss thrown on the student's
+        // behalf while they were not looking.
+        //
+        // ⚠️ THE TWO CLOCKS ARE NOT INTERCHANGEABLE AND THIS IS THE THIRD TIME
+        // THAT HAS BITTEN: `now` is the student's wall clock (the calibrator's),
+        // `bNow` is the board's. ⭐ THE BOARD'S CLOCK IS THE ONE THING THAT MUST
+        // AGREE WITH WHAT IS ON SCREEN, and nothing is on screen while paused.
+        if (!paused) bNow += dt * 1000 * scale;
         if (shots.length) {
             for (let i = shots.length - 1; i >= 0; i--) {
                 shots[i].t -= dt * (1000 / SHOT_MS);
@@ -1320,6 +1350,10 @@ export function mount(container, opts) {
                 // module that tallied spawns itself would be a second record of
                 // the spawn count, and the first argument in any disagreement
                 // would be which of the two is right.
+                // ⚠️ THE VIEW SETS costFactor, NOT arcadeConfig() — so the first
+                // real traces came back without it, and an interval column you
+                // cannot divide by the cost factor is a column you cannot read.
+                costFactor: d.costFactor,
                 cleared: d._extraCleared,
                 pressure: d.pressure,
                 intervalMs: d.intervalMs,

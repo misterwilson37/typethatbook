@@ -1,3 +1,5 @@
+// abandon-lock-test.mjs v1.1.0 — Round 119: Part P, the paused board clock,
+// found in real 4Hz telemetry rather than by reading code.
 // abandon-lock-test.mjs v1.0.0 — ⚠️⚠️ A STUDENT MUST ALWAYS BE ABLE TO LET GO OF
 // THE WORD THEY ARE ON. Round 119 (Hammond).
 //
@@ -226,6 +228,54 @@ console.log('\nD — ⚠️⚠️ NO HINT NAMES A KEY ITS VIEW DOES NOT HANDLE')
         ok(!/e\.key\s*===\s*'Escape'/.test(code),
            `⭐ D3 ${f} carries no unreachable Escape branch`);
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nP — ⚠️⚠️ A PAUSE MUST NOT MOVE THE BOARD');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Measured from a real run (`ttb-shards-1789246174158.csv`, 4Hz telemetry):
+// paused **254 seconds**, and within 5 seconds of resuming the shields went
+// 3 -> 1. Jake: *"some shards were ZOOMING across the screen, which seems like a
+// bug."*
+//
+// ⚠️⚠️ `dt` IS CLAMPED TO 50ms AND THAT WAS NOT THE CLAMP THAT MATTERED. The
+// per-frame clamp stops one long frame from teleporting anything. But `bNow`
+// advanced on EVERY frame including paused ones, while `board.advance(bNow)`
+// runs only when not paused — so the board clock walked through the whole pause
+// and the board did not. ⭐⭐ THE FIRST RESUMED FRAME HANDED advance() A dt OF
+// 254,000ms, and the collision test runs ONCE after that jump: panes either
+// tunnelled through the prism or landed on it. A coin toss thrown on the
+// student's behalf while they were not looking.
+{
+    const h = launch(mountShatter);
+    for (let i = 0; i < 40; i++) frame();           // settle, get panes on screen
+    const before = h.debug().panes.length;
+
+    key('Escape');                                  // pause
+    // ⚠️ FOUR MINUTES OF PAUSED FRAMES, WHICH IS THE REAL CASE. A short pause
+    // hides this: the board clock has to drift far enough that one resumed step
+    // crosses the prism, and at 254s it crosses it many times over.
+    for (let i = 0; i < 15000; i++) frame(16);
+    const during = h.debug().panes.length;
+    ok(during === before,
+       `⚠️ P1 nothing happens on the board while paused (${before} -> ${during})`);
+
+    key('Escape');                                  // resume
+    const shieldsBefore = h.debug().shields;
+    frame(16);
+    // ⭐⭐ THE ASSERTION. One frame after a four-minute pause must be one frame's
+    // worth of motion, not four minutes' worth.
+    ok(h.debug().shields === shieldsBefore,
+       `⚠️⚠️ P2 THE FIRST RESUMED FRAME COSTS NO SHIELDS (${shieldsBefore} -> `
+       + `${h.debug().shields}). Before v1.11.0 a 254s pause took two of three in `
+       + 'five seconds, because the board clock ran while the board did not');
+    let lost = 0;
+    for (let i = 0; i < 60; i++) { frame(16); }
+    ok(h.debug().shields >= shieldsBefore - 1,
+       `⭐ P3 …and the second after it is a normal second of play (shields `
+       + `${h.debug().shields} of ${shieldsBefore})`);
+    h.destroy();
 }
 
 if (fail) {

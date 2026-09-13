@@ -170,6 +170,19 @@ round wires `game-shatter.js` (spawned / keyed / finished / dropped), adds
 builds the three-button play-again card. ⭐ An engine nobody calls is dead code;
 do not let it sit two rounds.
 
+### 119i — ✅ PAUSING THE GAME COST TWO OF THREE LIVES (Round 119, from telemetry)
+
+Jake: *"some shards were ZOOMING across the screen."* ⭐ The trace dates it to the
+second: paused **254 s**, and within **five seconds of resuming**, shields 3 → 1.
+
+⚠️⚠️ `dt` is clamped to 50ms and that was not the clamp that mattered. `bNow +=
+dt * 1000 * scale` sat **outside** the `!paused` guard while `board.advance(bNow)`
+sits inside it, so the board clock walked through the whole pause and the board
+did not. ⭐⭐ The first resumed frame handed `advance()` a dt of **254,000 ms** —
+every pane moved a quarter-hour's travel in one step, and the collision test runs
+**once** after the jump, so panes either tunnelled through the prism or landed on
+it. ✅ Fixed in `game-shatter.js` v1.11.0; Part P reproduces it.
+
 ### 119f — ✅ ESCAPE DID TWO JOBS AT ONCE (Round 119). BACKSPACE NOW LETS GO.
 
 A student told Jake there was no escape key; he hit it the same day.
@@ -249,6 +262,31 @@ The `onScreen` column is the answer to "is it exponential"; `parents` vs `pieces
 says which game it is; `intervalMs` against `cleared` says whether the director
 or the board is the one at fault.
 
+### 119h — ⚠️⚠️⚠️ **BURST WPM IS NOT SUSTAINED WPM.** DO THIS BEFORE ANYTHING ELSE.
+
+Measured in two real Shards traces: the instant comfort strikes, `pacedWPM` goes
+**8 → 90** and stays at 83.9–90.0 for the whole run. `MAX_BELIEVABLE_WPM` is 90.
+⭐⭐ **THE ESTIMATE IS RAILED AGAINST ITS OWN CEILING, NOT MEASURING.** Jake types
+about 36.
+
+⚠️⚠️ The calibrator measures first-key-to-last-key **within one word** and
+excludes acquisition — by design, and correctly for what it was built to do. A
+36 WPM child who types `ing` in 400ms really is at 90 WPM for those 400ms. ⭐ THE
+DEFECT IS THAT THE DIRECTOR SPENDS THAT NUMBER AS IF THE CHILD COULD HOLD IT FOR
+A MINUTE, which prices the spawn interval for a typist who does not exist.
+
+⚠️⚠️ **THIS IS THE TWO-NUMBERS-CALLED-WPM DEFECT AGAIN** — the 100 WPM dropdown,
+`netWPM()` vs calibration WPM, and now this. **The fix is not the ceiling and not
+`MIN_SAMPLES`.** A burst rate must be converted to a sustained rate before it
+prices anything, and ⭐ **THE CONVERSION FACTOR IS THE ACQUISITION TIME THE
+CALIBRATOR ALREADY MEASURES** and currently spends only on `onScreenTarget`:
+sustained ≈ chars / (burst time + acquisition time). Both halves are already
+recorded per sample.
+
+⚠️ It probably subsumes 119d. A sustained number would not jump 16× at comfort,
+so the "slow opening then a wall" may simply stop existing. **Measure after,
+before touching 119d.**
+
 ### 119g — ⚠️⚠️ SHARDS HAS NO EXPIRY CHANNEL, MEASURED
 
 The director prices arrivals against departures and assumes every target leaves
@@ -262,6 +300,11 @@ lifetime, nobody typing, board only, no director and no simulated typist:
 |---|---|---|---|---|---|---|
 | Shatter (inbound) | 12 | **0** | 0 | 0 | 0 | 0 |
 | Shards (drift/wrap) | 12 | **9** | 9 | **5** | 4 | **1** |
+
+✅ **AND THE FIRST REAL TRACE CONFIRMS IT IN PLAY.** Focused run: on-screen grew
++21/min, +21, **+43**, **+56** across four windows while the clear rate never
+dropped (12–22/min). Ended at **82 panes — 25 parents, 56 pieces** — with 46
+words cleared. The acceleration is entirely on the arrival side.
 
 `ShardsBoard.advance()` wraps coordinates forever; a pane leaves only if it
 happens to drift within reach of the prism. ⭐ **SO THE SPAWN SIDE IS REAL AND

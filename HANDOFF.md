@@ -322,6 +322,90 @@
 >
 > ---
 >
+> ## ⭐⭐⭐ THE TELEMETRY PAID FOR ITSELF IN ONE RUN. READ THIS FIRST.
+>
+> Two real Shards traces, 4 Hz. They answer "is it exponential" (yes, and here is
+> the mechanism), and they turned up a **second, unrelated, worse defect**.
+>
+> ### ⚠️⚠️⚠️ 1. `pacedWPM` SAYS **90**. JAKE TYPES ABOUT 36.
+>
+> Both traces: the moment comfort strikes, `pacedWPM` goes **8 → 90** and then
+> sits at 83.9–90.0 for the rest of the run. `MAX_BELIEVABLE_WPM` is 90. ⭐⭐ **THE
+> ESTIMATE IS NOT MEASURING, IT IS RAILED AGAINST ITS OWN CEILING.**
+>
+> ⚠️⚠️ **BECAUSE BURST WPM IS NOT SUSTAINED WPM AND THE DIRECTOR USES IT AS IF IT
+> WERE.** The calibrator measures first-key-to-last-key *within one word* and
+> deliberately excludes acquisition — that is the whole design. A 36 WPM child
+> who types `ing` in 400ms **is** typing at 90 WPM for those 400ms. The director
+> then prices the spawn interval as though they could keep it up all minute.
+>
+> ⭐ **THIS IS THE TWO-NUMBERS-CALLED-WPM DEFECT, IN PRODUCTION, WITH DATA.** It
+> is the 100 WPM dropdown again and it is `netWPM()` vs calibration WPM again.
+> The fix is not the ceiling and **not `MIN_SAMPLES`** — the burst rate has to be
+> converted to a sustained rate before it prices anything, and the conversion
+> factor is exactly the acquisition time the calibrator is already measuring and
+> currently only spends on `onScreenTarget`. ⚠️ **ROADMAP 119h. DO THIS ONE
+> FIRST — everything else in the pacing is downstream of it.**
+>
+> ### ⚠️⚠️ 2. "NOTHING NOTHING A MILLION" IS A **16.4× STEP**, MEASURED
+>
+> | | seed phase | after comfort |
+> |---|---|---|
+> | `pacedWPM` | 8 | 90 |
+> | spawn interval | **41–57 s** | 2.5 s |
+> | pane lifetime | **161–228 s** | 10 s |
+>
+> It happened at **t = 68.8 s**, in one sample, after **4 words cleared**.
+> ⭐ **JAKE'S "20 SECONDS FROM TIP TO READABLE WORD" IS CONFIRMED AND
+> UNDERSTATED** — a seed-phase pane's whole life is 161 seconds. That is not a
+> ramp, it is a cliff with a wasteland in front of it.
+>
+> ### ⚠️ 3. THE BOARD REALLY DOES NOT DRAIN — AND THE GAP WIDENS
+>
+> Focused run, arrivals vs departures:
+>
+> | window | on-screen growth | words cleared |
+> |---|---|---|
+> | 70–110 s | +21/min | 12/min |
+> | 110–150 s | +21/min | 20/min |
+> | 150–190 s | **+43/min** | 15/min |
+> | 190–215 s | **+56/min** | 22/min |
+>
+> ⭐ **HIS CLEAR RATE NEVER DROPPED.** He ended at **82 panes on screen, 25
+> parents and 56 pieces**, having cleared 46 words. The acceleration is on the
+> arrival side, exactly as ROADMAP 119g's board measurement predicted.
+> ⚠️ **AND PIECES ARE TWO-THIRDS OF THE SCREEN**, which is why "the sky is full"
+> and "you have 25 words to type" are both true.
+>
+> ### ⚠️⚠️⚠️ 4. FIXED THIS ROUND: **PAUSING THE GAME COST HIM TWO OF THREE LIVES**
+>
+> Jake: *"I spent half the game paused... some shards were ZOOMING across the
+> screen, which seems like a bug."* ⭐ **THE TRACE DATES IT TO THE SECOND:** paused
+> **254 s** (on-screen frozen at 35, cleared frozen at 29), and within **five
+> seconds of resuming**, shields **3 → 1**.
+>
+> ⚠️⚠️ **`dt` IS CLAMPED TO 50ms AND THAT IS NOT THE CLAMP THAT MATTERED.** The
+> per-frame clamp stops one long frame teleporting anything. But `bNow += dt *
+> 1000 * scale` sat **outside** the `!paused` guard while `board.advance(bNow)`
+> sits inside it — so the board clock walked through the entire pause and the
+> board did not. ⭐⭐ **THE FIRST RESUMED FRAME HANDED `advance()` A dt OF
+> 254,000ms.** `rock.x += rock.vx * dt` moved every pane a quarter-hour's travel
+> in one step, and the collision test runs **once** after that jump: panes either
+> tunnelled through the prism or landed on it. **A coin toss thrown on the
+> student's behalf while they were not looking.**
+>
+> ✅ **`game-shatter.js` v1.11.0 — `if (!paused) bNow += …`.** Part P reproduces
+> it (15,000 paused frames, then one resumed frame) and the mutation takes a
+> shield exactly as the trace did.
+>
+> ### ⚠️ AND THE INSTRUMENT HAD A GAP: `costFactor` WAS MISSING
+>
+> The view sets it, not `arcadeConfig()`, so the first traces came back without
+> it — and an interval column you cannot divide by the cost factor is a column
+> you cannot read. `arcade-telemetry.js` v1.1.0 records it.
+>
+> ---
+>
 > ## ⚠️ WHAT I DID **NOT** DO, ON PURPOSE
 >
 > * **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms
@@ -381,7 +465,7 @@
 > `game-deadline.js` **v1.15.0** ·
 > `game-escape.js` **v2.6.0** · `shatter-board.js` **v1.7.0** (`release()`) ·
 > `tests/adaptive-arcade-test.mjs` **v1.1.0, new** ·
-> `tests/abandon-lock-test.mjs` **v1.0.0, new** ·
+> `tests/abandon-lock-test.mjs` **v1.1.0, new** ·
 > `tests/run-all-tests.mjs` **v1.31.0** ·
 > `dead-handler-test.mjs` (repo root) **deleted — Jake confirmed done**.
 >

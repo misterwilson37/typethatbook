@@ -1,3 +1,6 @@
+// arcade-telemetry.js v1.1.0 — Round 119 (Hammond): records `costFactor`. The
+// first real traces came back without it, and an interval you cannot divide by
+// the cost factor is an interval you cannot interpret.
 // arcade-telemetry.js v1.0.0 — Round 119 (Hammond).
 //
 // ═════════════════════════════════════════════════════════════════════════════
@@ -50,7 +53,7 @@
 // This is a file that goes to a teacher for diagnosis, not a number that goes on
 // a screen next to netWPM(). See game-shatter.js's debug().
 
-export const ARCADE_TELEMETRY_VERSION = '1.0.0';
+export const ARCADE_TELEMETRY_VERSION = '1.1.0';
 
 /**
  * ⚠️ FOUR SAMPLES A SECOND. Not sixty.
@@ -99,6 +102,7 @@ export function record(read, meta) {
             // ⭐ THIS IS THE HALF VIDEO COULD NEVER GIVE US. The interesting
             // failure is a disagreement between the board and the director's
             // model of it, and you cannot see a model on a screen recording.
+            costFactor: d.costFactor,
             cleared: d.cleared,
             pressure: d.pressure == null ? null : +d.pressure.toFixed(3),
             intervalMs: d.intervalMs == null ? null : Math.round(d.intervalMs),
@@ -132,8 +136,8 @@ export function record(read, meta) {
  */
 export function toCSV(trace) {
     const cols = ['t', 'onScreen', 'parents', 'pieces', 'chars', 'halfTyped',
-                  'cleared', 'pressure', 'intervalMs', 'lifetimeMs', 'pacedWPM',
-                  'shields', 'over'];
+                  'costFactor', 'cleared', 'pressure', 'intervalMs', 'lifetimeMs',
+                  'pacedWPM', 'shields', 'over'];
     const head = '# ' + JSON.stringify(trace.meta) + '\n' + cols.join(',');
     const body = trace.rows.map(r => cols.map(c => {
         const v = r[c];

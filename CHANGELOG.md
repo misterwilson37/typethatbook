@@ -165,6 +165,26 @@ circling at 120s. `queueDepthFor()` prices arrivals against departures and
 assumes the lifetime is honoured; in Shards it is not. ROADMAP 119g — **needs
 Jake's ruling on what wrapping is for before any fix.**
 
+### ⭐⭐ REAL TELEMETRY, AND IT PAID FOR ITSELF IN ONE RUN
+
+Two Shards traces at 4 Hz.
+
+1. ⚠️⚠️⚠️ **`pacedWPM` SAYS 90. JAKE TYPES ABOUT 36.** The estimate rails against
+   `MAX_BELIEVABLE_WPM` the instant comfort strikes and stays there. Burst WPM is
+   not sustained WPM, and the director spends it as if it were. ROADMAP 119h —
+   **do this before anything else in the pacing.**
+2. ⚠️ **"nothing nothing a million" is a 16.4x step**, at t=68.8s after 4 words:
+   interval 41-57s -> 2.5s, lifetime 161-228s -> 10s. Jake's "20 seconds from tip
+   to readable" is confirmed and understated.
+3. ⚠️ **The board does not drain and the gap widens**: +21/min, +21, +43, +56 while
+   the clear rate held at 12-22/min. Ended 82 on screen (25 parents, 56 pieces).
+4. ✅ **FIXED — pausing cost two of three lives.** `bNow` advanced outside the
+   `!paused` guard while `board.advance()` ran inside it, so a 254s pause handed
+   the first resumed frame a 254,000ms dt. `game-shatter.js` v1.11.0.
+
+⚠️ The instrument had a gap too: `costFactor` was missing from the traces.
+`arcade-telemetry.js` v1.1.0 records it.
+
 ### ⚠️ NOT DONE, ON PURPOSE
 
 **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms thresholds are

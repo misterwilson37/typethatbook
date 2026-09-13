@@ -2183,6 +2183,10 @@ export function mount(container, opts) {
                 // module that tallied spawns itself would be a second record of
                 // the spawn count, and the first argument in any disagreement
                 // would be which of the two is right.
+                // ⚠️ THE VIEW SETS costFactor, NOT arcadeConfig() — so the first
+                // real traces came back without it, and an interval column you
+                // cannot divide by the cost factor is a column you cannot read.
+                costFactor: d.costFactor,
                 cleared: d._extraCleared,
                 pressure: d.pressure,
                 intervalMs: d.intervalMs,
