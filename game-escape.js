@@ -1133,7 +1133,24 @@ export function mount(container, opts) {
             + 'tinted — that is where creatures come from, so keep moving. '
             + 'Backspace clears what you have typed.',
         muted: isMuted(),
-        onStart() { started = true; lastFrame = null; stepAccMs = 0; },
+        onStart() {
+        // ⚠️⚠️ THE RUN CLOCK STARTS HERE, AT THE END OF THE COUNTDOWN, NOT ON THE
+        // FIRST KEYSTROKE — Round 121 (Maskelyne). Jake, 2026-09-14: *"Deadline
+        // counts down to the start of the game in the top right and then
+        // immediately starts counting. Other games wait for the player to type.
+        // They should all act like deadline."*
+        // ⭐ THE OLD RULE WAS RIGHT ABOUT A DIFFERENT GAME. `startIfNeeded()` has
+        // been called from `keyResult()` since the first prototype, so a student
+        // who took eight seconds to read the screen was not charged for them —
+        // fair when nothing was on screen until they acted. With a countdown, the
+        // three seconds ARE the reading time, and a clock that sits at 0:00 while
+        // panes are already falling reads as a broken clock.
+        // ⚠️ IDLE TIME IS STILL SUBTRACTED from the banked seconds (see
+        // bankWholeSeconds), so this cannot become a way to bank typing time by
+        // walking away.
+        d.clock.startIfNeeded(performance.now());
+            started = true; lastFrame = null; stepAccMs = 0;
+        },
         // ⚠️ THE BUTTON ONLY APPEARS BECAUSE THIS VIEW NOW OFFERS THE STRIP.
         // game-chrome.js omits it when onToggleKeys is absent, and a dead button
         // is worse than a missing one.

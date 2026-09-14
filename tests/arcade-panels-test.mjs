@@ -1705,10 +1705,18 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
     drawShatterPanel(cw, { W: 200, H: 420, charge: 0.5, warps: 1, maxWarps: 3,
                            contacts: [{ r: 0.8, angle: 0.3 }, { r: 0.1, angle: 2 }] });
     const texts = cw.ops.filter(o => o.op === 'text').map(o => o.text);
-    ok(texts.some(t => /ROSE WINDOW/.test(t)), 'the left panel is a rose window');
-    ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) &&
-                        !/WARP|ROSE|WINDOW|SPACE|CLEAR|TO|CHARGE/i.test(t)),
-       '\u26a0\u26a0 and NOTHING on it is labelled \u2014 a readable radar is exactly ' +
+    // ⚠️⚠️ THE TITLE IS A CONTROL NOW, NOT DECORATION — Round 121 (Maskelyne).
+    // Jake: *"the radar ping should be explained above the radar on the left, and
+    // the warp should be explained below it… mostly just so kids know what
+    // buttons to press."* ⭐ 'ROSE WINDOW' named the art; these name the keys.
+    ok(texts.some(t => /ENTER/.test(t)) && texts.some(t => /SPACE/.test(t)),
+       '\u2b50 the panel says which two keys a student can press');
+    // ⭐ AND THE RULE THAT LINE REPLACED IS UNCHANGED: the CONTACTS carry no
+    // text. Jake ruled the radar must stay unreadable, and a label on a glint is
+    // a different thing entirely from a label on the panel's own chrome.
+    const chrome = /ENTER|SPACE|PING|SCATTER|WARP|CLEAR|PANES|TO|CHARGE|READY/i;
+    ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) && !chrome.test(t)),
+       '\u26a0\u26a0 and NOTHING ELSE on it is labelled \u2014 a readable radar is exactly ' +
        'what Jake ruled it must not become');
 }
 

@@ -1,3 +1,9 @@
+// game-shell.js v1.12.0 — Round 121 (Maskelyne): ⚠️⚠️ `SEED_MAX_INTERVAL_MS`. An
+// adaptive run opened at a 40.8-second spawn interval and a 163-second lifetime,
+// because the 8 WPM floor times `costFactor: 3` says so — and the first sample
+// that would have corrected it cannot arrive until a pane does. ⭐ The cap binds
+// ONLY while the calibrator is not confident: a child MEASURED at 8 WPM keeps
+// every second of that interval.
 // game-shell.js v1.11.0 — Round 120 (Maskelyne): ⚠️⚠️ THE RAMP IS PRICED PER
 // CHARACTER (`RAMP_PER_CHAR`), AND A HIT BUYS A BREATH (`HIT_GRACE_MS`). Both
 // come from one played round of each game, and both are in the constants block
@@ -188,7 +194,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.11.0';
+export const GAME_SHELL_VERSION = '1.12.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -308,6 +314,34 @@ export const HIT_GRACE_MS = 1200;
 // negative — relief can undo the ramp and can never make a game easier than the
 // gate it was launched at.
 export const HIT_PRESSURE_RELIEF = 0.10;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ NOTHING MAY WAIT LONGER THAN THIS FOR ITS FIRST WORK WHILE THE GAME IS
+//        STILL GUESSING — Round 121 (Maskelyne)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14, on Shards: *"The beginning is incredibly boring… Most of
+// shard's long game was waiting at the beginning."* The trace agrees in the
+// bluntest possible way: **`intervalMs` opens at 40786 and `lifetimeMs` at
+// 163144.**
+//
+// ⭐⭐ AND NOBODY CHOSE THOSE NUMBERS. They are 8 WPM (the calibration floor)
+// times `costFactor: 3`, run through arithmetic that is correct for a child who
+// really does type at 8 WPM. ⚠️ THE FLOOR IS A GUESS, NOT A MEASUREMENT, and
+// Round 120's blend only starts helping after the FIRST clean sample — which
+// cannot arrive until a pane does. **The game was waiting on a measurement that
+// was waiting on the game.**
+//
+// ⚠️⚠️ SO THE CAP APPLIES **ONLY WHILE UNCALIBRATED**, AND THAT IS THE ENTIRE
+// SAFETY ARGUMENT. A child MEASURED at 8 WPM keeps their 40-second interval;
+// nothing here overrides a measurement. What it refuses to do is stall a game on
+// an assumption for the forty seconds it takes to find out the assumption was
+// wrong.
+// ⭐ 7 SECONDS IS ABOUT TWO SLOW WORDS. A struggling child meets two or three
+// panes before the first sample lands, on three shields, with the refill floor
+// already holding one on screen — and a fast child stops staring at an empty
+// ring.
+export const SEED_MAX_INTERVAL_MS = 5000;
 
 // Ceiling on pressure. 2.5 × a 15 WPM gate is 37.5 WPM of sustained demand,
 // which no student in this building will hold; past here the queue depth is what
@@ -951,6 +985,15 @@ export class GameDirector {
      */
     get intervalMs() {
         const chars = this._lastInterval != null ? this._lastInterval : this.avgChars;
+        // ⚠️⚠️ THE SEED CAP — see SEED_MAX_INTERVAL_MS. It is applied to the WHOLE
+        // interval including the difficulty dial, because "how long until
+        // something happens" is what the student experiences and an easy setting
+        // must not be able to restore the dead opening.
+        if (this.adaptive && !this.calibrator.confident) {
+            return Math.min(SEED_MAX_INTERVAL_MS,
+                spawnIntervalMs(chars * this.costFactor, this.calibratedWPM, this.pressure)
+                    * budgetScale(this.difficulty));
+        }
         // ⚠️⚠️ THE DIFFICULTY DIAL MULTIPLIES **TIME**, NOT DEMAND — see
         // budgetScale(). Applied to demand it would have to choose between speed
         // and pane count, and hitting both would compound to ±44% behind labels
@@ -966,9 +1009,19 @@ export class GameDirector {
      */
     lifetimeFor(text) {
         const chars = ((text || '').length || this.avgChars) * this.costFactor;
-        return travelMs(spawnIntervalMs(chars, this.calibratedWPM, this.pressure),
-                        queueDepthFor(this.pressure))
+        const life = travelMs(spawnIntervalMs(chars, this.calibratedWPM, this.pressure),
+                              queueDepthFor(this.pressure))
             * budgetScale(this.adaptive ? this.difficulty : 'medium');
+        // ⚠️⚠️ THE CAP REACHES LIFETIMES TOO, AND IT HAS TO. A 163-SECOND PANE IS
+        // NOT A GENEROUS DEADLINE, IT IS A PANE THAT CRAWLS — and on the radial
+        // board the crawl is the thing Jake called brutal. ⭐ Derived from the
+        // same cap through the same `travelMs`, so the queue depth still means
+        // what it means everywhere else; a second hardcoded ceiling here would be
+        // a second answer to "how long does a target live".
+        if (this.adaptive && !this.calibrator.confident) {
+            return Math.min(travelMs(SEED_MAX_INTERVAL_MS, queueDepthFor(this.pressure)), life);
+        }
+        return life;
     }
 
     /** Kept for callers that want a representative number for a HUD or a log. */

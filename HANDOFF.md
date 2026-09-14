@@ -1,6 +1,161 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-14 by Round 120 (Maskelyne), for whoever is next
+> ## ▶ START HERE — written 2026-09-14 by Round 121 (Maskelyne), for whoever is next
+>
+> **Instance name: Maskelyne** — the same instance as Round 120. ⚠️ ONE NAME PER
+> CONVERSATION, NOT PER ROUND: this session covered both rounds, and a second name
+> would suggest a second person read the telemetry. (I drafted these comments as
+> "Molle" and had to sweep them — *Molle* is also already taken, by Round 34.)
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ THE FIRST 110 SECONDS OF THE SHARDS TRACE ARE NOT THE GAME BEING SLOW
+>
+> Jake: *"The beginning is incredibly boring… I probably couldn't type anything
+> for nearly 30 seconds."* The second trace shows **`onScreen` at 0 until
+> t=110.9**, with every director number frozen at its startup value.
+>
+> ⭐⭐ **NOTHING HAD SPAWNED BECAUSE THE GAME HAD NOT STARTED.** `arcade.html`
+> begins recording at MOUNT, and the pre-game panel sits between the mount and the
+> countdown. Roughly a hundred of those seconds are a human reading a setup screen
+> — which is the measurement behind Jake's own suggestion that the words/lessons
+> picker belongs on the landing page, chosen once a session.
+> ⚠️ **DO NOT READ A FLAT OPENING IN A TRACE AS A PACING DEFECT AGAIN** without
+> checking whether `started` was ever true. The recorder's t=0 is not the game's.
+>
+> The real opening defect is the one under it: an adaptive run opens at a **40.8
+> second spawn interval and a 163 second lifetime**, because that is 8 WPM (the
+> calibration floor) times `costFactor: 3`. ⭐ The first sample that would correct
+> it cannot arrive until a pane does. **The game was waiting on a measurement that
+> was waiting on the game.**
+>
+> ---
+>
+> ## ⭐⭐ WHAT SHIPPED, AND THE ONE ARGUMENT EACH
+>
+> **1. The approach is a fixed 900ms** (`shatter-board.js` APPROACH_MS). Round
+> 120 put the outer band off the canvas and the pane crossed it at `SPAWN_R /
+> lifetime` — a fixed FRACTION, so 1.3s late in a run and **23 seconds** early in
+> one. Jake: *"That wait for the words to be visible is brutal."* ⚠️⚠️ THE TWO
+> PHASES STILL SUM TO `lifetimeMs`: redistribution, not a discount. Do not
+> "simplify" it back to one speed.
+>
+> **2. Scatter.** Jake: *"Warp makes no sense here."* Every pane goes out to
+> `ENTRY_R` — the ring the view draws — instead of 0.45 from wherever it was. ⭐ A
+> landmark is what makes it readable: the student can SEE what they bought.
+> ⚠️⚠️ **NO DAMAGE PING, AND THAT WAS MY CALL TO MAKE** (he left it to my gut).
+> `clearedChars` is the quota, the grade and the score, and it is a count of
+> TYPING; a control that removed letters is a second way to clear a target for
+> free, which is the rule the whole warp economy was built around in Round 101.
+> ⚠️ Shards keeps hyperspace and keeps the word WARP — two boards, two truthful
+> labels.
+>
+> **3. `SEED_MAX_INTERVAL_MS = 5000`** (`game-shell.js`), and the safety argument
+> is the whole of it: **it binds ONLY while the calibrator is not confident.** A
+> child MEASURED at 8 WPM keeps every second of their 40-second interval. What it
+> refuses to do is stall a game on an assumption for the forty seconds it takes to
+> discover the assumption was wrong.
+>
+> **4. The prism's hit box is the prism** (`shatter-shards.js`, `PRISM_R` 0.10 →
+> **0**). Jake: *"Waaaay too big… it may go out to the first circle."* ⭐⭐ IT WAS A
+> UNIT ERROR, NOT A TUNING ONE: the view maps field magnitude 0 to `SHIP_R`
+> pixels, so **the prism occupies no field radius at all** — its pixels are
+> already spent in the mapping, and the constant was counting them a second time.
+> ⚠️ See the harness note below; this one had a price.
+>
+> **5. A lost shield detonates and clears the sky** (`game-deadline.js`). Jake:
+> *"it still goes from fine to losing instantly."* ⚠️ Round 120's grace window
+> fixed the ACCOUNTING and left the PICTURE — the sky was still full when the
+> window closed. ⚠️⚠️ **THE BLAST CREDITS NOTHING**: no `cleared()`, or a student
+> could farm a score by losing on purpose.
+>
+> **6. The ping** (`game-shatter.js`, Enter). A wave sweeps out and writes each
+> pane's word at the point of the ring nearest it for 2.6s. ⭐⭐ **IT GIVES NOTHING
+> TO A PANE ALREADY INSIDE THE RING**, which is Jake's own design argument
+> enforced rather than hoped for: *"it won't provide any additional help in later
+> game."* ⚠️ It is a LABEL, never a target — the board's `aimFor()` has always
+> matched any pane's next character and knows nothing about this, so there is no
+> second thing on screen that can be typed and nothing for the two to disagree
+> about. ⚠️ It costs no charge, is not a `keyResult()`, and must be handled ABOVE
+> the `e.key.length !== 1` guard that silently swallows every named key.
+>
+> **7. The panel says which keys exist.** `ENTER — PING` above the rose window,
+> `SPACE — SCATTER` (or WARP) above the charge pips. ⚠️ The contacts are still
+> unlabelled; Jake's ruling that the radar stays unreadable is untouched, and
+> `arcade-panels-test.mjs` now says so in those words.
+>
+> **8. The run clock starts at the end of the countdown** in all three views.
+> ⭐ The old rule (start on the first keystroke) was right about a game with
+> nothing on screen until the student acted; with a countdown, those three seconds
+> ARE the reading time. ⚠️ Idle subtraction still guards the banked seconds.
+>
+> ---
+>
+> ## ⚠️⚠️ THE HIT-BOX FIX HAD A PRICE, AND THE HARNESS CHARGED IT
+>
+> A smaller prism means a pane sailing past has to come genuinely closer, so an
+> IDLE Shards board went quiet: `shatter-shards-test.mjs` Part H's "first threat
+> inside 60s on every seed" went red at **133s** the moment `PRISM_R` changed.
+>
+> ⭐ Tightening `HEADING_SPREAD` (1.7 → 1.15) bought back almost all of it
+> (133s → 68s) **and then stopped buying** — at 0.6 the worst seed is still 64s,
+> because what remains is TRAVEL TIME, not aim. The ceiling moved to 75s with that
+> reasoning written into the assertion.
+> ⚠️⚠️ **DO NOT CLOSE THE REST BY GROWING THE HIT BOX BACK.** It is the one thing
+> here a student can see, and Jake saw it.
+>
+> ---
+>
+> ## ⚠️ AND ONE BUG I WROTE AND THE SUITE CAUGHT IN THE SAME HOUR
+>
+> The detonation sets `live = []` **inside a loop counting down through `live`**,
+> so the next iteration read an index off the new empty array and threw. ⭐ FOUND
+> BY `adaptive-arcade-test.mjs`, which mounts the real view and drives the real
+> frame loop — Round 116's "the first harness that runs a game" earning its keep
+> for the third time. ⚠️ No amount of reading the file would have shown it: the
+> edit looks local and is not.
+>
+> ---
+>
+> ## ⚠️ WHAT IS STILL OWED, IN ORDER
+>
+> 1. ⚠️⚠️ **NOTHING IN ROUNDS 120 OR 121 IS BROWSER-VERIFIED.** The ping, the
+>    scatter, the approach speed and the detonation have never been seen by a
+>    human. Get Jake's verdict before building on any of them.
+> 2. **The scope picker belongs on the arcade landing page** — Jake, 2026-09-14:
+>    *"If we're measuring the wpm from the get go, the wpm meter means nothing on
+>    the game loading screen. That means we could put the 'which words/lessons'
+>    drop down on the arcade landing page, so they pick that once a session and
+>    then just pick their game."* ⭐ THE TRACE ABOVE IS THE ARGUMENT FOR IT: a
+>    hundred seconds of a four-minute session spent on a setup screen. ⚠️ It is
+>    surgery on `arcade.html` (153 KB) plus `arcadeLessonMenu()`, and it is a round
+>    of its own. **Deliberately not started.**
+> 3. **The WPM meter on the pre-game panel is now a lie** and should go with it —
+>    the number it shows is a seed, not a measurement.
+> 4. Escape Key still ignores `onCountdown`. ROADMAP 116b. Deadline and Escape Key
+>    have still never been mounted by a harness of their own.
+> 5. ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` is still set. Jake's to remove.
+> 6. ⚠️ `grep -rn "2026-0" tests/` — Round 120 fixed one calendar-dated fixture;
+>    there may be more.
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `shatter-board.js` **v1.8.0** · `shatter-shards.js` **v1.5.0** ·
+> `game-shell.js` **v1.12.0** · `game-shatter.js` **v1.13.0** ·
+> `game-deadline.js` **v1.17.0** · `game-draw.js` **v1.18.0** ·
+> `game-escape.js` (clock at countdown only, no constant change) ·
+> `tests/shatter-board-test.mjs`, `tests/shatter-shards-test.mjs`,
+> `tests/arcade-panels-test.mjs` updated.
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-14 by Round 120 (Maskelyne), for whoever is next
 >
 > **Instance name: Maskelyne.** The Maskelyne typewriter, 1889, built by the
 > stage magician John Nevil Maskelyne — the right name for a round whose main
@@ -9884,3 +10039,62 @@ that did not move reads as a bug.
 ARE ALL UNTOUCHED**, which is the claim this round most wants checked: every
 complaint Jake made about Shatter was answerable in the view, and every pacing
 complaint was answerable in one constant.
+
+
+---
+
+## §20. Round 121 (Maskelyne) — a second played round, and the trace that was not about the game
+
+**2026-09-14.** Three more CSVs, ten hours after the first three, against the
+Round 120 build. ⭐ The headline check first: **Deadline's ramp reached 1.23 in
+40 seconds where it had reached 2.16 in 47**, and Jake's measured rate read 56–64
+WPM where it had read 28. Both Round 120 fixes landed.
+
+### A. ⚠️⚠️ THE MOST IMPORTANT NUMBER IN THE SHARDS TRACE IS A ZERO
+
+`onScreen` is 0 for **110.9 seconds**, with `intervalMs`, `pressure` and
+`pacedWPM` all frozen at their t=0 values. ⭐ A frozen director is not a slow
+director — it is one that has not been asked anything. The recorder starts at
+mount; the countdown had not run.
+
+⚠️⚠️ **I ALMOST SPENT THE ROUND TUNING SPAWN RATES BECAUSE OF IT.** The tell was
+that every derived column was frozen too: a genuinely slow game moves its numbers.
+⭐ **A COLUMN THAT NEVER CHANGES IS EVIDENCE ABOUT THE INSTRUMENT, NOT THE
+SUBJECT** — and it turned into the strongest argument for Jake's landing-page
+picker, which is a UI change justified by a pacing trace.
+
+### B. ⭐ THE SEED IS NOW THE OLDEST DEFECT LEFT, AND THIS IS ITS THIRD ROUND
+
+Round 119 predicted it (*"nobody has watched a child sit through that opening"*).
+Round 120 blended it away from the fourth sample. Round 121 capped it. ⚠️ Each
+fix was correct and none of them reached far enough, because the underlying shape
+is a **deadlock**: the measurement needs play and play needs the measurement.
+⭐ THE CAP IS THE FIRST FIX THAT BREAKS THE CYCLE RATHER THAN SHORTENING IT, and
+it is safe only because it expires the moment a real measurement exists.
+
+### C. ⚠️ TWO GUT CALLS JAKE HANDED ME, AND WHY THEY WENT OPPOSITE WAYS
+
+* **The scatter's damage ping — declined.** It would credit typing nobody did.
+  ⚠️ The rule it breaks is not a style preference: `clearedChars` IS the quota,
+  the grade and the score.
+* **The label at the ring — built exactly as asked**, including the 2–3 seconds,
+  because his own argument for it contains its safety proof: it helps only while
+  the pane is unreadable, and the game gets harder by bringing panes closer.
+⭐ **A REQUEST THAT COMES WITH THE REASON IT IS SAFE IS A DIFFERENT KIND OF
+REQUEST**, and the two should not be weighed the same way.
+
+### D. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `shatter-board.js` | **1.8.0** | `ENTRY_R`/`APPROACH_MS`/`MIN_INNER_MS`, two-phase `spawn()`/`advance()`, scatter |
+| `shatter-shards.js` | **1.5.0** | ⚠️ `PRISM_R` → 0, `HEADING_SPREAD` |
+| `game-shell.js` | **1.12.0** | `SEED_MAX_INTERVAL_MS`, capped `lifetimeFor()` |
+| `game-shatter.js` | **1.13.0** | the ping, scatter naming, panel labels, clock at countdown |
+| `game-deadline.js` | **1.17.0** | the detonation (⚠️ and its `break`) |
+| `game-draw.js` | **1.18.0** | the panel's two lines are controls |
+| `game-escape.js` | — | clock at countdown |
+
+⚠️ **`arcade.html` IS UNTOUCHED AGAIN**, and the one thing Jake asked for that it
+owns — the scope picker moving to the landing page — is deliberately left for a
+round with nothing else in it.

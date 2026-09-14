@@ -1,5 +1,41 @@
 # CHANGELOG — TypeThatBook
 
+## Round 121 (Maskelyne) — the ping, the scatter, and 110 seconds that were not the game
+
+A second played round of all three cabinets, against the Round 120 build.
+⭐ **Round 120 landed:** Deadline reached pressure 1.23 in 40 seconds where it had
+reached 2.16 in 47, and the calibrator read Jake at 56–64 WPM where it had read 28.
+
+### ⚠️⚠️ The Shards trace opens with 110 seconds of nothing, and it is not pacing
+
+`onScreen` is 0 until t=110.9 with every director column frozen at its startup
+value. The recorder starts at MOUNT; the countdown had not run. ⭐ Roughly a
+hundred of those seconds are a human on the pre-game setup screen — which is the
+measurement behind moving the words/lessons picker to the arcade landing page.
+
+### What changed
+
+* **`shatter-board.js` v1.8.0** — the approach band is a fixed **900ms**
+  (`APPROACH_MS`) instead of 14% of the lifetime, which was 23 seconds early in a
+  run. ⚠️ The two phases still sum to `lifetimeMs`. And the warp becomes
+  **scatter**: every pane out to `ENTRY_R`, the ring the view draws.
+  ⚠️ No damage ping — `clearedChars` is a count of typing.
+* **`game-shell.js` v1.12.0** — `SEED_MAX_INTERVAL_MS`, binding **only while the
+  calibrator is not confident**. An adaptive run opened at a 40.8-second interval
+  and a 163-second lifetime because 8 WPM × `costFactor: 3` says so.
+* **`shatter-shards.js` v1.5.0** — `PRISM_R` 0.10 → **0**. The view maps field 0
+  to the prism's drawn radius, so the ship's pixels were already free and the
+  constant counted them twice. Jake: *"Waaaay too big."*
+* **`game-deadline.js` v1.17.0** — a lost shield detonates and clears the sky.
+  Credits nothing.
+* **`game-shatter.js` v1.13.0** — **Enter pings**: a wave writes each pane's word
+  at the ring point nearest it for 2.6 seconds, and gives nothing to a pane
+  already inside the ring. Panel labels name both keys. The run clock starts at
+  the end of the countdown, here and in Deadline and Escape Key.
+* **`game-draw.js` v1.18.0** — the panel's two text lines are controls now.
+
+**ALL 103 HARNESSES PASS.**
+
 ## Round 120 (Maskelyne) — three games, three deaths, one pressure
 
 Jake played one round of each arcade game and sent the telemetry. The last row of

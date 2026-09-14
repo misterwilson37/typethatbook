@@ -1,3 +1,11 @@
+// game-shatter.js v1.13.0 — Round 121 (Maskelyne): ⭐⭐ THE PING, THE SCATTER'S
+// NAME, AND A CLOCK THAT STARTS WHEN THE COUNTDOWN DOES. Enter sweeps a wave out
+// from the prism and writes each pane's word at the point of the ring nearest it
+// for 2.6 seconds — Jake's answer to *"the beginning is incredibly boring"*, and
+// it deliberately gives nothing to a pane already inside the ring, so it fades
+// out as the game gets harder. ⚠️ `ENTRY_M` is now `shatter-board.js`'s `ENTRY_R`,
+// imported: Round 121 gave that band its own speed, so the number is a RULE and
+// two copies would put the crawl and the ring in different places.
 // game-shatter.js v1.12.0 — Round 120 (Maskelyne): ⚠️⚠️ TWO OF JAKE'S THREE
 // SHATTER COMPLAINTS, BOTH FIXED IN THE VIEW AND NEITHER IN THE BOARD.
 // *"Shatter panes don't shatter, they just kind of respawn separately. They also
@@ -205,7 +213,7 @@
 
 import { GameDirector } from './game-shell.js';
 import { TypingCalibrator } from './typing-calibrator.js';
-import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius } from './shatter-board.js';
+import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius, ENTRY_R } from './shatter-board.js';
 // ⭐ THE SECOND CABINET. Jake: *"build shard, please. I want kids to have that
 // option."* ⚠️⚠️ ONE VIEW, TWO BOARDS — that is the whole reason Round 116 spent
 // a version on the `place()` seam before writing a line of Shards. A second
@@ -228,7 +236,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.12.0';
+export const GAME_SHATTER_VERSION = '1.13.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -240,12 +248,39 @@ const RING_MARGIN = 30;     // gap between the spawn ring and the canvas edge
 // ⭐ 0.78 IS THE OLD `r <= 0.22` EXACTLY, since this board's threat is 1 - r.
 const DANGER_T = 0.78;
 
-// ⚠️ WHERE THE FIELD PROPER ENDS AND THE APPROACH BEGINS, as a field magnitude.
-// See entryRadius(): inside this the drawing is exactly what it always was;
-// outside it, panes run off the canvas so they can be seen coming in.
-// ⭐ 0.86 IS ABOUT 0.6 SECONDS OF APPROACH on a mid-run lifetime, which is a
-// preview; much more and a student is watching an empty ring instead of playing.
-const ENTRY_M = 0.86;
+// ⚠️⚠️ WHERE THE FIELD PROPER ENDS AND THE APPROACH BEGINS IS `shatter-board.js`'s
+// `ENTRY_R` — imported, never restated. Round 121 gave the board its own speed
+// for that band (APPROACH_MS), so the number is now a RULE and not a drawing
+// choice, and two copies of it would put the crawl and the ring in different
+// places. ⭐ The alias exists only so this file reads the way it did.
+const ENTRY_M = ENTRY_R;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⭐⭐ THE PING — Jake, 2026-09-14, on Shards
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// *"We should add a radar ping so that the person can hit the enter key and see
+// the text of the incoming panes. A wave comes out from the ship, and when it
+// hits a pane, it shows the word on the point of the circle closest to the pane.
+// It stays up there for 2-3 seconds and is typable. That gives people a chance to
+// type the word as soon as the pane is visible, even if the word is not. It will
+// speed up early game for impatient people, and it won't provide any additional
+// help in later game."*
+//
+// ⭐⭐ THE LAST SENTENCE IS THE DESIGN ARGUMENT AND IT IS WHY THIS IS NOT A
+// CHEAT. Late in a run the panes are close and their words are already readable,
+// so a label at the rim tells a student nothing they do not have. Early, when a
+// pane is a dot at the edge of a very slow crossing, it is the difference between
+// playing and waiting. ⚠️ A HELP THAT FADES OUT AS THE GAME GETS HARDER IS THE
+// ONLY KIND THIS GAME CAN AFFORD.
+//
+// ⚠️ IT COSTS NOTHING AND CANNOT BE HOARDED. The warp meter exists because a
+// board-clearing power must be earned; this clears nothing, moves nothing and
+// changes no rule — it only draws a word the student could have read by waiting.
+// ⚠️ THE COOLDOWN IS SO THE WAVE READS AS AN EVENT, not to ration it.
+const PING_SWEEP_RATE = 1.6;      // the same expansion rate the scatter wave uses
+const PING_LABEL_MS = 2600;       // Jake's "2-3 seconds"
+const PING_COOLDOWN_MS = 900;
 
 // How far past the canvas edge a pane's CENTRE is born, in pixels.
 const PANE_CLEARANCE = 74;
@@ -547,6 +582,14 @@ export function mount(container, opts) {
     let countdown = null;
     // The dispersion shockwave a warp throws. 0..1, or null.
     let warpRing = null;
+    // ⚠️ VIEW-ONLY, LIKE EVERYTHING ELSE IN THIS SECTION. `pingWave` is the
+    // expanding circle; `pingLabels` is id → board-clock deadline. The board has
+    // never heard of either, and a label is not a second copy of a pane: it is
+    // drawn from `board.place()` every frame, so it follows its pane around the
+    // rim and vanishes with it.
+    let pingWave = null;
+    let pingLabels = new Map();
+    let lastPingAt = -Infinity;
     // ⚠️⚠️ WHERE THE PRISM WAS LAST POINTING. Jake, 2026-09-11: *"the prism ship
     // points up on mistakes, which is jarring when your target is below you.
     // Maybe wrong colors just fizzle at the tip?"*
@@ -635,6 +678,21 @@ export function mount(container, opts) {
             board.release();
             return;
         }
+        // ⭐⭐ ENTER PINGS. See PING_SWEEP_RATE above for why this is free.
+        // ⚠️ IT MUST BE HANDLED **BEFORE** THE `e.key.length !== 1` GUARD BELOW,
+        // which is what silently swallows every named key — and it is not a
+        // keystroke: `keyResult()` is not called, because a ping is not an
+        // attempt at a word and charging it as a mistake would teach a student
+        // not to look.
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (started && bNow - lastPingAt >= PING_COOLDOWN_MS) {
+                lastPingAt = bNow;
+                pingWave = { t: 1 };
+                sfx.free();
+            }
+            return;
+        }
         // ⚠️ ESCAPE IS DELIBERATELY NOT HANDLED HERE ANY MORE. It is
         // game-chrome.js's pause key, and one key doing two jobs is what made
         // this unusable. ⭐ ONE KEY, ONE JOB — and now that no view binds Escape,
@@ -661,7 +719,11 @@ export function mount(container, opts) {
             // WARP_PUSH note in shatter-board.js.
             warpRing = { t: 1 };
             glassBurst(particles, cx, cy, FAN, Math.round(30 * motionScale()), 260, rand);
-            banner = { text: 'WARP', until: now + 900 };
+            // ⚠️ TWO BOARDS, TWO TRUTHFUL WORDS. On the radial board the wave
+            // shoves every pane out to the ring — Jake's *"scatter"*. On Shards
+            // the same meter buys hyperspace, and calling that a scatter would
+            // describe something the student did not see.
+            banner = { text: drift ? 'WARP' : 'SCATTER', until: now + 900 };
             return;
         }
 
@@ -928,6 +990,7 @@ export function mount(container, opts) {
         // previous run paints on the countdown of the next one, which reads as
         // the game firing at a pane that is not there.
         shots = []; flare = 0; warpRing = null; lastAim = null; countdown = null;
+        pingWave = null; pingLabels = new Map(); lastPingAt = -Infinity;
         bNow = 0; slowMo = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         idleMs = 0; lastKeyAt = 0;
@@ -1038,6 +1101,30 @@ export function mount(container, opts) {
             warpRing.t -= dt * 1.6;
             if (warpRing.t <= 0) warpRing = null;
         }
+        // ── the ping sweep ──────────────────────────────────────────────────
+        // ⚠️⚠️ THE WAVE REVEALS A PANE WHEN IT REACHES IT, NOT WHEN IT IS FIRED.
+        // A ping that labelled everything instantly would be a button that turns
+        // the words on; the travel time is what makes it a sweep, and it is also
+        // what makes a distant pane cost the student a moment's patience.
+        if (pingWave) {
+            pingWave.t -= dt * PING_SWEEP_RATE;
+            const reach = (1 - pingWave.t) * 1.05;
+            for (const rock of board.rocks) {
+                const g = board.place(rock);
+                if (Math.hypot(g.x, g.y) <= reach) {
+                    pingLabels.set(rock.id, bNow + PING_LABEL_MS);
+                }
+            }
+            if (pingWave.t <= 0) pingWave = null;
+        }
+        // ⚠️ EXPIRED LABELS ARE DROPPED HERE AND PANES THAT DIED ARE DROPPED IN
+        // THE DRAW, where the live set is already in hand. Keeping this map
+        // bounded matters over a twenty-minute session.
+        if (pingLabels.size) {
+            for (const [id, until] of pingLabels) {
+                if (bNow >= until) pingLabels.delete(id);
+            }
+        }
         // ⚠️ IN THE FRAME LOOP, NOT ONLY IN finish() — the host's daily total has
         // to move WHILE the student plays, because that is when they are looking
         // at it.
@@ -1095,6 +1182,15 @@ export function mount(container, opts) {
                 // file no longer knows an angle from a radius.
                 contacts: board.rocks.map(r => board.place(r)),
                 warps: board.warps, maxWarps: MAX_WARPS, charge: board.charge,
+                // ⚠️ THE PANEL IS TOLD WHAT THE KEYS DO; IT DOES NOT GUESS. It
+                // has no idea which board it is describing and must not learn —
+                // `drift` is this file's business. ⭐ The ping's readiness is read
+                // from the same cooldown the key checks, so a dimmed label and a
+                // refused press can never disagree.
+                pingLabel: 'ENTER \u2014 PING',
+                pingReady: bNow - lastPingAt >= PING_COOLDOWN_MS,
+                spendLabel: drift ? 'SPACE \u2014 WARP' : 'SPACE \u2014 SCATTER',
+                spendReady: drift ? 'SPACE TO WARP' : 'SPACE TO SCATTER',
             });
         }
         if (gaugeCtx) {
@@ -1123,6 +1219,8 @@ export function mount(container, opts) {
 
         drawRings();
         drawPanes(tSec);
+        drawPingWave();
+        drawPingLabels();
         drawShots();
         drawPrismShip();
         drawWarpRing();
@@ -1319,7 +1417,73 @@ export function mount(container, opts) {
     }
 
     /**
-     * The warp: the prism firing in every direction at once.
+     * The ping's wave. ⚠️ ONE RING, NOT EIGHT — the scatter is the spectrum going
+     * out and this must not be mistaken for it at a glance, because one of them
+     * costs a charge and the other does not. ⭐ Same geometry, different signature.
+     */
+    function drawPingWave() {
+        if (!pingWave) return;
+        const k = 1 - pingWave.t;
+        const r = toPixelRadius(k * 1.05);
+        if (r <= SHIP_R + 0.5) return;
+        ctx.save();
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = pingWave.t * 0.7;
+        ctx.strokeStyle = '#00e5ff';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = pingWave.t * 0.25;
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+    }
+
+    /**
+     * ⭐⭐ THE WORD, AT THE POINT ON THE RING NEAREST ITS PANE.
+     *
+     * Jake: *"it shows the word on the point of the circle closest to the pane."*
+     *
+     * ⚠️⚠️ IT IS A LABEL AND NOT A TARGET. Typing it types the PANE — the board's
+     * `aimFor()` has always matched on any pane's next character and knows
+     * nothing about this. ⭐ THAT IS WHY IT IS SAFE: there is no second thing on
+     * screen that can be typed, so there is nothing for the two to disagree
+     * about, and a label that expires mid-word costs the student nothing they
+     * had.
+     * ⚠️ THE TYPED PREFIX IS SHOWN DIM, like the pane itself, or a student
+     * halfway through a word would be reading a prompt that contradicts the
+     * glass.
+     */
+    function drawPingLabels() {
+        if (!pingLabels.size) return;
+        const live = new Set();
+        for (const rock of board.rocks) {
+            const until = pingLabels.get(rock.id);
+            if (until == null) continue;
+            live.add(rock.id);
+            const g = board.place(rock);
+            const m = Math.hypot(g.x, g.y);
+            // ⚠️ A PANE ALREADY INSIDE THE RING IS NOT LABELLED. Its own word is
+            // drawn on it at that range, and two copies of one word a few pixels
+            // apart is worse than none — this is the "no extra help in the late
+            // game" clause, enforced rather than hoped for.
+            if (m <= ENTRY_M * 0.72) continue;
+            const fade = Math.max(0, Math.min(1, (until - bNow) / 600));
+            const x = cx + g.dx * (ringR - 14);
+            const y = cy + g.dy * (ringR - 14);
+            ctx.save();
+            ctx.globalAlpha = fade;
+            platedText(ctx, rock.text, x, y, {
+                size: Math.max(13, Math.round(ringR * 0.065)),
+                typed: rock.typed,
+                colors: rock.colors,
+            });
+            ctx.restore();
+        }
+        // ⚠️ A PANE THAT DIED TAKES ITS LABEL WITH IT.
+        for (const id of pingLabels.keys()) if (!live.has(id)) pingLabels.delete(id);
+    }
+
+    /**
+     * The scatter: the prism firing in every direction at once.
      *
      * ⚠️ IT IS DRAWN FROM `warpRing` AND NOTHING ELSE. The board already spent
      * the warp and pushed the panes back; this is the picture of that having
@@ -1432,21 +1596,47 @@ export function mount(container, opts) {
         // ⚠️ IT SAYS PANE AND PRISM BECAUSE THE SCREEN DOES. A hint that still
         // said "rock" and "ship" would be describing the previous version of
         // this game to a child looking at this one.
+        // ⚠️⚠️ EVERY KEY THIS HINT NAMES IS A KEY THIS VIEW HANDLES, AND THE
+        // REVERSE IS NOW TRUE TOO. `abandon-lock-test.mjs` Part D exists because
+        // four sentences once promised Escape to a child who was already stuck;
+        // Round 121 added Enter, so it is named here and on the panel.
         hint: drift
             ? 'Panes of glass drift across the field and wrap around the edges '
               + 'the way they do in Asteroids \u2014 nothing lands on a timer, so a '
               + 'word you ignore comes back. Type one to light it up and shatter '
-              + 'it, and its pieces really do fly apart. Clearing panes charges '
-              + 'the WARP meter; Space shoves everything away from your prism. '
-              + 'Backspace lets go of the word you are on and wipes it clean.'
+              + 'it, and its pieces really do fly apart. Press Enter to ping: a '
+              + 'wave goes out and writes each pane\u2019s word on the ring for a '
+              + 'few seconds, so you can start typing before you can read it. '
+              + 'Clearing panes charges the meter; Space jumps your prism '
+              + 'somewhere quieter. Backspace lets go of the word you are on and '
+              + 'wipes it clean.'
             : 'Each word is a pane of glass, one panel per letter, coloured for '
             + 'the finger that types it. Light up every panel and the pane '
-            + 'shatters — into its pieces, which you have to type too. Go for '
-            + 'whatever is closest to your prism. Clearing panes charges the WARP '
-            + 'meter; Space pushes everything back. Backspace lets go of the word '
-            + 'you are on and wipes it clean so you can start it again.',
+            + 'shatters \u2014 into its pieces, which you have to type too. Go for '
+            + 'whatever is closest to your prism. Press Enter to ping: a wave '
+            + 'goes out and writes each pane\u2019s word on the ring for a few '
+            + 'seconds. Clearing panes charges the meter; Space scatters every '
+            + 'pane back out to the ring. Backspace lets go of the word you are '
+            + 'on and wipes it clean so you can start it again.',
         muted: isMuted(),
-        onStart() { started = true; lastFrame = null; },
+        onStart() {
+        // ⚠️⚠️ THE RUN CLOCK STARTS HERE, AT THE END OF THE COUNTDOWN, NOT ON THE
+        // FIRST KEYSTROKE — Round 121 (Maskelyne). Jake, 2026-09-14: *"Deadline
+        // counts down to the start of the game in the top right and then
+        // immediately starts counting. Other games wait for the player to type.
+        // They should all act like deadline."*
+        // ⭐ THE OLD RULE WAS RIGHT ABOUT A DIFFERENT GAME. `startIfNeeded()` has
+        // been called from `keyResult()` since the first prototype, so a student
+        // who took eight seconds to read the screen was not charged for them —
+        // fair when nothing was on screen until they acted. With a countdown, the
+        // three seconds ARE the reading time, and a clock that sits at 0:00 while
+        // panes are already falling reads as a broken clock.
+        // ⚠️ IDLE TIME IS STILL SUBTRACTED from the banked seconds (see
+        // bankWholeSeconds), so this cannot become a way to bank typing time by
+        // walking away.
+        d.clock.startIfNeeded(performance.now());
+            started = true; lastFrame = null;
+        },
         // ⚠️ SUPPLYING THIS SUPPRESSES game-chrome.js's OWN DOM NUMERAL, which
         // is the point — two countdowns on screen would be worse than the
         // inconsistent one. See `countdown` above.

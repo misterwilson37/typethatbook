@@ -1,3 +1,7 @@
+// game-draw.js v1.18.0 — Round 121 (Maskelyne): drawShatterPanel()'s two text
+// lines are CONTROLS now, not decoration — `ENTER — PING` above the rose window
+// and `SPACE — SCATTER` (or WARP, on Shards) above the charge pips. Jake:
+// *"mostly just so kids know what buttons to press."*
 // game-draw.js v1.17.0 — Round 116 (Sun): five letters in SEG_ON and
 // sevenSegGlyphs(), so the arcade header can set ARCADE on the SAME seven-segment
 // device the game clocks use instead of owning a second copy of the geometry.
@@ -97,7 +101,7 @@
 // a picture they already know from the board.
 import { ENEMY_SPRITES, ENEMY_PALETTES, drawPixelSprite } from './game-sprites.js';
 
-export const GAME_DRAW_VERSION = '1.17.0';
+export const GAME_DRAW_VERSION = '1.18.0';
 
 /**
  * Size a canvas to its container in CSS pixels while rendering at device
@@ -2008,8 +2012,15 @@ export function drawShatterPanel(ctx, o) {
 
     ctx.font = 'bold 11px "Courier Prime", monospace';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillStyle = '#5d7290';
-    ctx.fillText('ROSE WINDOW', pad, pad - 4);
+    // ⚠️⚠️ THE TITLE IS THE CONTROL NOW — Round 121 (Maskelyne). Jake:
+    // *"The radar ping should be explained above the radar on the left, and the
+    // warp should be explained below it (above the warp count) — mostly just so
+    // kids know what buttons to press."*
+    // ⭐ 'ROSE WINDOW' WAS DECORATION OVER THE ONE PANEL A STUDENT LOOKS AT. The
+    // window is still drawn below; what the line SAYS is now a key they can
+    // press, which is the only thing this half of the panel was ever missing.
+    ctx.fillStyle = o.pingReady === false ? '#3f5068' : '#00e5ff';
+    ctx.fillText(o.pingLabel || 'ENTER \u2014 PING', pad, pad - 4);
 
     // ⚠️⚠️ THE LABEL CHANGED AND THE RULE DID NOT. Jake: *"It's just window
     // dressing... Only the 'Can I warp yet?' bar is important."* This half is
@@ -2051,8 +2062,13 @@ export function drawShatterPanel(ctx, o) {
     const my = H - meterH - pad + 8;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.font = 'bold 11px "Courier Prime", monospace';
+    // ⚠️ THE LABEL NAMES THE KEY AND THE EFFECT, and the effect differs by board:
+    // the radial cabinet scatters the glass out to the ring, Shards jumps the
+    // ship. ⭐ ONE PANEL, TWO TRUTHFUL WORDS — a label that said "warp" over a
+    // scatter would be the control lying about itself, which is ROADMAP 116g's
+    // whole lesson.
     ctx.fillStyle = o.warps > 0 ? '#ffd700' : '#5d7290';
-    ctx.fillText('WARP', pad, my);
+    ctx.fillText(o.spendLabel || 'SPACE \u2014 WARP', pad, my);
 
     // ⭐ BANKED WARPS ARE PIPS, NOT A NUMBER. "Warps: 2" is a fact to read; two
     // lit pips beside an empty third is a fact to see, and it shows the CEILING
@@ -2079,7 +2095,7 @@ export function drawShatterPanel(ctx, o) {
     ctx.textAlign = 'center';
     ctx.font = 'bold 10px "Courier Prime", monospace';
     ctx.fillStyle = (o.warps || 0) > 0 ? '#ffd700' : '#5d7290';
-    ctx.fillText((o.warps || 0) > 0 ? 'SPACE TO WARP' : 'CLEAR ROCKS TO CHARGE',
+    ctx.fillText((o.warps || 0) > 0 ? (o.spendReady || 'READY') : 'CLEAR PANES TO CHARGE',
                  W / 2, my + 64);
     ctx.restore();
 }

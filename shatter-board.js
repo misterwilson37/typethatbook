@@ -1,3 +1,10 @@
+// shatter-board.js v1.8.0 — Round 121 (Maskelyne): ⚠️⚠️ TWO SPEEDS AND A SCATTER.
+// The approach band is now a FIXED 900ms rather than 14% of the lifetime, which
+// early in a run was twenty-three seconds of staring at an empty ring
+// (APPROACH_MS); and the warp shoves every pane out to ENTRY_R — the circle the
+// view draws — instead of nudging each one 0.45 from wherever it happened to be.
+// ⚠️ THE TWO PHASES STILL SUM TO `lifetimeMs`. Nothing the director promised
+// moved; only the distribution inside the promise did.
 // shatter-board.js v1.7.0 — Round 119 (Hammond): `release()`, bound to Backspace
 // because Escape both released the lock and paused the game. See its header —
 // dropping the lock without wiping `typed` leaves a pane whose next wanted
@@ -68,7 +75,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.7.0';
+export const SHATTER_BOARD_VERSION = '1.8.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -88,6 +95,37 @@ export const SHATTER_COST_FACTOR = 3;
 // turned out to be, which is how the prototype's hardcoded 720×600 board — a
 // stamp on a projector and cropped on a portrait iPad — cannot come back.
 export const SPAWN_R = 1;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE APPROACH IS A FIXED NUMBER OF MILLISECONDS, NOT A FRACTION OF THE
+//      JOURNEY — Round 121 (Maskelyne)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"I really like how the words come in faster at the end and
+// then slow when they hit the circle. I think they should do that from the
+// beginning — especially if we can slow them to a crawl once they hit the
+// circle. That wait for the words to be visible is brutal."*
+//
+// ⭐⭐ HE IS DESCRIBING A SIDE EFFECT AND ASKING FOR IT ON PURPOSE. Round 120 put
+// the outer band of the field off the canvas, and the view draws that band across
+// a lot of pixels — so a pane crosses it FAST in pixels per second. ⚠️ But the
+// speed was `SPAWN_R / lifetime`, one speed for the whole trip, so the band took
+// a FIXED FRACTION (14%) of the lifetime: 1.3 seconds late in a run and
+// **twenty-three seconds** early in one, when a lifetime is 163 s. That is the
+// brutal wait, and it is the same constant producing both.
+//
+// ⭐ SO THE APPROACH BECOMES A CONSTANT AND THE INNER FIELD TAKES WHAT IS LEFT.
+// The pane is readable about a second after it spawns, at every point in a run.
+// ⚠️⚠️ AND THE PACING CONTRACT IS UNTOUCHED: the two phases still sum to exactly
+// `lifetimeMs`, so a target arrives when the director said it would. This is
+// redistribution, not a discount — do not "simplify" it back to one speed.
+export const ENTRY_R = 0.86;
+export const APPROACH_MS = 900;
+
+// ⚠️ A FLOOR, so a very short lifetime cannot leave the inner journey with zero
+// or negative time. At the survival ceiling a lifetime is a few seconds and the
+// approach must give most of it back.
+export const MIN_INNER_MS = 400;
 export const IMPACT_R = 0;
 
 // ⚠️⚠️ ROCKS CONVERGE AND DO NOT WRAP, AND THAT IS A DESIGN RULE, NOT A PHYSICS
@@ -185,7 +223,10 @@ export const WARP_GRACE_MS = 400;
 // game is built to apply.
 export const MAX_WARPS = 3;
 
-// What a warp buys: every rock is shoved back out toward the spawn ring.
+// ⚠️ SUPERSEDED BY SCATTER IN ROUND 121 — see warp(). Kept exported because
+// tests/shatter-board-test.mjs and shatter-shards.js both name it, and because
+// the number records what the old behaviour was.
+// What a warp used to buy: every rock shoved back out by this much.
 // ⚠️ IT DESTROYS NOTHING. A warp that cleared the board would be a second way to
 // clear a rock that costs no keystrokes, and `clearedChars` — the quota, the
 // grade, the score — would stop being a count of typing.
@@ -500,6 +541,12 @@ export class ShatterBoard {
      */
     spawn(text, lifetimeMs, nowMs) {
         const life = Math.max(1, lifetimeMs || 1);
+        // ⚠️⚠️ TWO SPEEDS, AND THEY SUM TO `life`. See APPROACH_MS. The approach
+        // is clamped so a short lifetime never leaves the inner field with no
+        // time at all — at the survival ceiling the approach gives most of it
+        // back rather than eating the whole journey.
+        const approach = Math.min(APPROACH_MS, Math.max(0, life - MIN_INNER_MS));
+        const inner = Math.max(1, life - approach);
         const rock = {
             id: nextTargetId(),
             text: String(text || ''),
@@ -510,7 +557,8 @@ export class ShatterBoard {
             // speed were recomputed from the director's current pressure each
             // frame would ACCELERATE under a student's own success, which is the
             // ramp applied twice.
-            dr: SPAWN_R / life,
+            drApproach: approach > 0 ? (SPAWN_R - ENTRY_R) / approach : Infinity,
+            dr: ENTRY_R / inner,
             depth: 0,
             terminal: false,
             parent: null,
@@ -535,7 +583,13 @@ export class ShatterBoard {
         const arrived = [];
         const alive = [];
         for (const rock of this.rocks) {
-            rock.r -= rock.dr * dt;
+            // ⚠️⚠️ WHICH SPEED IS DECIDED BY WHERE THE PANE IS, NOT BY HOW LONG IT
+            // HAS LIVED. A pane shoved back out by a scatter re-enters the
+            // approach band and crosses it quickly again, which is what a shove
+            // should look like. ⭐ `drApproach` is absent on panes built before
+            // this version and on pieces; the fallback is the old behaviour.
+            const speed = (rock.r > ENTRY_R && rock.drApproach) ? rock.drApproach : rock.dr;
+            rock.r -= speed * dt;
             if (rock.r <= IMPACT_R) { rock.r = IMPACT_R; arrived.push(rock); }
             else alive.push(rock);
         }
@@ -794,8 +848,28 @@ export class ShatterBoard {
      */
     warp(nowMs) {
         if (!this.canWarp(nowMs)) return false;
+        // ═══════════════════════════════════════════════════════════════════
+        // ⭐⭐ SCATTER — Jake, 2026-09-14: *"Warp makes no sense here. Let's do
+        // something like scatter that sends a rainbow out from the ship, pushing
+        // all the panes out to the edge of the circle."*
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // ⚠️⚠️ TO THE RING, NOT BY A FIXED AMOUNT. `WARP_PUSH`'s 0.45 was a nudge
+        // with no landmark in it: a pane at 0.8 went off the top of the field and
+        // a pane at 0.05 was still on the student's face. ⭐ EVERY PANE ENDING UP
+        // ON ONE VISIBLE LINE is the thing that makes this readable as an event —
+        // the student can SEE what they bought, which a proportional shove never
+        // showed them.
+        //
+        // ⚠️ AND IT STILL DESTROYS NOTHING. Jake asked whether it should also do
+        // *"one ping of damage to each pane"* and left it to my judgement: it must
+        // not. `clearedChars` is the quota, the grade and the score, and it is a
+        // count of TYPING — a control that removed letters would be a second way
+        // to clear a target that costs no keystrokes, which is the rule the warp
+        // meter was built around in Round 101. ⭐ The push already buys the only
+        // thing a student needs here, which is TIME.
         for (const rock of this.rocks) {
-            rock.r = Math.min(SPAWN_R, rock.r + WARP_PUSH);
+            rock.r = Math.max(rock.r, ENTRY_R);
         }
         // ⚠️ ONE WARP IS SPENT, NOT THE WHOLE STACK. Zeroing the counter would
         // throw away the other two the student deliberately saved, which is the

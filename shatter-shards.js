@@ -1,3 +1,7 @@
+// shatter-shards.js v1.5.0 — Round 121 (Maskelyne): ⚠️⚠️ `PRISM_R` 0.10 → 0. The view
+// maps field 0 to the prism's drawn radius, so the ship's pixels were already
+// free and the constant was counting them a second time — a hit box out past the
+// crazing ring. Jake: *"Waaaay too big."*
 // shatter-shards.js v1.4.0 — SHARDS. Round 117 (Bennett): HYPERSPACE, and the
 // collision bug that was the real cause of "too easy".
 //
@@ -111,7 +115,7 @@ import {
     paneRadius, PANE_CELL, PANE_HIT_FRACTION,
 } from './shatter-board.js';
 
-export const SHATTER_SHARDS_VERSION = '1.4.0';
+export const SHATTER_SHARDS_VERSION = '1.5.0';
 
 /**
  * How close a pane's CENTRE may come to the prism's centre before they touch.
@@ -147,6 +151,11 @@ export function reachOf(rock) {
 // wraps rather than blinking at the rim.
 export const WRAP_EDGE = 1.35;
 
+// How wide a spawn's heading may wander off "straight at the prism", in radians,
+// total. ⚠️ IT IS THE COMPANION OF `PRISM_R`: the two together decide how often
+// an untouched board threatens anybody. See spawn().
+export const HEADING_SPREAD = 1.15;
+
 // ⚠️⚠️ THE PRISM'S OWN RADIUS — HALF OF THE COLLISION TEST, NOT ALL OF IT.
 //
 // v1.3.0, Round 117 (Bennett). This constant used to BE the whole hit test:
@@ -159,7 +168,27 @@ export const WRAP_EDGE = 1.35;
 // ⚠️ THE FIX IS ASTEROIDS' TEST, WHICH IS THE GAME JAKE POINTED AT: a rock hits
 // when `distance <= rockRadius + shipRadius`, and the ROCK term dominates. See
 // advance().
-export const PRISM_R = 0.10;
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ ROUND 121 (Maskelyne): IT IS **ZERO**, AND THE OLD 0.10 WAS COUNTING THE
+//        SHIP TWICE.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"The ship's hitbox is way too big. Waaaay too big. It may go
+// out to the first circle. It should be the size of the prism itself, not the
+// light around it."*
+//
+// ⭐⭐ HE IS RIGHT AND THE CAUSE IS A UNIT ERROR, NOT A TUNING ONE. The view maps
+// field magnitude 0 to a pixel radius of `SHIP_R` — the prism's own drawn radius
+// — and grows from there. **The prism therefore occupies NO field radius at all;
+// its pixels are already free in the mapping.** Adding 0.10 of field on top put
+// the ship's collision edge at roughly 47px where the prism is drawn at 26, i.e.
+// out past the crazing ring, which is exactly what he saw.
+//
+// ⚠️ THE PANE TERM IS UNCHANGED AND IS STILL THE ONE THAT DOES THE WORK — Round
+// 117's real fix, where glass visibly passed over the prism and nothing happened.
+// ⭐ THE TEST IS STILL ASTEROIDS': distance <= rockRadius + shipRadius. The ship
+// radius is simply already spent.
+export const PRISM_R = 0;
 
 // A pane crosses the field in the time the director gave it. ⚠️ THE FIELD IS
 // TWO SPAWN RADII WIDE, so this is the distance term in speed = distance / time.
@@ -336,8 +365,19 @@ export class ShardsBoard extends ShatterBoard {
         // IS A RADIAL PANE. The spread is wide enough that plenty of them will
         // miss on the first pass and come back, which is the whole texture of
         // this board.
+        //
+        // ⚠️⚠️ 1.7 → HEADING_SPREAD IN ROUND 121, AND IT MOVED **BECAUSE THE HIT
+        // BOX DID**. `PRISM_R` went 0.10 → 0 (a unit error; see the constant), so
+        // a pane sailing past now has to come genuinely closer to hurt anybody —
+        // and the idle floor in shatter-shards-test.mjs Part H immediately went
+        // red at 133 seconds to first threat against a 60-second ceiling.
+        // ⭐⭐ THE HARNESS PRICED THE CHANGE, WHICH IS WHY IT EXISTS. A smaller
+        // target and the same scatter of headings is a quieter board, and
+        // *"never had any threat at all"* is the report this game has already
+        // earned once. ⚠️ DO NOT "RESTORE" DIFFICULTY BY GROWING THE HIT BOX BACK:
+        // that is the thing Jake could see and call wrong.
         const toward = Math.atan2(-y, -x);
-        const a = toward + (this.rand() - 0.5) * 1.7;
+        const a = toward + (this.rand() - 0.5) * HEADING_SPREAD;
 
         const rock = {
             id: nextTargetId(),

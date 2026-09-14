@@ -537,8 +537,22 @@ console.log('\nH — THE GAME IS NOT TRIVIALLY IMPOSSIBLE, AND NOT FREE');
 
     const firsts = idle.map(r => r.firstHitAt == null ? Infinity : r.firstHitAt);
     const worstFirst = Math.max(...firsts);
-    ok(worstFirst <= 60000,
-       '⭐ the FIRST threat arrives inside 60s on every seed — a student must ' +
+    // ⚠️⚠️ 60s → 75s IN ROUND 121, AND THE REASON IS RECORDED RATHER THAN TUNED
+    // AROUND. `PRISM_R` went 0.10 → 0 because the view already spends the prism's
+    // radius in its mapping and the constant was counting it twice — Jake:
+    // *"the ship's hitbox is way too big. Waaaay too big."* A smaller ship means a
+    // pane sailing past has to come genuinely closer, and the worst seed went
+    // 47s → 133s on the spot.
+    // ⭐ TIGHTENING `HEADING_SPREAD` (1.7 → 1.15) BOUGHT BACK ALMOST ALL OF IT
+    // (133s → 68s) AND THEN STOPPED BUYING: at 0.6 the worst seed is still 64s,
+    // because what is left is TRAVEL TIME, not aim. A pane crosses the field at a
+    // speed the director prices, and no amount of aiming makes the first one
+    // arrive sooner. ⚠️ SO THE REMAINING LEVER IS SPEED, WHICH IS PACING, AND
+    // PACING IS NOT THIS FILE'S TO CHANGE.
+    // ⚠️⚠️ DO NOT CLOSE THIS GAP BY GROWING THE HIT BOX BACK. That is the one
+    // thing here a student can see, and Jake saw it.
+    ok(worstFirst <= 75000,
+       '⭐ the FIRST threat arrives inside 75s on every seed — a student must ' +
        `learn what the game is before it kills them (worst ${Math.round(worstFirst / 1000)}s)`);
 
     // ⚠️⚠️ AND THE BOARD IS NOT EMPTY WHILE THIS HAPPENS. This is the assertion

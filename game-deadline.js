@@ -1,3 +1,9 @@
+// game-deadline.js v1.17.0 — Round 121 (Maskelyne): ⭐⭐ A LOST SHIELD DETONATES AND
+// CLEARS THE SKY. Jake: *"it still goes from fine to losing instantly… maybe the
+// shields could explode and destroy all the incoming ufos to give a moment of
+// breathe."* ⚠️ Round 120's grace window fixed the ACCOUNTING (six shields for
+// one collapse) and left the PICTURE: the sky was still full when the window
+// closed. ⚠️⚠️ The blast credits nothing — see the loop in frame().
 // game-deadline.js v1.16.0 — Round 120 (Maskelyne): ⚠️⚠️ THE SHELL IS ASKED
 // BEFORE THE CITY IS DAMAGED. game-shell.js v1.11.0 absorbs hits that land
 // inside HIT_GRACE_MS of the last one, and here the shield count IS the skyline,
@@ -357,7 +363,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.16.0';
+export const GAME_DEADLINE_VERSION = '1.17.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -1120,7 +1126,51 @@ export function mount(container, opts) {
                               Math.round(40 * motionScale()), 300);
                     }
 
-                    if (d.over) { finish(now, false); break; }
+                    // ═══════════════════════════════════════════════════════
+                    // ⭐⭐ THE SHIELD DETONATES AND TAKES THE SKY WITH IT.
+                    // ═══════════════════════════════════════════════════════
+                    //
+                    // Jake, 2026-09-14: *"Deadline's pacing is better, but it
+                    // still goes from fine to losing instantly. Maybe the shields
+                    // could explode (like scatter) and destroy all the incoming
+                    // ufos to give a moment of breathe."*
+                    //
+                    // ⚠️⚠️ ROUND 120's GRACE WINDOW SOLVED THE ACCOUNTING AND NOT
+                    // THE PICTURE. It stopped charging six shields for one
+                    // collapse — but the *sky* was still full at the end of the
+                    // window, so the student watched the same wall land again the
+                    // moment it closed. ⭐ A BREATH HAS TO BE VISIBLE ON THE
+                    // SCREEN, not just true in the counters.
+                    //
+                    // ⚠️⚠️ AND IT CREDITS NOTHING. Every cleared word in this app
+                    // is a word somebody typed: `clearedChars` is the quota, the
+                    // grade and the score. These are DESTROYED, not cleared —
+                    // `d.cleared()` is not called and must never be, or a student
+                    // could farm a score by losing on purpose.
+                    // ⚠️ `dropped()` ON EACH, because a half-typed word the blast
+                    // took away measures the blast and not the child.
+                    for (const other of live) {
+                        d.calibrator.dropped(other.id);
+                        burst(particles, other.x, other.y, '#ffcc44',
+                              Math.round(14 * motionScale()), 220);
+                    }
+                    live = [];
+                    missiles = [];
+                    locked = null;
+                    flash = Math.max(flash, 0.5);
+                    sfx.launch(0);
+
+                    // ⚠️⚠️ AND THE SWEEP STOPS HERE, BECAUSE THE LIST IT IS WALKING
+                    // NO LONGER EXISTS. The loop counts DOWN through `live`, and
+                    // the line above replaced it with an empty array — the next
+                    // iteration read `live[i]` off the new one and threw
+                    // `Cannot read properties of undefined`. ⭐ Caught by
+                    // adaptive-arcade-test.mjs, which mounts the real view and
+                    // drives the real frame loop; no amount of reading this file
+                    // would have shown it, and the blast is exactly the kind of
+                    // edit that looks local and is not.
+                    if (d.over) finish(now, false);
+                    break;
                 }
             }
 
@@ -2143,7 +2193,24 @@ export function mount(container, opts) {
         // view HAS a readout to put the digits in; Escape Key does not, passes
         // no onCountdown, and keeps the overlay numeral unchanged.
         onCountdown(n) { countdown = n; },
-        onStart() { started = true; lastFrame = null; },
+        onStart() {
+        // ⚠️⚠️ THE RUN CLOCK STARTS HERE, AT THE END OF THE COUNTDOWN, NOT ON THE
+        // FIRST KEYSTROKE — Round 121 (Maskelyne). Jake, 2026-09-14: *"Deadline
+        // counts down to the start of the game in the top right and then
+        // immediately starts counting. Other games wait for the player to type.
+        // They should all act like deadline."*
+        // ⭐ THE OLD RULE WAS RIGHT ABOUT A DIFFERENT GAME. `startIfNeeded()` has
+        // been called from `keyResult()` since the first prototype, so a student
+        // who took eight seconds to read the screen was not charged for them —
+        // fair when nothing was on screen until they acted. With a countdown, the
+        // three seconds ARE the reading time, and a clock that sits at 0:00 while
+        // panes are already falling reads as a broken clock.
+        // ⚠️ IDLE TIME IS STILL SUBTRACTED from the banked seconds (see
+        // bankWholeSeconds), so this cannot become a way to bank typing time by
+        // walking away.
+        d.clock.startIfNeeded(performance.now());
+            started = true; lastFrame = null;
+        },
         onPause(on) {
             const now = performance.now();
             // ⚠️ PAUSE STOPS THE GRADED CLOCK. This is the one deliberate

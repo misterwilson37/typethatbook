@@ -25,7 +25,7 @@ import {
     ShatterBoard, splitTarget, splittable,
     SHATTER_COST_FACTOR, SPLIT_MIN_R, SPAWN_R,
     WARP_CLEARS, WARP_GRACE_MS, WARP_PUSH, MAX_WARPS,
-    MIN_RESPLIT_LEN, MAX_SPLIT_DEPTH,
+    MIN_RESPLIT_LEN, MAX_SPLIT_DEPTH, ENTRY_R, APPROACH_MS,
     SHATTER_BOARD_VERSION,
 } from '../shatter-board.js';
 import {
@@ -220,6 +220,7 @@ console.log('\nPART D — the split, and the one journey it does not reset');
     b.spawn('unusually', 10000, 0);
     b.advance(2000);
     const rBefore = b.rocks[0].r;
+    const parentDr = b.rocks[0].dr;
 
     let res = null;
     for (const ch of 'unusually') res = b.tryKey(ch, 2000);
@@ -228,7 +229,12 @@ console.log('\nPART D — the split, and the one journey it does not reset');
        'and it becomes its three pieces');
     ok(b.rocks.length === 3, 'which are on the board, and the parent is not');
 
-    ok(Math.abs(b.rocks[0].dr - (SPAWN_R / 10000)) < 1e-12,
+    // ⚠️ DERIVED FROM THE PARENT, NOT FROM `SPAWN_R / life` — Round 121 split a
+    // journey into an approach and an inner crawl (APPROACH_MS), so the inner
+    // speed is ENTRY_R / (life - approach) and restating that arithmetic here
+    // would be a second copy of it. ⭐ THE CLAIM IS UNCHANGED AND IS THE POINT:
+    // a piece moves at its parent's speed, whatever that turned out to be.
+    ok(Math.abs(b.rocks[0].dr - parentDr) < 1e-12,
        '⭐ ONE JOURNEY, ONE SPEED — the pieces inherit the parent\'s, they do not get a fresh one');
     ok(b.rocks.every(p => p.r >= rBefore - 1e-9),
        'and they never start closer in than the parent was');
@@ -362,8 +368,12 @@ console.log('\nPART F — ⚠️⚠️ THE WARP IS EARNED, AND ITS THREE CONDITI
     const rocks = [b.spawn('asdf', 100000, t2), b.spawn('fdsa', 100000, t2)];
     for (const r of rocks) r.r = 0.2;
     ok(b.warp(t2) === true, 'with all three satisfied, it fires');
-    ok(rocks.every(r => Math.abs(r.r - (0.2 + WARP_PUSH)) < 1e-9),
-       'and shoves every rock back out');
+    // ⚠️⚠️ SCATTER, ROUND 121: every pane goes OUT TO THE RING, not out by a
+    // fixed amount from wherever it was. Jake: *"pushing all the panes out to the
+    // edge of the circle"*. ⭐ The landmark is the whole readability gain — a
+    // proportional shove never showed the student what they had bought.
+    ok(rocks.every(r => Math.abs(r.r - ENTRY_R) < 1e-9),
+       'and scatters every pane out to the ring the view draws');
     ok(rocks.every(r => b.rocks.includes(r)),
        '⚠️ IT DESTROYS NOTHING — a warp that cleared the board would be a way to clear a rock for free');
     ok(b.warps === 0, 'and spending it leaves none banked');
@@ -617,6 +627,65 @@ console.log('\nH — place(): THE VIEW SEAM REPRODUCES THE ARITHMETIC IT REPLACE
     ok(JSON.stringify(live.rocks) === before,
        '\u26a0\u26a0 place() mutates nothing \u2014 the view calls it several times a ' +
        'frame and it must never be a second way to move a pane');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nPART R121 — the approach is a CONSTANT, and the two phases still sum to the lifetime');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⚠️⚠️ WRITTEN RED FIRST. Against v1.7.0 a pane crossed ENTRY_R after 14% of its
+// lifetime — 1.4s on a 10-second pane and **22.8 seconds on a 163-second one**,
+// which is what the opening of a run actually is. Jake: *"That wait for the words
+// to be visible is brutal."*
+// ⭐ THE SECOND ASSERTION IS THE ONE THAT KEEPS THIS HONEST: redistribution is
+// allowed, a discount is not. If the total ever drifts from `lifetimeMs` the
+// director is no longer pacing this game.
+{
+    const step = (b, ms, hz = 20) => {
+        // ⚠️ Advanced in small steps, because impact is detected per frame and a
+        // single giant step would report a pane as arriving late by one step.
+        let t = 0;
+        const out = [];
+        while (t < ms) { t += 1000 / hz; out.push(...b.advance(t)); }
+        return { t, arrived: out };
+    };
+
+    for (const life of [163144, 30000, 4000]) {
+        const b = new ShatterBoard({ rand: mulberry(11) });
+        const rock = b.spawn('splendidly', life, 0);
+        // Walk to the moment it crosses the ring.
+        let t = 0;
+        while (rock.r > ENTRY_R && t < life) { t += 25; b.advance(t); }
+        const budget = Math.min(APPROACH_MS, Math.max(0, life - 400));
+        ok(Math.abs(t - budget) < 60,
+           `⭐⭐ a ${Math.round(life / 1000)}s pane is inside the ring after ${Math.round(t)}ms ` +
+           `— a CONSTANT, not ${Math.round(life * 0.14)}ms of its lifetime`);
+    }
+
+    // ⚠️ AND THE WHOLE JOURNEY IS STILL EXACTLY WHAT THE DIRECTOR PRICED.
+    const b2 = new ShatterBoard({ rand: mulberry(12) });
+    b2.spawn('splendidly', 20000, 0);
+    const { arrived } = step(b2, 25000, 40);
+    ok(arrived.length === 1, 'the pane does arrive');
+    let landedAt = 0, tt = 0;
+    const b3 = new ShatterBoard({ rand: mulberry(12) });
+    b3.spawn('splendidly', 20000, 0);
+    while (!landedAt && tt < 40000) { tt += 25; if (b3.advance(tt).length) landedAt = tt; }
+    ok(Math.abs(landedAt - 20000) < 80,
+       `⚠️⚠️ and it lands at ${landedAt}ms against a 20000ms lifetime — the approach ` +
+       'REDISTRIBUTES the journey, it does not discount it');
+
+    // ⭐ SCATTER PUTS A PANE BACK IN THE APPROACH BAND, AND IT CROSSES FAST AGAIN.
+    const b4 = new ShatterBoard({ rand: mulberry(13) });
+    const r4 = b4.spawn('splendidly', 60000, 0);
+    let t4 = 0;
+    while (r4.r > 0.5 && t4 < 60000) { t4 += 25; b4.advance(t4); }
+    r4.r = ENTRY_R + 0.09;          // as a scatter leaves it, just outside the ring
+    const before4 = r4.r;
+    b4.advance(t4 + 300);
+    ok(before4 - r4.r > 0.02,
+       '⭐ a pane shoved back outside the ring crosses it quickly again rather than ' +
+       'creeping in at the inner speed');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);
