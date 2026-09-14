@@ -1,3 +1,5 @@
+// typing-calibrator-test.mjs v1.1.0 — Round 120 (Maskelyne): PART T, the
+// acquisition defect that read a 100 WPM typist at 24 on a busy board.
 // typing-calibrator-test.mjs v1.0.0 — ROADMAP 118a. Round 118 (Underwood).
 //
 // ⚠️⚠️ THE FAILURE THIS FILE EXISTS TO CATCH IS NOT "DOES IT ADAPT". It is
@@ -10,7 +12,7 @@
 
 import {
     TypingCalibrator, budgetScale, median, DIFFICULTY,
-    FLOOR_WPM, ACQUIRE_CAP_MS, MIN_SAMPLES, MAX_BELIEVABLE_WPM,
+    FLOOR_WPM, ACQUIRE_CAP_MS, MIN_SAMPLES, MAX_BELIEVABLE_WPM, RECENT_SAMPLES,
 } from '../typing-calibrator.js';
 import { GameDirector, spawnIntervalMs } from '../game-shell.js';
 import { SHATTER_WORDS } from '../shatter-words.js';
@@ -387,6 +389,130 @@ function typist(burstWPM, acquireMs, chars = 7, n = 6) {
        + `${ACQUIRE_CAP_MS}ms (${ignored.toFixed(1)} vs ${capped.toFixed(1)} WPM)`);
     ok(typist(90, 60000).wpm >= FLOOR_WPM,
        '⚠️ S6 …and never below the floor, which is the gentlest the game gets');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART T — ⚠️⚠️⚠️ THE SENSOR WAS MEASURING THE QUEUE AND REPORTING IT AS THE
+//          CHILD. Round 120 (Maskelyne).
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake's Shards trace, 2026-09-13, ONE PLAYER IN ONE MINUTE:
+//     onScreen 1–2  →  pacedWPM 47
+//     onScreen 5–7  →  pacedWPM 24
+//
+// ⭐⭐ THE SIGN IS WHAT MAKES IT SERIOUS. A crowded board made him look slower, so
+// the director spawned SLOWER, so the board stayed quiet — a loop that ends with
+// a 100 WPM typist standing in an empty field. Part S (Round 119) is right that a
+// real hunt belongs in the measurement; what did not belong is time the student
+// spent typing something else.
+//
+// ⚠️ WRITTEN RED FIRST: against v1.1.0 the two figures below are 60 and 26.
+{
+    console.log('\nT — ⚠️⚠️ ACQUISITION IS NOT TIME THE STUDENT SPENT TYPING SOMETHING ELSE');
+
+    // Two panes up. The student types the first one straight through, then turns
+    // to the second — which has been sitting there the whole time.
+    const busyBoard = () => {
+        const cal = new TypingCalibrator();
+        let t = 0;
+        for (let n = 0; n < MIN_SAMPLES; n++) {
+            const a = 100 + n * 2, b = 200 + n * 2;
+            cal.spawned(a, 5, t, 2);
+            cal.spawned(b, 5, t, 2);            // ⚠️ SAME INSTANT. It waits its turn.
+            let k = t + 300;                     // a real, short hunt for the first
+            for (let i = 0; i < 5; i++) { cal.keyed(a, k); k += 120; }
+            cal.finished(a, k);
+            k += 300;                            // and an equally short one for the second
+            for (let i = 0; i < 5; i++) { cal.keyed(b, k); k += 120; }
+            cal.finished(b, k);
+            t = k + 50;
+        }
+        return cal;
+    };
+    // The same hands, with only one pane to look at.
+    const quietBoard = () => {
+        const cal = new TypingCalibrator();
+        let t = 0;
+        for (let n = 0; n < MIN_SAMPLES * 2; n++) {
+            t = typeOne(cal, 300 + n, 'abcde', t, { acquireMs: 300, msPerKey: 120 }) + 50;
+        }
+        return cal;
+    };
+
+    const busy = busyBoard().wpm, quiet = quietBoard().wpm;
+    ok(Math.abs(busy - quiet) < 1.0,
+       `⚠️⚠️ T1 A SECOND PANE ON SCREEN DOES NOT MAKE THE SAME TYPIST LOOK SLOWER `
+       + `(${busy.toFixed(1)} vs ${quiet.toFixed(1)} WPM) — this is the defect that `
+       + 'read Jake at 24 WPM on a busy board and 47 on a quiet one');
+    ok(busy > 30,
+       `⚠️ T2 …and the number is the typist's, not the board's (${busy.toFixed(1)} WPM)`);
+
+    // ⚠️ AND A REAL HUNT IS STILL CHARGED. Part S's ruling stands: the cost of a
+    // word is find it AND type it. What was removed is only provable busy-ness.
+    const hunter = () => {
+        const cal = new TypingCalibrator();
+        let t = 0;
+        for (let n = 0; n < MIN_SAMPLES * 2; n++) {
+            t = typeOne(cal, 400 + n, 'abcde', t, { acquireMs: 2500, msPerKey: 120 }) + 50;
+        }
+        return cal.wpm;
+    };
+    ok(hunter() < quiet * 0.75,
+       `⚠️⚠️ T3 A STUDENT WHO GENUINELY HUNTS IS STILL PACED FOR IT `
+       + `(${hunter().toFixed(1)} vs ${quiet.toFixed(1)} WPM) — T1 must not be `
+       + 'read as a licence to go back to burst measurement');
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE ESTIMATE CAN COME BACK DOWN **AND BACK UP**. A whole-run median
+    // could not: Jake's bad patch outvoted his good one for the rest of the run.
+    // ═══════════════════════════════════════════════════════════════════════
+    const recovering = new TypingCalibrator();
+    let t = 0;
+    // ⚠️ THE SLOW STRETCH IS DELIBERATELY LONGER THAN THE WINDOW. With equal
+    // halves a whole-run median lands between them and this assertion would pass
+    // against the very code it was written to catch — the failure mode Round 116
+    // shipped twice in one file.
+    for (let n = 0; n < RECENT_SAMPLES * 3; n++) {
+        t = typeOne(recovering, 500 + n, 'abcde', t, { acquireMs: 3000, msPerKey: 400 }) + 50;
+    }
+    const slump = recovering.wpm;
+    for (let n = 0; n < RECENT_SAMPLES; n++) {
+        t = typeOne(recovering, 600 + n, 'abcde', t, { acquireMs: 250, msPerKey: 90 }) + 50;
+    }
+    ok(recovering.wpm > slump * 3,
+       `⭐⭐ T4 A PLAYER WHO SETTLES DOWN IS RE-PRICED (${slump.toFixed(1)} → `
+       + `${recovering.wpm.toFixed(1)} WPM) — the median runs over the last `
+       + `${RECENT_SAMPLES} samples, not over the whole run`);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⭐⭐ AND THE OPENING IS NOT DEAD ANY MORE.
+    // ═══════════════════════════════════════════════════════════════════════
+    // Jake's Shards run held the 8 WPM floor for FIFTY SECONDS and seven clears
+    // before the fourth clean sample arrived — with `costFactor: 3` that is a
+    // 40-second first spawn interval, which is the "two minutes without touching
+    // the keyboard and never any threat" report, measured.
+    const opening = new TypingCalibrator();
+    ok(opening.provisionalWPM(FLOOR_WPM) === FLOOR_WPM,
+       '⚠️ T5 with no samples at all the seed is still the floor — a child who froze '
+       + 'gets the gentlest game, which is Jake\'s own ruling');
+    let t2 = typeOne(opening, 700, 'abcde', 0, { acquireMs: 250, msPerKey: 90 });
+    const afterOne = opening.provisionalWPM(FLOOR_WPM);
+    ok(afterOne > FLOOR_WPM * 1.5 && afterOne < opening.samples[0].wpm,
+       `⭐⭐ T6 ONE CLEAN SAMPLE ALREADY MOVES THE PACING (${FLOOR_WPM} → `
+       + `${afterOne.toFixed(1)} WPM) — the opening minute stops being a waiting room`);
+    ok(!opening.confident,
+       '⚠️ T7 …without claiming confidence, which is a different question and still '
+       + `needs ${MIN_SAMPLES} samples`);
+
+    // ⚠️⚠️ AND ONE FLUKE CANNOT SET THE RUN, which is what MIN_SAMPLES defends.
+    const fluke = new TypingCalibrator();
+    typeOne(fluke, 800, 'abcde', 0, { acquireMs: 40, msPerKey: 20 });   // absurdly fast
+    // ⚠️ AGAINST THE RAW SAMPLE, NOT AGAINST `.wpm` — that getter answers the
+    // floor until `confident`, so comparing to it would pass for the wrong reason.
+    ok(fluke.provisionalWPM(FLOOR_WPM) < fluke.samples[0].wpm * 0.4,
+       '⚠️⚠️ T8 a single freak sample is believed at a quarter weight, not outright ('
+       + fluke.provisionalWPM(FLOOR_WPM).toFixed(1) + ' from a sample of '
+       + fluke.samples[0].wpm.toFixed(0) + ')');
 }
 
 if (fail) { fails.forEach(f => console.log('  ✗ ' + f)); process.exitCode = 1; }

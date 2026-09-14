@@ -1,3 +1,8 @@
+// game-deadline.js v1.16.0 — Round 120 (Maskelyne): ⚠️⚠️ THE SHELL IS ASKED
+// BEFORE THE CITY IS DAMAGED. game-shell.js v1.11.0 absorbs hits that land
+// inside HIT_GRACE_MS of the last one, and here the shield count IS the skyline,
+// so asking afterwards would desync the counter from the buildings. Jake's trace
+// lost all six shields in 2.86 seconds — see the leak branch in frame().
 // game-deadline.js v1.15.0 — Round 119 (Hammond): debug() also reports what the
 // DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
 // `arcade-telemetry.js` can record the pacing curve without adding a single
@@ -352,7 +357,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.15.0';
+export const GAME_DEADLINE_VERSION = '1.16.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -1061,6 +1066,30 @@ export function mount(container, opts) {
                     flash = 0.35;
                     sfx.hit();
 
+                    // ⚠️⚠️⚠️ THE SHELL IS ASKED **BEFORE** ANYTHING IS DESTROYED,
+                    // AND THE ORDER IS THE WHOLE FIX. Round 120: game-shell.js
+                    // v1.11.0 absorbs hits inside HIT_GRACE_MS, and in this game
+                    // the shield count IS the city — six domes and landmarks. A
+                    // view that flattened a landmark and then discovered the
+                    // shell had not charged for it would put the counter and the
+                    // skyline permanently out of step, which is worse than the
+                    // cascade the grace was added to stop.
+                    //
+                    // ⭐ AND THE CASCADE IS WHY IT WAS ADDED: Jake's trace lost
+                    // SIX SHIELDS IN 2.86 SECONDS — t=44.86 to t=47.72 — because
+                    // once the spawn interval falls under the time to clear one
+                    // word, everything on screen expires as a block. The city did
+                    // not fall to a mistake; it fell to arithmetic.
+                    const charged = d.leaked(e.text, now);
+                    if (!charged) {
+                        // ⚠️ THE HIT STILL HAPPENED AND STILL LOOKS LIKE ONE —
+                        // the burst and the flash above already fired. What it
+                        // must not do is cost a second landmark inside the same
+                        // second as the first.
+                        banner = { text: 'SHIELDS HELD', until: now + 1200 };
+                        continue;
+                    }
+
                     // ⚠️⚠️ ROUND 87 — A DOME ABSORBS THE HIT, AND ONLY A BARE
                     // LANE LOSES ITS LANDMARK. See the layout() note for why.
                     // The nearest still-standing dome covering this lane takes
@@ -1091,7 +1120,6 @@ export function mount(container, opts) {
                               Math.round(40 * motionScale()), 300);
                     }
 
-                    d.leaked(e.text, now);
                     if (d.over) { finish(now, false); break; }
                 }
             }

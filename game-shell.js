@@ -1,3 +1,12 @@
+// game-shell.js v1.11.0 — Round 120 (Maskelyne): ⚠️⚠️ THE RAMP IS PRICED PER
+// CHARACTER (`RAMP_PER_CHAR`), AND A HIT BUYS A BREATH (`HIT_GRACE_MS`). Both
+// come from one played round of each game, and both are in the constants block
+// with the traces that produced them. ⭐ THE HEADLINE: all three games ended
+// within 4% of the same pressure — 2.16, 2.24, 2.24 — after 47, 221 and 259
+// seconds. They are not differently hard; a per-target ramp made them arrive at
+// the same difficulty at five times the rate. ⚠️ `calibratedWPM` also stops
+// holding the seed until the fourth sample; see the note there and
+// typing-calibrator.js v1.2.0.
 // game-shell.js v1.10.0 — Round 119 (Hammond): ⚠️⚠️ `adaptive` NOW REQUIRES A
 // CALIBRATOR THE HOST ACTUALLY FEEDS, and `arcadeConfig()` asks for one.
 // ⚠️⚠️ THE FLAG ALONE WAS A TRAP, AND IT WAS ABOUT TO BE SPRUNG. Round 118 left
@@ -179,7 +188,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.10.0';
+export const GAME_SHELL_VERSION = '1.11.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -229,10 +238,76 @@ export const MIN_ON_SCREEN = 1;
 // If missions feel too hard, this is the number to raise — not MISSION_PRESSURE.
 export const QUEUE_DEPTH = 4;
 
-// Past the quota, pressure climbs by this much per cleared target. At 0.02 a
-// student who clears 25 extra targets is at pressure 1.25 — noticeably harder
-// than the mission, reachable by a good sixth grader, and not a cliff.
-export const RAMP_PER_TARGET = 0.02;
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE RAMP IS PRICED PER CHARACTER, AND IT USED TO BE PRICED PER TARGET
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Round 120 (Maskelyne). Jake played one round of each game and reported that
+// Deadline "amped up fairly quickly. Perhaps too quickly?" ⭐ THE TELEMETRY SAID
+// SOMETHING SHARPER THAN THAT, AND IT IS THE WHOLE REASON THIS CONSTANT CHANGED:
+//
+//     deadline  ended at pressure 2.16 after   47 seconds
+//     shatter   ended at pressure 2.24 after  221 seconds
+//     shards    ended at pressure 2.24 after  259 seconds
+//
+// ⚠️⚠️ THE THREE GAMES ARE NOT DIFFERENTLY HARD. THEY ARRIVE AT THE SAME
+// DIFFICULTY AT WILDLY DIFFERENT SPEEDS. Deadline's targets are about three
+// characters and Shatter's about ten, so Deadline cleared 58 targets in the time
+// Shatter needed 221 seconds to clear 62 — and a ramp priced per TARGET turned
+// that into five times the difficulty per second, from one shared constant.
+//
+// ⭐ A CHARACTER IS THE UNIT THE REST OF THIS FILE ALREADY PRICES WORK IN.
+// `spawnIntervalMs()` buys characters; `quotaChars` counts characters; a
+// six-letter word already buys 1.5× the interval a four-letter word does. The
+// ramp was the one quantity still counting boxes instead of typing.
+//
+// ⚠️ AND IT DELETES A SPECIAL CASE RATHER THAN ADDING ONE. Round 103 taught
+// `cleared()` an opts.ramp flag so Shatter could say "this is a piece, do not
+// ramp" — because a per-target ramp fired three times per spawned word. Per
+// character that is simply true: a ten-character word that breaks into ten
+// characters of pieces and ten again is thirty characters of typing, which is
+// exactly what `costFactor: 3` already told the director it would cost.
+//
+// ⭐ THE NUMBER ITSELF IS JAKE'S, 2026-09-13: three minutes. A player sustaining
+// around three characters a second — 36 game WPM — crosses pressure 2.2 at about
+// 180 seconds, which is where all three of the traced runs actually died.
+// ⚠️ THIS IS THE ONE KNOB FOR "HOW LONG IS A GOOD RUN". Raise it to shorten
+// every game at once; nothing else in this file needs to move with it.
+export const RAMP_PER_CHAR = 0.0022;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ A HIT BUYS A BREATH, OR THE LAST SHIELDS GO TOGETHER AND MEAN NOTHING
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Round 120. Jake's Deadline run lost SIX SHIELDS IN 2.86 SECONDS — t=44.86
+// through t=47.72, six hits, never more than three quarters of a second apart.
+//
+// ⭐ THAT IS NOT DIFFICULTY, IT IS A CASCADE, and it is arithmetic rather than
+// bad luck: once the spawn interval falls below the time it takes to clear one
+// target, everything already on screen expires as a block. The run's entire
+// losing phase was under three seconds, so the student is told "you died" with
+// no chance to find out where their edge was — and a player cannot learn from a
+// wall that arrives all at once.
+//
+// ⚠️ THREE THINGS, AND EACH CLOSES A DIFFERENT HOLE:
+//   1. further hits inside the window are ABSORBED  — simultaneous expiries cost
+//      one shield, not four;
+//   2. nothing spawns during the window             — the backlog is not topped
+//      up while the student is recovering from it;
+//   3. the ramp gives a little back                 — a student who is being hit
+//      is past their edge, and a curve that only ever climbs cannot find its way
+//      back to them.
+//
+// ⚠️⚠️ ARCADE ONLY (`endless`). In an assessed mission a leak is part of the
+// grade, and absorbing leaks would quietly change what a lesson pass means. Do
+// not extend this to missions without Jake saying so.
+export const HIT_GRACE_MS = 1200;
+
+// How much pressure a hit hands back, in the same units as the ramp.
+// ⚠️ A FLOOR AT MISSION_PRESSURE IS IMPLIED by `_extraChars` never going
+// negative — relief can undo the ramp and can never make a game easier than the
+// gate it was launched at.
+export const HIT_PRESSURE_RELIEF = 0.10;
 
 // Ceiling on pressure. 2.5 × a 15 WPM gate is 37.5 WPM of sustained demand,
 // which no student in this building will hold; past here the queue depth is what
@@ -777,6 +852,15 @@ export class GameDirector {
         // goes NEGATIVE for anyone who plays on long enough to lose one. Found
         // by running it: a clean 700 fell to 300 after four minutes of survival.
         this._extraChars = 0;
+        // ⚠️ THE HIT GRACE WINDOW — see HIT_GRACE_MS. `null` means never hit.
+        this._graceUntil = null;
+        this.hitsAbsorbed = 0;
+    }
+
+    /** ⭐ Is the student inside the breath a hit bought them? Views may read it
+     *  to hold back a second damage animation; nothing here depends on that. */
+    inGrace(nowMs) {
+        return this.endless && this._graceUntil != null && nowMs < this._graceUntil;
     }
 
     // ── pressure and pacing ─────────────────────────────────────────────────
@@ -792,7 +876,7 @@ export class GameDirector {
      * nothing). `cleared()` decides what feeds the ramp; see the note there.
      */
     get pressure() {
-        const ramp = this._extraCleared * RAMP_PER_TARGET;
+        const ramp = this._extraChars * RAMP_PER_CHAR;
         return Math.min(this.pressureCeiling, MISSION_PRESSURE + ramp);
     }
 
@@ -813,9 +897,18 @@ export class GameDirector {
      */
     get calibratedWPM() {
         if (!this.adaptive) return this.targetWPM;
-        return this.calibrator.confident
-            ? this.calibrator.wpm
-            : Math.min(this.targetWPM, this.calibrator.floorWPM);
+        // ⚠️⚠️ THE SEED IS ABANDONED FROM THE FIRST SAMPLE, NOT THE FOURTH, AND
+        // THAT IS ROUND 120's FIX FOR A DEAD OPENING MINUTE. Jake's Shards trace
+        // opened at the 8 WPM floor with `costFactor: 3`, which prices the first
+        // spawn interval at **40.8 seconds** and a lifetime at 163 — and it held
+        // there for 50 seconds and seven clears before the fourth clean sample
+        // arrived. ⭐ That is the "I went two minutes without touching the
+        // keyboard and never had any threat" report, measured: he was not
+        // surviving the opening, he was waiting through it.
+        // ⚠️ STILL CAUTIOUS, NOT CREDULOUS: one sample moves a quarter of the way
+        // and only the fourth is believed outright, so a single lucky word cannot
+        // set a run's difficulty — which is what MIN_SAMPLES was defending.
+        return this.calibrator.provisionalWPM(Math.min(this.targetWPM, this.calibrator.floorWPM));
     }
 
     /**
@@ -905,6 +998,12 @@ export class GameDirector {
      */
     spawnDue(nowMs, onScreen = 0) {
         if (this.over) return false;
+        // ⚠️⚠️ THE SPAWN HOLIDAY, AND IT COMES BEFORE THE REFILL FLOOR ON PURPOSE.
+        // Absorbing the extra hits without also stopping the push would hand the
+        // student a fresh wall built during the breath that was supposed to let
+        // them clear the old one. ⭐ The interval clock is held at `nowMs` so the
+        // next spawn is a full interval AFTER the window, not the instant it ends.
+        if (this.inGrace(nowMs)) { this._lastSpawnAt = nowMs; return false; }
         if (onScreen < this.onScreenTarget) return true;
         if (this._lastSpawnAt == null) return true;
         return (nowMs - this._lastSpawnAt) >= this.intervalMs;
@@ -1051,21 +1150,22 @@ export class GameDirector {
      * @param {object} [opts]
      *   ramp {boolean}  ⚠️⚠️ WHETHER THIS CLEAR ADVANCES THE DIFFICULTY CURVE.
      *
-     * ⚠️⚠️ v1.6.0, AND IT IS THE SECOND HALF OF THE SPLIT PROBLEM. A Shatter
-     * target becomes three or four rocks, and every one of them is a `cleared()`
-     * — correctly, because each is real typing that must reach `clearedChars`,
-     * the quota and the survival score. ⭐ BUT `RAMP_PER_TARGET` IS PRICED PER
-     * *TARGET*, so Shatter was ramping THREE TIMES per spawn where Deadline ramps
-     * once. Found by simulation, not by reading: a child typing at exactly the
-     * gate with 100% accuracy lost all three shields at 79 seconds, because
-     * pressure had climbed to 1.72 on their own success. ⚠️ IT IS THE SAME SHAPE
-     * AS THE costFactor DEFECT ABOVE — a per-target number applied to a game
-     * whose targets multiply — and neither is visible in a code review.
+     * ⚠️⚠️ v1.6.0 ADDED `opts.ramp` BECAUSE THE RAMP WAS PRICED PER TARGET, AND
+     * ROUND 120 TOOK THAT PRICING AWAY. A Shatter target becomes three or four
+     * rocks, every one of them a `cleared()`, so a per-target ramp fired three
+     * times per spawned word — a child at exactly the gate lost all three shields
+     * at 79 seconds on their own success.
      *
-     * ⚠️ A CALLER THAT SAYS NOTHING RAMPS, so Deadline and Escape Key are
-     * unchanged. Shatter passes `{ ramp: false }` for pieces only.
-     * ⚠️ `_extraChars` IS NOT GATED: the survival score is a count of real
-     * keystrokes and a piece is real typing.
+     * ⭐⭐ PER CHARACTER THAT PROBLEM SIMPLY DOES NOT EXIST, AND THAT IS THE
+     * ARGUMENT FOR THE NEW UNIT RATHER THAN A CONSEQUENCE OF IT. A ten-character
+     * word that breaks into ten characters of pieces and ten again is thirty
+     * characters of typing, which is exactly what `costFactor: 3` already told
+     * the director it would cost. See RAMP_PER_CHAR.
+     *
+     * ⚠️ `opts.ramp` NOW ONLY MOVES `_extraCleared`, WHICH IS A REPORT FIELD.
+     * It no longer touches pressure. ⭐ DO NOT DELETE IT WITHOUT CHECKING THE
+     * REPORT'S READERS — that is a Rule 9 judgement about callers, and Round 116
+     * lost a whole page to making one of those from a name.
      */
     cleared(text, nowMs, opts) {
         if (this.over) return;
@@ -1101,15 +1201,36 @@ export class GameDirector {
      * punish the careful slow typist in a second currency.
      * ⚠️ DO NOT "FIX" THIS BY ADDING THE REMAINING CHARACTERS TO `mistakes`.
      */
+    /**
+     * ⚠️⚠️ RETURNS TRUE IF THE SHIELD WAS ACTUALLY SPENT. A caller that ignores
+     * the return value gets exactly the old behaviour on screen — the pane still
+     * broke, the burst still fired — which is why every existing call site is
+     * untouched. Shatter and Deadline read it to hold back the second, bigger
+     * damage beat, so an absorbed hit reads as the shield HOLDING rather than as
+     * a counter that failed to move.
+     */
     hit(nowMs) {
-        if (this.over) return;
+        if (this.over) return false;
+        // ⚠️ THE CASCADE GUARD. See HIT_GRACE_MS: four panes expiring in the same
+        // second are one mistake, not four, and charging all four is what made
+        // Deadline's entire losing phase 2.86 seconds long.
+        if (this.inGrace(nowMs)) { this.hitsAbsorbed++; return false; }
         this.hitCount++;
         this.shields--;
+        if (this.endless) {
+            this._graceUntil = nowMs + HIT_GRACE_MS;
+            // ⚠️ NEVER NEGATIVE. Relief can unwind the ramp and can never push a
+            // run below the gate it launched at — MISSION_PRESSURE is the floor.
+            this._extraChars = Math.max(0, this._extraChars - HIT_PRESSURE_RELIEF / RAMP_PER_CHAR);
+        }
         if (this.shields <= 0) this.end(nowMs);
+        return true;
     }
 
-    /** Push-game vocabulary for the same event. */
-    leaked(text, nowMs) { this.hit(nowMs); }
+    /** Push-game vocabulary for the same event. ⚠️ RETURNS `hit()`'s verdict —
+     *  game-deadline.js asks BEFORE it damages the city, because there the
+     *  shield count and the skyline are the same thing. */
+    leaked(text, nowMs) { return this.hit(nowMs); }
 
     end(nowMs) {
         if (this.over) return;

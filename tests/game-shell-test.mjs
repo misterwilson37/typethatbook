@@ -1,3 +1,5 @@
+// tests/game-shell-test.mjs v1.1.0 — Round 120 (Maskelyne): Parts R120-A and
+// R120-B — the ramp in SECONDS and the hit cascade. Both written red first.
 // tests/game-shell-test.mjs v1.0.0 — DOES A CHILD WHO TYPES AT THE GATE PASS
 // THE GAME? Round 82 (Victor).
 //
@@ -29,7 +31,8 @@ import {
     targetsFromSequence, avgTargetChars, arcadeKeySet, makeArcadeTargets,
     missionConfigFromRun, charsPerSecondFor, GAME_SHELL_VERSION,
     enemyStepMs, targetTimeMs, POINTS_PER_CORRECT_CHAR, POINTS_PER_INTACT_SHIELD,
-    SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_TARGET, arcadeConfig,
+    SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_CHAR, arcadeConfig,
+    HIT_GRACE_MS, HIT_PRESSURE_RELIEF,
 } from '../game-shell.js';
 import { chunkSequence, gatesForRun } from '../run-grade.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -778,12 +781,14 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
            '\u26a0\u26a0 a director given no ceiling still stops at PRESSURE_CEILING (' +
            plain.pressure + ')');
 
-        // ⚠️ THE RAMP ITSELF IS UNCHANGED — this round raised a cap, it did not
-        // re-tune the curve. A steeper ramp would also change the MISSION, whose
-        // ramp begins the moment a fast student passes the quota.
+        // ⚠️⚠️ THE STEP IS DERIVED FROM THE CONSTANT AND FROM THE WORD, NOT
+        // RESTATED. Round 116 shipped four assertions that hardcoded
+        // SHATTER_COST_FACTOR and all four went red on a deliberate change,
+        // teaching the next reader that red means "edit the tests". The word here
+        // is four characters, so the step is four characters' worth.
         const one = ramped(1), two = ramped(2);
-        ok(Math.abs((two.pressure - one.pressure) - RAMP_PER_TARGET) < 1e-9,
-           'and the per-target step is still RAMP_PER_TARGET, untouched');
+        ok(Math.abs((two.pressure - one.pressure) - 4 * RAMP_PER_CHAR) < 1e-9,
+           'and one more four-letter target is worth 4 \u00d7 RAMP_PER_CHAR of pressure');
     }
 
     // ⚠️ THE POOL CANNOT RUN DRY. nextTarget() wraps on `_cursor % length`, which
@@ -803,6 +808,134 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
     for (let i = 0; i < 10; i++) d3.cleared('zzzz', 2000);
     ok(d3.pressure > flat,
        '\u2b50 pressure climbs once the quota is met \u2014 no new difficulty code needed');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART R120-A — ⚠️⚠️ THE RAMP IS PRICED PER CHARACTER, SO A GAME OF SHORT WORDS
+//               STOPS RAMPING FIVE TIMES FASTER THAN A GAME OF LONG ONES
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐ WRITTEN RED AGAINST THE SHIPPED CODE FIRST, per Rule 10, and its failure
+// message is Jake's own complaint: Deadline "amped up fairly quickly. Perhaps too
+// quickly?" The telemetry from 2026-09-13 is what this part encodes:
+//
+//     deadline  pressure 2.16 after  47 s  (58 targets of ~3 characters)
+//     shatter   pressure 2.24 after 221 s  (62 targets of ~10)
+//     shards    pressure 2.24 after 259 s
+//
+// ⚠️ NOTHING IN THE SUITE HAD EVER ASKED HOW LONG A RAMP TAKES IN SECONDS. Every
+// existing ramp assertion asks whether pressure CLIMBS, which was true in all
+// three games and told us nothing about the only thing Jake could feel.
+{
+    // A director that has met its quota and is now ramping, fed `n` clears of a
+    // word of the given length. ⚠️ The same total typing in both cases, split
+    // into different-sized boxes — which is exactly the difference between
+    // Deadline and Shatter.
+    const rampedWith = (word, n) => {
+        const d = new GameDirector({ targets: [word], targetWPM: 10, quotaChars: word.length });
+        d.chars += word.length; d.cleared(word, 1);
+        for (let i = 0; i < n; i++) d.cleared(word, 1);
+        return d.pressure;
+    };
+    const short = rampedWith('cat', 40);       // 120 characters
+    const long  = rampedWith('splendidly', 12); // 120 characters
+    ok(Math.abs(short - long) < 1e-9,
+       '\u26a0\u26a0 120 characters of typing is the same difficulty whether it arrived ' +
+       'as 40 short words or 12 long ones (' + short.toFixed(3) + ' vs ' + long.toFixed(3) + ')');
+
+    // ⭐ THE THREE-MINUTE RULING, IN SECONDS. Jake, 2026-09-13, asked how long a
+    // good run should last before the ramp beats it: "3 minutes sounds good."
+    // ⚠️ 3 CHARACTERS PER SECOND IS 36 GAME WPM, which is what the traces show a
+    // strong player sustaining once the board is supplying them properly.
+    const charsPerSec = 3;
+    const secondsTo = target =>
+        ((target - MISSION_PRESSURE) / RAMP_PER_CHAR) / charsPerSec;
+    const t22 = secondsTo(2.2);
+    ok(t22 > 140 && t22 < 220,
+       '\u2b50\u2b50 a player holding 36 WPM reaches pressure 2.2 at ' + Math.round(t22) +
+       ' seconds \u2014 Jake asked for about three minutes, and Deadline was doing it in 47');
+
+    // ⚠️ AND THE CEILING IS STILL REACHABLE, or "eats quarters" becomes "never
+    // ends". A run that cannot be beaten by the ramp is a leaderboard for
+    // patience, which Round 101 already rejected once.
+    const tCeil = secondsTo(PRESSURE_CEILING);
+    ok(tCeil < 420,
+       'and the mission ceiling still arrives inside seven minutes (' +
+       Math.round(tCeil) + ' s)');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART R120-B — ⚠️⚠️ A HIT BUYS A BREATH, AND SIX SHIELDS CANNOT GO IN THREE
+//               SECONDS ANY MORE
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake's Deadline trace, shields against time:
+//     t=44.86  6\u21925   t=45.36  5\u21924   t=46.12  4\u21923
+//     t=46.62  3\u21922   t=47.12  2\u21921   t=47.72  1\u21920
+// ⭐ SIX SHIELDS IN 2.86 SECONDS. Once the spawn interval falls below the time to
+// clear one target, everything on screen expires as a block — the player is not
+// beaten, they are audited all at once, and they learn nothing about where their
+// edge was.
+{
+    const endless = () => {
+        const d = new GameDirector({ targets: ['abcd'], targetWPM: 10, endless: true,
+                                     quotaChars: 4, shields: 6 });
+        d.clock.startIfNeeded(0);
+        return d;
+    };
+
+    const d = endless();
+    d.hit(1000);
+    d.hit(1100); d.hit(1400); d.hit(1000 + HIT_GRACE_MS - 1);
+    ok(d.shields === 5 && d.hitsAbsorbed === 3,
+       '\u26a0\u26a0 four panes landing inside the grace window cost ONE shield, not four (' +
+       d.shields + ' left, ' + d.hitsAbsorbed + ' absorbed)');
+
+    // ⚠️ AND IT IS A BREATH, NOT IMMUNITY. The window closes.
+    d.hit(1000 + HIT_GRACE_MS + 1);
+    ok(d.shields === 4, 'and the very next hit after the window charges normally');
+
+    // ⚠️⚠️ NOTHING SPAWNS DURING THE BREATH — including under the refill floor,
+    // which is the clause that would otherwise hand the student a fresh wall
+    // built while they were recovering from the last one.
+    const s = endless();
+    s.hit(2000);
+    ok(s.spawnDue(2100, 0) === false,
+       '\u26a0\u26a0 the push stops during the grace window even with an EMPTY screen');
+    ok(s.spawnDue(2000 + HIT_GRACE_MS + 1, 0) === true,
+       'and resumes the moment it closes');
+
+    // ⭐ THE RAMP GIVES A LITTLE BACK. A student who is being hit is past their
+    // edge, and a curve that only ever climbs cannot find its way back to them.
+    const r = endless();
+    // ⚠️ WELL CLEAR OF THE CEILING, or the relief is invisible: a clamped
+    // pressure gives the same number back after subtracting from the ramp, and
+    // the assertion would be testing Math.min().
+    for (let i = 0; i < 60; i++) r.cleared('abcd', 1);
+    const before = r.pressure;
+    r.hit(5000);
+    ok(Math.abs((before - r.pressure) - HIT_PRESSURE_RELIEF) < 1e-9,
+       '\u2b50 a hit hands back exactly HIT_PRESSURE_RELIEF of pressure (' +
+       before.toFixed(3) + ' \u2192 ' + r.pressure.toFixed(3) + ')');
+
+    // ⚠️ AND IT NEVER GOES BELOW THE GATE. Relief can unwind the ramp; it cannot
+    // make a run easier than the pressure it launched at.
+    const f = endless();
+    for (let i = 0; i < 8; i++) f.hit(i * (HIT_GRACE_MS + 10));
+    ok(f.pressure === MISSION_PRESSURE,
+       'and a student hit eight times is back at gate rate, never under it');
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ ARCADE ONLY. IN AN ASSESSED MISSION A LEAK IS PART OF THE GRADE.
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⭐ This is the assertion that stops a future round from "tidying up" the
+    // `endless` check in hit(). Absorbing leaks in a graded run would quietly
+    // change what a lesson pass means, which is not a pacing decision at all.
+    const m = new GameDirector({ targets: ['abcd'], targetWPM: 10, quotaChars: 4, shields: 3 });
+    m.clock.startIfNeeded(0);
+    m.hit(1000); m.hit(1050); m.hit(1100);
+    ok(m.shields === 0 && m.over,
+       '\u26a0\u26a0 a graded mission still charges every single leak, grace or no grace');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

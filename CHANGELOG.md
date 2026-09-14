@@ -1,5 +1,76 @@
 # CHANGELOG — TypeThatBook
 
+## Round 120 (Maskelyne) — three games, three deaths, one pressure
+
+Jake played one round of each arcade game and sent the telemetry. The last row of
+all three files says the same thing:
+
+| game | ended at pressure | after |
+|---|---|---|
+| deadline | 2.16 | **47 s** |
+| shatter | 2.24 | **221 s** |
+| shards | 2.24 | **259 s** |
+
+⭐⭐ **THE GAMES ARE NOT DIFFERENTLY HARD — THEY ARRIVE AT THE SAME DIFFICULTY AT
+FIVE TIMES THE RATE.** `RAMP_PER_TARGET` priced difficulty per box, and Deadline's
+boxes hold three characters where Shatter's hold ten. Jake's complaint was
+*"Deadline was playable, but it amped up fairly quickly"*; the cause was not in
+`game-deadline.js`.
+
+### The ramp is priced per character
+
+**`game-shell.js` v1.11.0** — `RAMP_PER_CHAR = 0.0022`, which is Jake's
+three-minute ruling as a single constant: a player holding 36 game WPM crosses
+pressure 2.2 at 182 seconds. ⭐ It **deletes** the `opts.ramp` special case's
+reason to exist rather than adding another: a ten-character word that breaks into
+ten and ten again is thirty characters of typing, which is what `costFactor: 3`
+already said it would cost.
+
+### A hit buys a breath
+
+Jake's Deadline run lost **six shields in 2.86 seconds** — once the spawn interval
+falls under the time to clear one target, everything on screen expires as a block.
+`HIT_GRACE_MS = 1200`: further hits are absorbed, nothing spawns, and the ramp
+hands back `HIT_PRESSURE_RELIEF`. ⚠️⚠️ **Arcade only** — a graded mission still
+charges every leak. `hit()` now returns whether a shield was spent, and
+**`game-deadline.js` v1.16.0** asks *before* it damages the city, because there
+the shield count is the skyline.
+
+### The speed sensor was measuring the queue
+
+**`typing-calibrator.js` v1.2.0.** Acquisition ran from a pane's spawn, so a pane
+that appeared while the student was mid-word charged them for every letter of the
+word they were actually typing. Jake's Shards trace reads **47 WPM at one pane on
+screen and 24 at six**, same minute, same player. ⚠️⚠️ The sign is the serious
+part: a busier board made him look slower, so the director spawned *slower*.
+Also: the median runs over the last twelve samples instead of the whole run, the
+believability clamp goes 90 → 120, and `provisionalWPM()` abandons the 8 WPM seed
+from the **first** clean sample — his Shards run held that seed for fifty seconds,
+which at `costFactor: 3` is a 40.8-second first spawn interval.
+
+### Shatter's glass
+
+**`game-shatter.js` v1.12.0**, and both fixes are in the view. Panes were born at
+field magnitude 1, which mapped to `ringR` — a circle this file also draws.
+`entryRadius()` runs the outer band of the field to the canvas edge instead, so
+panes cross in from off-screen; the danger ring is unchanged, at Jake's request.
+`SPLIT_FLY_MS` walks each piece out of the point its parent broke at, because the
+board placed them correctly and *instantly*, and nothing that arrives instantly
+reads as something that came apart. ⚠️ Both are skipped on Shards, which means
+something different by a magnitude and already kicks its pieces.
+⚠️⚠️ **`shatter-board.js` is untouched** — pacing, arrival times, the lock rule and
+the hit test are byte for byte what they were.
+
+### Harnesses
+
+`tests/game-shell-test.mjs` **v1.1.0** (Parts R120-A and R120-B) and
+`tests/typing-calibrator-test.mjs` **v1.1.0** (Part T), both written red against
+the shipped code first and mutation-verified after. ⚠️ **Nothing in the suite had
+ever asked how long a ramp takes in seconds** — every existing assertion asked
+whether pressure climbs, which was true in all three games.
+
+**ALL 103 HARNESSES PASS.**
+
 ## Round 119 (Hammond) — the engine is wired, and the one line was a trap
 
 Round 118's handoff: *"`adaptive: true` must go into `arcadeConfig()` and nowhere

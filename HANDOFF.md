@@ -1,6 +1,206 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-11 by Round 119 (Hammond), for whoever is next
+> ## ▶ START HERE — written 2026-09-14 by Round 120 (Maskelyne), for whoever is next
+>
+> **Instance name: Maskelyne.** The Maskelyne typewriter, 1889, built by the
+> stage magician John Nevil Maskelyne — the right name for a round whose main
+> visible job was making glass look like it actually breaks when the board says
+> it broke. ⚠️ Checked repo-wide, not just the five docs: no `Maskelyne`
+> anywhere. *Hammond*, *Underwood*, *Bennett*, *Sun*, *Tower*, *Corona*,
+> *Sholes*, *Chicago*, *Imperial*, *Bar-Let* are all taken.
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ JAKE PLAYED ONE ROUND OF EACH GAME AND THE TELEMETRY SAID SOMETHING
+> ## SHARPER THAN HIS COMPLAINT DID
+>
+> Three CSVs, 2026-09-13, one player who types at about 100 WPM:
+>
+> | game | ended at pressure | after |
+> |---|---|---|
+> | deadline | 2.16 | **47 s** |
+> | shatter | 2.24 | **221 s** |
+> | shards | 2.24 | **259 s** |
+>
+> ⭐⭐ **THE THREE GAMES ARE NOT DIFFERENTLY HARD. THEY ARRIVE AT THE SAME
+> DIFFICULTY AT WILDLY DIFFERENT SPEEDS.** Jake's words were *"Deadline was
+> playable, but it amped up fairly quickly. Perhaps too quickly?"* — and the
+> cause is not in `game-deadline.js` at all. `RAMP_PER_TARGET` was priced per
+> **target**, Deadline's targets are about three characters and Shatter's about
+> ten, so one shared constant produced five times the difficulty per second in
+> one cabinet.
+>
+> ⚠️ **NOTHING IN THE SUITE HAD EVER ASKED HOW LONG A RAMP TAKES IN SECONDS.**
+> Every ramp assertion asked whether pressure *climbs*, which was true in all
+> three games and told us nothing about the only thing a student can feel.
+>
+> ---
+>
+> ## ⭐⭐ THE FOUR FIXES, AND WHY EACH ONE IS WHERE IT IS
+>
+> **1. The ramp is priced per character** — `RAMP_PER_CHAR = 0.0022`, Jake's
+> three-minute ruling expressed as one constant. A player holding 36 game WPM
+> crosses pressure 2.2 at 182 seconds. ⭐ **IT DELETES A SPECIAL CASE RATHER THAN
+> ADDING ONE:** Round 103's `opts.ramp` flag existed only because a per-target
+> ramp fired three times per Shatter word. Per character a ten-character word
+> that breaks into ten and ten again is thirty characters of typing, which is
+> exactly what `costFactor: 3` already told the director it would cost. ⚠️ The
+> flag still moves `_extraCleared`, which is a **report** field; do not delete it
+> without checking the report's readers.
+>
+> **2. A hit buys a breath** — `HIT_GRACE_MS = 1200`. Jake's Deadline trace lost
+> **six shields in 2.86 seconds** (t=44.86 → t=47.72). ⭐ That is arithmetic, not
+> bad luck: once the spawn interval falls under the time to clear one target,
+> everything on screen expires as a block, and the player is not beaten but
+> audited all at once. Further hits inside the window are absorbed, nothing
+> spawns during it, and the ramp hands back `HIT_PRESSURE_RELIEF`.
+> ⚠️⚠️ **ARCADE ONLY (`endless`).** In an assessed mission a leak is part of the
+> grade; absorbing leaks would quietly change what a lesson pass means. There is
+> an assertion pinning that, and it is there to stop a later round "tidying" the
+> `endless` check out of `hit()`.
+> ⚠️⚠️ **`hit()` RETURNS WHETHER A SHIELD WAS ACTUALLY SPENT, AND DEADLINE ASKS
+> BEFORE IT DAMAGES THE CITY.** There the shield count *is* the skyline — six
+> domes and landmarks — so a view that flattened a landmark and then discovered
+> the shell had not charged for it would desync the counter from the buildings
+> permanently. A caller that ignores the return gets the old behaviour exactly.
+>
+> **3. The speed sensor was measuring the queue and reporting it as the child** —
+> `typing-calibrator.js` v1.2.0. Acquisition ran from a pane's **spawn**, so a
+> pane that appeared while the student was mid-word charged them for every letter
+> of the word they were actually typing. Jake's Shards trace: **47 WPM at one or
+> two panes on screen, 24 at six or seven, in the same minute.**
+> ⚠️⚠️ **THE SIGN IS WHAT MAKES IT SERIOUS:** a busier board made him look slower,
+> so the director spawned *slower*, so the board stayed quiet — a loop that ends
+> with a 100 WPM typist standing in an empty field. It now starts at the later of
+> the spawn and the last keystroke **anywhere on the board** (`_busyAt`).
+> ⚠️ **A REAL HUNT IS STILL CHARGED IN FULL.** Round 119's ruling stands: the cost
+> of a word is find it AND type it. Part T3 exists so this is not read as a
+> licence to go back to burst measurement.
+>
+> **4. The opening minute is no longer dead.** A Shards run held the 8 WPM floor
+> for **fifty seconds and seven clears** before the fourth clean sample — and with
+> `costFactor: 3` the floor prices the first spawn interval at **40.8 seconds**.
+> That is Round 119's own open question answered by a trace: *"nobody has watched
+> a child sit through that opening."* ⭐ `provisionalWPM()` believes the samples in
+> proportion to how many there are — one moves a quarter of the way, the fourth is
+> believed outright — so the fluke MIN_SAMPLES was defending still cannot set a
+> run. ⚠️ **THE ANSWER WAS THE SEED, NOT `MIN_SAMPLES`**, exactly as Round 119
+> predicted it would be.
+>
+> Two smaller things in the same file: the median runs over the **last twelve**
+> samples rather than the whole run (a bad patch used to outvote a good one for
+> the rest of the run), and `MAX_BELIEVABLE_WPM` went 90 → 120. ⚠️ A sanity clamp
+> that binds on a real human is not measuring them, and Jake is above 90 — it
+> matters more now, because fix 3 raises every estimate.
+>
+> ---
+>
+> ## ⭐ SHATTER: TWO COMPLAINTS, BOTH FIXED IN THE VIEW, NEITHER IN THE BOARD
+>
+> Jake: *"Shatter panes don't shatter, they just kind of respawn separately. They
+> also don't spawn off screen, but in the circle itself."*
+>
+> ⚠️⚠️ **AND HIS RULING ON THE THIRD QUESTION WAS "SHATTER IS A DIFFERENT GAME,
+> LEAVE IT AS IS"** — asked whether the pieces should get Shards' real physics.
+> So the board's one-journey-one-speed rule stands and `shatter-board.js` is
+> **untouched**, along with its harness, its pacing, its arrival times, its lock
+> rule and its hit test.
+>
+> * **The spawn was one line.** Field magnitude 1 mapped to `ringR`, which is a
+>   circle this file also *draws*. Panes popped into existence on a visible line.
+>   `entryRadius()` runs the outer band to the canvas edge along each pane's own
+>   bearing instead. ⚠️ **PIECEWISE, AND THAT IS THE PART TO KEEP:** stretching the
+>   whole field to the corner would leave a pane invisible for over half its life
+>   on a wide canvas — a word arriving with 40% of its time already spent. Only
+>   `ENTRY_M`(0.86) → 1 runs to the edge, about 14% of a journey. Everything
+>   inside is pixel-for-pixel what it was, **including the danger ring**, which
+>   Jake asked to keep.
+> * **The split is `SPLIT_FLY_MS`.** The board had already put the pieces at their
+>   fanned positions, correctly and *instantly* — and nothing that arrives
+>   instantly reads as something that came apart. The view now walks each piece
+>   out of the point its parent broke at over 340ms, growing into size, with a
+>   bigger and longer debris burst. ⚠️ **NO GLOW ON IT, ON PURPOSE:** `drawPane`'s
+>   glow sets `shadowBlur`, which Round 116 found is ruinous in Safari, and this
+>   is a 1-to-1 iPad programme.
+> * ⚠️⚠️ **BOTH ARE SKIPPED ON SHARDS (`drift`).** That board's magnitudes are
+>   where a pane *wandered to*, not how far through a journey it is — panes sit
+>   past 1 routinely — so the edge remap would throw half of Shards' field off the
+>   screen, and its pieces already get a real kick. ⭐ The cabinet Jake is happy
+>   with is the one this must not touch.
+>
+> ---
+>
+> ## ⚠️ WHAT I GOT WRONG IN THIS ROUND, AND IT IS WORTH A PARAGRAPH
+>
+> I told Jake the open item *"assert a student who types nothing dies inside N
+> seconds"* was still owed, because §18.D says so. ⭐ **IT WAS CLOSED IN ROUND 117**
+> — `shatter-shards-test.mjs` v1.1.0 Part H carries the idle floor and drives the
+> real `GameDirector`. ⚠️ **A HANDOFF SECTION IS A SNAPSHOT OF WHAT WAS TRUE WHEN
+> IT WAS WRITTEN, AND THIS DOCUMENT IS NOW LONG ENOUGH THAT A LATER ROUND'S
+> ANSWER SITS THOUSANDS OF LINES AWAY FROM THE QUESTION.** Grep the harness before
+> quoting an open item forward.
+>
+> ---
+>
+> ## ⚠️ WHAT IS STILL OWED, IN ORDER
+>
+> 1. ⚠️⚠️ **NONE OF THIS IS BROWSER-VERIFIED.** The harnesses are green and
+>    `arcade-mount-test.mjs` mounts Shatter under jsdom, but **no human has seen
+>    the new entry mapping or the fly-apart on a screen.** Ask Jake for
+>    `arcade v?` from the badge and what a break looks like before building on it.
+> 2. **The three-minute number is a model, not a measurement.** It assumes a
+>    player sustaining 3 characters/second. ⭐ The honest next step is another
+>    telemetry round from Jake and a comparison of `pressure` against `t` —
+>    the same three CSVs, which is now a repeatable instrument.
+> 3. ⚠️ **Fix 3 will make every game busier**, because the director stops
+>    under-reading the player. Watch for Shatter becoming crowded rather than
+>    sparse; the knob is `onScreenTarget`'s thresholds, which are still *reasoned,
+>    not measured against anyone* (Round 119's own warning, unchanged).
+> 4. **Escape Key still ignores `onCountdown`**, and Deadline and Escape Key have
+>    still never been mounted by a harness. ROADMAP 116b.
+> 5. ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` is still set. **Jake's warning,
+>    Jake's to remove** — though two of the three reasons it was set are now gone.
+> **6.** The `learn2` fork (§11) and the mode pill items are unchanged by this round.
+>
+> ---
+>
+> ## ⚠️⚠️ A HARNESS WENT RED THIS MORNING WITH NOTHING CHANGED, AND IT WILL AGAIN
+>
+> `session-writer-test.mjs` F1 failed on the pristine upload, before this round
+> touched anything: its fixtures read `2026-08-25`, `session-log.js` drops records
+> older than `STALE_DAYS` (21), and today is 2026-09-14. ⭐ **THE HARNESS WAS
+> CORRECT AND THE CALENDAR BEAT IT.** Fixed here by deriving the dates from
+> `Date.now()` — Round 111's advice, which Round 115 followed by hand for two
+> other files and nobody generalised.
+> ⚠️ **THERE MAY BE MORE.** `grep -rn "2026-0" tests/` before assuming a red
+> harness is about the code in front of you; a suite that fails by calendar
+> teaches the next person that red means "ignore it".
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `game-shell.js` **v1.11.0** · `typing-calibrator.js` **v1.2.0** ·
+> `game-shatter.js` **v1.12.0** · `game-deadline.js` **v1.16.0** ·
+> `tests/game-shell-test.mjs` **v1.1.0** (Parts R120-A, R120-B) ·
+> `tests/typing-calibrator-test.mjs` **v1.1.0** (Part T) ·
+> `tests/session-writer-test.mjs` **v1.1.0** (clock-derived fixtures, not this
+> round's work but this round's red).
+>
+> ⚠️ `arcade.html` is **unchanged** — its build panel reads the runtime constants,
+> so all four bumps appear in it with no edit.
+>
+> ⭐ **EVERY NEW ASSERTION WAS MUTATION-VERIFIED.** Reinstating the per-target ramp
+> and deleting the grace takes six red in the shell harness; reinstating
+> spawn-based acquisition takes T1, and the whole-run median takes T4.
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-11 by Round 119 (Hammond), for whoever is next
 >
 > **Instance name: Hammond.** The Hammond Typewriter Company, 1884 — the machine
 > whose whole idea was that the *type shuttle* could be swapped so one carriage
@@ -9597,3 +9797,90 @@ was correct about the thing it was aimed at and wrong about what else touched it
 already records that Shards is survive-by-luck; it has no floor on the idle case.
 Make it assert *a student who types nothing is dead inside N seconds*, watch it
 fail, and only then change a number.
+
+
+---
+
+## §19. Round 120 (Maskelyne) — one played round of each game, and what it cost to read it properly
+
+**2026-09-14.** Jake sent three telemetry CSVs — one run each of Deadline,
+Shatter and Shards — with a short note: *"I can usually type at around 100 wpm,
+and I'm averaging a little less than that in the games, so any spikes you see are
+not errors — that's my actual speed."*
+
+### A. ⭐⭐ THE HEADLINE WAS IN THE LAST ROW OF ALL THREE FILES
+
+    deadline  over=1 at t=47.72   pressure 2.16
+    shatter   over=1 at t=221.46  pressure 2.24
+    shards    over=1 at t=259.26  pressure 2.24
+
+⚠️⚠️ **THREE GAMES, THREE DEATHS, ONE PRESSURE.** They are tuned to the same
+difficulty and they reach it at 47, 221 and 259 seconds. ⭐ **NO AMOUNT OF
+READING `game-deadline.js` WOULD HAVE FOUND THAT**, because the defect is not in
+Deadline: `RAMP_PER_TARGET` priced difficulty per box, and Deadline's boxes hold
+three characters where Shatter's hold ten.
+
+⚠️ **THE COLUMNS THAT CARRIED IT ARE `pressure` AND `t`, AND NOTHING ELSE.**
+Everything glamorous in those files — `onScreen`, `pieces`, `halfTyped` — was
+decoration next to a two-column plot nobody had ever drawn.
+
+### B. ⚠️⚠️ THE SENSOR TRACE IS THE BEST THING IN THE THREE FILES
+
+`pacedWPM` against `onScreen`, from the Shards run, same minute:
+
+    t=50–70    onScreen 1–2    pacedWPM 47
+    t=105–146  onScreen 4–7    pacedWPM 44 → 29.8 → 25.7
+    t=181–211  onScreen 1–3    pacedWPM 24.3   ← never recovers
+
+⭐ **TWO SEPARATE DEFECTS ARE VISIBLE IN THOSE THREE LINES**, and it took the
+graph to separate them: the *fall* is the acquisition bug (time spent typing one
+pane charged as time spent hunting another), and the *failure to come back* is
+the whole-run median. Fixing either alone would have left half the trace.
+
+⚠️⚠️ **AND THE FEEDBACK DIRECTION IS THE REASON THIS ONE MATTERS MORE THAN ITS
+SIZE.** A sensor that under-reads a student makes the game gentler, which hides
+the under-reading, which keeps the board quiet, which is the state that produced
+Round 118's complaint (*"I went 2 minutes without touching the keyboard at all
+and never had any threat"*) from the opposite end. ⭐ **A QUIET BOARD AND A SLOW
+READING ARE THE SAME BUG SEEN FROM TWO SIDES.**
+
+### C. ⭐ WHAT THE SHIELD COLUMN SAID, WHICH NOBODY HAD ASKED
+
+    deadline   6→5 t=44.86 · 5→4 45.36 · 4→3 46.12 · 3→2 46.62 · 2→1 47.12 · 1→0 47.72
+
+⚠️⚠️ **THE ENTIRE LOSING PHASE OF THAT RUN IS 2.86 SECONDS LONG.** Shatter and
+Shards have the same shape at the end, smaller (0.43s and 3.4s for the last two).
+⭐ **A GAME THAT ENDS IN UNDER THREE SECONDS TEACHES NOTHING**, because the
+student never learns where their edge was — and this game is meant to become the
+gate for a lesson. The grace window is the fix, and `hit()` returning a verdict is
+what lets the *view* agree with it: playing the full damage beat under a counter
+that did not move reads as a bug.
+
+### D. ⚠️ TWO THINGS I ALMOST DID AND SHOULD NOT HAVE
+
+* **Giving Shatter's pieces real velocities.** It is the obvious fix for "they
+  don't shatter" and Shards proves it works. ⚠️ Jake ruled against it — *"Shatter
+  is a different game, leave it as is"* — and he was asked **before** anything was
+  built, because Rule 3's whole lesson is that a round which picks for Jake spends
+  the next three putting it back. ⭐ **THE COMPLAINT WAS ABOUT WHAT IT LOOKS LIKE,
+  AND THE ANSWER WAS ALLOWED TO BE A DRAWING DECAY.**
+* **Applying the entry remap to both cabinets**, since they share one view. That
+  would have thrown half of Shards' field off the screen — its magnitudes mean
+  something different. ⚠️ **ONE VIEW, TWO BOARDS, AND A VIEW CHANGE IS NOT
+  AUTOMATICALLY A CHANGE TO BOTH GAMES.** The `drift` flag was already there.
+
+### E. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shell.js` | **1.11.0** | `RAMP_PER_CHAR`, `HIT_GRACE_MS`, `HIT_PRESSURE_RELIEF`, `inGrace()`, `hit()` returns a verdict, blended `calibratedWPM` |
+| `typing-calibrator.js` | **1.2.0** | `_busyAt` acquisition, `RECENT_SAMPLES` window, `provisionalWPM()`, clamp 90 → 120 |
+| `game-shatter.js` | **1.12.0** | `entryRadius()`/`ENTRY_M`, `SPLIT_FLY_MS`, bigger break burst, absorbed-hit beat |
+| `game-deadline.js` | **1.16.0** | ⚠️ asks the shell **before** damaging the city |
+| `tests/game-shell-test.mjs` | **1.1.0** | Parts R120-A and R120-B, written red first |
+| `tests/typing-calibrator-test.mjs` | **1.1.0** | Part T, written red first |
+
+⚠️ **`shatter-board.js`, `shatter-shards.js`, `arcade-pool.js` AND `arcade.html`
+ARE ALL UNTOUCHED**, which is the claim this round most wants checked: every
+complaint Jake made about Shatter was answerable in the view, and every pacing
+complaint was answerable in one constant.

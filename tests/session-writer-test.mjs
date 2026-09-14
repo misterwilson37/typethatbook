@@ -1,3 +1,6 @@
+// session-writer-test.mjs v1.1.0 — Round 120 (Maskelyne): the fixture dates are
+// derived from the clock. F1 went red on 2026-09-14 with nothing changed — the
+// pinned 2026-08-25 had simply aged past STALE_DAYS.
 // session-writer-test.mjs v1.0.0 — THE WRITER, NOT THE READER.
 //
 // ═══════════════════════════════════════════════════════════════════════════
@@ -93,7 +96,21 @@ function freshFirestore() {
     });
 }
 
-const TODAY = '2026-08-25';
+// ⚠️⚠️ DERIVED FROM THE CLOCK, NOT PINNED — Round 120 (Maskelyne), and it is the
+// time bomb Round 111 predicted and Round 115 defused once by hand: the fixtures
+// read `2026-08-25`, session-log.js drops anything older than STALE_DAYS (21),
+// and on 2026-09-14 F1 went red on its own **twenty-one days after anyone touched
+// it**. ⭐ A HARNESS THAT FAILS BY CALENDAR TEACHES THE NEXT PERSON THAT RED MEANS
+// "ignore it", which is the most expensive thing a suite can teach.
+// ⚠️ `YESTERDAY` IS A REAL SECOND DAY, which is all Part F needs — the assertion
+// is about two documents, never about which dates they carry.
+const dayStamp = back => {
+    const d = new Date(Date.now() - back * 86400000);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+         + '-' + String(d.getDate()).padStart(2, '0');
+};
+const TODAY = dayStamp(0);
+const YESTERDAY = dayStamp(1);
 let seq = 0;
 function rec(seconds = 60, { date = TODAY, source = 'library', label = 'unit1' } = {}) {
     seq++;
@@ -225,8 +242,8 @@ console.log('\n─── E. two different groups \u2192 two different ids ──
 console.log('\n─── F. two groups, two documents, business as usual ───');
 {
     reset(); freshFirestore();
-    mod.sessionLogPush('studentA', rec(60, { date: '2026-08-24' }));
-    mod.sessionLogPush('studentA', rec(60, { date: '2026-08-25' }));
+    mod.sessionLogPush('studentA', rec(60, { date: YESTERDAY }));
+    mod.sessionLogPush('studentA', rec(60, { date: TODAY }));
     await mod.sessionLogFlush('studentA', {});
 
     eq('F1 two documents, one per day', serverDocs.size, 2);

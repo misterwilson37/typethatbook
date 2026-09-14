@@ -1,3 +1,15 @@
+// typing-calibrator.js v1.2.0 — Round 120 (Maskelyne): ⚠️⚠️ THE SENSOR WAS
+// MEASURING THE QUEUE AND REPORTING IT AS THE CHILD. Acquisition ran from the
+// spawn, so a pane that appeared while the student was mid-word charged them for
+// every letter of the word they were actually typing — and the busier the board
+// got, the slower they looked, so the director spawned SLOWER. Jake's Shards
+// trace reads 47 WPM at one pane on screen and 24 at six, in the same minute, by
+// the same player. Three changes, all in this file: acquisition starts from
+// `_busyAt`; the median runs over a trailing window rather than the whole run;
+// and the estimate is believed in proportion to its sample count from the FIRST
+// sample (`provisionalWPM`) instead of the fourth, which is what left the first
+// fifty seconds of a Shards run empty. See `keyed()`, RECENT_SAMPLES and
+// `provisionalWPM()`.
 // typing-calibrator.js v1.1.0 — Round 119 (Hammond): ⚠️⚠️ THE ESTIMATE IS A
 // SUSTAINED RATE NOW, NOT A BURST RATE.
 // ⚠️⚠️⚠️ AND THE REASON IS NOT THE ONE IN THE FIRST WRITE-UP. Five traces showed
@@ -76,7 +88,7 @@
 // conversation about a second place a student's speed lives. ⭐ IT IS RULE 10 BY
 // CONSTRUCTION: the number is derived fresh from real play, every time.
 
-export const TYPING_CALIBRATOR_VERSION = '1.1.0';
+export const TYPING_CALIBRATOR_VERSION = '1.2.0';
 
 // ⚠️ HOW MANY CLEAN SAMPLES BEFORE THE ESTIMATE IS TRUSTED. Below this the
 // caller must use the floor. ⭐ FOUR IS A COMPROMISE AND IT IS THE FIRST NUMBER
@@ -99,7 +111,28 @@ export const BURST_GAP_CAP_MS = 1500;
 // ⚠️ FLOOR AND CEILING ON WHAT WE WILL BELIEVE, IN GAME WPM. Not a difficulty
 // setting — a sanity clamp on arithmetic that divides by a measured interval.
 export const MIN_BELIEVABLE_WPM = 5;
-export const MAX_BELIEVABLE_WPM = 90;
+// ⚠️⚠️ 90 → 120 IN ROUND 120 (Maskelyne), AND IT IS A SANITY CLAMP, NOT A
+// DIFFICULTY SETTING. Jake types at about 100 and the clamp sat below him, so
+// every clean sample he produced was being quietly truncated — a ceiling that
+// binds on a real human is not measuring them. ⭐ It matters more now than it
+// did: the acquisition fix below RAISES every estimate, so samples that used to
+// land in the thirties will land near this line.
+export const MAX_BELIEVABLE_WPM = 120;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE ESTIMATE IS A TRAILING WINDOW. A WHOLE-RUN MEDIAN CANNOT COME BACK.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Round 120. Jake's Shards trace reads 47 WPM while one or two panes are up and
+// 24 while six or seven are — and the second number, being a median over every
+// sample since the run started, then WON for the rest of the run. ⭐ A player
+// who settles down after a bad patch was being priced on the bad patch forever.
+// ⚠️ AND A WINDOW IS JAKE'S OWN INSTRUCTION READ PROPERLY: *"if you're measuring
+// all along, I would start the ramp when the comfort strikes"* — measuring all
+// along is not the same as remembering all along.
+// ⚠️ IT MUST STAY COMFORTABLY LARGER THAN MIN_SAMPLES, or a run would flip
+// between believing four samples and believing a different four.
+export const RECENT_SAMPLES = 12;
 
 /**
  * ⚠️ THE GENTLEST PLAYABLE GAME, and it is the answer for a child who froze.
@@ -156,6 +189,10 @@ export function median(xs) {
 export class TypingCalibrator {
     constructor(o) {
         const c = o || {};
+        // ⚠️⚠️ WHEN THE STUDENT WAS LAST DEMONSTRABLY BUSY — the last correct key
+        // on ANY target, or the last target finished. See `keyed()`: this is the
+        // whole of Round 120's acquisition fix, and it is one field.
+        this._busyAt = null;
         this.floorWPM = c.floorWPM > 0 ? c.floorWPM : FLOOR_WPM;
         this.minSamples = c.minSamples > 0 ? c.minSamples : MIN_SAMPLES;
         /** @type {object[]} one entry per cleanly-finished target. */
@@ -188,6 +225,33 @@ export class TypingCalibrator {
         if (!s) return;
         if (s.firstKeyAt == null) {
             s.firstKeyAt = nowMs;
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️⚠️ ACQUISITION STARTS WHEN THE STUDENT WAS FREE TO LOOK, NOT
+            // WHEN THE PANE APPEARED. ROUND 120, AND IT IS THE DEFECT THAT MADE
+            // A 100 WPM TYPIST MEASURE 25.
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // The old line was `firstKeyAt - spawnAt`. ⭐ THAT IS ONLY THE TIME
+            // THE STUDENT SPENT FINDING THIS PANE IF THEY HAD NOTHING ELSE TO
+            // DO. A pane that spawns while they are three letters into another
+            // word records every one of those letters as time spent hunting.
+            //
+            // ⚠️⚠️ SO THE SENSOR WAS MEASURING THE QUEUE AND REPORTING IT AS THE
+            // CHILD, and the sign is what makes it serious: the busier the board
+            // got, the slower the student appeared, so the director SLOWED THE
+            // SPAWNS DOWN — which is the opposite of what a board that has gone
+            // quiet needs. Jake's Shards trace: 47 WPM at one or two panes on
+            // screen, 24 at six or seven. Same player, same minute.
+            //
+            // ⭐ `_busyAt` IS THE HONEST START LINE. Time is charged as hunting
+            // only from the moment the student's hands were free — the later of
+            // the spawn and their last keystroke anywhere on the board.
+            // ⚠️ IT DOES NOT TURN THIS BACK INTO A BURST MEASUREMENT. v1.1.0's
+            // ruling stands: the cost of a word is find it AND type it, and a
+            // real hunt still lands here in full. What is excluded is only the
+            // time the student was provably typing something else.
+            const free = this._busyAt != null ? Math.max(s.spawnAt, this._busyAt) : s.spawnAt;
+            s.acquireMs = Math.max(0, nowMs - free);
         } else if (nowMs - s.lastKeyAt > BURST_GAP_CAP_MS) {
             // ⚠️ A HOLE IN THE MIDDLE OF A WORD INVALIDATES THE BURST, it does not
             // merely widen it. Averaging across a pause understates a child who
@@ -197,6 +261,10 @@ export class TypingCalibrator {
         }
         s.lastKeyAt = nowMs;
         s.keys++;
+        // ⚠️ EVERY correct key, not just this target's — the field means "the
+        // student's hands were busy up to here" and a per-target copy would be
+        // blind to exactly the case it exists for.
+        this._busyAt = nowMs;
     }
 
     /**
@@ -209,7 +277,11 @@ export class TypingCalibrator {
         this._open.delete(id);
         if (!s || s.firstKeyAt == null || s.gapped || s.keys < 2) return;
 
-        const acquire = Math.min(ACQUIRE_CAP_MS, s.firstKeyAt - s.spawnAt);
+        // ⚠️ MEASURED AT THE FIRST KEY, NOT RECONSTRUCTED HERE — see `keyed()`.
+        // Recomputing it from `_busyAt` now would read a field that has moved on
+        // several words since.
+        const acquire = Math.min(ACQUIRE_CAP_MS,
+            s.acquireMs != null ? s.acquireMs : s.firstKeyAt - s.spawnAt);
         const burstMs = Math.max(1, (s.lastKeyAt != null ? s.lastKeyAt : nowMs) - s.firstKeyAt);
         // ⚠️ CHARACTERS OVER FIVE IS THE WORD, the same denominator
         // `spawnIntervalMs()` prices work in. Any other definition here would be
@@ -283,6 +355,7 @@ export class TypingCalibrator {
         if (this.comfortAt == null && this.samples.length >= this.minSamples) {
             this.comfortAt = nowMs;
         }
+        this._busyAt = nowMs;
     }
 
     /** A pane was abandoned, hit, or the run restarted. */
@@ -291,17 +364,49 @@ export class TypingCalibrator {
     /** ⚠️ True once the estimate may be believed. Before this, use the floor. */
     get confident() { return this.samples.length >= this.minSamples; }
 
-    /** Median burst speed in GAME WPM, or the floor. Never null. */
+    /** ⚠️ THE LAST `RECENT_SAMPLES` ONLY. See the constant. */
+    get _recent() {
+        return this.samples.slice(-RECENT_SAMPLES);
+    }
+
+    /** Median sustained speed in GAME WPM, or the floor. Never null. */
     get wpm() {
         if (!this.confident) return this.floorWPM;
-        const m = median(this.samples.map(s => s.wpm));
-        return Math.max(this.floorWPM, m);
+        return Math.max(this.floorWPM, median(this._recent.map(s => s.wpm)));
+    }
+
+    /**
+     * ⭐⭐ WHAT THE DIRECTOR SHOULD PACE WITH RIGHT NOW, INCLUDING BEFORE COMFORT.
+     *
+     * Round 120. Below `minSamples` the old answer was the seed and nothing but
+     * the seed, which meant an adaptive run opened at 8 WPM and STAYED there
+     * until the fourth clean sample. ⚠️ With `costFactor: 3` that is a 40-second
+     * first spawn interval — Jake's Shards run was still waiting at 50 seconds.
+     *
+     * ⭐ THE SAMPLES WE HAVE ARE NOT WORTHLESS, THEY ARE MERELY NOT PROVEN. So
+     * they are believed in proportion to how many there are: one sample moves a
+     * quarter of the way from the seed, two half, and the fourth is the
+     * measurement itself. ⚠️ THAT IS WHAT MIN_SAMPLES WAS ACTUALLY DEFENDING —
+     * one fluke setting a whole run — and a quarter-weight fluke cannot do it.
+     *
+     * @param {number} seed  what to open with. Never exceeded downward: a
+     *                       measurement below the seed is still believed, because
+     *                       a child slower than the floor is the case the floor
+     *                       exists for.
+     */
+    provisionalWPM(seed) {
+        const base = seed > 0 ? seed : this.floorWPM;
+        if (!this.samples.length) return base;
+        if (this.confident) return this.wpm;
+        const m = median(this._recent.map(s => s.wpm));
+        const trust = Math.min(1, this.samples.length / this.minSamples);
+        return Math.max(MIN_BELIEVABLE_WPM, base + (m - base) * trust);
     }
 
     /** Median acquisition in ms, or null while unknown. */
     get acquireMs() {
         if (!this.confident) return null;
-        return median(this.samples.map(s => s.acquireMs));
+        return median(this._recent.map(s => s.acquireMs));
     }
 
     /**
@@ -344,5 +449,6 @@ export class TypingCalibrator {
         this.samples = [];
         this._open.clear();
         this.comfortAt = null;
+        this._busyAt = null;
     }
 }

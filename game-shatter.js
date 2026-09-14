@@ -1,3 +1,17 @@
+// game-shatter.js v1.12.0 — Round 120 (Maskelyne): ⚠️⚠️ TWO OF JAKE'S THREE
+// SHATTER COMPLAINTS, BOTH FIXED IN THE VIEW AND NEITHER IN THE BOARD.
+// *"Shatter panes don't shatter, they just kind of respawn separately. They also
+// don't spawn off screen, but in the circle itself."*
+// ⭐ THE SPAWN ONE WAS ONE LINE: field magnitude 1 mapped to `ringR`, a circle
+// this file DRAWS, so panes appeared on a visible line. `entryRadius()` runs the
+// outer band of the field to the canvas edge instead — see it for why the band
+// is piecewise and not a whole-field stretch.
+// ⭐ THE SPLIT ONE IS `SPLIT_FLY_MS`: pieces keep the board's one-journey-one-
+// speed rule (Jake's ruling, 2026-09-13: *"Shatter is a different game, leave it
+// as is"*) and the VIEW walks them out of the point the parent broke at.
+// ⚠️⚠️ THE BOARD IS UNTOUCHED BY BOTH. No pacing, no arrival time, no lock rule,
+// no hit test — shatter-board.js and its harness are byte for byte what they
+// were, which is the property the `place()` seam was built to have.
 // game-shatter.js v1.11.0 — Round 119 (Hammond): ⚠️⚠️ THE BOARD CLOCK NO LONGER
 // RUNS WHILE PAUSED. Measured from a real trace: a 254-second pause handed the
 // first resumed frame a 254,000ms dt and took two of three shields in five
@@ -214,7 +228,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.11.0';
+export const GAME_SHATTER_VERSION = '1.12.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -225,6 +239,30 @@ const RING_MARGIN = 30;     // gap between the spawn ring and the canvas edge
 // closing speed); the view decides only how urgent is urgent enough to go red.
 // ⭐ 0.78 IS THE OLD `r <= 0.22` EXACTLY, since this board's threat is 1 - r.
 const DANGER_T = 0.78;
+
+// ⚠️ WHERE THE FIELD PROPER ENDS AND THE APPROACH BEGINS, as a field magnitude.
+// See entryRadius(): inside this the drawing is exactly what it always was;
+// outside it, panes run off the canvas so they can be seen coming in.
+// ⭐ 0.86 IS ABOUT 0.6 SECONDS OF APPROACH on a mid-run lifetime, which is a
+// preview; much more and a student is watching an empty ring instead of playing.
+const ENTRY_M = 0.86;
+
+// How far past the canvas edge a pane's CENTRE is born, in pixels.
+const PANE_CLEARANCE = 74;
+
+// ⚠️⚠️ HOW LONG THE PIECES OF A BROKEN WINDOW FLY APART, in board milliseconds.
+// Jake, 2026-09-13: *"shatter panes don't shatter, they just kind of respawn
+// separately."* ⭐ AND THE BOARD IS NOT WRONG — pieces share the parent's
+// journey, one journey and one speed, which is Jake's own ruling and stands.
+// What was missing is that they ARRIVED at their fanned positions rather than
+// travelling there: three panes blinked into existence a little apart from where
+// one used to be. ⚠️ SO THIS IS A DRAWING DECAY AND NOTHING ELSE. The board's
+// position is the truth the whole time; for a third of a second the view draws
+// the piece somewhere between where the parent broke and where the board says it
+// is. Arrival times, the lock rule and the hit test never see it.
+const SPLIT_FLY_MS = 340;
+// ⚠️ BOARD CLOCK, LIKE THE PANES THEMSELVES. In the hit slowdown the glass flies
+// apart slowly too, which is the whole point of having one clock for the board.
 const HUD_H = 46;
 // ⚠️ FETCHED ONCE AND NEVER WRITTEN. The palette is keyboard.js's; this is a
 // cached read of it, not a second home for it. See game-draw.js's
@@ -384,8 +422,51 @@ export function mount(container, opts) {
      */
     /** A field magnitude → a pixel radius from the prism. The radial half of
      *  toPixels(), shared so the rings and the warp cannot disagree with the
-     *  panes about how big the field is. */
-    function toPixelRadius(m) { return SHIP_R + Math.max(0, m) * (ringR - SHIP_R); }
+     *  panes about how big the field is.
+     *
+     * ⚠️⚠️ ONLY THE INNER FIELD IS A CIRCLE. See `entryRadius()`: magnitudes past
+     * ENTRY_M leave the ring and run to the canvas edge, which is a different
+     * distance in every direction, so those cannot be drawn as a radius alone.
+     * Everything that draws a RING — the tracery, the danger line — is inside
+     * ENTRY_M and still gets its answer from here. */
+    function toPixelRadius(m) {
+        if (drift) return SHIP_R + Math.max(0, m) * (ringR - SHIP_R);
+        const inner = Math.max(0, Math.min(ENTRY_M, m));
+        return SHIP_R + (inner / ENTRY_M) * (ringR - SHIP_R);
+    }
+
+    /**
+     * ⭐⭐ HOW FAR OFF THE CANVAS A PANE IS BORN, ALONG ITS OWN BEARING.
+     *
+     * Jake, 2026-09-13: *"They also don't spawn off screen, but in the circle
+     * itself."* He is right, and it was one line: field magnitude 1 — the board's
+     * SPAWN_R — mapped to `ringR`, which is a circle this file also DRAWS. Panes
+     * popped into existence on a visible line.
+     *
+     * ⚠️⚠️ THE FIX IS A VIEW REMAP AND NOTHING ELSE. The board still spawns at
+     * r = 1, still prices `dr` as 1/lifetime, and every clearability claim in
+     * shatter-board-test.mjs holds byte for byte. ⭐ THE SEAM IS EXACTLY WHAT
+     * MADE THIS CHEAP: `place()` answers in field coordinates and this file alone
+     * decides how many pixels that is.
+     *
+     * ⚠️ AND IT IS PIECEWISE, WHICH IS THE PART THAT MATTERS. Stretching the
+     * WHOLE field to the canvas corner would have left a pane invisible for over
+     * half its life on a wide canvas — a word that appears with 40% of its time
+     * already spent. Only the outer band (ENTRY_M → 1) runs to the edge, so a
+     * pane is off-screen for about 14% of its journey — long enough to be seen
+     * arriving, short enough that nothing is stolen from the student.
+     * ⚠️ EVERYTHING FROM ENTRY_M INWARD IS PIXEL-FOR-PIXEL WHAT IT WAS.
+     */
+    function entryRadius(dx, dy) {
+        const ax = Math.abs(dx), ay = Math.abs(dy);
+        const tx = ax < 1e-6 ? Infinity : (dx > 0 ? (W - cx) : cx) / ax;
+        const ty = ay < 1e-6 ? Infinity : (dy > 0 ? (H - cy) : (cy - HUD_H)) / ay;
+        // ⚠️ THE CLEARANCE IS NOT DECORATION. A pane is drawn AROUND its centre,
+        // so a centre exactly on the edge is a half-visible pane clinging to the
+        // frame — which looks like a rendering fault, not like something
+        // arriving. It has to be clear of the glass it is about to become.
+        return Math.max(ringR + 1, Math.min(tx, ty) + PANE_CLEARANCE);
+    }
 
     function toPixels(g) {
         const m = Math.hypot(g.x, g.y);
@@ -394,7 +475,21 @@ export function mount(container, opts) {
         // zero and normalising loses the side it arrived from, putting every
         // arriving pane straight up. shatter-board-test.mjs Part H caught that
         // on its first run; see place()'s header.
-        const rr = toPixelRadius(m);
+        let rr = toPixelRadius(m);
+        // ⚠️⚠️ THE RADIAL BOARD ONLY. On Shards a pane's magnitude is where it
+        // WANDERED to, not how far through a journey it is: panes routinely sit
+        // past 1 and sail back, and running that band to the canvas edge would
+        // throw half of Shards' field off the screen. ⭐ Jake on Shards:
+        // *"it's not nearly as slick as shards"* — the cabinet he is happy with
+        // is the one this must not touch. The mapping there is the old linear
+        // one, unchanged.
+        if (!drift && m > ENTRY_M) {
+            // ⚠️ THE OUTER BAND, AND IT IS ALLOWED TO RUN PAST 1: a warped pane
+            // is shoved back out toward the ring and may leave the field
+            // entirely for a moment, which is what a warp should look like.
+            const t = (m - ENTRY_M) / (1 - ENTRY_M);
+            rr = ringR + t * (entryRadius(g.dx, g.dy) - ringR);
+        }
         return { x: cx + g.dx * rr, y: cy + g.dy * rr };
     }
 
@@ -686,11 +781,35 @@ export function mount(container, opts) {
             // gold spark could never say.
             const at = landed ? landed.p : { x: cx, y: cy };
             const pal = (landed && landed.colors) || FAN;
+            // ⚠️ A BREAK THROWS MORE GLASS AND THROWS IT FOR LONGER THAN A
+            // CLEAN CLEAR, because the two events are not the same size: one
+            // window became three, and the debris is the only thing on screen
+            // that says a thing came apart rather than merely vanished. ⭐ The
+            // count still answers to motionScale(); a reduced-motion student
+            // gets the same picture with less of it.
             glassBurst(particles, at.x, at.y, pal,
-                       Math.round((r.pieces.length ? 26 : 14) * motionScale()),
-                       r.pieces.length ? 210 : 160, rand);
+                       Math.round((r.pieces.length ? 38 : 14) * motionScale()),
+                       r.pieces.length ? 330 : 160, rand);
             if (r.pieces.length) {
                 r.pieces.forEach(decorate);
+                // ⭐⭐ THE PIECES LEAVE FROM WHERE THE WINDOW WAS. See
+                // SPLIT_FLY_MS: the board has already put them at their fanned
+                // positions and that stands — this stamps the point they should
+                // be seen coming FROM, and `drawPanes()` walks them out of it
+                // over a third of a second.
+                // ⚠️ PIXELS, DELIBERATELY, AND IT IS THE ONLY WAY THIS STAYS OUT
+                // OF THE BOARD. The alternative is storing a field offset, which
+                // means knowing whether the field is polar — and this file has
+                // not known that since v1.4.0 and must not learn it again.
+                // ⚠️ NOT ON SHARDS. That board gives its pieces a real kick away
+                // from the prism — its own header calls it the best thing about
+                // the board — so a drawing decay on top would be a second
+                // animation of one event, and the two would disagree.
+                for (const piece of (drift ? [] : r.pieces)) {
+                    piece.bornAt = bNow;
+                    piece.bornX = at.x;
+                    piece.bornY = at.y;
+                }
                 sfx.launch(0);
                 banner = { text: 'SHATTERED', until: now + 700 };
             }
@@ -727,18 +846,34 @@ export function mount(container, opts) {
         // decrementing.
         // ⚠️ SLOW, WIDE AND NOT CAPPED BY motionScale()'s COUNT the way the pane
         // burst is: this happens at most three times in a run.
-        glassBurst(particles, cx, cy, FAN, Math.round(52 * motionScale()), 150, rand);
-        // ⚠️ AND THE SLOW MOTION ANSWERS TO REDUCED MOTION, like everything else
-        // here. Scaled rather than switched off — a student on that setting
-        // still gets the beat, just less of it.
-        slowMo = Math.max(slowMo, motionScale());
-        flash = 0.4;
-        flare = 1;
+        // ⚠️⚠️ THE SHELL DECIDES WHETHER THAT WAS THE LAST SHIELD **AND WHETHER A
+        // SHIELD WAS SPENT AT ALL** — game-shell.js v1.11.0, HIT_GRACE_MS. Four
+        // panes expiring in the same second are one mistake, and the shell now
+        // charges one. ⭐ THE VIEW HAS TO AGREE OR THE STUDENT IS LIED TO: the
+        // full damage beat under a shield counter that did not move reads as a
+        // bug, and playing it three times in two seconds is exactly the cascade
+        // the grace exists to end.
+        const charged = d.hit(now);
+        if (charged) {
+            // ⭐⭐ THE PRISM COMES APART IN EVERY COLOUR IT EVER THREW — the beat
+            // that belongs to actually losing something.
+            glassBurst(particles, cx, cy, FAN, Math.round(52 * motionScale()), 150, rand);
+            // ⚠️ AND THE SLOW MOTION ANSWERS TO REDUCED MOTION, like everything
+            // else here. Scaled rather than switched off — a student on that
+            // setting still gets the beat, just less of it.
+            slowMo = Math.max(slowMo, motionScale());
+            flash = 0.4;
+            flare = 1;
+        } else {
+            // ⚠️ SMALLER, AND IT SAYS SOMETHING DIFFERENT. The pane still broke
+            // on the prism — that is why the burst above fired — but nothing was
+            // spent, and a student who is being hit repeatedly needs to be able
+            // to tell those two apart at a glance.
+            flash = 0.14;
+        }
         sfx.hit();
-        // ⚠️ THE SHELL DECIDES WHETHER THAT WAS THE LAST SHIELD, not this file.
-        d.hit(now);
         if (d.over) { finish(now); return; }
-        banner = { text: 'GLASS DOWN', until: now + 1200 };
+        banner = { text: charged ? 'GLASS DOWN' : 'SHIELD HELD', until: now + 1200 };
     }
 
     function finish(now) {
@@ -1083,7 +1218,7 @@ export function mount(container, opts) {
         const size = Math.max(14, Math.round(ringR * 0.07));
         for (const { rock, g } of seen) {
             decorate(rock);
-            const p = toPixels(g);
+            let p = toPixels(g);
             const near = g.threat >= DANGER_T;
             const isLocked = rock === board.locked;
             // ⭐ THE PANE IS SIZED TO ITS OWN WORD, because the word is drawn
@@ -1098,7 +1233,36 @@ export function mount(container, opts) {
             // ⚠️ DO NOT INLINE THIS FORMULA BACK. It was a local here for four
             // rounds and that is precisely why glass could visibly pass over the
             // prism with nothing happening.
-            const rr = paneRadius(rock.text, size);
+            let rr = paneRadius(rock.text, size);
+            // ── the break, drawn ────────────────────────────────────────────
+            // ⚠️⚠️ COSMETIC, AND THE BOARD NEVER SEES IT. See SPLIT_FLY_MS. The
+            // piece's real position is `p` above and the lock rule, the hit test
+            // and the arrival time all use it; for 340ms the VIEW draws it part
+            // of the way there instead, starting from the point its parent broke.
+            // ⭐ THAT IS THE WHOLE OF "THE PANES DON'T SHATTER": they were correct
+            // and they were instantaneous, and nothing that arrives instantly
+            // reads as something that came apart.
+            // ⚠️ NO GLOW ON THE FLASH, ON PURPOSE. `drawPane`'s glow option sets
+            // shadowBlur, which Round 116 found is ruinously slow in Safari — and
+            // this is a 1-to-1 iPad programme. The beat is carried by the flight,
+            // the growth and the debris, none of which cost anything.
+            if (rock.bornAt != null) {
+                const e = (bNow - rock.bornAt) / SPLIT_FLY_MS;
+                if (e >= 1) {
+                    rock.bornAt = null;
+                } else {
+                    // Ease-out cubic: fast off the break, settling into place.
+                    const k = 1 - Math.pow(1 - Math.max(0, e), 3);
+                    p = { x: rock.bornX + (p.x - rock.bornX) * k,
+                          y: rock.bornY + (p.y - rock.bornY) * k };
+                    // ⚠️ IT GROWS INTO ITSELF RATHER THAN SHRINKING OUT OF THE
+                    // PARENT. A piece that started at the parent's size would
+                    // have to shrink, and three shrinking copies of one window
+                    // reads as a duplication bug, which is close to what Jake
+                    // saw.
+                    rr *= 0.62 + 0.38 * k;
+                }
+            }
             // ⚠️ THE RIM CARRIES STATE AND NOTHING ELSE DOES: red when it is
             // about to land, gold when locked, otherwise the colour of the
             // finger that types its next key — the same finger map keyboard.js
