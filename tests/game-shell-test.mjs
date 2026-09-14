@@ -31,7 +31,7 @@ import {
     targetsFromSequence, avgTargetChars, arcadeKeySet, makeArcadeTargets,
     missionConfigFromRun, charsPerSecondFor, GAME_SHELL_VERSION,
     enemyStepMs, targetTimeMs, POINTS_PER_CORRECT_CHAR, POINTS_PER_INTACT_SHIELD,
-    SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_CHAR, arcadeConfig,
+    SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_CHAR, arcadeConfig, MIN_SPAWN_GAP_MS,
     HIT_GRACE_MS, HIT_PRESSURE_RELIEF,
 } from '../game-shell.js';
 import { chunkSequence, gatesForRun } from '../run-grade.js';
@@ -936,6 +936,84 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
     m.hit(1000); m.hit(1050); m.hit(1100);
     ok(m.shields === 0 && m.over,
        '\u26a0\u26a0 a graded mission still charges every single leak, grace or no grace');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PART R123 — ⚠️⚠️ AN EMPTY SKY IS NOT ANSWERED WITH A VOLLEY, AND NO TWO
+//             TARGETS SHARE A FIRST LETTER
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"when the shield goes down, the words come in twice as fast
+// as they were before. It's impossible again."* Three Deadline runs: 1:01, 1:01,
+// 1:06. ⭐ A RUN THAT ENDS AT THE SAME SECOND THREE TIMES IS A MECHANISM.
+//
+// Round 122 taught a lost shield to detonate and clear the sky; the refill floor
+// answered the empty sky by spawning the whole target count in one frame, on
+// identical lifetimes, to land together and take the next shield together.
+{
+    const d = new GameDirector({ targets: ['abcd'], targetWPM: 20, endless: true,
+                                 quotaChars: 4, shields: 6 });
+    d.clock.startIfNeeded(0);
+
+    // The sky is empty and the floor wants to fill it. ⭐ THE FIRST SPAWN IS
+    // IMMEDIATE — the floor is still right, and a fast student must be able to
+    // pull work rather than wait for a metronome.
+    ok(d.spawnDue(1000, 0) === true, 'an empty sky is refilled at once');
+    d.nextTarget(1000);
+    ok(d.spawnDue(1001, 0) === false,
+       '⚠️⚠️ but not TWICE in the same frame — this is the volley that followed ' +
+       'every lost shield once the detonation started emptying the sky');
+    ok(d.spawnDue(1000 + MIN_SPAWN_GAP_MS + 1, 0) === true,
+       `and the next one is ${MIN_SPAWN_GAP_MS}ms later, not a frame later`);
+
+    // ⚠️ AND THE GAP NEVER OUTLASTS THE INTERVAL. At high pressure the interval
+    // is already shorter than the floor's gap, and a game must not get QUIETER
+    // as it gets harder.
+    const fast = new GameDirector({ targets: ['ab'], targetWPM: 90, endless: true,
+                                    quotaChars: 2 });
+    fast.clock.startIfNeeded(0);
+    fast.nextTarget(0);
+    if (fast.intervalMs < MIN_SPAWN_GAP_MS) {
+        ok(fast.spawnDue(fast.intervalMs + 1, 0) === true,
+           '⭐ a short interval beats the floor gap — the cap is min(), not max()');
+    }
+}
+
+// ── the first-letter rule ──────────────────────────────────────────────────
+//
+// Jake: *"something that keeps words from spawning that share a starting letter
+// with any word that's already on the screen. If all of the letters are covered,
+// then spawn one that starts with whatever is closest to the ground."*
+{
+    const pool = ['ash', 'bone', 'coal', 'dusk'];
+    const d = new GameDirector({ targets: pool, targetWPM: 20, quotaChars: 99 });
+    d.clock.startIfNeeded(0);
+
+    const t1 = d.nextTarget(0, { avoidFirst: ['a', 'b'] });
+    ok(t1.text[0] !== 'a' && t1.text[0] !== 'b',
+       `⭐⭐ a target does not share a first letter with the sky (got "${t1.text}")`);
+
+    // ⚠️ EVERY LETTER TAKEN. A four-key lesson has four of them and a busy sky
+    // holds more than four words — this is the normal case, not the edge.
+    const t2 = d.nextTarget(0, { avoidFirst: ['a', 'b', 'c', 'd'], preferFirst: 'c' });
+    ok(t2.text[0] === 'c',
+       '⭐ …and when they are ALL taken it duplicates the LOWEST word\'s letter, ' +
+       'because that is the one about to leave');
+
+    // ⚠️ IT ALWAYS RETURNS SOMETHING. A pool of one letter is a thin early
+    // lesson, not an error, and a game that stops spawning is worse than one
+    // with a collision in it.
+    const thin = new GameDirector({ targets: ['aa', 'ab'], targetWPM: 20, quotaChars: 99 });
+    thin.clock.startIfNeeded(0);
+    const t3 = thin.nextTarget(0, { avoidFirst: ['a'] });
+    ok(t3 && t3.text, '⚠️⚠️ a pool with no alternative still spawns');
+
+    // ⚠️ AND THE PLAIN CALL IS UNTOUCHED — every other caller passes no options
+    // and must keep walking the pool in order.
+    const plain = new GameDirector({ targets: pool, targetWPM: 20, quotaChars: 99 });
+    plain.clock.startIfNeeded(0);
+    ok(plain.nextTarget(0).text === 'ash' && plain.nextTarget(0).text === 'bone',
+       '⚠️ with no options the cursor still walks the pool in its own order');
 }
 
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} ok, ${fail} failed`);

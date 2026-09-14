@@ -1149,6 +1149,18 @@ function telemetryStart(game, cfg) {
           adaptive: !!(cfg && cfg.adaptive) });
     const btn = document.getElementById('telemetryBtn');
     if (btn) btn.style.display = '';
+    telemetryLabel();
+}
+
+/** ⚠️ ROWS IN HAND, LIVE. See the button's note. */
+function telemetryLabel() {
+    const btn = document.getElementById('telemetryBtn');
+    if (!btn) return;
+    const live = recorder ? recorder.rows.length : 0;
+    const held = lastTrace ? lastTrace.rows.length : 0;
+    const n = live || held;
+    btn.textContent = (recorder ? '\u25cf REC ' : 'Download run data ') + '(' + n + ' rows)';
+    btn.style.opacity = n ? '1' : '.55';
 }
 
 function telemetryStop() {
@@ -1158,6 +1170,7 @@ function telemetryStop() {
     // timer must not throw the rows away.
     lastTrace = recorder.stop();
     recorder = null;
+    telemetryLabel();
 }
 let lastTrace = null;
 
@@ -1172,8 +1185,16 @@ if (TELEMETRY.enabled()) {
         // ⚠️ STOP FIRST, so a run still in progress is downloadable mid-flight.
         if (recorder) telemetryStop();
         if (lastTrace) TELEMETRY.download(lastTrace);
+        telemetryLabel();
     };
     document.body.appendChild(btn);
+    // ⚠️⚠️ IT SAYS HOW MANY ROWS IT HAS, AND THAT IS THE POINT OF THIS ROUND.
+    // Jake played three Deadline runs and found afterwards there was nothing to
+    // export. ⭐ A BUTTON THAT READS "Download run data (0 rows)" WOULD HAVE TOLD
+    // HIM AFTER THE FIRST ONE — an instrument must report its own state, because
+    // the one thing a silent recorder looks exactly like is a working one.
+    setInterval(telemetryLabel, 1000);
+    telemetryLabel();
 }
 let lastPlayedWPM = null;
 // ⚠️⚠️ WHICH PLAY FUNCTION RAN, SO "Play again" CAN REPEAT IT. ⭐ A FUNCTION

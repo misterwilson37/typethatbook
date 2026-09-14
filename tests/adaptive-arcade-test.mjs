@@ -423,9 +423,23 @@ console.log('\nG — ⚠️⚠️ RULE 11: THE CALIBRATION NUMBER NEVER REACHES 
     // ⚠️ AND THE RECORDER IS OFF BY DEFAULT, WHICH IS A PROPERTY OF THE FLAG AND
     // NOT OF ANYONE'S DISCIPLINE. A telemetry switch a student can find, or a
     // teacher can leave on for a term, is a different product.
+    // ⚠️⚠️ AMENDED IN ROUND 123, AND THE RULE IT DEFENDS IS UNCHANGED: recording
+    // must die with the TAB, and must never be reachable by a student or left on
+    // by a teacher for a term. ⭐ `sessionStorage` KEEPS THAT PROMISE EXACTLY —
+    // one tab, gone when it closes, unreadable from any other machine.
+    // `localStorage` WOULD NOT, and is still forbidden here.
+    // ⚠️ THE OLD FORM HAD A COST AND JAKE PAID IT: with the flag on the URL alone,
+    // any reload switched the instrument off in silence. He played three Deadline
+    // runs, lost all three traces, and reported the GAME as broken.
     const tele = read('arcade-telemetry.js');
-    ok(/telemetry=1/.test(tele) && !/localStorage|sessionStorage/.test(tele),
-       '⚠️⚠️ G5 RECORDING IS A URL FLAG, NOT A STORED SETTING — it dies with the tab');
+    // ⚠️ `localStorage.` WITH THE DOT — a bare mention is how this file EXPLAINS
+    // why it does not use it, and a check that cannot tell a call from a comment
+    // forbids writing the reasoning down.
+    ok(/telemetry=1/.test(tele) && !/localStorage\s*[.[]/.test(tele),
+       '⚠️⚠️ G5 RECORDING IS A URL FLAG AND A TAB-LIFETIME ONE — never localStorage');
+    ok(/telemetry=0/.test(tele),
+       '⭐ and it can be switched back OFF from the address bar — a sticky flag '
+       + 'with no off position is the thing localStorage would have made');
     ok(!/fetch\(|XMLHttpRequest|navigator\.sendBeacon/.test(tele),
        '⚠️⚠️ G6 THE TRACE IS DOWNLOADED, NEVER UPLOADED. No endpoint means no place '
        + 'for thirty children\'s traces to accumulate on a server');

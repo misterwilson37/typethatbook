@@ -1,3 +1,9 @@
+// game-deadline.js v1.18.0 — Round 123 (Maskelyne): ⭐ NO TWO WORDS IN THE SKY
+// SHARE A FIRST LETTER — see spawn(). The game's instruction is "type the one
+// closest to the ground", and two words starting with the same letter make that
+// instruction unfollowable. ⚠️ The volley that followed a lost shield is fixed in
+// game-shell.js v1.14.0 (MIN_SPAWN_GAP_MS), not here: this file was looping on a
+// refill floor that was correct until the detonation started emptying the sky.
 // game-deadline.js v1.17.0 — Round 121 (Maskelyne): ⭐⭐ A LOST SHIELD DETONATES AND
 // CLEARS THE SKY. Jake: *"it still goes from fine to losing instantly… maybe the
 // shields could explode and destroy all the incoming ufos to give a moment of
@@ -363,7 +369,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.17.0';
+export const GAME_DEADLINE_VERSION = '1.18.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -764,7 +770,34 @@ export function mount(container, opts) {
     // is distance/lifetime. That is the single line that makes the game
     // resolution-independent and refresh-rate-independent at once.
     function spawn(now) {
-        const t = d.nextTarget(now);
+        // ═══════════════════════════════════════════════════════════════════
+        // ⭐⭐ NO TWO WORDS IN THE SKY START WITH THE SAME LETTER.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Jake, 2026-09-14: *"I think deadline needs a word check like escape key
+        // has — something that keeps words from spawning that share a starting
+        // letter with any word that's already on the screen. If all of the letters
+        // are covered, then spawn one that starts with whatever is closest to the
+        // ground (so they won't compete)."*
+        //
+        // ⚠️⚠️ IT IS THE SAME DEFECT ESCAPE KEY HAD, WEARING THIS GAME'S CLOTHES.
+        // There the player types a first letter to choose a DIRECTION; here they
+        // type it to choose a WORD, and the game's own instruction is "take the
+        // one closest to the ground". Two words starting with `t` make that
+        // instruction unfollowable: the keystroke lands on whichever the lock
+        // rule prefers, which may not be the one the student was reading.
+        //
+        // ⭐ AND THE FALLBACK IS HIS, NOT A DEFAULT. When every letter is already
+        // out there, duplicating the LOWEST word's letter is the cheapest
+        // collision available — that word is the next to leave, so the ambiguity
+        // it creates has the shortest life of any on offer.
+        const avoidFirst = live.map(e => e.text[0]);
+        let lowest = null;
+        for (const e of live) if (!lowest || e.y > lowest.y) lowest = e;
+        const t = d.nextTarget(now, {
+            avoidFirst,
+            preferFirst: lowest ? lowest.text[0] : null,
+        });
         if (!t) return;
         const lane = Math.floor(rand() * domes.length);
         const dome = domes[lane];

@@ -1,3 +1,6 @@
+// arcade-telemetry.js v1.3.0 — Round 123 (Maskelyne): ⚠️⚠️ THE FLAG IS STICKY FOR
+// THE TAB. It lived on the URL alone, so a reload switched the instrument off
+// silently — three of Jake's runs were played and lost that way. See enabled().
 // arcade-telemetry.js v1.2.0 — Round 119 (Hammond): the trace now covers its own
 // ENDING. The first real Shatter trace stopped at `shields = 2, over = 0` while
 // the player had in fact lost — the view was torn down and the recorder went
@@ -59,7 +62,7 @@
 // This is a file that goes to a teacher for diagnosis, not a number that goes on
 // a screen next to netWPM(). See game-shatter.js's debug().
 
-export const ARCADE_TELEMETRY_VERSION = '1.2.0';
+export const ARCADE_TELEMETRY_VERSION = '1.3.0';
 
 /**
  * ⚠️ FOUR SAMPLES A SECOND. Not sixty.
@@ -180,7 +183,41 @@ export function download(trace, name) {
 }
 
 /** Is recording switched on for this tab? See rule 3. */
+/**
+ * ⚠️⚠️ ONCE PER TAB, NOT ONCE PER URL — Round 123 (Maskelyne).
+ *
+ * Jake, 2026-09-14: *"I can't get you telemetry because in the three times I've
+ * played deadline it's brought me back to the arcade page without telemetry, so
+ * there's no csv to export. I'm pretty frustrated with it, so I'm not trying the
+ * other games until you make sure I can actually get telemetry from them."*
+ *
+ * ⭐⭐ THE FLAG WAS ON THE URL AND NOTHING ELSE, so it survived exactly as long as
+ * the address bar did. Any reload, any link, any "open the arcade again" — and
+ * the recorder was silently off, with no button, no message, and a game that
+ * looked completely normal. ⚠️ AN INSTRUMENT THAT CAN BE SWITCHED OFF BY ACCIDENT
+ * AND SAYS NOTHING IS WORSE THAN NO INSTRUMENT: three runs were played and lost,
+ * and the person who lost them concluded the game was broken in a new way.
+ *
+ * ⚠️ `sessionStorage`, NOT `localStorage`, AND THAT IS THE WHOLE OF RULE 3 KEPT.
+ * The original note says the only person who can switch this on is someone who
+ * typed it into the address bar on purpose, and that still holds — it is one tab,
+ * it dies when the tab does, and a student on another machine cannot inherit it.
+ * ⭐ `?telemetry=0` TURNS IT BACK OFF, because a switch you cannot find the off
+ * position for is the thing localStorage would have made.
+ */
+const STICKY_KEY = 'ttb-telemetry';
+
 export function enabled(search) {
     const s = search == null ? (typeof location === 'undefined' ? '' : location.search) : search;
-    return /[?&]telemetry=1\b/.test(s);
+    if (/[?&]telemetry=0\b/.test(s)) {
+        try { sessionStorage.removeItem(STICKY_KEY); } catch { /* private mode */ }
+        return false;
+    }
+    if (/[?&]telemetry=1\b/.test(s)) {
+        // ⚠️ WRAPPED, because Safari private browsing throws on write and a dead
+        // recorder must never be a dead page.
+        try { sessionStorage.setItem(STICKY_KEY, '1'); } catch { /* ignore */ }
+        return true;
+    }
+    try { return sessionStorage.getItem(STICKY_KEY) === '1'; } catch { return false; }
 }

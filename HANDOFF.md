@@ -1,6 +1,118 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-14 by Round 122 (Maskelyne), for whoever is next
+> ## ▶ START HERE — written 2026-09-14 by Round 123 (Maskelyne), for whoever is next
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ READ THIS ONE FIRST: ROUND 122's BREATH PAID FOR THE WALL THAT KILLED HIM
+>
+> Jake, 2026-09-14: *"when the shield goes down, the words come in twice as fast
+> as they were before. It's impossible again."* Three Deadline runs — **1:01,
+> 1:01, 1:06**. ⭐ A RUN THAT ENDS AT THE SAME SECOND THREE TIMES IS A MECHANISM,
+> NOT A DIFFICULTY CURVE.
+>
+> The refill floor says *if the sky holds fewer than `onScreenTarget`, spawn now*,
+> and `game-deadline.js` loops on it up to four times a FRAME. ⚠️⚠️ THAT WAS
+> HARMLESS UNTIL ROUND 122 TAUGHT A LOST SHIELD TO EMPTY THE SKY. From then on
+> every hit was answered by the entire target count arriving in one frame, on
+> identical lifetimes, to land together and take the next shield together.
+>
+> ⭐⭐ THE SHAPE TO REMEMBER: a correct mechanism (the floor) and a correct new
+> mechanism (the detonation) that are wrong TOGETHER. Neither file is at fault on
+> its own reading, and no harness asked what the floor does with a sky that was
+> emptied all at once. `MIN_SPAWN_GAP_MS` in game-shell.js v1.14.0 is the fix, and
+> it is capped by the interval so nothing gets quieter as it gets harder.
+>
+> ---
+>
+> ## ⚠️⚠️ THE INSTRUMENT WAS OFF AND SAID NOTHING, AND THAT COST THREE RUNS
+>
+> *"I can't get you telemetry because in the three times I've played deadline it's
+> brought me back to the arcade page without telemetry… I'm pretty frustrated with
+> it, so I'm not trying the other games until you make sure I can actually get
+> telemetry from them."*
+>
+> ⭐⭐ THE FLAG LIVED ON THE URL AND NOWHERE ELSE, so it survived exactly as long as
+> the address bar did — one reload and the recorder was off, with no button, no
+> message, and a game that looked completely normal. ⚠️ AN INSTRUMENT THAT CAN BE
+> SWITCHED OFF BY ACCIDENT AND STAYS SILENT ABOUT IT IS WORSE THAN NO INSTRUMENT:
+> three runs were played and lost, and the person who lost them concluded the GAME
+> had broken in a new way.
+>
+> Two changes, and the second matters as much as the first:
+> * `arcade-telemetry.js` v1.3.0 — the flag is **sticky for the tab**
+>   (`sessionStorage`, never `localStorage`; `?telemetry=0` switches it back off).
+>   ⚠️ Rule 3 is intact: one tab, dead when it closes, unreachable by a student.
+> * the button **reports its own state** — `● REC (312 rows)` while recording,
+>   `Download run data (312 rows)` after. ⭐ A BUTTON READING `(0 rows)` WOULD HAVE
+>   TOLD HIM AFTER THE FIRST RUN. The one thing a silent recorder looks exactly
+>   like is a working one.
+>
+> ---
+>
+> ## ⭐ THE REST
+>
+> **No two words in Deadline's sky start with the same letter** (`spawn()` +
+> `nextTarget(now, { avoidFirst, preferFirst })`). ⚠️ THE GAME'S OWN INSTRUCTION IS
+> *"type the one closest to the ground"*, and two words starting with `t` make that
+> instruction unfollowable. When every letter is taken — a four-key lesson has four
+> of them — the duplicate is the LOWEST word's letter, Jake's ruling, because that
+> word is the next to leave and its collision has the shortest life available.
+> ⚠️ Not shared code with `escape-board.js`'s `wordAvoiding()`: that one draws at
+> random from a pool for a grid, this one walks a cursor through an ordered list.
+>
+> **The School menu is positioned `fixed`.** Jake: *"the school/school beta
+> dropdown doesn't work from library."* ⚠️⚠️ I COULD NOT REPRODUCE IT IN jsdom —
+> the click fires and `menu.hidden` goes false, on the button and on the inner span
+> alike. ⭐ SO THE MENU WAS OPENING AND NOT BEING SEEN: an absolutely-positioned
+> child is at the mercy of every ancestor it has, and index.html's header is
+> `position: sticky`. Fixed positioning takes the ancestors out of the answer for
+> all four pages at once. ⚠️ IT CLOSES ON SCROLL, which is the cost and is also
+> what a menu should do.
+>
+> ---
+>
+> ## ⚠️ TWO HARNESSES THAT WENT RED FOR THE WRONG REASON
+>
+> * `arcade-lesson-test.mjs` sliced a purity window with
+>   `indexOf('nextTarget(nowMs)')`. The day that function took a second parameter,
+>   `indexOf` returned **-1**, the slice ran to the end of the file, and the
+>   assertion failed over `nextTarget()`'s own correct `_cursor++`. ⭐ A WINDOW
+>   DEFINED BY AN EXACT SIGNATURE BREAKS WHEN THE SIGNATURE GROWS — and it breaks
+>   by silently WIDENING, which is the worst direction.
+> * `adaptive-arcade-test.mjs` G5 forbade the string `localStorage` anywhere in
+>   arcade-telemetry.js — so the file could not explain **why** it does not use it.
+>   ⚠️ A check that cannot tell a call from a comment forbids writing the reasoning
+>   down. It now matches `localStorage.` with the dot.
+>
+> ---
+>
+> ## ⚠️ STILL OWED
+>
+> 1. ⚠️⚠️ **TELEMETRY FROM A REAL DEADLINE RUN.** Everything above about the volley
+>    is reasoned from the code and from three timings; it has not been seen in a
+>    trace. The recorder should now survive a reload — ask for one.
+> 2. ⚠️ **NOTHING IN ROUNDS 122–123 IS BROWSER-VERIFIED.**
+> 3. The dropdown fix is aimed at a CLASS of causes, not at a reproduced one. If it
+>    still misbehaves on the library page, the next step is a screenshot with the
+>    element inspector open, not another guess.
+> 4. ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` — Jake's to remove.
+> 5. The `learn2` fork (§11), unchanged.
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `game-shell.js` **v1.14.0** · `game-deadline.js` **v1.18.0** ·
+> `arcade-telemetry.js` **v1.3.0** · `site-nav.js` **v1.2.0** · `arcade.html`
+> (telemetry readout) · `tests/game-shell-test.mjs` (Part R123, mutation-verified),
+> `tests/adaptive-arcade-test.mjs`, `tests/arcade-lesson-test.mjs`.
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-14 by Round 122 (Maskelyne), for whoever is next
 >
 > **Instance name: Maskelyne**, same instance as Rounds 120 and 121 — one name per
 > conversation, however many rounds it covers.
@@ -10362,3 +10474,46 @@ test telling them not to.
 | `shatter-shards.js` | **1.6.0** | `reachOf(rock, view)` |
 | `game-shatter.js` | **1.14.0** | Enter scatters/pings by board, spoken refusals, countdown in the readout, view scale wiring |
 | `game-escape.js` | **2.7.0** | ⭐ ROADMAP 116b closed |
+
+
+---
+
+## §23. Round 123 (Maskelyne) — the run that ended at 1:01 three times
+
+**2026-09-14.** No telemetry this round, because the instrument was off. That is
+the round's first finding and the reason for its first fix.
+
+### A. ⭐⭐ THREE IDENTICAL TIMINGS ARE A TRACE OF THEIR OWN
+
+1:01, 1:01, 1:06. ⚠️⚠️ THAT IS ENOUGH TO RULE OUT A DIFFICULTY CURVE WITHOUT A
+SINGLE ROW OF DATA: a ramp that beat a player at 61 seconds twice and 66 once is
+not a ramp, it is a switch being thrown. The only thing in Round 122 that could
+throw a switch mid-run was the shield detonation, and the only thing downstream of
+an emptied sky is the refill floor.
+
+⭐ **NEITHER FILE IS WRONG ON ITS OWN READING**, which is why no review would have
+caught it. The floor has a good reason (a fast student pulls work rather than
+waiting for a metronome) and the detonation has a good reason (a breath you can
+SEE). The defect is the pair.
+
+### B. ⚠️⚠️ THE INSTRUMENT IS PART OF THE PRODUCT
+
+Jake stopped testing — *"I'm not trying the other games until you make sure I can
+actually get telemetry from them"* — and he was right to. ⭐ THREE ROUNDS OF THIS
+PROJECT HAVE TURNED ON A CSV. A recorder that can be switched off by a reload and
+says nothing about it does not merely lose data; it spends the tester's goodwill
+and then makes the game look like the thing that failed.
+
+⚠️ THE FIX IS TWO-SIDED ON PURPOSE. Sticky-for-the-tab stops it happening; the row
+count on the button means that when it does happen anyway, it is visible in one
+second instead of after a run.
+
+### C. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shell.js` | **1.14.0** | `MIN_SPAWN_GAP_MS`; `nextTarget(now, opts)` + `_pickText()` |
+| `game-deadline.js` | **1.18.0** | first-letter rule at spawn |
+| `arcade-telemetry.js` | **1.3.0** | sticky-for-the-tab flag, `?telemetry=0` |
+| `site-nav.js` | **1.2.0** | the School menu is positioned `fixed` |
+| `arcade.html` | 3.23.0 | the telemetry button reports rows and REC state |

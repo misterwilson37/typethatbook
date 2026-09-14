@@ -593,7 +593,16 @@ console.log('\nE — SIDE PANELS: COVERAGE SURVIVES, AND THE PLAY AREA NEVER SHR
     // ⚠️⚠️ IT MUST BE A PURE READ. peekNext() and spawnProgress() exist because
     // raising MIN_ON_SCREEN to show more collapsed the corpus sweep from 99.9%
     // to 53.2% clearable. Reading ahead must never mean receiving faster.
-    const spBody = sh.slice(sh.indexOf('spawnProgress(nowMs)'), sh.indexOf('nextTarget(nowMs)'));
+    // ⚠️⚠️ THE END MARKER IS A PREFIX, NOT THE WHOLE SIGNATURE — Round 123. It
+    // read `'nextTarget(nowMs)'`, and the day that function took a second
+    // parameter `indexOf` returned -1, the slice ran to the END OF THE FILE, and
+    // this assertion went red over `nextTarget()`'s own perfectly correct
+    // `_cursor++`. ⭐ A WINDOW DEFINED BY AN EXACT SIGNATURE IS A WINDOW THAT
+    // BREAKS WHEN THE SIGNATURE GROWS — and it breaks by silently widening, which
+    // is the worst direction.
+    const spEnd = sh.indexOf('nextTarget(nowMs', sh.indexOf('spawnProgress(nowMs)'));
+    ok(spEnd > 0, 'the slice window has an end — see the note above');
+    const spBody = sh.slice(sh.indexOf('spawnProgress(nowMs)'), spEnd);
     // ⚠️ `=(?!=)` — the first draft used `\\s*=` and matched the `==` in
     // `this._lastSpawnAt == null`, failing a function that only READS it. A
     // purity check that cannot tell a comparison from an assignment is worse

@@ -1,5 +1,33 @@
 # CHANGELOG — TypeThatBook
 
+## Round 123 (Maskelyne) — the volley after a lost shield, and an instrument that was off
+
+Three Deadline runs ended at **1:01, 1:01 and 1:06**. ⭐ A run that ends at the
+same second three times is a mechanism, not a difficulty curve.
+
+**⚠️⚠️ Round 122's breath paid for the wall.** The refill floor spawns at once when
+the sky holds fewer than the target count, and `game-deadline.js` loops on it up
+to four times a frame — harmless until the shield detonation started emptying the
+sky in one go. Every lost shield was then answered by the whole target count
+arriving together, on identical lifetimes, to land together. `MIN_SPAWN_GAP_MS`
+(capped by the interval, so nothing gets quieter as it gets harder) is the fix.
+
+**⚠️⚠️ Telemetry is sticky for the tab.** The flag lived on the URL alone, so a
+reload switched recording off in silence — Jake played three runs and lost all
+three traces. `sessionStorage`, never `localStorage`; `?telemetry=0` switches it
+back off. The button now reads `● REC (312 rows)` while recording, because the one
+thing a silent recorder looks exactly like is a working one.
+
+**No two words in Deadline's sky start with the same letter.** The game's
+instruction is *type the one closest to the ground*, and two words sharing a first
+letter make that unfollowable. When every letter is taken the duplicate is the
+lowest word's — it is the next to leave.
+
+**The School menu is positioned `fixed`,** so no host page's header can clip it or
+stack above it.
+
+**ALL 103 HARNESSES PASS.**
+
 ## Round 122 (Maskelyne) — a lifetime is a deadline on one board and a speed on the other
 
 **⚠️⚠️ The seed cap no longer touches lifetimes.** Round 121 capped both the seed

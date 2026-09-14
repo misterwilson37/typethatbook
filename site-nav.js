@@ -1,3 +1,9 @@
+// site-nav.js v1.2.0 — Round 123 (Maskelyne): ⚠️⚠️ THE SCHOOL MENU IS POSITIONED
+// FIXED. Jake: *"the school/school beta dropdown doesn't work from library."* The
+// handler fires and the menu opens — it was being clipped or stacked out of sight
+// by the host page's header, which an absolutely-positioned child cannot defend
+// itself against. See place().
+//
 // site-nav.js v1.1.0 — Round 122 (Maskelyne): ⭐⭐ THE COMPACT PILL. Jake,
 // 2026-09-14: *"The mode pill is huge — and it's not on the pages that have the
 // game. They should match in terms of available information and navigation. So
@@ -41,7 +47,7 @@
 // pages here have different palettes — so the colours come from CSS custom
 // properties with per-page fallbacks rather than from literals.
 
-export const SITE_NAV_VERSION = '1.1.0';
+export const SITE_NAV_VERSION = '1.2.0';
 
 /**
  * ⚠️ ORDER IS THE SITE MAP AND IT IS DELIBERATE: School first because it is what
@@ -88,11 +94,14 @@ const CSS = `
 /* ⚠️ THE CARET IS PART OF THE TAB, NOT A SECOND CONTROL. A separate arrow button
    beside "School" gives a child two targets for one decision. */
 .ttb-tab .ttb-caret { font-size: .62em; margin-left: 6px; opacity: .8; }
-/* ⭐ ABSOLUTE, SO IT OVERLAPS WHATEVER IS BELOW — Jake: *"even if it overlaps
+/* ⭐ IT OVERLAPS WHATEVER IS BELOW — Jake: *"even if it overlaps
    stuff - it's only visible when you click, after all."* Reserving space for a
    menu that is shut 99% of the time would cost every page a band of nothing. */
 .ttb-menu {
-    position: absolute; top: calc(100% + 6px); left: 0; z-index: 300;
+    /* ⚠️ THE POSITION IS SET IN JS, FROM THE BUTTON'S RECT — see place(). These
+       are the fallback coordinates for the one frame before that runs, and
+       z-index is high enough to clear a sticky header on any of the four pages. */
+    position: fixed; z-index: 3000;
     min-width: 190px; padding: 5px;
     border-radius: 8px;
     border: 1px solid var(--ttb-nav-rule, #3a3a3a);
@@ -239,10 +248,50 @@ export function mountSiteNav(host, current, page, opts) {
             }
             nav.appendChild(menu);
 
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️ THE MENU IS POSITIONED **FIXED**, FROM THE BUTTON'S RECT.
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // Jake, 2026-09-14: *"The school/school beta dropdown doesn't work
+            // from library, though. Clicking doesn't do anything there."*
+            //
+            // ⚠️⚠️ AND I COULD NOT REPRODUCE IT IN jsdom: the click fires, the
+            // handler runs and `menu.hidden` goes false, on the button and on the
+            // inner span alike. ⭐ SO THE LOGIC IS NOT THE PROBLEM AND THE MENU IS
+            // OPENING — it is not being SEEN. An absolutely-positioned child is at
+            // the mercy of every ancestor it has: one `overflow: hidden`, one
+            // stacking context from index.html's `position: sticky` header, and it
+            // is drawn where nobody can look at it.
+            //
+            // ⭐⭐ FIXED POSITIONING TAKES THE ANCESTORS OUT OF THE ANSWER. The
+            // viewport is the only frame of reference, so no page's header CSS can
+            // clip it and no page can stack something above it without saying so
+            // in its own z-index. ⚠️ FOUR PAGES MOUNT THIS AND THEY HAVE FOUR
+            // DIFFERENT HEADERS; a fix that depended on knowing any of them would
+            // be the fifth page's bug.
+            //
+            // ⚠️ THE COST IS THAT IT DOES NOT FOLLOW THE PAGE. A fixed menu stays
+            // put while the document scrolls, so it CLOSES on scroll — which is
+            // what a menu should do anyway, and is what every OS does with one.
+            const place = () => {
+                const r = btn.getBoundingClientRect();
+                menu.style.position = 'fixed';
+                menu.style.top = (r.bottom + 6) + 'px';
+                menu.style.left = Math.max(8, r.left) + 'px';
+            };
             const setOpen = (open) => {
+                if (open) place();
                 menu.hidden = !open;
                 btn.setAttribute('aria-expanded', String(open));
             };
+            // ⚠️ `capture: true` AND `passive: true` — the scroll may happen on an
+            // inner container rather than on the window (index.html's shelf does
+            // exactly that), and a listener that never calls preventDefault should
+            // say so or it costs scroll performance on every page.
+            document.addEventListener('scroll', () => {
+                if (!menu.hidden) setOpen(false);
+            }, { capture: true, passive: true });
+            window.addEventListener('resize', () => { if (!menu.hidden) place(); });
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 setOpen(menu.hidden);

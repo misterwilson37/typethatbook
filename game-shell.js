@@ -1,3 +1,9 @@
+// game-shell.js v1.14.0 — Round 123 (Maskelyne): ⚠️⚠️ `MIN_SPAWN_GAP_MS` — the
+// refill floor may fire early but not twice in one breath, which is what turned
+// Round 122's shield detonation into a volley and killed three Deadline runs at
+// 1:01, 1:01 and 1:06. ⭐ And `nextTarget(now, { avoidFirst, preferFirst })`:
+// no two targets on screen share a first character unless every letter is taken,
+// and then the duplicate is the one closest to the ground — Jake's ruling.
 // game-shell.js v1.13.0 — Round 122 (Maskelyne): ⚠️⚠️ THE SEED CAP NO LONGER
 // TOUCHES LIFETIMES. On the drift board a lifetime is not a deadline, it is a
 // SPEED — `CROSSING * SPEED_GAIN / life` — so Round 121's cap made Shards open at
@@ -201,7 +207,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.13.0';
+export const GAME_SHELL_VERSION = '1.14.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -356,6 +362,31 @@ export const SEED_MAX_INTERVAL_MS = 5000;
 // ⭐ FREQUENT AND SLOW IS THE COMBINATION A BEGINNER NEEDS: always something to
 // type, never anything hurrying. Frequent and CROWDED is a different game.
 export const SEED_MAX_ON_SCREEN = 4;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ NOTHING ARRIVES IN THE SAME BREATH AS SOMETHING ELSE — Round 123
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14, on Deadline: *"when the shield goes down, the words come in
+// twice as fast as they were before. It's impossible again."* Three runs, 1:01,
+// 1:01 and 1:06 — and a run that ends at the same second three times is a
+// MECHANISM, not a difficulty curve.
+//
+// ⭐⭐ IT IS THE REFILL FLOOR, AND ROUND 122's SHIELD DETONATION ARMED IT. The
+// floor says "if the sky holds fewer than `onScreenTarget`, spawn NOW" and
+// game-deadline.js loops on it up to four times a FRAME. That was harmless while
+// the sky emptied one word at a time. ⚠️ THEN THE DETONATION STARTED EMPTYING IT
+// ALL AT ONCE — so every lost shield was immediately answered by the whole target
+// count arriving together, on identical lifetimes, to land together, and take the
+// next shield together. **The breath Round 122 added paid for the wall that
+// killed him.**
+//
+// ⚠️ THE FLOOR IS STILL RIGHT: a fast student must be able to pull work rather
+// than wait for a metronome, which is why it exists. What it may not do is answer
+// an empty sky with a volley. ⭐ AND THE GAP IS CAPPED BY THE INTERVAL ITSELF, so
+// at high pressure — where the interval is already under this — the floor is
+// never the slower of the two and nothing gets quieter as it gets harder.
+export const MIN_SPAWN_GAP_MS = 700;
 
 // Ceiling on pressure. 2.5 × a 15 WPM gate is 37.5 WPM of sustained demand,
 // which no student in this building will hold; past here the queue depth is what
@@ -1095,7 +1126,13 @@ export class GameDirector {
         if (this.adaptive && !this.calibrator.confident && onScreen >= SEED_MAX_ON_SCREEN) {
             return false;
         }
-        if (onScreen < this.onScreenTarget) return true;
+        // ⚠️⚠️ THE FLOOR STILL FIRES EARLY, BUT NOT TWICE IN ONE BREATH. See
+        // MIN_SPAWN_GAP_MS: a caller looping on this — game-deadline.js does, up
+        // to four times a frame — used to empty its whole target count into one
+        // frame whenever the sky was cleared.
+        if (onScreen < this.onScreenTarget) {
+            return (nowMs - this._lastSpawnAt) >= Math.min(this.intervalMs, MIN_SPAWN_GAP_MS);
+        }
         if (this._lastSpawnAt == null) return true;
         return (nowMs - this._lastSpawnAt) >= this.intervalMs;
     }
@@ -1154,9 +1191,67 @@ export class GameDirector {
         return Math.max(0, Math.min(1, dt / Math.max(1, this.intervalMs)));
     }
 
-    nextTarget(nowMs) {
+    /**
+     * ⭐ WALK FORWARD FROM THE CURSOR TO A TARGET THAT DOES NOT COLLIDE.
+     *
+     * ⚠️ IT MOVES THE CURSOR RATHER THAN PICKING AT RANDOM, so the pool's ORDER
+     * still governs — `arcade-pool.js` and the lesson pools both order their
+     * words on purpose, and a random draw here would quietly discard that.
+     * ⚠️ AND IT ALWAYS RETURNS SOMETHING. A pool whose every word starts with the
+     * same letter is a thin early lesson, not an error, and a game that stops
+     * spawning is worse than one with a collision in it.
+     */
+    _pickText(opts) {
+        const n = this.targets.length;
+        const at = i => this.targets[(this._cursor + i) % n];
+        const avoid = new Set();
+        for (const c of (opts && opts.avoidFirst) || []) {
+            if (c) avoid.add(String(c).toLowerCase());
+        }
+        if (!avoid.size) return at(0);
+
+        for (let i = 0; i < n; i++) {
+            const t = at(i);
+            if (t && !avoid.has(t[0].toLowerCase())) { this._cursor += i; return t; }
+        }
+        // ⚠️ EVERY LETTER IS TAKEN. Not a failure — a four-key lesson has four of
+        // them and the sky holds more than four words on a bad day.
+        const prefer = opts && opts.preferFirst
+            ? String(opts.preferFirst).toLowerCase() : null;
+        if (prefer) {
+            for (let i = 0; i < n; i++) {
+                const t = at(i);
+                if (t && t[0].toLowerCase() === prefer) { this._cursor += i; return t; }
+            }
+        }
+        return at(0);
+    }
+
+    /**
+     * @param {number} nowMs
+     * @param {object} [opts]
+     *   avoidFirst {string[]}  first characters already on screen. A target
+     *              starting with one of these makes the student's first
+     *              keystroke ambiguous, which in a game where the answer is
+     *              "type the one closest to the ground" is a wrong answer they
+     *              cannot see.
+     *   preferFirst {string}   what to use when EVERY letter is taken — Jake's
+     *              ruling, 2026-09-14: *"If all of the letters are covered, then
+     *              spawn one that starts with whatever is closest to the ground
+     *              (so they won't compete)."* ⭐ THAT IS THE ONE SAFE DUPLICATE:
+     *              the lowest word is the one about to leave, so the collision
+     *              it makes is the shortest-lived one available.
+     *
+     * ⚠️ escape-board.js's `wordAvoiding()` HAS SOLVED THIS ONCE ALREADY and its
+     * ordering rule is borrowed here: give up on the nicety before giving up on
+     * the rule that makes the board playable. ⚠️⚠️ BUT IT IS NOT SHARED CODE, and
+     * deliberately: that one draws at random from a pool for a grid, this one
+     * walks a CURSOR through an ordered list, and a common helper would have to
+     * own both traversals to own either.
+     */
+    nextTarget(nowMs, opts) {
         if (!this.targets.length) return null;
-        const text = this.targets[this._cursor % this.targets.length];
+        const text = this._pickText(opts);
         this._cursor++;
         this._lastSpawnAt = nowMs;
         // ⚠️ THE NEXT INTERVAL IS PRICED FROM THE WORK JUST ISSUED. See intervalMs.
