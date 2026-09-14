@@ -2369,6 +2369,19 @@ function playFree() {
  * the app kept, and Jake's ruling is that time spent typing is time spent well.
  */
 function finishFree(rep) {
+    // ⚠️⚠️ STOP THE RECORDER *HERE*, WHERE THE GAME ACTUALLY ENDS.
+    //
+    // ⭐⭐ THE FIRST REAL SHATTER TRACE ENDED AT `shields = 2, over = 0` AND JAKE
+    // HAD LOST. Nothing was wrong with the game — the run ended a second or two
+    // after the last sample, and the view was torn down, so `read()` started
+    // returning null and the recorder just went quiet. **The instrument stopped
+    // one moment before the only moment that mattered.**
+    // ⚠️ A trace that cannot show its own ending cannot answer "did it end", and
+    // that question cost a round of guessing from a screenshot.
+    // ⭐ THIS RUNS BEFORE THE TEARDOWN BELOW, so the final sample is taken while
+    // the view is still alive and `over` is already true.
+    telemetryStop();
+
     if (handle) { handle.destroy(); handle = null; }
     $('stageWrap').style.display = 'none';
     // ⭐ THE FLOOR COMES BACK UP UNDER THE CARD. See the card's markup: "Pick
@@ -2393,6 +2406,19 @@ function finishFree(rep) {
 }
 
 function finish(rep, r) {
+    // ⚠️⚠️ STOP THE RECORDER *HERE*, WHERE THE GAME ACTUALLY ENDS.
+    //
+    // ⭐⭐ THE FIRST REAL SHATTER TRACE ENDED AT `shields = 2, over = 0` AND JAKE
+    // HAD LOST. Nothing was wrong with the game — the run ended a second or two
+    // after the last sample, and the view was torn down, so `read()` started
+    // returning null and the recorder just went quiet. **The instrument stopped
+    // one moment before the only moment that mattered.**
+    // ⚠️ A trace that cannot show its own ending cannot answer "did it end", and
+    // that question cost a round of guessing from a screenshot.
+    // ⭐ THIS RUNS BEFORE THE TEARDOWN BELOW, so the final sample is taken while
+    // the view is still alive and `over` is already true.
+    telemetryStop();
+
     if (handle) { handle.destroy(); handle = null; }
     $('stageWrap').style.display = 'none';
     $('floor').style.display = 'block';   // see finishFree()

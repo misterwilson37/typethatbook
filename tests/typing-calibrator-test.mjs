@@ -43,10 +43,21 @@ console.log('\nA — IT MEASURES SPEED AND ACQUISITION SEPARATELY');
                     { acquireMs: 900, msPerKey: wpmToMsPerKey(30) });
     }
     ok(cal.confident, 'eight clean targets is enough to believe a number');
-    ok(Math.abs(cal.wpm - 30) < 3,
-       `⭐ burst speed recovers the typist's real rate (${cal.wpm.toFixed(1)} of 30)`);
+    // ⚠️⚠️ REWRITTEN IN ROUND 119, AND THE REWRITE IS THE POINT. This used to read
+    // *"burst speed recovers the typist's real rate (30)"* and it was true of the
+    // code and false of the child: a 30 WPM burst between 900ms hunts is a **25.9
+    // WPM student**, and the game is paced for the student.
+    // ⭐ THE OLD ASSERTION IS WHY THE DEFECT SURVIVED — it pinned the burst window
+    // as correct, so five production traces reporting a 36 WPM child as 90 never
+    // turned anything red.
+    ok(cal.wpm > 22 && cal.wpm < 30,
+       `⭐ A2 THE ESTIMATE IS THE SUSTAINED RATE (${cal.wpm.toFixed(1)} WPM): 30 WPM `
+       + 'bursts with 900ms of hunting between them is not a 30 WPM typist');
+    // ⚠️ AND ACQUISITION IS STILL RECORDED SEPARATELY. It is now spent twice — on
+    // the pace AND on `onScreenTarget` — but it is still ONE recorded number, so
+    // Rule 9 holds and the two readers cannot disagree.
     ok(Math.abs(cal.acquireMs - 900) < 60,
-       `⚠️ and acquisition is measured, not folded into it (${cal.acquireMs}ms of 900)`);
+       `⚠️ A3 and acquisition is still measured in its own right (${cal.acquireMs}ms of 900)`);
 
     // ⭐⭐ THE POINT OF THE DECOMPOSITION. Same fingers, different heads.
     const slowHead = new TypingCalibrator();
@@ -55,8 +66,17 @@ console.log('\nA — IT MEASURES SPEED AND ACQUISITION SEPARATELY');
         u = typeOne(slowHead, i, 'sunlight', u + 100,
                     { acquireMs: 2200, msPerKey: wpmToMsPerKey(30) });
     }
-    ok(Math.abs(slowHead.wpm - cal.wpm) < 3,
-       '⭐⭐ two children with the same FINGERS measure the same speed…');
+    // ⚠️⚠️⚠️ THIS ASSERTION IS DELIBERATELY INVERTED IN ROUND 119. It used to
+    // demand that the two measure the SAME, and that was the defect stated as a
+    // requirement: the child who needs 2.2s to find every word is not typing at
+    // the same rate as the one who needs 0.9s, and pacing them identically is
+    // what produced a 364ms spawn interval in Deadline.
+    // ⭐ THE DECOMPOSITION IS STILL REAL — `acquireMs` below still separates them
+    // for `onScreenTarget`. What changed is that the PACE now hears about it too.
+    ok(slowHead.wpm < cal.wpm - 2,
+       `⭐⭐ A4 SAME FINGERS, SLOWER HUNT, SLOWER GAME (${slowHead.wpm.toFixed(1)} vs `
+       + `${cal.wpm.toFixed(1)} WPM). A crowded board really does make a child `
+       + 'slower, and the pacing finally knows it');
     ok(slowHead.acquireMs > cal.acquireMs * 2,
        '⭐⭐ …and the one who takes longer to FIND the word is told apart');
     ok(slowHead.onScreenTarget < cal.onScreenTarget,
@@ -300,4 +320,73 @@ console.log('\nG — THE SMALL SHARP EDGES');
 
 console.log(fail ? `\nFAIL — ${pass} ok, ${fail} failed`
                  : `\nPASS — ${pass} ok, 0 failed`);
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nS — ⚠️⚠️⚠️ THE ESTIMATE IS A SUSTAINED RATE, NOT A BURST RATE');
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// ⭐⭐ MEASURED IN FIVE PRODUCTION TRACES, ALL THREE CABINETS: `pacedWPM` sat at
+// 83.9-90.0 for whole runs while the game's own netWPM read 36.
+//
+// ⚠️⚠️⚠️ AND THE FIRST DIAGNOSIS OF THAT WAS WRONG. I called it a saturated
+// sensor. ⭐⭐ THE PLAYER IS A 90 WPM TYPIST — the burst measurement was CORRECT,
+// and the defect was that the DIRECTOR ASKED THE WRONG QUESTION. "How fast are
+// these fingers" and "how fast can words be thrown at this person" are different
+// quantities, and only the second prices a spawn interval: a 90 WPM typist on a
+// forty-pane board is not clearing at 90, because most of the second goes on
+// FINDING the next word.
+// ⭐ THE COST OF A WORD IS FIND IT AND TYPE IT, which is what a spawn interval
+// buys. Deadline was the proof: 364ms interval, words living 1.3s, 47 on screen
+// by t=30s, Jake's verdict *"Deadline is impossible"*.
+function typist(burstWPM, acquireMs, chars = 7, n = 6) {
+    const c = new TypingCalibrator({});
+    const per = 60000 / (burstWPM * 5);
+    for (let i = 0; i < n; i++) {
+        const t0 = i * 20000;
+        c.spawned(i, chars, t0, 3);
+        for (let k = 0; k < chars; k++) c.keyed(i, t0 + acquireMs + k * per);
+        c.finished(i, t0 + acquireMs + (chars - 1) * per);
+    }
+    return c;
+}
+{
+    // ⭐⭐ THE VALIDATION THAT MATTERS: JAKE'S OWN RUN, AGAINST HIS OWN SCREEN.
+    // His bursts railed the old estimate at 90 and his netWPM readout said 36.
+    const real = typist(90, 1400).wpm;
+    ok(real > 30 && real < 45,
+       `⭐⭐ S1 A REAL 90 WPM TYPIST WHO SPENDS 1.4s FINDING EACH WORD IS CLEARING `
+       + `WORDS AT ${real.toFixed(1)} WPM — and the game's own netWPM read 36 for `
+       + 'that same run. ⚠️ THE 90 WAS NEVER WRONG ABOUT HIS FINGERS; it was the '
+       + 'wrong quantity to price a spawn interval with');
+    ok(real < MAX_BELIEVABLE_WPM - 5,
+       '⚠️⚠️ S2 …AND THE ESTIMATE IS OFF ITS OWN CLAMP. Not because 90 was a lie — '
+       + 'it was true — but because a number sitting exactly on MAX_BELIEVABLE_WPM '
+       + 'cannot tell 90 apart from 150, so it could not rank the fastest children '
+       + 'against each other at all');
+
+    // ⚠️ IT MUST STILL SEPARATE FAST CHILDREN FROM SLOW ONES, or it is just a
+    // constant with extra steps.
+    const fast = typist(120, 300).wpm, slow = typist(40, 2500).wpm;
+    ok(fast > real && real > slow,
+       `⭐ S3 IT STILL RANKS TYPISTS (fast ${fast.toFixed(0)} > Jake ${real.toFixed(0)} `
+       + `> slow ${slow.toFixed(0)} WPM)`);
+
+    // ⚠️⚠️ THE HUNT IS WHAT MOVES IT, WHICH IS THE WHOLE POINT. Same fingers,
+    // different time spent finding the word.
+    const quick = typist(90, 300).wpm, dawdle = typist(90, 3000).wpm;
+    ok(quick > dawdle * 1.5,
+       `⚠️⚠️ S4 THE SAME FINGERS ARE PACED DIFFERENTLY BY HOW LONG THE HUNT TAKES `
+       + `(${quick.toFixed(0)} vs ${dawdle.toFixed(0)} WPM) — a crowded board really `
+       + 'does make a child slower, and now the pacing knows it');
+
+    // ⚠️ AND A DAWDLER CANNOT BE REPORTED AS GLACIAL, because `acquire` is capped.
+    // Without the cap, one pane a student ignored for half a minute would report
+    // them as a half-minute-per-word typist and stall the game for everyone.
+    const ignored = typist(90, 60000).wpm, capped = typist(90, ACQUIRE_CAP_MS).wpm;
+    ok(Math.abs(ignored - capped) < 0.5,
+       `⚠️⚠️ S5 ACQUIRE_CAP_MS HOLDS: ignoring a pane for a minute reads the same as `
+       + `${ACQUIRE_CAP_MS}ms (${ignored.toFixed(1)} vs ${capped.toFixed(1)} WPM)`);
+    ok(typist(90, 60000).wpm >= FLOOR_WPM,
+       '⚠️ S6 …and never below the floor, which is the gentlest the game gets');
+}
+
 if (fail) { fails.forEach(f => console.log('  ✗ ' + f)); process.exitCode = 1; }

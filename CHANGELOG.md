@@ -185,6 +185,21 @@ Two Shards traces at 4 Hz.
 ⚠️ The instrument had a gap too: `costFactor` was missing from the traces.
 `arcade-telemetry.js` v1.1.0 records it.
 
+### ✅✅ THE PACING WAS A BURST RATE. NOW IT IS A SUSTAINED ONE.
+
+⚠️⚠️⚠️ **CORRECTED AFTER JAKE READ IT:** I called the 90 a broken measurement.
+**He is a 90 WPM typist and it was correct.** ⭐⭐ The defect was the director
+asking the wrong question — "how fast are these fingers" is not "how fast can
+words be thrown at this person", and only the second prices a spawn interval.
+The game's own netWPM already said 36 for that run.
+⭐ The cost of a word is find it **and** type it. `typing-calibrator.js` v1.1.0,
+one line, nothing new recorded. A 90-burst / 1.4s-hunt typist now reads 38.2 WPM.
+
+Deadline @90 was a **364ms** spawn interval and a **1.3s** word lifetime — 47 words
+on screen by t=30s, dead in 31 seconds. At 38 WPM: 1263ms and 5.1s.
+
+⚠️ Two Round-118 assertions were rewritten; one of them is why the defect survived.
+
 ### ⚠️ NOT DONE, ON PURPOSE
 
 **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms thresholds are

@@ -1,3 +1,9 @@
+// arcade-telemetry.js v1.2.0 — Round 119 (Hammond): the trace now covers its own
+// ENDING. The first real Shatter trace stopped at `shields = 2, over = 0` while
+// the player had in fact lost — the view was torn down and the recorder went
+// quiet one moment before the only moment that mattered, and a round was spent
+// guessing at an ending from a screenshot. arcade.html stops it from the end
+// handlers now, before teardown.
 // arcade-telemetry.js v1.1.0 — Round 119 (Hammond): records `costFactor`. The
 // first real traces came back without it, and an interval you cannot divide by
 // the cost factor is an interval you cannot interpret.
@@ -53,7 +59,7 @@
 // This is a file that goes to a teacher for diagnosis, not a number that goes on
 // a screen next to netWPM(). See game-shatter.js's debug().
 
-export const ARCADE_TELEMETRY_VERSION = '1.1.0';
+export const ARCADE_TELEMETRY_VERSION = '1.2.0';
 
 /**
  * ⚠️ FOUR SAMPLES A SECOND. Not sixty.
@@ -82,6 +88,12 @@ export function record(read, meta) {
         // would lose the run it had just finished recording.
         let d = null;
         try { d = read(); } catch { d = null; }
+        // ⚠️⚠️ A DESTROYED VIEW IS NOT AN ERROR, BUT IT IS ALSO NOT A SAMPLE, AND
+        // THAT IS HOW A TRACE LOSES ITS OWN ENDING. arcade.html now calls
+        // `stop()` from its end handlers, BEFORE the teardown, so the last row
+        // is taken while the view is still alive and `over` is already true.
+        // ⭐ Without that the recorder simply goes quiet one moment before the
+        // only moment anybody wanted to see.
         if (!d) return;
         const panes = d.panes || [];
         rows.push({

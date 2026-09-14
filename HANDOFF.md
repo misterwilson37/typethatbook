@@ -406,6 +406,124 @@
 >
 > ---
 >
+> ## ⚠️⚠️⚠️ CORRECTION, MADE BY JAKE, AFTER I HAD ALREADY WRITTEN IT UP WRONG
+>
+> I reported `pacedWPM = 90` as a **broken measurement** — "a saturated sensor",
+> because the game's own netWPM read 36 on the same run. ⭐⭐ **JAKE: "this was me
+> playing, so it is a 90 WPM typist."** He is. **The burst measurement was
+> CORRECT and I called it a defect.**
+>
+> ⚠️⚠️ **THE FIX IS STILL RIGHT. THE REASON I GAVE FOR IT WAS NOT.** The defect was
+> never an inaccurate number — it was the director asking the wrong question.
+> *"How fast are these fingers"* and *"how fast can words be thrown at this
+> person"* are different quantities, and **only the second one prices a spawn
+> interval.** A 90 WPM typist on a forty-pane board is not clearing words at 90
+> WPM, because most of the second goes on FINDING the next one.
+>
+> ⭐ **AND THE GAME ALREADY KNEW: netWPM READ 36 ON THAT RUN.** netWPM is
+> session-level and includes the hunting, which is exactly what a spawn interval
+> competes with. The new estimate lands at 38. **Two independent readers of the
+> same run now agree, which is the only reason to believe either.**
+>
+> ⚠️ I have corrected `typing-calibrator.js`'s header, `finished()`'s comment and
+> the Part S assertions. **If you find a write-up anywhere calling the 90 "wrong",
+> it predates this and is the thing being corrected.**
+>
+> ---
+>
+> ## ✅✅ 119h IS FIXED. THE PACING WAS A **BURST** RATE AND IS NOW A SUSTAINED ONE.
+>
+> Five production traces, three cabinets, same number every time: the instant
+> comfort struck, `pacedWPM` went 8 → **90** and sat at 83.9–90.0 for the whole
+> run. `MAX_BELIEVABLE_WPM` is 90. ⭐⭐ **THE ESTIMATE WAS NOT MEASURING, IT WAS A
+> SATURATED SENSOR** — for a student whose own on-screen netWPM read 36.
+>
+> ⚠️⚠️ The old window was first-key-to-last-key, with the hunt for the word
+> deliberately excluded. **The number was true and the use of it was not.** A
+> 36 WPM child typing `ing` in 400ms really is at 90 WPM for those 400ms; the
+> director spent it as though they could hold it for a minute.
+>
+> ⭐ **THE COST OF A WORD IS FIND IT AND TYPE IT**, and that is what a spawn
+> interval buys. One line in `finished()`:
+> `(s.keys / 5) / ((acquire + burstMs) / 60000)`.
+> ⚠️ **NOTHING NEW IS RECORDED — Rule 9 holds.** Both numbers were already in
+> every sample; `acquireMs` was just being spent only on `onScreenTarget`.
+>
+> ### ⭐ VALIDATED AGAINST JAKE'S OWN SCREEN, NOT AGAINST A MODEL
+>
+> A 90-WPM-burst typist who spends 1.4 s finding each word now estimates at
+> **38.2 WPM**. His netWPM readout said **36**.
+>
+> | | interval @p=1 | lifetime | |
+> |---|---|---|---|
+> | Deadline @90 | 533 ms | 2.1 s | *trace: 364 ms / 1.3 s* |
+> | **Deadline @38** | **1263 ms** | **5.1 s** | |
+> | Shatter/Shards @90 | 1600 ms | 6.4 s | *trace: 1197 ms / 2.1 s* |
+> | **Shatter/Shards @38** | **3789 ms** | **15.2 s** | |
+>
+> ### ⚠️⚠️ TWO ROUND-118 ASSERTIONS HAD TO BE REWRITTEN, AND THAT IS THE LESSON
+>
+> * *"burst speed recovers the typist's real rate"* — **true of the code and false
+>   of the child.** ⭐ **THIS ASSERTION IS WHY THE DEFECT SURVIVED**: it pinned the
+>   burst window as correct, so five traces reporting a 36 WPM child as 90 never
+>   turned anything red.
+> * *"two children with the same FINGERS measure the same speed"* — **deliberately
+>   inverted.** That was the defect stated as a requirement. The decomposition is
+>   still real (`acquireMs` still drives `onScreenTarget` on its own); what
+>   changed is that the PACE hears about it too.
+>
+> ---
+>
+> ## ⚠️⚠️ DEADLINE WAS NOT "HARD", IT WAS ARITHMETICALLY UNPLAYABLE
+>
+> Jake: *"Deadline is impossible."* The trace, 31 seconds long:
+>
+> * seed phase ended at **t = 9.1 s** after 3 words;
+> * spawn interval **4327 ms → 364 ms** in one step (11.9×);
+> * a word's whole life: **1.3 seconds**;
+> * **47 words on screen by t = 30 s**, 17 cleared, 6 shields → 1.
+>
+> ⭐ **costFactor 1 IS WHY IT IS SO MUCH WORSE THAN SHATTER.** The interval is
+> divided by the cost factor, so the same wrong 90 WPM buys Deadline a 364ms
+> interval and Shatter a 1197ms one — **the same defect, three times the severity,
+> in the game whose targets actually kill you.**
+>
+> ---
+>
+> ## ✅ "SHATTER DOESN'T END" — ANSWERED BY JAKE, AND THE INSTRUMENT WAS AT FAULT
+>
+> Jake: *"I typed up my summary, went back, and the game was over. That's when I
+> downloaded."* ⭐ **SO THE GAME ENDED NORMALLY**, a second or two after the last
+> sample, while he was away from the keyboard with 98 panes converging and nobody
+> typing. There is no ending bug.
+>
+> ⚠️⚠️ **BUT THE TRACE COULD NOT SAY SO, AND THAT COST A ROUND OF GUESSING FROM A
+> SCREENSHOT.** The view is torn down on game over, so `read()` began returning
+> null and the recorder simply went quiet — **one moment before the only moment
+> anybody wanted to see.**
+>
+> ✅ `arcade-telemetry.js` **v1.2.0** + `arcade.html`: `telemetryStop()` now runs
+> at the top of `finishFree()` and `finish()`, **before** the teardown, so the
+> final row is taken while the view is alive and `over` is already true.
+> ⭐ **AN INSTRUMENT THAT CANNOT RECORD THE END OF THE THING IT IS WATCHING IS NOT
+> FINISHED**, however good the middle of the trace is.
+>
+> ---
+>
+> ## ~~⚠️ WHAT I COULD NOT DIAGNOSE: "SHATTER DOESN'T END"~~ (superseded above)
+>
+> The Shatter trace ends at `shields = 2`, `over = 0` — **the run was still alive
+> when the download happened.** Jake found out later he had lost, so the ending
+> came after the trace stops. ⚠️⚠️ **I HAVE NO DATA ON THE END OF THAT RUN AND WILL
+> NOT GUESS AT ONE.** The screenshot shows 98 panes, so *"doesn't end"* is at
+> least partly the board being unreadable rather than the game failing to finish.
+> ⭐ **WHAT WOULD SETTLE IT:** play until the result card actually appears, THEN
+> download. If `over` goes true and the trace keeps running, the end card is not
+> being shown; if the trace simply stops, it ended normally and the complaint is
+> legibility. **ROADMAP 119j.**
+>
+> ---
+>
 > ## ⚠️ WHAT I DID **NOT** DO, ON PURPOSE
 >
 > * **No constant was touched.** `MIN_SAMPLES = 4` and the 600/1200ms
@@ -461,7 +579,7 @@
 >
 > ## VERSION STAMPS THIS ROUND
 >
-> `game-shell.js` **v1.10.0** · `game-shatter.js` **v1.8.0** ·
+> `typing-calibrator.js` **v1.1.0** · `game-shell.js` **v1.10.0** · `game-shatter.js` **v1.8.0** ·
 > `game-deadline.js` **v1.15.0** ·
 > `game-escape.js` **v2.6.0** · `shatter-board.js` **v1.7.0** (`release()`) ·
 > `tests/adaptive-arcade-test.mjs` **v1.1.0, new** ·

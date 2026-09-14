@@ -1,3 +1,12 @@
+// typing-calibrator.js v1.1.0 — Round 119 (Hammond): ⚠️⚠️ THE ESTIMATE IS A
+// SUSTAINED RATE NOW, NOT A BURST RATE.
+// ⚠️⚠️⚠️ AND THE REASON IS NOT THE ONE IN THE FIRST WRITE-UP. Five traces showed
+// `pacedWPM` railed at 90 against an on-screen netWPM of 36, and I called it a
+// saturated sensor. ⭐⭐ THE PLAYER THEN SAID HE IS A 90 WPM TYPIST, AND HE IS —
+// the burst measurement was CORRECT. The defect was that the DIRECTOR ASKED THE
+// WRONG QUESTION: "how fast are these fingers" is not "how fast can words be
+// thrown at this person", and only the second prices a spawn interval. See
+// finished().
 // typing-calibrator.js v1.0.0 — MEASURE THE CHILD, EVERY RUN, FROM PLAY ITSELF.
 // Round 118 (Underwood). ROADMAP 118a.
 //
@@ -67,7 +76,7 @@
 // conversation about a second place a student's speed lives. ⭐ IT IS RULE 10 BY
 // CONSTRUCTION: the number is derived fresh from real play, every time.
 
-export const TYPING_CALIBRATOR_VERSION = '1.0.0';
+export const TYPING_CALIBRATOR_VERSION = '1.1.0';
 
 // ⚠️ HOW MANY CLEAN SAMPLES BEFORE THE ESTIMATE IS TRUSTED. Below this the
 // caller must use the floor. ⭐ FOUR IS A COMPROMISE AND IT IS THE FIRST NUMBER
@@ -213,7 +222,49 @@ export class TypingCalibrator {
         // 25% on a five-letter one. ⭐ AND THE ERROR WAS WORSE FOR SHORTER WORDS,
         // i.e. worst for exactly the children on the early lessons, who would
         // have been handed a game paced for a typist 25% faster than they are.
-        const wpm = ((s.keys - 1) / 5) / (burstMs / 60000);
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ SUSTAINED, NOT BURST. THE ACQUISITION TIME IS PART OF THE WORD.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // ⚠️⚠️⚠️ READ THIS CORRECTION BEFORE TRUSTING ANY EARLIER WRITE-UP OF IT.
+        // The first draft of this comment said the old estimate was "wrong" and
+        // "a saturated sensor", because five traces showed `pacedWPM` railed at
+        // 90 while the player's on-screen netWPM read 36. ⭐⭐ **JAKE THEN SAID: I
+        // AM A 90 WPM TYPIST.** He is. The burst measurement was CORRECT.
+        //
+        // ⭐⭐ SO THE DEFECT WAS NEVER AN INACCURATE MEASUREMENT. IT WAS THE
+        // DIRECTOR ASKING THE WRONG QUESTION. "How fast are these fingers" and
+        // "how fast can words be thrown at this person" are different
+        // quantities, and only the second one prices a spawn interval. A 90 WPM
+        // typist on a board with forty panes on it is not clearing words at 90
+        // WPM, because most of the second goes on FINDING the next one.
+        //
+        // ⚠️⚠️ THE OLD LINE DIVIDED BY `burstMs` ALONE — first key to last key,
+        // with the hunt deliberately excluded — and that is a true and useful
+        // number about fingers. The director then spent it as a THROUGHPUT, and
+        // priced the board for a rate nobody can sustain on a crowded screen.
+        // ⭐ THE CONFIRMATION IS THAT THE GAME'S OWN netWPM ALREADY AGREED: 36 for
+        // the same run. netWPM is session-level and includes the hunting, which
+        // is exactly what a spawn interval is competing with.
+        //
+        // ⭐ THE COST OF A WORD IS FIND IT **AND** TYPE IT. That is what a spawn
+        // interval is buying. Deadline is the proof of what the difference is
+        // worth: at 90 WPM its interval was **364ms** and a word lived **1.3
+        // seconds** — Jake's verdict was *"Deadline is impossible"*, and 47 words
+        // were on screen thirty seconds in.
+        //
+        // ⚠️ `acquire` IS ALREADY CAPPED AT ACQUIRE_CAP_MS ABOVE, WHICH IS WHAT
+        // MAKES THIS SAFE. A pane the student ignored for half a minute does not
+        // get to report them as a half-minute-per-word typist; it contributes
+        // the cap and no more.
+        // ⚠️ AND `s.keys`, NOT `s.keys - 1`. The old numerator paired with a
+        // first-key-to-last-key window, where the first key starts the clock
+        // rather than being counted inside it. This window STARTS AT THE SPAWN,
+        // so every keystroke of the word falls inside it — dropping one now
+        // would understate a three-letter word by a third.
+        // ⭐ IT IS STILL THE SAME TWO NUMBERS THE SAMPLE ALREADY CARRIED. Rule 9:
+        // nothing new is recorded, the existing pair is spent properly.
+        const wpm = (s.keys / 5) / (Math.max(1, acquire + burstMs) / 60000);
         if (!(wpm > 0) || !isFinite(wpm)) return;
 
         this.samples.push({

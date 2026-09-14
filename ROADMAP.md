@@ -262,7 +262,22 @@ The `onScreen` column is the answer to "is it exponential"; `parents` vs `pieces
 says which game it is; `intervalMs` against `cleared` says whether the director
 or the board is the one at fault.
 
-### 119h — ⚠️⚠️⚠️ **BURST WPM IS NOT SUSTAINED WPM.** DO THIS BEFORE ANYTHING ELSE.
+### 119h — ✅ FIXED (Round 119). **BURST WPM IS NOT SUSTAINED WPM.**
+
+⚠️⚠️⚠️ **CORRECTION: THE OLD 90 WAS NOT A WRONG MEASUREMENT.** Jake is a 90 WPM
+typist. ⭐⭐ The defect was the DIRECTOR ASKING THE WRONG QUESTION — "how fast are
+these fingers" is not "how fast can words be thrown at this person", and only the
+second prices a spawn interval.
+
+✅ `typing-calibrator.js` v1.1.0 — `(s.keys / 5) / ((acquire + burstMs) / 60000)`.
+A real 90 WPM typist who spends 1.4s hunting clears at **38.2 WPM**; the game's
+own netWPM read **36** on the same run. ⭐ **TWO INDEPENDENT READERS OF ONE RUN
+NOW AGREE**, which is the only reason to believe either. ⚠️ Nothing new is recorded — both numbers
+were already in every sample. ⭐ Two Round-118 assertions had to be rewritten, and
+one of them (*"burst speed recovers the typist's real rate"*) **is why the defect
+survived**: it pinned the wrong window as correct.
+
+### ~~119h — BURST WPM IS NOT SUSTAINED WPM~~ (original text)
 
 Measured in two real Shards traces: the instant comfort strikes, `pacedWPM` goes
 **8 → 90** and stays at 83.9–90.0 for the whole run. `MAX_BELIEVABLE_WPM` is 90.
@@ -286,6 +301,30 @@ recorded per sample.
 ⚠️ It probably subsumes 119d. A sustained number would not jump 16× at comfort,
 so the "slow opening then a wall" may simply stop existing. **Measure after,
 before touching 119d.**
+
+### 119j — ✅ CLOSED. SHATTER ENDED NORMALLY; THE **INSTRUMENT** WAS THE PROBLEM.
+
+Jake: *"I typed up my summary, went back, and the game was over."* ⭐ It ended a
+second or two after the last sample, while he was away with 98 panes converging
+and nobody typing. **No ending bug.**
+
+⚠️⚠️ The trace could not say so because the view is torn down on game over, so
+`read()` returned null and the recorder went quiet — one moment before the only
+moment anybody wanted. ✅ `arcade-telemetry.js` v1.2.0 stops from the end handlers,
+before teardown. ⭐ **AN INSTRUMENT THAT CANNOT RECORD THE END OF THE THING IT
+WATCHES IS NOT FINISHED.**
+
+### ~~119j — original: get a trace that covers the end~~
+
+Jake: *"Shatter doesn't end... well, it apparently does end, as I went back and I
+had lost."* ⚠️⚠️ **THE TRACE CANNOT ANSWER IT** — it stops at `shields = 2`,
+`over = 0`, so the run was still alive at download. The screenshot shows 98 panes,
+so the complaint may be legibility rather than a failure to finish.
+
+⭐ **WHAT SETTLES IT:** play until the result card actually appears, THEN download.
+`over` going true while the trace keeps running means the end card is not being
+shown; a trace that simply stops means it ended normally. **Do not guess from the
+screenshot.**
 
 ### 119g — ⚠️⚠️ SHARDS HAS NO EXPIRY CHANNEL, MEASURED
 
