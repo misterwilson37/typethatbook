@@ -1,3 +1,19 @@
+// game-shatter.js v1.15.0 — Round 124 (Sholes): ⚠️⚠️⚠️ `tryScatter()` HAD NO
+// BODY. Round 122 shipped two call sites and no function, so Space and Enter
+// both threw a ReferenceError and the scatter has been dead since — Jake:
+// *"neither the space nor the enter key pushed the words back. Ever. Didn't
+// matter if I was between words or in the middle of them."* ⭐ THAT LAST CLAUSE
+// IS THE DIAGNOSTIC: `canWarp()`'s guards would have produced a control that
+// worked SOMETIMES, so a control that works NEVER is upstream of them — and it
+// means Round 122 spent a round tuning permissions on a function nobody could
+// call. ⚠️⚠️ AND THE PING WAS CAPPED AT 1.05 IN TWO PLACES AT ONCE: one literal
+// spent as a sweep DISTANCE in field units and again as a draw RADIUS through
+// `toPixelRadius()`, which maps 1 to `ringR` on the drift board — so the wave
+// could only reach 1.05 and could only be DRAWN to 1.05 × the ring. The picture
+// and the mechanic agreed with each other and both were wrong. `PING_REACH` is
+// now `WRAP_EDGE × √2`, the far CORNER of the square field Shards wraps on,
+// which is where the off-canvas panes actually are. See tryScatter(),
+// PING_REACH and drawPingLabels().
 // game-shatter.js v1.14.0 — Round 122 (Maskelyne): ⚠️⚠️ ENTER SCATTERS ON THE
 // RADIAL BOARD AND PINGS ON THE DRIFT ONE, and both go through `tryScatter()`,
 // which now SAYS SO when the board refuses — Jake read a correctly-refused
@@ -229,7 +245,10 @@ import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius, ENTRY_R } fr
 // COPY of this file would be Rule 5 and every change to the glass would have to
 // be made twice; a second BOARD is just a different answer to "where is this
 // pane", which this file stopped asking directly in v1.4.0.
-import { ShardsBoard } from './shatter-shards.js';
+// ⚠️ `WRAP_EDGE` IS IMPORTED, NOT COPIED. It is the drift field's own edge and
+// the ping's reach is derived from it — a literal here would be a second answer
+// to "how big is the field", and the first one is in shatter-shards.js.
+import { ShardsBoard, WRAP_EDGE } from './shatter-shards.js';
 import { mountChrome } from './game-chrome.js';
 import { sfx, isMuted, setMuted } from './game-audio.js';
 import {
@@ -245,7 +264,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.14.0';
+export const GAME_SHATTER_VERSION = '1.15.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -287,7 +306,36 @@ const ENTRY_M = ENTRY_R;
 // board-clearing power must be earned; this clears nothing, moves nothing and
 // changes no rule — it only draws a word the student could have read by waiting.
 // ⚠️ THE COOLDOWN IS SO THE WAVE READS AS AN EVENT, not to ration it.
-const PING_SWEEP_RATE = 1.6;      // the same expansion rate the scatter wave uses
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ THE PING'S REACH IS THE FIELD, NOT THE RING — Round 124
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"while hitting space bar sent out an appropriate wave, it
+// stopped at the circle, and the whole point is that it reveals the words that
+// aren't visible yet off screen."*
+//
+// ⭐⭐ ONE NUMBER DID BOTH HALVES OF THE DAMAGE, because `1.05` was spent twice —
+// once as a SWEEP DISTANCE in field units and once as a DRAW RADIUS through
+// `toPixelRadius()`. On the drift board that maps 1 to `ringR`, so a wave that
+// could only reach 1.05 could also only be DRAWN to 1.05 × the ring. The picture
+// and the mechanic agreed with each other and both were wrong.
+//
+// ⚠️⚠️ AND THE FIELD IS A SQUARE. `shatter-shards.js` wraps on a box at
+// `WRAP_EDGE`, so the furthest a pane can ever be is the box's CORNER —
+// `WRAP_EDGE * √2`, about 1.91. Every pane between 1.05 and 1.91 is exactly the
+// pane this control exists for: far enough out to be off the canvas, and
+// therefore invisible and unreadable. The ping swept past none of them.
+//
+// ⚠️ NOT `SPAWN_R`, WHICH IS 1 AND IS WHERE PANES ARE BORN. They drift and wrap
+// after that; where they are born is not where they are.
+const PING_REACH = WRAP_EDGE * Math.SQRT2;
+
+// ⚠️ THE RATE IS A SPEED, SO IT HAD TO MOVE WHEN THE DISTANCE DID. The old 1.6
+// crossed 1.05 in 0.66 s; this crosses PING_REACH in the same time at the same
+// pixels-per-second, which is what "the same expansion rate the scatter wave
+// uses" was always supposed to mean. ⭐ A shared CONSTANT is not a shared speed
+// once the two waves travel different distances.
+const PING_SWEEP_RATE = 1.6 * (1.05 / PING_REACH);
 const PING_LABEL_MS = 2600;       // Jake's "2-3 seconds"
 const PING_COOLDOWN_MS = 900;
 
@@ -650,6 +698,63 @@ export function mount(container, opts) {
     let secondsBanked = 0;
 
     // ── input ───────────────────────────────────────────────────────────────
+
+    /**
+     * ═══════════════════════════════════════════════════════════════════════
+     * ⚠️⚠️⚠️ THIS FUNCTION DID NOT EXIST. ROUND 122 SHIPPED TWO CALLS TO IT AND
+     *        NO BODY, AND THE SCATTER HAS BEEN DEAD EVER SINCE.
+     * ═══════════════════════════════════════════════════════════════════════
+     *
+     * Jake, 2026-09-14: *"neither the space nor the enter key pushed the words
+     * back. Ever. Didn't matter if I was between words or in the middle of
+     * them. That just seems broken."*
+     *
+     * ⭐⭐ IT IS NOT A RULE THAT WAS TOO STRICT, IT IS A `ReferenceError`. Round
+     * 122's header claims `tryScatter()` "now SAYS SO when the board refuses";
+     * the two call sites landed and the body never did. Space threw before
+     * `board.tryKey()` was reached, so a space at a word boundary did not even
+     * arrive as a keystroke — ⚠️ AND THE THROW IS WHY NO AMOUNT OF TUNING
+     * `canWarp()` WOULD EVER HAVE HELPED. Round 122 spent a whole round making
+     * the warp conditions more permissive for a control that was never called.
+     *
+     * ⚠️⚠️ AND IT IS WHY JAKE'S "DIDN'T MATTER IF I WAS BETWEEN WORDS OR IN THE
+     * MIDDLE OF THEM" IS THE DIAGNOSTIC. `canWarp()`'s half-typed and reflex
+     * guards would have produced a control that worked SOMETIMES. A control
+     * that works NEVER, under every condition the guards distinguish, is
+     * upstream of the guards.
+     *
+     * ⭐ THE BOARD STILL DECIDES. All three conditions — charge, half-typed,
+     * reflex grace — live in `shatter-board.js` and are tested there; this
+     * asks and reports. A copy of any of them here would be the second home
+     * the view/board split exists to prevent.
+     *
+     * ⚠️ A REFUSAL IS SPOKEN, NOT SILENT, which is the part of Round 122's
+     * intent worth keeping: Jake read a correctly-refused scatter as a broken
+     * one because nothing on screen said anything. ⚠️ AND IT IS NOT CHARGED AS
+     * A MISTAKE — the student pressed the key the gauge told them to press.
+     *
+     * @param {boolean} deliberate  Enter. A key that cannot be mistaken for
+     *        typing, so the board skips its intent guesses.
+     * @returns {boolean} whether it fired — the callers use this to decide
+     *        whether the keystroke has been spent.
+     */
+    function tryScatter(deliberate) {
+        if (board.warp(bNow, deliberate)) {
+            warpRing = { t: 1 };
+            banner = { text: 'SCATTER', until: performance.now() + 700 };
+            sfx.launch(0);
+            return true;
+        }
+        // ⚠️ THE TWO REFUSALS READ DIFFERENTLY TO A STUDENT AND MUST SAY SO. "No
+        // charge" is a thing they can fix by clearing panes; the others are the
+        // board declining to guess that a space meant scatter, and telling them
+        // to use Enter is an instruction they can act on immediately.
+        banner = board.warps < 1
+            ? { text: 'NO CHARGE', until: performance.now() + 900 }
+            : { text: 'PRESS ENTER', until: performance.now() + 900 };
+        return false;
+    }
+
     function onKeyDown(e) {
         if (ended) return;
         // ⚠️ THE GET-READY AND PAUSE PANELS MUST NOT EAT KEYSTROKES INTO THE
@@ -1144,7 +1249,7 @@ export function mount(container, opts) {
         // what makes a distant pane cost the student a moment's patience.
         if (pingWave) {
             pingWave.t -= dt * PING_SWEEP_RATE;
-            const reach = (1 - pingWave.t) * 1.05;
+            const reach = (1 - pingWave.t) * PING_REACH;
             for (const rock of board.rocks) {
                 const g = board.place(rock);
                 if (Math.hypot(g.x, g.y) <= reach) {
@@ -1477,7 +1582,10 @@ export function mount(container, opts) {
     function drawPingWave() {
         if (!pingWave) return;
         const k = 1 - pingWave.t;
-        const r = toPixelRadius(k * 1.05);
+        // ⚠️ THE RING IS ALLOWED OFF THE CANVAS, and that is the point: the panes
+        // it is sweeping over are off the canvas. The drift branch of
+        // `toPixelRadius()` does not clamp, so this runs past `ringR` on its own.
+        const r = toPixelRadius(k * PING_REACH);
         if (r <= SHIP_R + 0.5) return;
         ctx.save();
         ctx.lineWidth = 2;
@@ -1518,7 +1626,15 @@ export function mount(container, opts) {
             // drawn on it at that range, and two copies of one word a few pixels
             // apart is worse than none — this is the "no extra help in the late
             // game" clause, enforced rather than hoped for.
-            if (m <= ENTRY_M * 0.72) continue;
+            // ⚠️⚠️ TWO BOARDS, TWO ANSWERS TO "IS THIS PANE ALREADY READABLE",
+            // and Round 124 split them because they were never the same question.
+            // On the radial board `ENTRY_M` is where a pane crosses the rim, so
+            // 0.72 of it is a pane comfortably inside. ⭐ ON THE DRIFT BOARD
+            // MAGNITUDE 1 **IS** THE RING — `toPixelRadius()` maps it to `ringR`
+            // exactly — so anything at or under 1 is drawn on the glass with its
+            // own word on it, and anything past 1 is off toward the corner where
+            // the student cannot read it. That line is the whole rule.
+            if (m <= (drift ? 1 : ENTRY_M * 0.72)) continue;
             const fade = Math.max(0, Math.min(1, (until - bNow) / 600));
             const x = cx + g.dx * (ringR - 14);
             const y = cy + g.dy * (ringR - 14);

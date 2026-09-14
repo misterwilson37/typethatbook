@@ -1,3 +1,11 @@
+// escape-board.js v2.2.0 — Round 124 (Sholes): ⚠️ `spawnSpot()` DELETED. It read
+// `MIN_SPAWN_DISTANCE`, a constant this file removed on purpose ("MIN_SPAWN_DISTANCE
+// IS GONE. Creatures now enter from the board EDGE") — so the method was a bare
+// ReferenceError sitting in the file that owns the question it looks like it
+// answers. ⭐ Nothing called it, which is why it survived; reviving it would have
+// reopened the camping hole the edge rule closed. Found only after
+// `tests/undefined-calls-test.mjs` was widened to cover the arcade — twenty-seven
+// modules, this one among them, had never been audited at all.
 // escape-board.js v2.1.0 — Round 114 (Carriage): A WORD NEVER CHANGES UNLESS IT
 //   IS TYPED OR DESTROYED. Jake: *"sometimes the words change as you approach
 //   them."* refreshNeighbours() ran after EVERY move and overwrote a neighbour
@@ -96,7 +104,7 @@
 
 import { safeGroup } from './drill-filter.js';
 
-export const ESCAPE_BOARD_VERSION = '2.1.0';
+export const ESCAPE_BOARD_VERSION = '2.2.0';
 
 export const COLS = 6;
 export const ROWS = 5;
@@ -939,29 +947,26 @@ export class EscapeBoard {
         return s;
     }
 
-    /**
-     * A cell on the player's row or column, at least MIN_SPAWN_DISTANCE away and
-     * not already occupied by an enemy.
-     *
-     * ⚠️ IT FALLS BACK TO THE FARTHEST ROW/COLUMN CELL RATHER THAN TO ANYWHERE ON
-     * THE BOARD. If the row and column are crowded, spawning off-axis would
-     * quietly restore the camping hole in exactly the situation where the player
-     * is most boxed in — the case the rule exists for.
-     */
-    spawnSpot() {
-        const p = this.player;
-        const cands = [];
-        for (let x = 0; x < COLS; x++) {
-            if (Math.abs(x - p.x) >= MIN_SPAWN_DISTANCE) cands.push({ x, y: p.y });
-        }
-        for (let y = 0; y < ROWS; y++) {
-            if (Math.abs(y - p.y) >= MIN_SPAWN_DISTANCE) cands.push({ x: p.x, y });
-        }
-        const free = cands.filter(c => !this.enemies.some(e => e.x === c.x && e.y === c.y));
-        const list = free.length ? free : cands;
-        if (!list.length) return null;
-        return list[Math.floor(this.rand() * list.length)];
-    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ `spawnSpot()` DELETED — Round 124 (Sholes). IT REFERENCED A CONSTANT
+    //      THIS FILE HAD ALREADY REMOVED ON PURPOSE.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Line 107 of this file says so in capitals: *"MIN_SPAWN_DISTANCE IS GONE.
+    // Creatures now enter from the board EDGE."* ⭐ The constant went, the rule
+    // that replaced it is documented twice more, and this method was left behind
+    // still reading the dead name — three times.
+    //
+    // ⚠️ IT WAS NOT A LIVE CRASH: nothing called it, in this file or anywhere in
+    // the repo. ⚠️⚠️ AND THAT IS PRECISELY WHY IT HAD TO GO RATHER THAN BE
+    // FIXED. A method that looks like the answer to "where do creatures spawn",
+    // sitting in the file that owns that question, is a landmine for whoever
+    // reaches for it — and the edge rule it contradicts is the one that closed
+    // the camping hole. ⭐ REVIVING IT WOULD REOPEN THE BUG IT WAS WRITTEN FOR.
+    //
+    // ⚠️ FOUND BY `tests/undefined-calls-test.mjs` ONLY AFTER THAT HARNESS WAS
+    // WIDENED TO COVER THE ARCADE — see the Round 124 block in its FILES list.
+    // Twenty-seven modules had never been audited at all.
 
     /**
      * Which round the board is in, 1-based. Shown to the student, because the

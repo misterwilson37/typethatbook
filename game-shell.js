@@ -1,3 +1,19 @@
+// game-shell.js v1.15.0 — Round 124 (Sholes): ⚠️⚠️ THE RAMP AND THE HEADROOM ARE
+// BOTH RATIOS NOW, AND THE REASON IS WHO TESTS THIS. Jake, 2026-09-14: *"I'm
+// going to be the tester, and I type at 90wpm… if the exponential growth gets
+// me, the same relative growth will theoretically hit a slower typist just as
+// hard."* ⭐⭐ THAT IS A CONSTRAINT ON WHAT KIND OF CONSTANT MAY LIVE IN THIS
+// FILE: a 90 WPM adult is a sound proxy for a sixth grader only for the parts of
+// the curve that are ratios. `COMFORT_FRACTION` (0.85) gives EVERY child the
+// same 15% of headroom at pressure 1.0 — the first draft discounted only the
+// climb above the floor and handed a 12 WPM student 5% while handing a 90 WPM
+// one 14%, which is the protection scaling with the skill of the player.
+// `RAMP_DOUBLE_CHARS` (90) replaces an additive WPM-per-character cap that
+// reached a 20 WPM student's ceiling in thirteen words and a 90 WPM one's in
+// fifty-seven. ⚠️ Both are read by `calibratedWPM`, and the ramp reads
+// `_extraChars` — the counter the pressure ramp already reads — so a lost dome
+// eases the SPEED as well as the pressure (Rule 9). Telemetry that forced this:
+// `pacedWPM` 8 → 32.8 in ten seconds, interval 4,500 ms → 1,061 ms.
 // game-shell.js v1.14.0 — Round 123 (Maskelyne): ⚠️⚠️ `MIN_SPAWN_GAP_MS` — the
 // refill floor may fire early but not twice in one breath, which is what turned
 // Round 122's shield detonation into a volley and killed three Deadline runs at
@@ -207,7 +223,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.14.0';
+export const GAME_SHELL_VERSION = '1.15.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -321,6 +337,93 @@ export const RAMP_PER_CHAR = 0.0022;
 // grade, and absorbing leaks would quietly change what a lesson pass means. Do
 // not extend this to missions without Jake saying so.
 export const HIT_GRACE_MS = 1200;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ PRESSURE 1.0 MEANT "EVERYTHING YOU HAVE", AND THERE IS NOWHERE TO RAMP
+//        FROM THERE — Round 124
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14, on Deadline: *"it still ramps up stupid fast."*
+//
+// ⭐⭐ THE CALIBRATOR MEASURES A **SUSTAINED** RATE — v1.1.0's whole ruling, and
+// it is correct: the cost of a word is find it AND type it. ⚠️ THEN
+// `spawnIntervalMs()` SPENT THAT NUMBER AS A TARGET AND MULTIPLIED IT BY
+// PRESSURE. So the instant the estimate was believed, an arcade run demanded
+// 100% of what the child had just proved they can hold — and every point of ramp
+// after that asked for more than a human sustains. ⚠️⚠️ A CURVE THAT STARTS AT
+// THE CEILING IS NOT A DIFFICULTY CURVE. Jake's trace: measured 61 WPM, demand
+// 78, six domes gone in 42 seconds.
+//
+// ⭐ SO THE MEASUREMENT BUYS HEADROOM. At pressure 1.0 the game asks for 85% of
+// what the child showed, which is a board they can get AHEAD of — and the ramp
+// then has somewhere real to go: pressure 1.18 is where it finally asks for all
+// of it, and everything past that is the stretch the arcade exists for.
+//
+// ⚠️ NOT A DIFFICULTY DIAL. `budgetScale()` is the dial and the student chooses
+// it. This is the difference between a measurement and a target, and if it ever
+// reads as "easy mode" the fix is the ramp constants below, not this.
+// ⚠️ ADAPTIVE ONLY. A graded mission paces from the lesson gate, which is an
+// authored promise about a lesson and not a measurement of a child.
+export const COMFORT_FRACTION = 0.85;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ THE RAMP IS EARNED IN CHARACTERS, AND IT IS A **RATIO** PER CHARACTER
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake: *"they don't just go a little faster, but a LOT faster."*
+//
+// ⭐⭐ AND THE TRACE SAYS SO EXACTLY. `pacedWPM` ran 8 → 32.8 in the first ten
+// seconds and 8 → 62 in thirty, because `provisionalWPM()` moves a quarter of
+// the way to the measurement on the FIRST clean sample and all the way by the
+// fourth. ⚠️ THE ESTIMATE IS NOT WRONG — Round 120 fixed a genuinely dead
+// opening and must not be undone — but an estimate arriving is not a reason for
+// the GAME to arrive with it. The interval fell from 4,500 ms to 1,061 in ten
+// seconds. Nothing a child does in ten seconds justifies a 4× board.
+//
+// ⭐ SO THE ESTIMATE IS THE DESTINATION AND THIS IS THE SPEED LIMIT. Paced WPM
+// may double every `RAMP_DOUBLE_CHARS` cleared characters, so the ramp is bought
+// with typing rather than with clock — the same principle as the warp meter and
+// the same principle as `_extraChars` itself.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ A DOUBLING DISTANCE, NOT A WPM-PER-CHARACTER RATE, AND THE REASON IS
+//        WHO IS DOING THE TESTING.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"I'm going to be the tester, and I type at 90wpm… if the
+// exponential growth gets me, the same relative growth will theoretically hit a
+// slower typist just as hard."*
+//
+// ⭐⭐ THAT IS A CONSTRAINT ON WHAT KIND OF CONSTANT MAY BE WRITTEN HERE, and it
+// is the most useful thing anyone has said about this file. A 90 WPM adult is a
+// sound proxy for a sixth grader ONLY for the parts of the curve that are
+// RATIOS. Interval is `chars / cps`, so it is one: halving the paced WPM doubles
+// the interval for everybody, and a ramp he can feel getting away from him is a
+// ramp getting away from a child at the same rate.
+//
+// ⚠️⚠️ AN ADDITIVE CAP BREAKS THAT PROXY, AND THE FIRST DRAFT OF THIS CONSTANT
+// WAS ADDITIVE. `seed + 0.18 × chars` reaches a 20 WPM student's ceiling in
+// about thirteen cleared words and a 90 WPM one's in fifty-seven — so tuning it
+// until it felt right to the tester would have been tuning it for nobody else in
+// the building. ⭐ A DOUBLING DISTANCE IS THE SAME CURVE FOR EVERY CHILD: the
+// board gets twice as demanding every 90 characters, whoever they are.
+//
+// ⚠️⚠️ IT READS `_rampChars`, **NOT** `_extraChars`, AND THE DIFFERENCE IS A
+// HARNESS FINDING. The first draft shared the pressure ramp's counter on a Rule
+// 9 argument — one number for "how much work has this student done". ⭐ THAT
+// ARGUMENT WAS WRONG: `_extraChars` is handed back on every hit, so sharing it
+// made every hit slow the game down, which bought the student more time to be
+// hit in. `adaptive-arcade-test.mjs` H5a measured it — paced WPM 11.1 → 8.0,
+// interval 7,872 ms → 10,500, four of six shields gone after 200 idle seconds
+// and the run still running. ⚠️ A RUN THAT CANNOT END IS A STUCK SESSION, and
+// this app counts minutes. See `_rampChars` in the constructor.
+//
+// ⚠️ 90 CHARACTERS IS ABOUT TWENTY WORDS. From the 8 WPM floor that is roughly
+// a minute of play before a fast typist is being paced at their own measurement,
+// and it is the first number to challenge with a rotation. ⭐ LOWER IS MEANER,
+// and it is mean by the same factor for everyone, which is the property that
+// makes it safe to tune against one adult.
+export const RAMP_DOUBLE_CHARS = 90;
 
 // How much pressure a hit hands back, in the same units as the ramp.
 // ⚠️ A FLOOR AT MISSION_PRESSURE IS IMPLIED by `_extraChars` never going
@@ -931,6 +1034,32 @@ export class GameDirector {
         // goes NEGATIVE for anyone who plays on long enough to lose one. Found
         // by running it: a clean 700 fell to 300 after four minutes of survival.
         this._extraChars = 0;
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ CLEARED CHARACTERS THAT ARE **NEVER HANDED BACK** — Round 124.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // ⭐⭐ THE SPEED RAMP TRIED TO SHARE `_extraChars` AND THE HARNESS KILLED
+        // IT IN ONE RUN. Rule 9 says one number for one question, and the whole
+        // argument for sharing was that both curves ask "how much work has this
+        // student done". ⚠️ THEY DO NOT. `_extraChars` is relieved on every hit
+        // (HIT_PRESSURE_RELIEF), which is correct for PRESSURE — a student past
+        // their edge needs the ramp to come back toward them — and catastrophic
+        // for SPEED.
+        //
+        // ⚠️⚠️ MEASURED, NOT REASONED. `adaptive-arcade-test.mjs` H5a stops
+        // typing and waits for the city to fall. With the speed ramp on
+        // `_extraChars`: paced WPM fell 11.1 → 8.0, the interval GREW from 7,872
+        // ms to 10,500, and after 200 simulated seconds the student had lost
+        // four of six shields and the run would not end. ⭐ EVERY HIT MADE THE
+        // GAME SLOWER, SO EVERY HIT BOUGHT MORE TIME TO BE HIT IN. A run that
+        // cannot end is not a difficulty curve, it is a stuck session — and this
+        // app counts minutes.
+        //
+        // ⚠️ SO THE RELIEF STAYS EXACTLY WHERE IT WAS AND REACHES PRESSURE ONLY,
+        // which is the behaviour every round before this one shipped. ⭐ THE
+        // CLAIM THAT A LOST DOME EASES THE SPEED IS WITHDRAWN: it eases the
+        // pressure, it always did, and that is enough.
+        this._rampChars = 0;
         // ⚠️ THE HIT GRACE WINDOW — see HIT_GRACE_MS. `null` means never hit.
         this._graceUntil = null;
         this.hitsAbsorbed = 0;
@@ -987,7 +1116,39 @@ export class GameDirector {
         // ⚠️ STILL CAUTIOUS, NOT CREDULOUS: one sample moves a quarter of the way
         // and only the fourth is believed outright, so a single lucky word cannot
         // set a run's difficulty — which is what MIN_SAMPLES was defending.
-        return this.calibrator.provisionalWPM(Math.min(this.targetWPM, this.calibrator.floorWPM));
+        const seed = Math.min(this.targetWPM, this.calibrator.floorWPM);
+        // ⭐ WHAT THE CHILD HAS SHOWN, DISCOUNTED TO WHAT THEY CAN HOLD WHILE
+        // STILL GETTING AHEAD. See COMFORT_FRACTION: pressure 1.0 must not mean
+        // "every keystroke you have", or the ramp starts at the ceiling.
+        // ⚠️ THE SEED IS **NOT** DISCOUNTED. It is already the gentlest playable
+        // game; taking 15% off the floor would open below the floor, which is
+        // the one number this file promises never to go under.
+        // ⚠️⚠️ THE DISCOUNT IS A FRACTION OF THE WHOLE MEASUREMENT, NOT OF THE
+        // CLIMB ABOVE THE SEED. Round 124's first draft took 15% off `raw - seed`
+        // and it was WRONG IN THE DIRECTION THAT MATTERS: a 12 WPM child kept 5%
+        // headroom and a 90 WPM one kept 14%, so the protection scaled with the
+        // skill of the player instead of being the same promise to everybody.
+        // ⭐ Jake, 2026-09-14: *"if the exponential growth gets me, the same
+        // relative growth will theoretically hit a slower typist just as hard."*
+        // The converse is the rule: only a RELATIVE guarantee survives the trip
+        // from a 90 WPM tester to a sixth grader.
+        //
+        // ⚠️ `Math.min(raw, seed)` IS THE FLOOR GUARD AND IT IS NOT THE SAME AS
+        // `seed`. A child measured SLOWER than the floor is believed in full —
+        // the floor exists for exactly them — while a child measured faster never
+        // opens below it.
+        const raw = this.calibrator.provisionalWPM(seed);
+        const measured = Math.max(Math.min(raw, seed), raw * COMFORT_FRACTION);
+        // ⚠️⚠️ THE SPEED LIMIT IS GEOMETRIC — see RAMP_DOUBLE_CHARS. The paced
+        // WPM may DOUBLE every so many cleared characters, which is the same
+        // felt ramp for every child; an additive WPM-per-character cap was the
+        // first draft and it handed a 20 WPM student a ramp that was over in
+        // thirteen words while a 90 WPM one climbed for fifty-seven.
+        const earned = seed * Math.pow(2, this._rampChars / RAMP_DOUBLE_CHARS);
+        // ⚠️ `min`, NOT A BLEND. A child measured SLOWER than the seed is
+        // believed immediately and in full — that is the case the floor exists
+        // for, and a ceiling that only ever climbs must not hold them above it.
+        return Math.min(measured, Math.max(seed, earned));
     }
 
     /**
@@ -1362,6 +1523,9 @@ export class GameDirector {
         if (this.endless || this.quotaMet) {
             if (ramps) this._extraCleared++;
             this._extraChars += len;
+            // ⚠️⚠️ MONOTONE, AND THAT IS THE WHOLE POINT — see `_rampChars` in the
+            // constructor. `_extraChars` is handed back on a hit; this never is.
+            this._rampChars += len;
         }
         if (!this.quotaMet && this.clearedChars >= this.quotaChars) {
             this.quotaMet = true;

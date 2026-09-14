@@ -512,7 +512,22 @@ console.log('\nH — ⭐ DEADLINE MEASURES THE CHILD TOO (ROADMAP 118a, third ca
     // ⚠️ THE GAME HAS TO ACTUALLY END. Stop typing and let the sky land on the
     // city — the result card only appears on `d.over`, and a replay button
     // cannot be clicked on a game still in progress.
-    for (let i = 0; i < 4000 && !h.debug().over; i++) frame(50);
+    // ⚠️⚠️ 6000 FRAMES (300 s), RAISED FROM 4000 IN ROUND 124, AND THE REASON IS
+    // WRITTEN DOWN BECAUSE WIDENING A BUDGET TO MAKE A CHANGE PASS IS EXACTLY
+    // HOW A HARNESS STOPS DEFENDING ANYTHING.
+    //
+    // ⭐ WHAT THIS LINE DEFENDS IS **TERMINATION** — `over` becomes true when the
+    // student stops typing — and it has never defended a duration. 4000 was a
+    // simulation allowance, not a promise about the game.
+    //
+    // ⚠️ ROUND 124's GENTLER RAMP (`RAMP_DOUBLE_CHARS`, `COMFORT_FRACTION`) MOVED
+    // AN IDLE RUN FROM UNDER 200 s TO **202.6 s**, MEASURED. It failed by 2.6
+    // seconds. ⚠️⚠️ AND THE FIRST DRAFT OF THAT RAMP FAILED THIS SAME LINE FOR A
+    // REAL REASON — the speed ramp read `_extraChars`, hits handed it back, and
+    // the run genuinely would not end — so this assertion did its job once this
+    // round already. Do not raise it again without finding out which of the two
+    // it is: print the frame count and read the number.
+    for (let i = 0; i < 6000 && !h.debug().over; i++) frame(50);
     ok(h.debug().over, 'H5a the run ends once the student stops typing');
     const again = [...document.querySelectorAll('button')]
         .find(b => (b.textContent || '').trim() === 'Play again');

@@ -83,6 +83,37 @@ const FILES = [
     // something a student can see — which run they may start, and whether a
     // lesson ends in a game.
     'run-picker.js', 'game-slot.js',
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ ROUND 124 (Sholes): TWENTY-SEVEN MODULES WERE NEVER IN THIS LIST,
+    //        INCLUDING EVERY SINGLE FILE THE ARCADE IS MADE OF.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // ⭐⭐ AND IT COST A ROUND. `game-shatter.js` v1.14.0 shipped two calls to
+    // `tryScatter()` and no function — a bare `ReferenceError` on Space and on
+    // Enter — and Jake played a whole session reporting *"neither the space nor
+    // the enter key pushed the words back. Ever."* ⚠️ THIS HARNESS EXISTS TO
+    // CATCH EXACTLY THAT AND IT REPORTED `ALL PASS`, because the file was not in
+    // the list. Round 122 then spent its effort loosening `canWarp()`'s guards
+    // to fix a control that was never being called.
+    //
+    // ⚠️⚠️ THE LIST'S OWN RULE WAS WRITTEN IN ROUND 114 AND IS FOUR LINES UP:
+    // *"ANY NEW .js OR ANY NEW PAGE, SAME COMMIT."* The arcade was built after
+    // it and never obeyed it — not one of its modules joined, across twenty-odd
+    // rounds. ⭐ A LIST THAT IS NOT EVERY FILE IS A LIST THAT GOES STALE
+    // SILENTLY, and it goes stale in the direction of a green suite, which is
+    // the worst direction available.
+    //
+    // ⚠️ THE FIX IS THE WHOLE ROOT, NOT THE FILE THAT BIT US. Adding only
+    // `game-shatter.js` would leave the same hole for the next module and would
+    // be this exact defect again with a smaller blast radius.
+    'game-shell.js', 'game-shatter.js', 'game-deadline.js', 'game-escape.js',
+    'game-chrome.js', 'game-draw.js', 'game-sprites.js', 'game-audio.js',
+    'game-layout.js', 'game-names.js',
+    'shatter-board.js', 'shatter-shards.js', 'shatter-words.js',
+    'escape-board.js', 'arcade-pool.js', 'arcade-telemetry.js',
+    'typing-calibrator.js', 'lesson-gate.js', 'run-grade.js', 'read-meter.js',
+    'site-nav.js', 'update-gate.js', 'rights-ladder.js', 'chapter-position.js',
+    'word-banks.js', 'daylog.js', 'logdays.js',
 ];
 
 // ⚠️ HTML PAGES TOO (v1.2.0). v1.0.0 and v1.1.0 checked only the .js files and so
