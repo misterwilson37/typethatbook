@@ -1,6 +1,121 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-14 by Round 121 (Maskelyne), for whoever is next
+> ## ▶ START HERE — written 2026-09-14 by Round 122 (Maskelyne), for whoever is next
+>
+> **Instance name: Maskelyne**, same instance as Rounds 120 and 121 — one name per
+> conversation, however many rounds it covers.
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+>
+> ## ⚠️⚠️⚠️ THE ONE TO READ FIRST: A LIFETIME IS A DEADLINE ON ONE BOARD AND A
+> ## SPEED ON THE OTHER
+>
+> Round 121 capped the seed LIFETIME as well as the seed interval, reasoning that
+> a 163-second pane is a pane that crawls. ⚠️ On the radial board that was true.
+> On the drift board a pane's speed **is** `CROSSING * SPEED_GAIN / lifetime`, so
+> capping the lifetime at 20 seconds made every opening pane cross **eight times
+> faster**.
+>
+> Jake, 2026-09-14: *"Shard started at speed. There's no way a slow typist could
+> play that game… The pace was decent for me, but that would obliterate a kid."*
+>
+> ⭐⭐ ONE QUANTITY, TWO MEANINGS, AND THE SHELL CANNOT SEE THE DIFFERENCE. The cap
+> is now on the INTERVAL only, with `SEED_MAX_ON_SCREEN` stopping the pile-up that
+> frequent spawns against long lifetimes would otherwise cause. ⚠️ **THE BORING
+> OPENING IS FIXED BY FREQUENCY AND BY THE PING. NOTHING ABOUT IT MAY EVER BE
+> FIXED BY SPEED** — that is Jake's ruling and it is the third time this opening
+> has been worked on.
+>
+> ---
+>
+> ## ⚠️⚠️ THE HIT BOX, WRONG IN BOTH DIRECTIONS IN TWO CONSECUTIVE ROUNDS
+>
+> Round 120: *"way too big."* Round 122: *"the hitbox now appears to be the center
+> dot — it's still not the triangle."*
+>
+> ⭐⭐ THE CAUSE IS THAT THE FIELD IS NOT LINEAR IN PIXELS. `toPixelRadius()` maps
+> field 0 to the prism's HULL, not to the centre — an OFFSET — while a pane is
+> drawn at `paneRadius * ringR` with no offset. **The two numbers in the collision
+> test were never in the same units.** Round 120 removed the ship term (correct:
+> the offset already spends it) and left the pane term unscaled (wrong by
+> `ringR / (ringR - SHIP_R)`, about 12%).
+>
+> ⚠️ THE FACTOR DEPENDS ON THE CANVAS — 1.21 on a small one, 1.08 on a large — so
+> a constant would be right at one window size. `setViewScale()` is called from
+> `layout()` on every resize, and defaults to the identity so every harness is
+> unaffected. ⚠️ `PANE_HIT_FRACTION` went 0.78 → **1**, which is a reversal:
+> the discount had stopped being a discount and become the only thing hiding the
+> unit error.
+>
+> ---
+>
+> ## ⭐ THE REST OF THIS ROUND
+>
+> **Enter scatters on the radial board and pings on the drift one.** Jake: *"enter
+> is sending out the radar ping in shatter, too, even though it doesn't actually
+> do anything."* ⭐ HE IS RIGHT AND IT IS THE PING'S OWN RULE DOING IT: a label is
+> drawn only for a pane OUTSIDE the ring, and since Round 121 a radial pane is
+> inside it 900ms after spawning. There is nothing out there to label.
+>
+> **The scatter's refusals are no longer silent.** Jake: *"works intermittently —
+> I wonder if it's tied to the fact that I asked you to ignore the space bar."*
+> ⚠️⚠️ IT FIRED EXACTLY WHEN THE RULES SAID IT COULD; the rules were invisible.
+> Enter now passes `deliberate` (it cannot be confused with typing, so the
+> half-typed and reflex guards do not apply to it), and a refusal with a charge in
+> hand says FINISH THE WORD.
+>
+> **All three games count down in the readout.** ⚠️ Escape Key's `onCountdown` was
+> ROADMAP 116b, open since Round 116 — and `arcade-panels-test.mjs` was PINNING
+> THE GAP as though it were a decision. ⭐ A harness must say which of the two it
+> is doing; that one now defends the rule instead of recording the bug.
+>
+> ---
+>
+> ## ⚠️ THE HUD ITEM IS **NOT** DONE, AND IT IS WAITING ON ONE ANSWER
+>
+> Jake: *"the restart button is in the way of the daily time because the pill is
+> so large… make the pill a circle that expands on hover… in lessons and books."*
+>
+> ⚠️⚠️ TWO THINGS ON THAT BAR COULD BE "THE PILL" AND THE FIX IS DIFFERENT FOR
+> EACH:
+> * the **mode pill** (`site-nav.js`) — School/Library/Arcade, physically beside
+>   the restart button in `.hud-section.left`. Collapsing it is ~20 lines in one
+>   file that already styles itself. ⚠️ BUT IT DOES NOT EXIST ON game.html, and he
+>   said lessons **and books**.
+> * the **daily-time lead** (`#hud-time`) — exists on both pages, carries the
+>   live number, and is the thing he says the button is in the way OF.
+>
+> ⭐ ASKED RATHER THAN GUESSED, per the standing rule. Do not start this without
+> his answer; the two changes touch different files and only one of them can be
+> right.
+>
+> ---
+>
+> ## ⚠️ STILL OWED
+>
+> 1. ⚠️⚠️ **NOTHING FROM ROUNDS 120–122 IS BROWSER-VERIFIED BEYOND JAKE'S OWN
+>    PLAYTESTS.** He has now reported on 120 and 121; 122 is unseen.
+> 2. The HUD question above.
+> 3. ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` — Jake's to remove.
+> 4. ⚠️ `grep -rn "2026-0" tests/` — one calendar-dated fixture was fixed in Round
+>    120; there may be more.
+> 5. The `learn2` fork (§11), unchanged.
+>
+> ---
+>
+> ## VERSION STAMPS THIS ROUND
+>
+> `game-shell.js` **v1.13.0** · `shatter-board.js` **v1.9.0** ·
+> `shatter-shards.js` **v1.6.0** · `game-shatter.js` **v1.14.0** ·
+> `game-escape.js` **v2.7.0** · `tests/arcade-panels-test.mjs` updated.
+>
+> **ALL 103 HARNESSES PASS.**
+>
+> ---
+
+> ## ▶ PREVIOUS START HERE — written 2026-09-14 by Round 121 (Maskelyne), for whoever is next
 >
 > **Instance name: Maskelyne** — the same instance as Round 120. ⚠️ ONE NAME PER
 > CONVERSATION, NOT PER ROUND: this session covered both rounds, and a second name
@@ -10158,3 +10273,55 @@ the speed menu is gone and that a free cabinet calls `playFree()`.
 whether starting a game on one click feels abrupt to a twelve-year-old. Round 116
 listed five defects a 99-harness suite could not have caught and every one was a
 fact about a browser or a human looking at a screen. This is that category.
+
+
+---
+
+## §22. Round 122 (Maskelyne) — two frozen traces, and a unit error that survived a fix
+
+**2026-09-14.** Three more CSVs, against the Round 121a build.
+
+### A. ⚠️ BOTH "STALLS" IN THESE TRACES ARE THE INSTRUMENT, NOT THE GAME
+
+Shatter: `onScreen` pinned at 1 and every derived column frozen from t=20 to
+t=186 — **166 seconds**. Shards: `onScreen` 0 until t=181.
+
+⭐ NEITHER IS A PACING DEFECT. The telemetry sampler is a `setInterval`, which
+keeps firing in a background tab; the game loop is a `requestAnimationFrame`,
+which does not. A frozen `pressure` beside a rising `t` means **the tab was
+hidden or the run had not started** — the same tell §20 recorded, now seen twice
+more. ⚠️⚠️ CHECK FOR A FROZEN DERIVED COLUMN BEFORE READING A FLAT TRACE AS A
+SLOW GAME; that mistake would have cost this round.
+
+### B. ⭐⭐ THE HIT BOX IS THE LESSON OF THE ROUND
+
+Two rounds, two opposite complaints, one cause: **the field mapping has an offset
+and the pane radius does not**, so the collision test compared a field length with
+a pixel length scaled differently. Round 120 fixed the half it could see.
+
+⚠️⚠️ AND THE REASON IT SURVIVED THE FIX IS WORTH THE PARAGRAPH: `PANE_HIT_FRACTION
+= 0.78` had a written, sensible rationale — a bounding circle over-counts an
+irregular silhouette — and it was ALSO, silently, the thing compensating for the
+unit error. ⭐ A CONSTANT WITH A GOOD REASON CAN STILL BE HOLDING UP A BUG, and
+the give-away was that removing a different wrong term made things worse rather
+than better. When a correction makes a symptom flip sign instead of vanishing,
+the two are compensating and both are wrong.
+
+### C. ⚠️ A HARNESS THAT WAS PINNING A BUG
+
+`arcade-panels-test.mjs` asserted that Escape Key does **not** implement
+`onCountdown` — "so its countdown is untouched". That was true of the code and
+was never a decision; ROADMAP 116b had the mismatch listed as owed. ⭐ A HARNESS
+MUST SAY WHETHER IT IS DEFENDING A RULE OR RECORDING A GAP, because the second
+kind reads exactly like the first to whoever tries to close it and finds a red
+test telling them not to.
+
+### D. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shell.js` | **1.13.0** | seed cap off lifetimes; `SEED_MAX_ON_SCREEN` |
+| `shatter-board.js` | **1.9.0** | `setViewScale()`, `PANE_HIT_FRACTION` → 1, deliberate warp |
+| `shatter-shards.js` | **1.6.0** | `reachOf(rock, view)` |
+| `game-shatter.js` | **1.14.0** | Enter scatters/pings by board, spoken refusals, countdown in the readout, view scale wiring |
+| `game-escape.js` | **2.7.0** | ⭐ ROADMAP 116b closed |

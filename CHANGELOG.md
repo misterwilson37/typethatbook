@@ -1,5 +1,30 @@
 # CHANGELOG — TypeThatBook
 
+## Round 122 (Maskelyne) — a lifetime is a deadline on one board and a speed on the other
+
+**⚠️⚠️ The seed cap no longer touches lifetimes.** Round 121 capped both the seed
+interval and the seed lifetime; on the drift board a pane's speed *is*
+`CROSSING * SPEED_GAIN / lifetime`, so Shards opened eight times too fast. Jake:
+*"Shard started at speed… that would obliterate a kid."* The opening is now fixed
+by frequency (`SEED_MAX_INTERVAL_MS`) and a new crowd ceiling
+(`SEED_MAX_ON_SCREEN`) — neither of which makes anything move faster.
+
+**⚠️⚠️ The hit box, wrong in both directions in two rounds.** The view maps field 0
+to the prism's hull, not the centre, while a pane is drawn at `paneRadius * ringR`
+with no offset — the two numbers in the collision test were never in the same
+units. `setViewScale()` supplies the missing factor (it depends on the canvas, so
+only the view can know it) and `PANE_HIT_FRACTION` goes 0.78 → 1, because that
+discount had quietly become the only thing hiding the error.
+
+**Enter scatters on the radial board and pings on the drift one**, and a refused
+scatter now says so. It fired exactly when the rules allowed; the rules were
+invisible, which is what *"works intermittently"* means from the outside.
+
+**All three games count down in the readout** — Escape Key's `onCountdown` closes
+ROADMAP 116b, open since Round 116.
+
+**ALL 103 HARNESSES PASS.**
+
 ## Round 121 (Maskelyne) — the ping, the scatter, and 110 seconds that were not the game
 
 A second played round of all three cabinets, against the Round 120 build.

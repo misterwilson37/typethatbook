@@ -1,3 +1,8 @@
+// shatter-board.js v1.9.0 — Round 122 (Maskelyne): `canWarp(now, deliberate)` —
+// the half-typed and reflex guards exist because SPACE is ambiguous with typing,
+// and Enter is not, so a deliberate press skips them. ⚠️ The charge is still
+// required. Also PANE_HIT_FRACTION 0.78 → 1 and `setViewScale()`, which together
+// fix a hit box Jake described as *"the center dot"*.
 // shatter-board.js v1.8.0 — Round 121 (Maskelyne): ⚠️⚠️ TWO SPEEDS AND A SCATTER.
 // The approach band is now a FIXED 900ms rather than 14% of the lifetime, which
 // early in a run was twenty-three seconds of staring at an empty ring
@@ -75,7 +80,7 @@ import { SHATTER_WORDS } from './shatter-words.js';
 import { BANKS } from './word-banks.js';
 import { firstBlocked } from './drill-filter.js';
 
-export const SHATTER_BOARD_VERSION = '1.8.0';
+export const SHATTER_BOARD_VERSION = '1.9.0';
 
 // ⚠️⚠️ THE NUMBER THE SHELL NEEDS. One target = the word, then its pieces.
 // Pieces DO NOT SPLIT AGAIN (see `terminal` below), which is what pins this at
@@ -264,7 +269,21 @@ export function paneRadius(text, cell) {
 // fraction of it. ⭐ THE DIRECTION IS DELIBERATE: being killed by a visible gap
 // feels like a broken game, while sailing through a visible overlap merely feels
 // lucky. When in doubt, miss.
-export const PANE_HIT_FRACTION = 0.78;
+// ⚠️⚠️ 0.78 → 1 IN ROUND 122, WHICH IS A REVERSAL AND IS WRITTEN DOWN AS ONE.
+// The reasoning above still holds in the abstract: `paneRadius()` is a BOUNDING
+// circle and a pane's corners do not fill it. ⭐ BUT THE DISCOUNT WAS SILENTLY
+// DOING A SECOND JOB — it was the only thing between the student and a 12% unit
+// error in the comparison itself (see shatter-shards.js's `reachOf()`), and once
+// that was corrected the two compounded into Jake's *"the hitbox now appears to
+// be the center dot."*
+// ⚠️ WITH THE SCALE CORRECT, 1 MEANS EXACTLY "THE PANE'S EDGE TOUCHES THE
+// PRISM'S EDGE", which is the thing a student can see and the thing Jake asked
+// for: *"it should be the size of the prism itself, not the light around it."*
+// ⭐ AND THE REMAINING ERROR NOW POINTS THE RIGHT WAY. At a corner the silhouette
+// is inside its bounding circle, so a rare hit will look like a very near miss —
+// which reads as bad luck. The old direction produced visible overlaps that did
+// nothing, which reads as a broken game, and that is the one Jake reported twice.
+export const PANE_HIT_FRACTION = 1;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE SPLIT LADDER
@@ -467,6 +486,29 @@ export class ShatterBoard {
         this.warpClears = c.warpClears > 0 ? c.warpClears : WARP_CLEARS;
         this.lastClearAt = -Infinity;
         this._lastAt = null;
+        // ⚠️⚠️ WHAT ONE FIELD UNIT IS WORTH IN THE VIEW — Round 122 (Maskelyne).
+        // See shatter-shards.js's `reachOf()`: the view's radial mapping has an
+        // OFFSET (field 0 is drawn at the prism's own radius, not at the centre),
+        // so a pane's drawn size and a pane's field position are not in the same
+        // units and a collision test that compares them directly is wrong by
+        // about 12%. ⭐ THE FACTOR DEPENDS ON THE CANVAS, so only the view can
+        // know it. ⚠️ THE DEFAULT IS THE IDENTITY: a board nobody has told stays
+        // exactly as it was, which is what every harness relies on.
+        this.view = { paneScale: 1, shipInset: 0 };
+    }
+
+    /**
+     * ⭐ THE VIEW DECLARES ITS SCALE. Called on every layout, because `ringR`
+     * follows the window.
+     * ⚠️ IT IS NOT A DIFFICULTY KNOB AND MUST NEVER BECOME ONE. It exists so the
+     * hit test agrees with what a student can SEE; a round that wants collisions
+     * to be kinder changes PANE_HIT_FRACTION, where the reasoning already lives.
+     */
+    setViewScale(paneScale, shipInset) {
+        this.view = {
+            paneScale: paneScale > 0 ? paneScale : 1,
+            shipInset: shipInset > 0 ? shipInset : 0,
+        };
     }
 
     // ── THE VIEW SEAM ───────────────────────────────────────────────────────
@@ -834,8 +876,27 @@ export class ShatterBoard {
     }
 
     /** All three conditions. Each closes a different hole; see the header. */
-    canWarp(nowMs) {
+    /**
+     * @param {boolean} [deliberate]  the student pressed a key that cannot be
+     *        mistaken for typing.
+     *
+     * ⚠️⚠️ THE TWO EXTRA CONDITIONS EXIST BECAUSE THE KEY WAS SPACE, AND ONLY
+     * BECAUSE OF THAT. A space at a word boundary and a space meaning "scatter"
+     * are the same keystroke, so the board refuses one mid-word and one just
+     * after a clear — both are guesses about INTENT.
+     *
+     * ⭐⭐ ENTER NEEDS NO SUCH GUESS. It is not in any word, so a press is never
+     * ambiguous, and the guards that protect a space-pressing student become pure
+     * refusals to a student who asked plainly. Jake, 2026-09-14: *"Shatter's
+     * scatter also works intermittently — I wonder if it's tied to the fact that
+     * I asked you to ignore the space bar in an earlier iteration."* ⚠️ HE IS
+     * RIGHT ABOUT THE CAUSE AND IT IS NOT A BUG: it fired exactly when the rules
+     * said it could, and the rules were unreadable from the outside.
+     * ⚠️ THE CHARGE IS STILL REQUIRED. That one is not a guess about intent.
+     */
+    canWarp(nowMs, deliberate) {
         if (this.warps < 1) return false;
+        if (deliberate) return true;
         if (this.locked && this.locked.typed > 0) return false;
         if (nowMs - this.lastClearAt < WARP_GRACE_MS) return false;
         return true;
@@ -846,8 +907,8 @@ export class ShatterBoard {
      * NOTHING — it is not a mistake, because the student pressed the key the
      * game told them to press.
      */
-    warp(nowMs) {
-        if (!this.canWarp(nowMs)) return false;
+    warp(nowMs, deliberate) {
+        if (!this.canWarp(nowMs, deliberate)) return false;
         // ═══════════════════════════════════════════════════════════════════
         // ⭐⭐ SCATTER — Jake, 2026-09-14: *"Warp makes no sense here. Let's do
         // something like scatter that sends a rainbow out from the ship, pushing

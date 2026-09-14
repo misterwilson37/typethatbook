@@ -586,8 +586,15 @@ console.log('\nD — THE COUNTDOWN HANDOFF IS OPT-IN, SO NO SURFACE LOSES IT');
        '\u26a0 and the else branch keeps its own numeral for a host that does not');
     ok(/onCountdown\(n\) \{ countdown = n; \}/.test(dl),
        'Deadline opts in, because it has a readout to put them in');
-    ok(!/onCountdown/.test(esc),
-       '\u26a0\u26a0 Escape Key does NOT, so its countdown is untouched');
+    // ⚠️⚠️ INVERTED IN ROUND 122, AND THE OLD ASSERTION WAS PINNING AN OPEN BUG.
+    // It read "Escape Key does NOT opt in, so its countdown is untouched" — true
+    // of the code and never a decision anybody made. ROADMAP 116b has listed the
+    // mismatched countdown as owed since Round 116, and Jake asked for it
+    // outright: *"I'd like that in all of the games, please."*
+    // ⭐ A HARNESS CAN RECORD A GAP OR DEFEND A RULE, AND IT MUST SAY WHICH. This
+    // one now defends a rule: all three games put the digits in their readout.
+    ok(/onCountdown\(n\) \{ countdown = n; \}/.test(esc),
+       '\u2b50\u2b50 Escape Key opts in too \u2014 all three games count down in the readout');
     // ⚠️ ROUND 94's RULING SURVIVES: the ready/paused/result panels are still
     // overlays on the play container. Only three digits moved.
     ok(/wrap\.append\(panel\);/.test(chrome),

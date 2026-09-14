@@ -1,3 +1,10 @@
+// game-shell.js v1.13.0 — Round 122 (Maskelyne): ⚠️⚠️ THE SEED CAP NO LONGER
+// TOUCHES LIFETIMES. On the drift board a lifetime is not a deadline, it is a
+// SPEED — `CROSSING * SPEED_GAIN / life` — so Round 121's cap made Shards open at
+// eight times the intended pace. Jake: *"Shard started at speed… that would
+// obliterate a kid."* The opening is now fixed by FREQUENCY (SEED_MAX_INTERVAL_MS)
+// and a new crowd ceiling (SEED_MAX_ON_SCREEN), neither of which makes anything
+// move faster. See lifetimeFor().
 // game-shell.js v1.12.0 — Round 121 (Maskelyne): ⚠️⚠️ `SEED_MAX_INTERVAL_MS`. An
 // adaptive run opened at a 40.8-second spawn interval and a 163-second lifetime,
 // because the 8 WPM floor times `costFactor: 3` says so — and the first sample
@@ -194,7 +201,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.12.0';
+export const GAME_SHELL_VERSION = '1.13.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -342,6 +349,13 @@ export const HIT_PRESSURE_RELIEF = 0.10;
 // already holding one on screen — and a fast child stops staring at an empty
 // ring.
 export const SEED_MAX_INTERVAL_MS = 5000;
+
+// ⚠️⚠️ AND A CEILING ON HOW MANY OF THEM MAY BE WAITING AT ONCE — Round 122.
+// The cap above says "something arrives every five seconds"; without this, on a
+// board whose targets live for two and a half minutes, that is thirty of them.
+// ⭐ FREQUENT AND SLOW IS THE COMBINATION A BEGINNER NEEDS: always something to
+// type, never anything hurrying. Frequent and CROWDED is a different game.
+export const SEED_MAX_ON_SCREEN = 4;
 
 // Ceiling on pressure. 2.5 × a 15 WPM gate is 37.5 WPM of sustained demand,
 // which no student in this building will hold; past here the queue depth is what
@@ -1009,19 +1023,34 @@ export class GameDirector {
      */
     lifetimeFor(text) {
         const chars = ((text || '').length || this.avgChars) * this.costFactor;
-        const life = travelMs(spawnIntervalMs(chars, this.calibratedWPM, this.pressure),
-                              queueDepthFor(this.pressure))
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ THE SEED CAP DOES **NOT** REACH LIFETIMES. ROUND 122 TOOK THAT
+        //        BACK, AND IT IS THE MOST IMPORTANT LINE IN THIS FILE THIS ROUND.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Round 121 capped the lifetime as well, reasoning that a 163-second pane
+        // is a pane that crawls. ⚠️ ON THE RADIAL BOARD THAT WAS TRUE AND ON THE
+        // DRIFT BOARD IT WAS A DISASTER: a Shards pane's SPEED is
+        // `CROSSING * SPEED_GAIN / lifetime`, so capping the lifetime at 20
+        // seconds made every opening pane cross the field eight times faster.
+        //
+        // Jake, 2026-09-14: *"Shard started at speed. There's no way a slow
+        // typist could play that game… The radar was supposed to fix the slow
+        // start — speeding up the velocity at opening doesn't work for that game
+        // because of the repercussions of keeping it that speed for slow typists.
+        // The pace was decent for me, but that would obliterate a kid."*
+        //
+        // ⭐⭐ THE LESSON IS ABOUT WHAT A LIFETIME **IS**, NOT ABOUT THE NUMBER. To
+        // the director it is a deadline. To the radial board it is a deadline. To
+        // the drift board it is a SPEED — one quantity meaning two things, and a
+        // cap written for the first meaning landed on the second.
+        // ⚠️ THE BORING OPENING IS FIXED BY FREQUENCY AND BY THE PING, NOT BY
+        // SPEED: SEED_MAX_INTERVAL_MS puts targets on the board, SEED_MAX_ON_SCREEN
+        // stops them piling up, and Enter reads out the words of the ones too far
+        // away to see. None of those three make anything move faster.
+        return travelMs(spawnIntervalMs(chars, this.calibratedWPM, this.pressure),
+                        queueDepthFor(this.pressure))
             * budgetScale(this.adaptive ? this.difficulty : 'medium');
-        // ⚠️⚠️ THE CAP REACHES LIFETIMES TOO, AND IT HAS TO. A 163-SECOND PANE IS
-        // NOT A GENEROUS DEADLINE, IT IS A PANE THAT CRAWLS — and on the radial
-        // board the crawl is the thing Jake called brutal. ⭐ Derived from the
-        // same cap through the same `travelMs`, so the queue depth still means
-        // what it means everywhere else; a second hardcoded ceiling here would be
-        // a second answer to "how long does a target live".
-        if (this.adaptive && !this.calibrator.confident) {
-            return Math.min(travelMs(SEED_MAX_INTERVAL_MS, queueDepthFor(this.pressure)), life);
-        }
-        return life;
     }
 
     /** Kept for callers that want a representative number for a HUD or a log. */
@@ -1057,6 +1086,15 @@ export class GameDirector {
         // them clear the old one. ⭐ The interval clock is held at `nowMs` so the
         // next spawn is a full interval AFTER the window, not the instant it ends.
         if (this.inGrace(nowMs)) { this._lastSpawnAt = nowMs; return false; }
+        // ⚠️⚠️ THE SEED CEILING — see SEED_MAX_ON_SCREEN, and note that it comes
+        // BEFORE the refill floor. While the game is still guessing it spawns
+        // often (SEED_MAX_INTERVAL_MS) against lifetimes that may be minutes
+        // long, so without this the board fills with slow targets and a beginner
+        // meets thirty words at once. ⭐ It expires with the guess: one confident
+        // measurement and the interval alone governs again.
+        if (this.adaptive && !this.calibrator.confident && onScreen >= SEED_MAX_ON_SCREEN) {
+            return false;
+        }
         if (onScreen < this.onScreenTarget) return true;
         if (this._lastSpawnAt == null) return true;
         return (nowMs - this._lastSpawnAt) >= this.intervalMs;

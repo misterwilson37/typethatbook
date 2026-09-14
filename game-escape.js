@@ -1,3 +1,9 @@
+// game-escape.js v2.7.0 — Round 122 (Maskelyne): ⭐ IT HONOURS `onCountdown` AT
+// LAST — ROADMAP 116b, open since Round 116. The three digits run in the gauge
+// readout and the run clock takes over, exactly as Deadline has done since Round
+// 99. ⚠️ Supplying the callback is also what silences game-chrome.js's overlay;
+// the two halves are one decision. The run clock starts at the end of the
+// countdown (Round 121), so the readout never sits at 0:00 with a live board.
 // game-escape.js v2.6.0 — Round 119 (Hammond): debug() also reports what the
 // DIRECTOR believes — cleared, pressure, interval, lifetime, paced WPM — so
 // `arcade-telemetry.js` can record the pacing curve without adding a single
@@ -208,7 +214,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.6.0';
+export const GAME_ESCAPE_VERSION = '2.7.0';
 
 /**
  * @param {HTMLElement} container
@@ -328,6 +334,10 @@ export function mount(container, opts) {
     let ended = false;
     let rafId = null, lastFrame = null, tickAcc = 0;
     let stepAccMs = 0;
+    // ⚠️ THE COUNTDOWN NUMBER, OWNED BY game-chrome.js AND RENDERED BY THE GAUGES.
+    // `null` means "not counting", which is what makes the readout show the run
+    // clock instead — the same contract Deadline has had since Round 99.
+    let countdown = null;
     // ⚠️ HIGH-WATER MARK, NOT AN ACCUMULATOR — see bankWholeSeconds(). Reset by
     // restart(), or the replay's first N seconds are swallowed by the last run's
     // mark, which is the exact bug game-deadline.js v1.10.0 records.
@@ -743,6 +753,15 @@ export function mount(container, opts) {
                 livesLabel: 'LIVES',
                 wpm: rep.wpm,
                 acc: rep.acc,
+                // ⭐⭐ THE COUNTDOWN RUNS IN THE READOUT — Round 122, and it closes
+                // ROADMAP 116b, which has said since Round 116 that this game
+                // *"ignores onCountdown and counts down in a different typeface"*.
+                // Jake, 2026-09-14: *"I'd like that in all of the games, please."*
+                // ⚠️ SUPPLYING `onCountdown` IS WHAT SILENCES game-chrome.js's OWN
+                // OVERLAY — see `hostOwnsCount` there. The two are one decision,
+                // and taking either half alone gives a page with two countdowns or
+                // with none.
+                countdown,
                 todayClock: m ? m.todayClock : null,
                 weekClock: m ? m.weekClock : null,
             });
@@ -1133,6 +1152,9 @@ export function mount(container, opts) {
             + 'tinted — that is where creatures come from, so keep moving. '
             + 'Backspace clears what you have typed.',
         muted: isMuted(),
+        // ⚠️ THE CHROME OWNS THE NUMBER AND THIS ONLY STORES IT. A view that ran
+        // its own timer here would be the second clock Round 95 deleted.
+        onCountdown(n) { countdown = n; },
         onStart() {
         // ⚠️⚠️ THE RUN CLOCK STARTS HERE, AT THE END OF THE COUNTDOWN, NOT ON THE
         // FIRST KEYSTROKE — Round 121 (Maskelyne). Jake, 2026-09-14: *"Deadline

@@ -1,3 +1,12 @@
+// game-shatter.js v1.14.0 — Round 122 (Maskelyne): ⚠️⚠️ ENTER SCATTERS ON THE
+// RADIAL BOARD AND PINGS ON THE DRIFT ONE, and both go through `tryScatter()`,
+// which now SAYS SO when the board refuses — Jake read a correctly-refused
+// scatter as a broken one (*"works intermittently"*) because nothing on screen
+// said anything. ⭐ Enter is `deliberate`: it cannot be confused with typing, so
+// the half-typed and reflex guards that protect a SPACE-pressing student do not
+// apply to it. ⚠️ The countdown moved into the gauge readout (the overlay is
+// suppressed when there is one), and `layout()` now tells the board what a field
+// unit is worth in pixels — see the hit-box note there.
 // game-shatter.js v1.13.0 — Round 121 (Maskelyne): ⭐⭐ THE PING, THE SCATTER'S
 // NAME, AND A CLOCK THAT STARTS WHEN THE COUNTDOWN DOES. Enter sweeps a wave out
 // from the prism and writes each pane's word at the point of the ring nearest it
@@ -236,7 +245,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.13.0';
+export const GAME_SHATTER_VERSION = '1.14.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -431,6 +440,21 @@ export function mount(container, opts) {
         cy = HUD_H + (H - HUD_H) / 2;
         ringR = Math.max(60, Math.min(W / 2, (H - HUD_H) / 2) - RING_MARGIN);
         stars = makeStars(W, H, Math.round(60 * motionScale()), rand);
+        // ⚠️⚠️ THE BOARD IS TOLD WHAT A FIELD UNIT IS WORTH HERE, ON EVERY LAYOUT,
+        // BECAUSE IT FOLLOWS THE WINDOW — Round 122. `toPixelRadius()` has an
+        // OFFSET (field 0 is the prism's hull, not the centre) while a pane is
+        // drawn at `paneRadius * ringR` with no offset, so the two are not in the
+        // same units and a collision test comparing them is short by
+        // `ringR / (ringR - SHIP_R)` — Jake's *"the hitbox now appears to be the
+        // center dot."* ⭐ ONLY THIS FILE CAN KNOW THE FACTOR; see
+        // shatter-shards.js's reachOf() for the arithmetic.
+        // ⚠️ THE INSET IS THE GAP BETWEEN THE HULL AND THE PRISM ACTUALLY DRAWN
+        // (drawPrism uses SHIP_R * 0.8), so the test lands on the triangle rather
+        // than on the space around it — which is exactly what Jake asked for.
+        if (board && board.setViewScale) {
+            const k = Math.max(1, ringR - SHIP_R);
+            board.setViewScale(ringR / k, (SHIP_R - SHIP_R * 0.8) / k);
+        }
     }
 
     /**
@@ -686,7 +710,30 @@ export function mount(container, opts) {
         // not to look.
         if (e.key === 'Enter') {
             e.preventDefault();
-            if (started && bNow - lastPingAt >= PING_COOLDOWN_MS) {
+            if (!started) return;
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️ ONE KEY, TWO BOARDS, AND THE SPLIT IS JAKE'S OBSERVATION.
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // 2026-09-14: *"It appears that enter is sending out the radar ping
+            // in shatter, too, even though it doesn't actually do anything.
+            // Maybe enter or space can be the scatter in shatter? Or just space.
+            // Doesn't matter, as long as it works."*
+            //
+            // ⭐⭐ THE PING REALLY DOES NOTHING ON THE RADIAL BOARD, AND IT IS THE
+            // PING'S OWN DESIGN RULE DOING IT. A label is drawn only for a pane
+            // OUTSIDE the ring — that is the "no help in the late game" clause —
+            // and since Round 121 a radial pane crosses the approach in 900ms and
+            // spends the rest of its life inside. There is nothing out there to
+            // label. ⚠️ A CONTROL THAT IS CORRECT AND USELESS IS STILL A CONTROL
+            // A CHILD PRESSES AND LEARNS NOTHING FROM.
+            //
+            // ⭐ SO ENTER SCATTERS HERE AND PINGS THERE — one key, whatever that
+            // board's help is. ⚠️ AND IT IS `deliberate`: Enter cannot be confused
+            // with typing, so shatter-board.js's half-typed and reflex guards do
+            // not apply. That is the whole of the *"works intermittently"* report.
+            if (!drift) { tryScatter(true); return; }
+            if (bNow - lastPingAt >= PING_COOLDOWN_MS) {
                 lastPingAt = bNow;
                 pingWave = { t: 1 };
                 sfx.free();
@@ -710,22 +757,7 @@ export function mount(container, opts) {
         // full, nothing half-typed, and past the reflex grace after a clear —
         // live in shatter-board.js and are tested there. A copy of any of them
         // here would be the second home this split exists to prevent.
-        if (e.key === ' ' && board.canWarp(bNow)) {
-            board.warp(bNow);
-            sfx.free();
-            // ⭐ THE WARP IS THE PRISM FIRING IN EVERY DIRECTION AT ONCE, which
-            // is the picture the mechanic was always drawing: the panes are
-            // pushed back by light. ⚠️ It still destroys nothing — see the
-            // WARP_PUSH note in shatter-board.js.
-            warpRing = { t: 1 };
-            glassBurst(particles, cx, cy, FAN, Math.round(30 * motionScale()), 260, rand);
-            // ⚠️ TWO BOARDS, TWO TRUTHFUL WORDS. On the radial board the wave
-            // shoves every pane out to the ring — Jake's *"scatter"*. On Shards
-            // the same meter buys hyperspace, and calling that a scatter would
-            // describe something the student did not see.
-            banner = { text: drift ? 'WARP' : 'SCATTER', until: now + 900 };
-            return;
-        }
+        if (e.key === ' ' && tryScatter(false)) return;
 
         const wasPiece = board.locked && board.locked.parent != null;
 
@@ -984,6 +1016,10 @@ export function mount(container, opts) {
         // paced for the run the student just lost. See newDirector().
         d = newDirector();
         board = makeBoard();
+        // ⚠️ A REPLACED BOARD HAS NOT BEEN TOLD THE VIEW'S SCALE, and layout()
+        // may not run again before the first pane arrives — a replay would be
+        // played with the pre-Round-122 hit box. See layout().
+        layout();
         particles = [];
         banner = null; flash = 0;
         // ⚠️ THE LIGHT GOES OUT TOO. A shot or a warp ring left over from the
@@ -1187,10 +1223,14 @@ export function mount(container, opts) {
                 // `drift` is this file's business. ⭐ The ping's readiness is read
                 // from the same cooldown the key checks, so a dimmed label and a
                 // refused press can never disagree.
-                pingLabel: 'ENTER \u2014 PING',
-                pingReady: bNow - lastPingAt >= PING_COOLDOWN_MS,
-                spendLabel: drift ? 'SPACE \u2014 WARP' : 'SPACE \u2014 SCATTER',
-                spendReady: drift ? 'SPACE TO WARP' : 'SPACE TO SCATTER',
+                // ⚠️ THE TOP LINE NAMES A KEY ONLY WHERE THAT KEY DOES SOMETHING.
+                // On the radial board Enter scatters, which the line below already
+                // says, and a panel advertising a ping that draws nothing is the
+                // defect Jake found by pressing it.
+                pingLabel: drift ? 'ENTER \u2014 PING' : 'ROSE WINDOW',
+                pingReady: drift ? (bNow - lastPingAt >= PING_COOLDOWN_MS) : false,
+                spendLabel: drift ? 'SPACE \u2014 WARP' : 'SPACE / ENTER \u2014 SCATTER',
+                spendReady: drift ? 'SPACE TO WARP' : 'SPACE OR ENTER',
             });
         }
         if (gaugeCtx) {
@@ -1206,6 +1246,16 @@ export function mount(container, opts) {
                 // ⚠️ THE FIELD KEEPS game-shell.js's NAME; only the LABEL changes.
                 livesLabel: 'LIVES',
                 wpm: rep.wpm, acc: rep.acc,
+                // ⭐⭐ THE COUNTDOWN RUNS IN THE READOUT AND THEN THE CLOCK TAKES
+                // OVER — Round 122. Jake, 2026-09-14: *"Playing shatter, and the
+                // run clock doesn't count down and then start counting like it
+                // does in deadline. I'd like that in all of the games, please."*
+                // ⚠️ ROUND 116 CHOSE THE OVERLAY NUMERAL HERE and said two
+                // countdowns on screen would be worse than an inconsistent one.
+                // That was the right worry and the wrong resolution: the answer is
+                // ONE countdown, in the place Deadline puts it. The overlay is
+                // suppressed below rather than left to race this.
+                countdown,
                 todayClock: m ? m.todayClock : null,
                 weekClock: m ? m.weekClock : null,
             });
@@ -1233,7 +1283,10 @@ export function mount(container, opts) {
         // ⚠️ ONE SOURCE DISPLAYED ONCE. game-chrome.js owns the countdown clock
         // and hands the number over; this only paints it. A view that ran its
         // own timer here would be the second clock Round 95 had to delete.
-        drawCountdownOverlay(ctx, W, H, countdown);
+        // ⚠️ NOT WHILE THE READOUT IS COUNTING — see the drawGauges() call. The
+        // overlay survives only for a host with no gauge panel, which is the
+        // fallback game-chrome.js already documents.
+        if (!gaugeCtx) drawCountdownOverlay(ctx, W, H, countdown);
 
         if (banner && now < banner.until) {
             platedText(ctx, {

@@ -1,3 +1,7 @@
+// shatter-shards.js v1.6.0 — Round 122 (Maskelyne): `reachOf()` takes the view's
+// scale. The field mapping has an OFFSET and a pane's drawn radius does not, so
+// the collision test was comparing two different units and came out 12% short —
+// Jake: *"the hitbox now appears to be the center dot."* See reachOf()'s note.
 // shatter-shards.js v1.5.0 — Round 121 (Maskelyne): ⚠️⚠️ `PRISM_R` 0.10 → 0. The view
 // maps field 0 to the prism's drawn radius, so the ship's pixels were already
 // free and the constant was counting them a second time — a hit box out past the
@@ -115,7 +119,7 @@ import {
     paneRadius, PANE_CELL, PANE_HIT_FRACTION,
 } from './shatter-board.js';
 
-export const SHATTER_SHARDS_VERSION = '1.5.0';
+export const SHATTER_SHARDS_VERSION = '1.6.0';
 
 /**
  * How close a pane's CENTRE may come to the prism's centre before they touch.
@@ -139,8 +143,42 @@ export function wrapCoord(v) {
     return x;
 }
 
-export function reachOf(rock) {
-    return PRISM_R + paneRadius(rock && rock.text, PANE_CELL) * PANE_HIT_FRACTION;
+/**
+ * ═════════════════════════════════════════════════════════════════════════════
+ * ⚠️⚠️⚠️ THE FIELD IS NOT LINEAR IN PIXELS, AND ROUND 121 GOT THIS WRONG TWICE.
+ * ═════════════════════════════════════════════════════════════════════════════
+ *
+ * Jake, 2026-09-14: *"the hitbox now appears to be the center dot — it's still
+ * not the triangle."* He is right, and the arithmetic says so exactly.
+ *
+ * The view maps a field magnitude `m` to a PIXEL radius of
+ * `SHIP_R + m * (ringR - SHIP_R)` — a mapping with an OFFSET. A pane's drawn
+ * radius, meanwhile, is `paneRadius * ringR`, with no offset at all. ⭐ SO THE
+ * TWO QUANTITIES IN THIS COMPARISON WERE NEVER IN THE SAME UNITS, and the missing
+ * factor is `ringR / (ringR - SHIP_R)` — about 1.12.
+ *
+ * ⚠️ WORKED THROUGH, because this is the third version of this one line:
+ *     centres are `SHIP_R + m*K` apart, K = ringR - SHIP_R
+ *     they touch when that   <=  paneRadius*ringR + prismDrawnRadius
+ *     so                  m  <=  (paneRadius*ringR - (SHIP_R - prismDrawn)) / K
+ * ⚠️⚠️ ROUND 120's "PRISM_R WAS COUNTING THE SHIP TWICE" WAS HALF RIGHT: the
+ * offset really does spend the ship's radius, which is why there is no `+ ship`
+ * term. What it missed is that the SAME offset shrinks every field length
+ * relative to a pixel one — so removing the ship term without rescaling the pane
+ * term left a reach of about 0.87 of what it should be, which for a nine-letter
+ * pane is an overlap of 18px on a 60px pane. **The centre dot.**
+ *
+ * ⭐⭐ THE SCALE COMES FROM THE VIEW, BECAUSE IT DEPENDS ON THE CANVAS. `ringR`
+ * is a function of the window; on a small canvas the factor is 1.21 and on a
+ * large one 1.08. A constant here would be right at one window size. See
+ * `setViewScale()` — the view calls it on every layout, and the default of 1
+ * reproduces the old pure-field behaviour for any caller that never does.
+ */
+export function reachOf(rock, view) {
+    const scale = view && view.paneScale > 0 ? view.paneScale : 1;
+    const inset = view && view.shipInset > 0 ? view.shipInset : 0;
+    return Math.max(0,
+        paneRadius(rock && rock.text, PANE_CELL) * scale * PANE_HIT_FRACTION - inset);
 }
 
 // ⚠️ THE FIELD IS A SQUARE THAT CONTAINS THE SPAWN RING, NOT THE RING ITSELF.
@@ -443,7 +481,7 @@ export class ShardsBoard extends ShatterBoard {
             // ⚠️ THAT IS THE ANSWER TO ROADMAP 116h.1. The wandering budget was
             // trying to buy this with a clock, and bought it for the idle student
             // too; geometry charges it to the keyboard instead.
-            if (Math.hypot(rock.x, rock.y) <= reachOf(rock)) { hit.push(rock); continue; }
+            if (Math.hypot(rock.x, rock.y) <= reachOf(rock, this.view)) { hit.push(rock); continue; }
             alive.push(rock);
         }
         this.rocks = alive;
@@ -602,7 +640,7 @@ export class ShardsBoard extends ShatterBoard {
                 // ⚠️ CLEARANCE, NOT RAW RANGE: a big window at 0.4 is closer to
                 // touching you than a splinter at 0.3. The same reachOf() the hit
                 // test uses, so "safe" here means what "hit" means there.
-                const reach = reachOf(rock);
+                const reach = reachOf(rock, this.view);
                 for (let k = 0; k <= WARP_LOOKAHEAD_STEPS; k++) {
                     const dt = WARP_LOOKAHEAD_MS * k / WARP_LOOKAHEAD_STEPS;
                     const x = wrapCoord(rock.x + rock.vx * dt - jx);
