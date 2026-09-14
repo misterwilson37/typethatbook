@@ -23,6 +23,19 @@ invisible, which is what *"works intermittently"* means from the outside.
 **All three games count down in the readout** — Escape Key's `onCountdown` closes
 ROADMAP 116b, open since Round 116.
 
+### The mode pill collapses (`site-nav.js` v1.1.0)
+
+`{ compact: true }` shows the current tab's initial in a circle and opens the full
+pill on hover, focus or tap. The lesson pages mount it that way, and **`game.html`
+gets the pill for the first time** — Jake: *"they should match in terms of
+available information and navigation."* ⭐ Matched by addition rather than by
+deleting it from the lesson pages, because a page that does not know Arcade exists
+is a page a child cannot leave.
+
+⚠️ The first draft quoted a CSS selector in backticks inside the stylesheet's
+template literal, which ends the string and kills the page on load. `node --check`
+passes that; `module-parse-test.mjs` does not.
+
 **ALL 103 HARNESSES PASS.**
 
 ## Round 121 (Maskelyne) — the ping, the scatter, and 110 seconds that were not the game

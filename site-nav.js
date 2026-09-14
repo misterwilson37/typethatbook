@@ -1,3 +1,19 @@
+// site-nav.js v1.1.0 — Round 122 (Maskelyne): ⭐⭐ THE COMPACT PILL. Jake,
+// 2026-09-14: *"The mode pill is huge — and it's not on the pages that have the
+// game. They should match in terms of available information and navigation. So
+// the easiest thing to do is just remove it from the lessons. But if it were a
+// circle that hover would expand to the pill, it could stay and not take up as
+// much space."*
+// ⚠️⚠️ THE CHOICE BETWEEN HIS TWO OPTIONS IS NOT A STYLE CALL. Deleting the pill
+// from the lesson pages makes them match the reader by SUBTRACTING navigation
+// from the two pages a student spends the most time on — and Round 116 added this
+// file precisely because a page that does not know Arcade exists is a page a
+// child cannot leave. ⭐ THE CIRCLE MATCHES THEM BY ADDITION INSTEAD: small
+// enough for the reader's crowded bar, so the pill can go on every page and the
+// site map is the same everywhere.
+// ⚠️ COMPACT IS A SIZE, NEVER A CONTENT DIFFERENCE. The same three tabs, the same
+// menu, the same markup — one class, and everything is reachable without it.
+//
 // site-nav.js v1.0.0 — THE MODE PILL, ONCE. Round 116 (Sun).
 //
 // ⭐⭐ ONE RECORD OF WHERE A STUDENT CAN GO. Round 116 gave arcade.html a
@@ -25,7 +41,7 @@
 // pages here have different palettes — so the colours come from CSS custom
 // properties with per-page fallbacks rather than from literals.
 
-export const SITE_NAV_VERSION = '1.0.0';
+export const SITE_NAV_VERSION = '1.1.0';
 
 /**
  * ⚠️ ORDER IS THE SITE MAP AND IT IS DELIBERATE: School first because it is what
@@ -94,6 +110,60 @@ const CSS = `
 .ttb-item i { font-style: normal; font-size: .72rem; opacity: .62; }
 .ttb-item.on b { color: var(--ttb-nav-accent, #4B9CD3); }
 @media (max-width: 520px) { .ttb-tab { padding: 5px 9px; font-size: .72rem; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ⭐⭐ COMPACT — A CIRCLE THAT BECOMES THE PILL
+   ═══════════════════════════════════════════════════════════════════════════
+   ⚠️⚠️ IT COLLAPSES THE TABS THE STUDENT IS NOT ON, AND KEEPS THE ONE THEY ARE.
+   A circle showing a generic icon would cost a glance to answer "where am I";
+   the current tab's own initial answers it without one, and it is the piece that
+   was never navigation to begin with — the current tab is a <span>, not a link.
+
+   ⚠️ TRANSITIONS ON max-width AND padding, NOT ON width. These tabs are laid out
+   by their text and have no width to animate; max-width is the property that can
+   go from 0 to "enough" without anyone measuring anything.
+
+   ⚠️⚠️ :focus-within IS NOT OPTIONAL — it is the whole keyboard story. Tabbing
+   into a pill that only opens on hover would move focus to something invisible,
+   which is worse than not having the control. ⭐ AND .ttb-open IS THE TOUCH
+   STORY: a tap sets it, because a trackpad-less iPad has no hover at all and
+   Jake's students are not all on the same machine.
+
+   ⚠️⚠️⚠️ NO BACKTICKS ANYWHERE IN THIS BLOCK. It is a template literal, and a
+   backtick in a comment inside it ENDS THE STRING — the rest of the CSS becomes
+   code and the page dies on load. That is not hypothetical: writing this very
+   note with the selector name quoted in backticks did exactly that, and
+   module-parse-test.mjs caught it in the same minute. It is the defect that
+   harness was written for, reproduced by accident, inside the file it was
+   written about. */
+.ttb-nav.ttb-compact .ttb-tab {
+    transition: max-width .18s ease, padding .18s ease, opacity .14s ease;
+}
+.ttb-nav.ttb-compact .ttb-tab:not(.on) {
+    max-width: 0; padding-left: 0; padding-right: 0; opacity: 0; overflow: hidden;
+}
+.ttb-nav.ttb-compact .ttb-tab.on { padding-left: 11px; padding-right: 11px; }
+.ttb-nav.ttb-compact .ttb-tab .ttb-caret { display: none; }
+.ttb-nav.ttb-compact .ttb-full { display: none; }
+.ttb-nav.ttb-compact .ttb-abbr { display: inline; }
+.ttb-nav.ttb-compact:hover .ttb-tab:not(.on),
+.ttb-nav.ttb-compact:focus-within .ttb-tab:not(.on),
+.ttb-nav.ttb-compact.ttb-open .ttb-tab:not(.on) {
+    max-width: 9rem; padding-left: 14px; padding-right: 14px; opacity: 1;
+}
+.ttb-nav.ttb-compact:hover .ttb-full,
+.ttb-nav.ttb-compact:focus-within .ttb-full,
+.ttb-nav.ttb-compact.ttb-open .ttb-full { display: inline; }
+.ttb-nav.ttb-compact:hover .ttb-abbr,
+.ttb-nav.ttb-compact:focus-within .ttb-abbr,
+.ttb-nav.ttb-compact.ttb-open .ttb-abbr { display: none; }
+.ttb-nav.ttb-compact:hover .ttb-tab .ttb-caret,
+.ttb-nav.ttb-compact:focus-within .ttb-tab .ttb-caret,
+.ttb-nav.ttb-compact.ttb-open .ttb-tab .ttb-caret { display: inline; }
+/* ⚠️ THE COLLAPSED STATE IS ROUND, because a one-letter rounded RECTANGLE reads
+   as a clipped word. The pill's own 999px radius does the rest. */
+.ttb-nav.ttb-compact .ttb-pill { transition: border-radius .18s ease; }
+.ttb-abbr { display: none; font-weight: 700; }
 `;
 
 let styled = false;
@@ -113,18 +183,22 @@ function injectStyle() {
  * @param {string} current        'school' | 'library' | 'arcade'
  * @param {string} [page]         which School page, when current is 'school':
  *                                'learn' | 'learn2'. Only marks the menu item.
+ * @param {object} [opts]         `{ compact: true }` collapses it to a circle
+ *                                that opens on hover, focus or tap. ⚠️ A SIZE,
+ *                                NOT A CONTENT DIFFERENCE — see the CSS block.
  *
  * ⚠️ RETURNS THE NAV ELEMENT so a caller can place it; it does not decide its own
  * position. Every page's header has a different layout and this file has no
  * business knowing about any of them.
  */
-export function mountSiteNav(host, current, page) {
+export function mountSiteNav(host, current, page, opts) {
     const el = typeof host === 'string' ? document.querySelector(host) : host;
     if (!el) return null;
     injectStyle();
 
+    const compact = !!(opts && opts.compact);
     const nav = document.createElement('div');
-    nav.className = 'ttb-nav';
+    nav.className = 'ttb-nav' + (compact ? ' ttb-compact' : '');
     const pill = document.createElement('div');
     pill.className = 'ttb-pill';
     nav.appendChild(pill);
@@ -140,7 +214,12 @@ export function mountSiteNav(host, current, page) {
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'ttb-tab' + (on ? ' on' : '');
-            btn.innerHTML = tab.label + '<span class="ttb-caret" aria-hidden="true">\u25be</span>';
+            // ⚠️ BOTH SPELLINGS ARE ALWAYS IN THE DOM and CSS picks one. Swapping
+            // the text on hover would mean a JS listener per page and a state this
+            // file would have to keep; a class does it with neither.
+            btn.innerHTML = '<span class="ttb-abbr" aria-hidden="true">' + tab.label[0] + '</span>'
+                + '<span class="ttb-full">' + tab.label + '</span>'
+                + '<span class="ttb-caret" aria-hidden="true">\u25be</span>';
             btn.setAttribute('aria-haspopup', 'true');
             btn.setAttribute('aria-expanded', 'false');
             if (on) btn.setAttribute('aria-current', 'page');
@@ -180,10 +259,24 @@ export function mountSiteNav(host, current, page) {
         // ⚠️ THE CURRENT PAGE IS A SPAN, NOT A LINK TO ITSELF.
         const node = document.createElement(on ? 'span' : 'a');
         node.className = 'ttb-tab' + (on ? ' on' : '');
-        node.textContent = tab.label;
+        node.innerHTML = '<span class="ttb-abbr" aria-hidden="true">' + tab.label[0] + '</span>'
+            + '<span class="ttb-full">' + tab.label + '</span>';
         if (on) node.setAttribute('aria-current', 'page');
         else node.href = tab.href;
         pill.appendChild(node);
+    }
+
+    // ⚠️⚠️ THE TAP-TO-OPEN HALF OF COMPACT. Hover is a mouse story and focus is a
+    // keyboard one; a touch device has neither until something is pressed. ⭐ It
+    // closes on the next click anywhere, like the School menu already does, so
+    // there is one dismissal gesture on this control rather than two.
+    if (compact) {
+        nav.addEventListener('click', (e) => {
+            if (nav.classList.contains('ttb-open')) return;
+            nav.classList.add('ttb-open');
+            e.stopPropagation();
+        });
+        document.addEventListener('click', () => nav.classList.remove('ttb-open'));
     }
 
     el.appendChild(nav);

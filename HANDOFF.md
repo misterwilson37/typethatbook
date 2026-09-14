@@ -73,7 +73,42 @@
 >
 > ---
 >
-> ## ⚠️ THE HUD ITEM IS **NOT** DONE, AND IT IS WAITING ON ONE ANSWER
+> ## ⭐⭐ THE HUD ITEM IS DONE — THE PILL IS THE MODE PILL, AND IT COLLAPSES
+>
+> Jake's answer, 2026-09-14: *"The mode pill is huge — and it's not on the pages
+> that have the game. They should match in terms of available information and
+> navigation. So the easiest thing to do is just remove it from the lessons. But
+> if it were a circle that hover would expand to the pill, it could stay and not
+> take up as much space."*
+>
+> ⚠️⚠️ HIS TWO OPTIONS MATCH THE PAGES IN OPPOSITE DIRECTIONS, AND THAT IS THE
+> WHOLE DECISION. Deleting the pill from the lesson pages makes the three surfaces
+> agree by **taking navigation away from the two a student spends the most time
+> on** — and site-nav.js exists because Round 116 found that a page which does not
+> know Arcade exists is a page a child cannot leave. ⭐ THE CIRCLE MATCHES THEM BY
+> ADDITION: small enough for the reader's crowded bar, so `game.html` gets the
+> pill for the first time and all four pages now carry the same site map.
+>
+> `site-nav.js` **v1.1.0**: `{ compact: true }` collapses it to the current tab's
+> initial and opens on **hover, focus-within or tap** — three, because hover is a
+> mouse story, focus is the keyboard one, and a tap is the only one a touch device
+> has. ⚠️ COMPACT IS A SIZE, NEVER A CONTENT DIFFERENCE: same three tabs, same
+> menu, same markup, one class.
+>
+> ⚠️⚠️ AND IT REPRODUCED THE EXACT DEFECT `module-parse-test.mjs` WAS WRITTEN FOR,
+> INSIDE THE FILE IT WAS WRITTEN ABOUT. The CSS lives in a template literal, and
+> the first draft of the new comment quoted `:focus-within` in BACKTICKS — which
+> ends the string, turns the rest of the stylesheet into code and kills the page on
+> load. `node --check` passes it. That harness caught it in the same minute.
+> ⭐ NO BACKTICKS IN THAT BLOCK, EVER; the note now says so in place.
+>
+> ⚠️ THE RESTART BUTTON WAS NOT MOVED. With the pill collapsed the left bar has
+> room, and moving a control a student already knows is a second change to the same
+> problem — if it is still crowded, that is the next thing to try, not both at once.
+>
+> ---
+>
+> ## ⚠️ THE OLD VERSION OF THIS SECTION, KEPT BECAUSE THE QUESTION WAS THE POINT
 >
 > Jake: *"the restart button is in the way of the daily time because the pill is
 > so large… make the pill a circle that expands on hover… in lessons and books."*
@@ -109,7 +144,9 @@
 >
 > `game-shell.js` **v1.13.0** · `shatter-board.js` **v1.9.0** ·
 > `shatter-shards.js` **v1.6.0** · `game-shatter.js` **v1.14.0** ·
-> `game-escape.js` **v2.7.0** · `tests/arcade-panels-test.mjs` updated.
+> `game-escape.js` **v2.7.0** · `site-nav.js` **v1.1.0** ·
+> `learn.html`, `learn2.html`, `game.html` (mount the pill compact) ·
+> `tests/arcade-panels-test.mjs` updated.
 >
 > **ALL 103 HARNESSES PASS.**
 >

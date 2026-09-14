@@ -24,6 +24,16 @@
         <div class="hud-section left">
             <a id="hud-back-link" href="index.html" style="color:#999; text-decoration:none; margin-right:12px; font-size:13px;" title="Back to Library">← Library</a>
             <button id="trophy-btn" class="hidden" style="background:none; border:none; color:#FFD700; font-size:1.1em; cursor:pointer; margin-right:10px; padding:0;" title="Leaderboard">🏆</button>
+            <!-- ⭐⭐ THE MODE PILL, ON THE READER AT LAST — Round 122. Jake,
+                 2026-09-14: *"it's not on the pages that have the game. They
+                 should match in terms of available information and navigation."*
+                 ⚠️⚠️ AND IT MATCHES BY ADDITION, NOT SUBTRACTION. His other option
+                 was deleting it from the lesson pages, which would make the three
+                 surfaces agree by taking navigation away from the two a student
+                 spends the most time on — and site-nav.js exists because a page
+                 that does not know Arcade is there is a page a child cannot leave.
+                 ⚠️ COMPACT, because this bar is the most crowded in the app. -->
+            <span id="site-nav" style="margin-right:12px"></span>
             <!-- ⚠️ TWO ROWS, ONE MEANING EACH. (v1.2.0) #hud-time is the GRADED
                  number and it is the lead row on every surface — learn.html has
                  the identical pair of ids in the identical position so the two
@@ -112,6 +122,14 @@
     </footer>
 
     <script type="module" src="game.js"></script>
+
+    <!-- ⚠️ ITS OWN TAG, LIKE update-gate.js BELOW, AND FOR THE SAME REASON: the
+         typing page must still run if this module fails to load. A student who
+         cannot reach the nav must still be able to type. -->
+    <script type="module">
+        import { mountSiteNav } from './site-nav.js';
+        mountSiteNav('#site-nav', 'library', null, { compact: true });
+    </script>
 
     <!-- ⚠️ SEPARATE TAG, NOT AN IMPORT INSIDE game.js. Its own module graph, so
          if this file is missing or fails, the typing page still runs. -->

@@ -375,7 +375,10 @@
     <script type="module" src="update-gate.js"></script>
 <script type="module">
 import { mountSiteNav } from './site-nav.js';
-mountSiteNav('#site-nav', 'school', 'learn2');
+// ⚠️ COMPACT ON THE LESSON PAGES — Jake, 2026-09-14: *"The mode pill is huge."*
+// ⭐ It collapses to a circle and opens on hover, focus or tap, so the bar has
+// room for the Restart control and the daily clock again. See site-nav.js.
+mountSiteNav('#site-nav', 'school', 'learn2', { compact: true });
 </script>
 </body>
 </html>
