@@ -1188,8 +1188,13 @@ console.log('\nI — ROUND 114: EVERY GAME GETS A CONSOLE, AND NO PANEL IS RESER
     // time was not counted while the gates panel said it was, on one screen,
     // and the seconds really are written to typing_logs.
     ok(/function savedNote\(\)/.test(code), 'savedNote() exists');
-    ok((code.match(/savedNote\(\)/g) || []).length === 3,
-       '\u26a0 and BOTH gate panels call it (' +
+    // ⚠️⚠️ THREE CALLERS SINCE ROUND 121, NOT TWO: the session note on the floor
+    // is now a place the page says what it keeps, because a free-play student
+    // never sees a gates panel at all — the cabinet starts the game. ⭐ THE RULE
+    // IS UNCHANGED AND IS THE POINT: every surface that makes this promise reads
+    // the ONE function, so the promise cannot drift between them.
+    ok((code.match(/savedNote\(\)/g) || []).length === 4,
+       '\u26a0 and every panel that says what is kept calls it (' +
        (code.match(/savedNote\(\)/g) || []).length + ' mentions incl. declaration)');
     const note = code.slice(code.indexOf('function savedNote()'));
     ok(/not saved yet/.test(note.slice(0, 600)) &&
@@ -1718,6 +1723,64 @@ console.log('\nK — SHATTER IS STAINED GLASS, AND THE COLOURS ARE keyboard.js\u
     ok(!texts.some(t => /^[a-z]{2,}$/i.test(t) && !chrome.test(t)),
        '\u26a0\u26a0 and NOTHING ELSE on it is labelled \u2014 a readable radar is exactly ' +
        'what Jake ruled it must not become');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nR121 — ⭐⭐ THE SESSION BAR, AND A CABINET THAT STARTS A GAME');
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"we could put the 'which words/lessons' drop down on the
+// arcade landing page, so they pick that once a session and then just pick their
+// game."* ⚠️ His Shards trace is the measurement behind it: 110 seconds of
+// `onScreen: 0` with every director column frozen, which is a human on a setup
+// screen and not a game being slow.
+{
+    const html = readFileSync(new URL('../arcade.html', import.meta.url), 'utf8');
+    const code = stripHtml(html);
+
+    // ⭐ THE SELECTS MOVED; THEY WERE NOT REBUILT. One record of the choice.
+    const floor = html.slice(html.indexOf('id="floor"'), html.indexOf('id="picker"'));
+    ok(/id="row-scope"/.test(floor) && /id="scope"/.test(floor),
+       '⭐⭐ WORDS is on the floor, where it is asked once a session');
+    ok(/id="row-level"/.test(floor) && /<select id="level">/.test(floor),
+       '⭐ and LEVEL with it — the other question whose answer does not change ' +
+       'between cabinets');
+    ok(/id="cabs"/.test(floor) && floor.indexOf('id="row-scope"') < floor.indexOf('id="cabs"'),
+       '⚠ above the cabinets, because it is answered before a game is chosen');
+    const picker = html.slice(html.indexOf('id="picker"'));
+    ok(!/id="row-scope"|id="row-level"/.test(picker),
+       '⚠⚠ and NOT also in the picker — two copies of one select is the defect ' +
+       'this move would otherwise introduce');
+
+    // ⚠️⚠️ THE SPEED MENU IS GONE, NOT HIDDEN. See the note where it used to live:
+    // Round 118 already ruled that asking a child their WPM asks the wrong
+    // question, and this control survived in a different panel for three rounds.
+    ok(!/id="freespeed"/.test(html) && !/chosenFreeWPM/.test(code),
+       '⚠⚠ the free-play SPEED menu is deleted — the calibrator measures that now');
+    ok(/labGate\(\)/.test(code),
+       '⭐ and ?lab=1\u2019s gate override survives it: a dev naming a speed on ' +
+       'purpose is not a child guessing at one');
+
+    // ⭐⭐ A FREE-PLAY CABINET LAUNCHES. The panel it used to open had nothing
+    // left to ask once WORDS and LEVEL moved.
+    const choose = code.slice(code.indexOf('function chooseCabinet'),
+                              code.indexOf('function showFloor'));
+    ok(/if \(isFreePlay\(\)\) \{ playFree\(\); return; \}/.test(choose),
+       '⭐⭐ a free-play cabinet starts the game instead of opening a panel');
+    ok(/applyGameMode\(\);/.test(choose) &&
+       choose.indexOf('applyGameMode()') < choose.indexOf('isFreePlay()'),
+       '⚠⚠ and the mode is applied BEFORE that test, or it reads the previous ' +
+       'cabinet\u2019s answer');
+    ok(/\$\('picker'\)\.style\.display = 'block';/.test(choose),
+       '⚠ Deadline on a lesson still gets the picker — which run it is measured ' +
+       'against is a question only that game asks');
+
+    // ⚠️ THE FLOOR IS HIDDEN BY THE LAUNCH, NOT BY THE PICKER IT NO LONGER OPENS.
+    const free = code.slice(code.indexOf('function playFree'),
+                            code.indexOf('function playFree') + 4000);
+    ok(/\$\('floor'\)\.style\.display = 'none';/.test(free),
+       '⚠⚠ playFree() hides the floor itself — the line that used to do it on the ' +
+       'way through the picker no longer runs');
 }
 
 console.log(fail

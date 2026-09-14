@@ -1,7 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.22.0 — Round 119 (Hammond): PACING TELEMETRY, off unless the
+<!-- arcade.html v3.23.0 — Round 121 (Maskelyne): ⭐⭐ THE SESSION BAR, AND A
+     CABINET THAT STARTS A GAME. Jake, 2026-09-14: *"we could put the 'which
+     words/lessons' drop down on the arcade landing page, so they pick that once a
+     session and then just pick their game."* WORDS and LEVEL move to the floor —
+     the SELECTS ARE MOVED, NOT REBUILT, so chosenScope(), chosenLevelIdx() and
+     freePlayConfig() never learn that anything happened. The free-play SPEED menu
+     is DELETED (Round 118 already ruled that asking a child their WPM asks the
+     wrong question; this control survived in a different panel for three rounds),
+     and with nothing left to ask, a free-play cabinet mounts the game directly.
+     ⚠️ game-chrome.js's Ready panel is still the confirmation it always was.
+     ⚠️ Deadline on a lesson still opens the picker: which run it is measured
+     against is a question only that game asks.
+     arcade.html v3.22.0 — Round 119 (Hammond): PACING TELEMETRY, off unless the
      URL says `?telemetry=1`. Jake could not count panes while playing and neither
      could a screen recording; the game already knows the numbers exactly. It polls
      the views' existing debug() on its own 4Hz timer and never touches the frame
@@ -505,6 +517,13 @@ arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
     /* ⚠️ THREE CABINETS, AND THE GRID FOLDS RATHER THAN SQUASHING. A cabinet
        narrower than ~240px stops reading as a cabinet and starts reading as a
        button with a picture on it. */
+    /* ⚠️ THE SESSION BAR IS TWO COLUMNS AND FOLDS AT THE SAME WIDTH THE
+       CABINETS DO, so the page has ONE breakpoint rather than two that nearly
+       agree — Jake's "slightly off" rule, applied to layout. */
+    .session { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+               margin-bottom: 6px; }
+    @media (max-width: 780px) { .session { grid-template-columns: 1fr; } }
+    #session-note { margin-top: 0; }
     .cabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
     @media (max-width: 780px) { .cabs { grid-template-columns: 1fr; } }
 
@@ -691,6 +710,48 @@ arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
                 <div class="hdr-who"><b id="mq-who">—</b></div>
             </div>
         </header>
+        <!-- ═══════════════════════════════════════════════════════════════
+             ⭐⭐ THE SESSION BAR — CHOSEN ONCE, NOT ONCE PER GAME.
+             ═══════════════════════════════════════════════════════════════
+             Jake, 2026-09-14: *"we could put the 'which words/lessons' drop down
+             on the arcade landing page, so they pick that once a session and then
+             just pick their game."*
+
+             ⚠️⚠️ AND THE TELEMETRY IS WHY IT IS WORTH A ROUND. His Shards trace
+             opens with **110 seconds of `onScreen: 0` and every director column
+             frozen** — the game had not started, because that is a human on a
+             setup screen. A hundred seconds of a four-minute session, spent
+             answering two questions that do not change between cabinets.
+
+             ⚠️ THE SELECTS ARE MOVED, NOT REBUILT. Same ids, same options, same
+             readers: chosenScope(), chosenLevelIdx(), fillLevels(), fillLessons()
+             and freePlayConfig() are untouched by this, which is the whole reason
+             a relocation is safe and a reimplementation would not have been.
+             ⭐ ONE RECORD OF THE CHOICE, IN A DIFFERENT PLACE ON THE PAGE. -->
+        <div class="session" id="session">
+            <div class="row" id="row-scope">
+                <label for="scope">WORDS</label>
+                <select id="scope">
+                    <option value="level" selected>from my lessons so far</option>
+                    <option value="full">everything &mdash; the whole word pool</option>
+                </select>
+            </div>
+            <!-- ⚠️ AT `full` THIS ROW GOES AWAY. Jake, 2026-09-10: *"If we pick
+                 word pool, the drop down for lessons should go away on any
+                 game."* ⭐ At `full` the level decides nothing about the words,
+                 and since Round 118 it no longer decides the pace either — the
+                 calibrator measures that from play. A control that changes
+                 nothing is worse than an absent one. -->
+            <div class="row" id="row-level">
+                <label for="level">LEVEL &mdash; sets the letters</label>
+                <select id="level"></select>
+            </div>
+        </div>
+        <!-- ⚠️ WHAT THOSE TWO CHOICES ACTUALLY PRODUCE, in letters a student can
+             check against their own hands. It is the half of the old gates panel
+             that survives the picker, because it is the half that answers a
+             question the student just asked. -->
+        <div class="gates" id="session-note"></div>
         <div class="cabs" id="cabs"></div>
     </div>
 
@@ -759,30 +820,6 @@ arcade.html v3.20.0 — Round 116 (Sun): the result card becomes an OVERLAY
             <div class="row" id="row-lab" style="display:none">
                 <label for="labGate">LAB &mdash; gate override (dev only)</label>
                 <select id="labGate"></select>
-            </div>
-            <div class="row" id="row-scope" style="display:none">
-                <label for="scope">WORDS</label>
-                <select id="scope">
-                    <option value="level" selected>from my lessons so far</option>
-                    <option value="full">everything &mdash; the whole word pool</option>
-                </select>
-            </div>
-            <!-- ⭐ AT `full` THE LEVEL PICKER BECOMES A SPEED PICKER. Jake,
-                 2026-09-10: *"The level dropdown for entire pool of words makes
-                 no sense - it should just change to speed like deadline had
-                 before."* ⚠️ HE IS RIGHT AND IT WAS INCOHERENT: at `full` the
-                 level no longer decides the letters, so the only thing it still
-                 did was set the pace — while calling itself LEVEL and listing
-                 lesson names. ⭐ SAME QUANTITY, HONEST LABEL.
-                 ⚠️ UP TO 100 WPM, because a third of the school already types and
-                 the lesson gates top out far below where they live. -->
-            <div class="row" id="row-freespeed" style="display:none">
-                <label for="freespeed">SPEED &mdash; how fast the words arrive</label>
-                <select id="freespeed"></select>
-            </div>
-            <div class="row" id="row-level" style="display:none">
-                <label for="level">LEVEL &mdash; sets the letters and the starting speed</label>
-                <select id="level"></select>
             </div>
             <div class="row" id="row-lesson">
                 <label for="lesson">LESSON</label>
@@ -941,7 +978,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.22.0';
+const ARCADE_PAGE_VERSION = '3.23.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1621,6 +1658,49 @@ function fillGames() {
 }
 
 /**
+ * ⭐⭐ THE SESSION BAR — the two choices that are true for the whole visit.
+ *
+ * ⚠️⚠️ IT IS DELIBERATELY GAME-INDEPENDENT, and that is the property that lets a
+ * cabinet click start a game. WORDS and LEVEL decide what a student types and
+ * which letters it is built from; neither answer changes because they walked to a
+ * different cabinet. ⭐ A question that has the same answer for every game is a
+ * question that should be asked once.
+ *
+ * ⚠️ THE LEVEL ROW STILL DISAPPEARS AT `full`, which is Jake's ruling from
+ * 2026-09-10 and is unchanged by the move — a control that decides nothing must
+ * not sit there looking like it does.
+ */
+function applySessionRows() {
+    const fullPool = chosenScope() === 'full';
+    $('row-level').style.display = fullPool ? 'none' : '';
+    describeSession();
+}
+
+/**
+ * What the two session choices produce, said in letters rather than counts.
+ *
+ * ⚠️ LETTERS AND PACE ONLY — NOT THE POOL. `arcadePool()` needs a game id and
+ * there is no game chosen on the floor; printing one cabinet's pool beside three
+ * cabinets would be a sentence that is wrong two thirds of the time. ⭐ The
+ * per-game description still exists where a game exists: the ready panel's hint.
+ */
+function describeSession() {
+    const note = $('session-note');
+    if (!note) return;
+    if (!LESSONS.length) { note.innerHTML = ''; return; }
+    const idx = chosenLevelIdx();
+    const keys = arcadeKeySet(LESSONS, PROGRESS, idx);
+    const full = chosenScope() === 'full';
+    const shown = keys.slice().sort().join(' ');
+    note.innerHTML =
+        (full ? '<span>letters <b>all of them</b></span>'
+              : `<span>letters <b>${shown || '\u2014'}</b></span>`) +
+        (full ? '<span>real words from the whole pool</span>'
+              : '<span>words built from what you have learned</span>') +
+        savedNote();
+}
+
+/**
  * Show or hide the run picker for the selected game.
  *
  * ⚠️ HIDDEN, NOT DISABLED. A greyed-out LESSON row beside Shatter still tells a
@@ -1639,13 +1719,11 @@ function applyGameMode() {
     // does not. ⚠️ THE LEVEL STILL SETS THE PACE at `full` — the gate comes from
     // `arcadeTargetWPM()` either way — so this hides a control that is still
     // partly live, which is the one cost of the rule and is worth it.
-    const fullPool = chosenScope() === 'full';
-    $('row-level').style.display = (free && !fullPool) ? '' : 'none';
-    // ⚠️ THE WORDS ROW IS ALWAYS VISIBLE NOW — it is the control that DECIDES
-    // whether this is free play, so hiding it when free play is off would make
-    // the state unreachable from the state it hides in.
-    $('row-scope').style.display = '';
-    $('row-freespeed').style.display = fullPool ? '' : 'none';
+    // ⚠️⚠️ WORDS AND LEVEL ARE NOT HERE ANY MORE — Round 121 (Maskelyne). They
+    // are session choices on the floor, not per-game ones, and applySessionRows()
+    // owns their visibility. ⭐ THIS FUNCTION NOW ANSWERS ONE QUESTION: what does
+    // the GAME need from the student. The answer for free play is "nothing",
+    // which is why a cabinet click launches it.
     // ⚠️⚠️ THE SCOPE CONTROL CHANGES WHAT THE LESSON MENU MAY OFFER, so the
     // menu is rebuilt here — ROADMAP 116g. Without this the cap would apply only
     // on first load, and a student who switched WORDS back to "from my lessons
@@ -1880,11 +1958,27 @@ function renderCabinets() {
  */
 function chooseCabinet(id) {
     $('game').value = id;
-    $('floor').style.display = 'none';
-    $('picker').style.display = 'block';
     // ⚠️ THE SAME FUNCTION THE DROPDOWN'S `change` LISTENER CALLS. If this ever
     // diverges, the two ways into the panel configure it differently.
     applyGameMode();
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⭐⭐ A FREE-PLAY CABINET STARTS THE GAME. Round 121 (Maskelyne).
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-14: *"they pick that once a session and then just pick their
+    // game."* WORDS and LEVEL moved to the floor, and the panel that used to sit
+    // here had nothing left to ask a free-play student — it was a screen whose
+    // only control was the button that dismissed it.
+    //
+    // ⚠️⚠️ IT IS NOT A LOST CONFIRMATION. `game-chrome.js` shows its own Ready
+    // panel with the game's hint and a Start button before a single pane spawns,
+    // so a student who pressed the wrong cabinet has exactly the same escape they
+    // had — one screen later and with the game's own words on it.
+    // ⚠️ DEADLINE ON A LESSON STILL NEEDS THE PICKER: it is measured against a
+    // specific run, and which run is a question only that game asks.
+    if (isFreePlay()) { playFree(); return; }
+    $('floor').style.display = 'none';
+    $('picker').style.display = 'block';
     const play = $('play');
     if (play) play.focus({ preventScroll: true });
 }
@@ -2020,27 +2114,27 @@ function labGate() {
 
 function chosenScope() { return $('scope').value === 'full' ? 'full' : 'level'; }
 
-// ⚠️ UP TO 100. The lesson gates run 10–35; a student on the full word pool has
-// said they are past that, and capping them at a lesson's pace would make the
-// pool choice pointless for exactly the students it exists for.
-const FREE_SPEEDS = [10, 15, 20, 25, 30, 40, 50, 60, 75, 100];
-
-function fillFreeSpeeds() {
-    const sel = $('freespeed');
-    if (sel.options.length) return;
-    for (const w of FREE_SPEEDS) {
-        const o = document.createElement('option');
-        o.value = String(w);
-        o.textContent = w + ' WPM';
-        sel.appendChild(o);
-    }
-    sel.value = '20';
-}
-
-function chosenFreeWPM() {
-    const v = parseInt($('freespeed').value, 10);
-    return Number.isFinite(v) ? v : 20;
-}
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ THE FREE-PLAY SPEED PICKER IS DELETED — Round 121 (Maskelyne)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-14: *"If we're measuring the wpm from the get go, the wpm meter
+// means nothing on the game loading screen."*
+//
+// ⭐⭐ HE IS FINISHING A SENTENCE ROUND 118 STARTED. `typing-calibrator.js`'s
+// header already says why the dropdown had to go — *"When I choose 100 (what I
+// type), deadline is impossible — even for me"* — because game WPM and prose WPM
+// are different quantities wearing the same name, and the fix was to STOP ASKING.
+// The graded path stopped asking. This control went on asking for three more
+// rounds because it sat in a different panel.
+//
+// ⚠️ WHAT REPLACES IT IS NOT A DEFAULT, IT IS A MEASUREMENT. Every arcade game is
+// adaptive now: the seed comes from the student's own lesson window through
+// `arcadeTargetWPM()`, and within a few clean words the calibrator has replaced
+// even that. ⭐ A NUMBER A CHILD GUESSES ABOUT THEMSELVES CANNOT BEAT ONE THE
+// GAME MEASURES, and offering the guess implies otherwise.
+// ⚠️ `?lab=1`'s gate override is untouched — see labGate(). A dev naming a speed
+// on purpose is a different act from a child picking one off a menu.
 
 function chosenLevelIdx() {
     const v = parseInt($('level').value, 10);
@@ -2086,7 +2180,10 @@ function freePlayConfig() {
         // ⚠️ THE LAB OVERRIDE IS APPLIED AT THE SAME SEAM the student's own speed
         // choice uses, not by a second path — so a bug reproduced under ?lab=1 is
         // a bug in the code the student runs.
-        targetWPM: labGate() || (chosenScope() === 'full' ? chosenFreeWPM() : 0),
+        // ⚠️ 0 MEANS "ASK arcadeTargetWPM()", which reads the student's own
+        // lesson window. Round 121 deleted the speed menu; `labGate()` is the only
+        // caller left that names a number, and it is a dev tool.
+        targetWPM: labGate() || 0,
     });
     // ⚠️⚠️ THE TARGETS ARE REPLACED; THE GATE IS NOT. Scope decides WHAT you
     // type, the level decides HOW FAST it arrives — and a student who opens the
@@ -2107,8 +2204,9 @@ function freePlayConfig() {
 function describeLevel() {
     const idx = chosenLevelIdx();
     const keys = arcadeKeySet(LESSONS, PROGRESS, idx);
-    const wpm = chosenScope() === 'full' ? chosenFreeWPM()
-        : arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
+    // ⚠️ ONE ANSWER TO "HOW FAST DOES IT START", AT EVERY SCOPE — Round 121. The
+    // `full` branch used to read the deleted speed menu.
+    const wpm = arcadeTargetWPM({ lessons: LESSONS, progress: PROGRESS, levelIdx: idx });
     const pool = arcadePool({
         game: currentGame().id, scope: chosenScope(), keySet: keys, round: 1,
     });
@@ -2222,6 +2320,7 @@ function play() {
     // the top — so the board is always shown here. Stated rather than assumed,
     // because the previous line of defence for that was a comment.
     showThreatBoard(usesThreatBoard('deadline'));
+    $('floor').style.display = 'none';
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
@@ -2285,6 +2384,13 @@ function playFree() {
         : mountDeadline;
     lastPlayedWPM = null;
     showThreatBoard(usesThreatBoard(g.id));
+    // ⚠️⚠️ THE FLOOR IS HIDDEN HERE TOO, SINCE ROUND 121. A cabinet click now
+    // comes straight to this function without passing through the picker, so the
+    // one line that used to hide the floor no longer runs on the way in. ⭐ Both
+    // are hidden unconditionally rather than "the one we came from": a play-again
+    // press arrives from the result card, and a path that reasoned about where it
+    // came from would be a third answer to which screen is showing.
+    $('floor').style.display = 'none';
     $('picker').style.display = 'none';
     $('result').style.display = 'none';
     $('stageWrap').style.display = 'block';
@@ -2627,7 +2733,7 @@ async function load(user) {
         renderCabinets();
         renderMarquee();
         fillLevels();
-        fillFreeSpeeds();
+        applySessionRows();
         fillLab();
         if (!PLAYABLE.length) {
             // ⚠️ THE ASSESSED GAME IS REMOVED FROM THE PICKER, NOT LEFT TO FAIL
@@ -2661,11 +2767,12 @@ async function load(user) {
 }
 
 $('game').addEventListener('change', applyGameMode);
-$('level').addEventListener('change', showFreeGates);
+// ⚠️ THE LEVEL AND WORDS CONTROLS LIVE ON THE FLOOR NOW, so they repaint the
+// session note rather than a picker panel the student may not be looking at.
+$('level').addEventListener('change', () => { describeSession(); showFreeGates(); });
 // ⚠️ SCOPE CHANGES WHICH ROWS EXIST, not just what they say, so it re-runs the
 // whole mode switch rather than only the blurb.
-$('scope').addEventListener('change', applyGameMode);
-$('freespeed').addEventListener('change', showFreeGates);
+$('scope').addEventListener('change', () => { applySessionRows(); applyGameMode(); });
 $('lesson').addEventListener('change', fillRuns);
 $('run').addEventListener('change', () => { fillSpeeds(); showGates(); });
 $('speed').addEventListener('change', showGates);

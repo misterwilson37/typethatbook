@@ -124,16 +124,13 @@
 > 1. ⚠️⚠️ **NOTHING IN ROUNDS 120 OR 121 IS BROWSER-VERIFIED.** The ping, the
 >    scatter, the approach speed and the detonation have never been seen by a
 >    human. Get Jake's verdict before building on any of them.
-> 2. **The scope picker belongs on the arcade landing page** — Jake, 2026-09-14:
->    *"If we're measuring the wpm from the get go, the wpm meter means nothing on
->    the game loading screen. That means we could put the 'which words/lessons'
->    drop down on the arcade landing page, so they pick that once a session and
->    then just pick their game."* ⭐ THE TRACE ABOVE IS THE ARGUMENT FOR IT: a
->    hundred seconds of a four-minute session spent on a setup screen. ⚠️ It is
->    surgery on `arcade.html` (153 KB) plus `arcadeLessonMenu()`, and it is a round
->    of its own. **Deliberately not started.**
-> 3. **The WPM meter on the pre-game panel is now a lie** and should go with it —
->    the number it shows is a seed, not a measurement.
+> 2. ~~The scope picker belongs on the arcade landing page~~ — **DONE, §21.**
+>    `arcade.html` v3.23.0: WORDS and LEVEL are on the floor, the free-play SPEED
+>    menu is deleted, and a free-play cabinet mounts the game directly. ⚠️ NOT
+>    BROWSER-VERIFIED — this is the change most likely to be wrong in a way no
+>    harness can see, because it is a change to which screen a student is looking
+>    at.
+> 3. ~~The WPM meter on the pre-game panel is a lie~~ — **DONE, deleted with it.**
 > 4. Escape Key still ignores `onCountdown`. ROADMAP 116b. Deadline and Escape Key
 >    have still never been mounted by a harness of their own.
 > 5. ⚠️ `CAB_FLAG = { shatter: 'ROUGH EDGES' }` is still set. Jake's to remove.
@@ -148,6 +145,7 @@
 > `game-shell.js` **v1.12.0** · `game-shatter.js` **v1.13.0** ·
 > `game-deadline.js` **v1.17.0** · `game-draw.js` **v1.18.0** ·
 > `game-escape.js` (clock at countdown only, no constant change) ·
+> `arcade.html` **v3.23.0** ·
 > `tests/shatter-board-test.mjs`, `tests/shatter-shards-test.mjs`,
 > `tests/arcade-panels-test.mjs` updated.
 >
@@ -10098,3 +10096,65 @@ REQUEST**, and the two should not be weighed the same way.
 ⚠️ **`arcade.html` IS UNTOUCHED AGAIN**, and the one thing Jake asked for that it
 owns — the scope picker moving to the landing page — is deliberately left for a
 round with nothing else in it.
+
+
+---
+
+## §21. Round 121, part two — the picker moves, and the screen it was on stops existing
+
+**2026-09-14.** Jake: *"Picker time!"*
+
+### A. ⭐⭐ THE MOVE IS A RELOCATION, NOT A REIMPLEMENTATION, AND THAT IS THE WHOLE SAFETY ARGUMENT
+
+`#scope` and `#level` are the **same two `<select>` elements**, with the same ids
+and the same options, cut out of `#picker` and pasted into `#floor`.
+⭐ `chosenScope()`, `chosenLevelIdx()`, `fillLevels()`, `fillLessons()`,
+`freePlayConfig()` and `describeLevel()` are untouched and do not know anything
+happened.
+
+⚠️⚠️ **THE ALTERNATIVE — BUILDING A NEW BAR AND SYNCING IT — IS RULE 9 AND WOULD
+HAVE FAILED THE SAME WAY THE CABINETS ALMOST DID.** `arcade-panels-test.mjs` has
+a whole part pinning that a cabinet **sets** `$('game').value` rather than storing
+its own idea of which game is chosen. A second scope control would have been that
+defect with a slower fuse: the floor and the picker disagreeing about what a
+student chose, visible only after a round of play.
+
+### B. ⚠️ WHAT MADE THE CABINET CLICK SAFE TO CHANGE
+
+With WORDS and LEVEL gone, the free-play panel had **no control left except the
+button that dismissed it** — so `chooseCabinet()` calls `playFree()` directly.
+
+⭐ **IT IS NOT A LOST CONFIRMATION.** `game-chrome.js` shows its Ready panel, with
+that game's hint and a Start button, before a single pane spawns. A student who
+pressed the wrong cabinet has the same escape one screen later and with better
+words on it. ⚠️ **DEADLINE ON A LESSON STILL OPENS THE PICKER** — which run it is
+measured against is a question only that game asks, and `isFreePlay()` already
+knew the difference.
+
+⚠️ **ONE NON-OBVIOUS CONSEQUENCE, AND IT WOULD HAVE SHIPPED AS A BLANK PAGE:**
+the line that hid `#floor` lived in `chooseCabinet()`'s picker branch, which the
+free path no longer runs. `playFree()` hides both screens itself now, and both
+unconditionally — a launch that reasoned about which screen it came from would be
+a third answer to what is currently showing.
+
+### C. ⭐ THE SPEED MENU WAS ROUND 118's RULING, SERVED THREE ROUNDS LATE
+
+`typing-calibrator.js`'s header has said since Round 118 that *"the fix here is
+to stop asking"* — game WPM and prose WPM are different quantities wearing the
+same name, and Jake choosing 100 made Deadline impossible for Jake.
+
+⚠️⚠️ **THE GRADED PATH STOPPED ASKING AND THIS CONTROL DID NOT, BECAUSE IT LIVED
+IN A DIFFERENT PANEL.** That is the shape to look for: a ruling applied where it
+was discovered rather than everywhere it holds. `targetWPM: 0` now means *ask
+`arcadeTargetWPM()`*, and `?lab=1`'s override survives — a dev naming a speed on
+purpose is a different act from a child picking one off a menu.
+
+### D. ⚠️ WHAT NO HARNESS HERE CAN TELL YOU
+
+`arcade-panels-test.mjs` Part R121 reads the markup and the functions as text. It
+proves the selects are on the floor, that they are not ALSO in the picker, that
+the speed menu is gone and that a free cabinet calls `playFree()`.
+⭐⭐ **IT CANNOT TELL YOU THE FLOOR LOOKS RIGHT WITH TWO DROPDOWNS ON IT**, or
+whether starting a game on one click feels abrupt to a twelve-year-old. Round 116
+listed five defects a 99-harness suite could not have caught and every one was a
+fact about a browser or a human looking at a screen. This is that category.

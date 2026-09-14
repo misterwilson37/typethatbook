@@ -34,6 +34,23 @@ measurement behind moving the words/lessons picker to the arcade landing page.
   the end of the countdown, here and in Deadline and Escape Key.
 * **`game-draw.js` v1.18.0** — the panel's two text lines are controls now.
 
+### The picker moves to the floor (`arcade.html` v3.23.0)
+
+WORDS and LEVEL are now session choices on the arcade landing page, above the
+cabinets. ⭐ **The selects are MOVED, not rebuilt** — same ids, same options, so
+`chosenScope()`, `chosenLevelIdx()` and `freePlayConfig()` never learn anything
+happened, and there is still exactly one record of the choice.
+
+With nothing left to ask, **a free-play cabinet mounts the game directly**;
+`game-chrome.js`'s Ready panel is still the confirmation it always was. Deadline
+on a lesson still opens the picker, because which run it is measured against is a
+question only that game asks.
+
+The free-play **SPEED menu is deleted**. Round 118 already ruled that asking a
+child their WPM asks the wrong question — *"When I choose 100 (what I type),
+deadline is impossible, even for me"* — and this control survived in a different
+panel for three rounds. `?lab=1`'s gate override is untouched.
+
 **ALL 103 HARNESSES PASS.**
 
 ## Round 120 (Maskelyne) — three games, three deaths, one pressure
