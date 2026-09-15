@@ -1,8 +1,26 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-14 by Round 123 (Maskelyne), for whoever is next
+> ## ▶ START HERE — written 2026-09-14 by Round 124 (Sholes), for whoever is next
 >
-> **ALL 103 HARNESSES PASS.**
+> **ALL 104 HARNESSES PASS.**
+>
+> ⚠️⚠️⚠️ **READ §24E BEFORE YOU TRUST A GREEN SUITE.** Round 124 shipped two
+> controls that had never worked once — `tryScatter()` with two call sites and no
+> body, and a ping label calling `platedText()` with the wrong argument SHAPE —
+> and **both audits were green the whole time.** `undefined-calls-test.mjs` had
+> no arcade module in its FILES list at all (27 modules, never audited), and even
+> widened it cannot see an argument-list defect, because every identifier in such
+> a call resolves. `call-shape-test.mjs` is new and covers the second kind.
+> ⭐ **THE HABIT TO KEEP: WHEN JAKE SAYS A CONTROL NEVER WORKS UNDER ANY
+> CONDITION, LOOK UPSTREAM OF THE CONDITIONS.** A rule that is too strict fails
+> *sometimes*; a control that fails *always*, across the very cases its guards
+> discriminate, is not reaching those guards.
+>
+> ⚠️ **AND EVERY PACING CONSTANT IN `game-shell.js` MUST BE A RATIO.** Jake is
+> the tester and types at 90 WPM, which makes him a sound proxy for a sixth
+> grader ONLY for the parts of the curve that are relative. See §24C: my first
+> drafts of `COMFORT_FRACTION` and `RAMP_DOUBLE_CHARS` were additive and gave a
+> 12 WPM student 5% headroom against 14% for a 90 WPM one.
 >
 > ---
 >
@@ -1767,7 +1785,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **103 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **104 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -10517,3 +10535,129 @@ second instead of after a run.
 | `arcade-telemetry.js` | **1.3.0** | sticky-for-the-tab flag, `?telemetry=0` |
 | `site-nav.js` | **1.2.0** | the School menu is positioned `fixed` |
 | `arcade.html` | 3.23.0 | the telemetry button reports rows and REC state |
+
+---
+
+## §24. Round 124 (Sholes) — two dead controls, and the two audits that could not see them
+
+**2026-09-14.** Jake tested with telemetry on. Three reports, three defects, and
+**two of them were controls that had never worked once since the day they
+shipped.**
+
+### A. ⚠️⚠️⚠️ `tryScatter()` HAD NO BODY, AND THE COMPLAINT SAID SO EXACTLY
+
+Round 122 landed two call sites and never wrote the function. Space and Enter
+both threw a `ReferenceError`.
+
+Jake: *"neither the space nor the enter key pushed the words back. Ever. Didn't
+matter if I was between words or in the middle of them."*
+
+⭐⭐ **THE LAST CLAUSE IS THE WHOLE DIAGNOSIS AND IT SHOULD BE READ THAT WAY
+AGAIN.** `canWarp()`'s half-typed and reflex guards distinguish precisely those
+two conditions. A control that behaves IDENTICALLY across the conditions its
+guards discriminate is not being refused by those guards — it is not reaching
+them. ⚠️ Round 122 had spent its round loosening guards for a function nobody
+could call, and wrote a header claiming the refusals were now spoken.
+
+### B. ⚠️⚠️⚠️ THE PING HAD NEVER DRAWN A WORD — AND THE FIRST FIX THIS ROUND MADE IT WORSE
+
+`platedText(ctx, o)` reads `o.text` and `o.x`. The label called it
+`platedText(ctx, rock.text, x, y, {...})`, so `o` was a STRING, both fields were
+`undefined`, the plate corner computed to `NaN`, and nothing was painted. Shipped
+Round 121, tuned Round 122, reach rewritten earlier in Round 124.
+
+⚠️⚠️ **I ALSO SHIPPED A REGRESSION INTO IT MID-ROUND AND JAKE CAUGHT IT IN ONE
+SESSION.** Fixing the reach, I tightened the drift label guard to `m <= 1`,
+reasoning that magnitude 1 IS the ring so anything inside is already readable.
+⭐ **PANES SPAWN AT `SPAWN_R = 1`** — the guard skipped every freshly-arrived
+pane, which is the exact one the student is waiting to be told about. The
+original `0.72 × ENTRY_M` is the rule on both boards: a redundant label on a pane
+they can already read costs nothing, a missing one costs the control.
+
+### C. ⭐⭐ RATIOS, NOT ABSOLUTES — A STANDING RULE FOR EVERY PACING CONSTANT
+
+Jake: *"I'm going to be the tester, and I type at 90wpm… if the exponential
+growth gets me, the same relative growth will theoretically hit a slower typist
+just as hard."*
+
+⚠️⚠️ **THIS CONSTRAINS WHAT KIND OF CONSTANT MAY BE WRITTEN, AND IT IS THE MOST
+USEFUL THING ANYONE HAS SAID ABOUT `game-shell.js`.** A 90 WPM adult is a sound
+proxy for a sixth grader ONLY for the parts of the curve that are ratios.
+Interval is `chars / cps`, so it is one. My first drafts of both new constants
+were additive and failed it: 5% headroom for a 12 WPM student against 14% for a
+90 WPM one, and a ramp over in thirteen cleared words against fifty-seven.
+
+`COMFORT_FRACTION = 0.85` (a fraction of the whole measurement) and
+`RAMP_DOUBLE_CHARS = 90` (a doubling distance) are both scale-invariant —
+verified: at 45 characters cleared every skill level sits at exactly 1.41× the
+floor, at 90 exactly 2.00×.
+
+### D. ⚠️⚠️ A HARNESS WITHDREW A CLAIM I HAD ALREADY GIVEN JAKE
+
+I told him a lost dome would now ease the SPEED as well as the pressure, since
+both would read `_extraChars` — a Rule 9 argument that one number answers "how
+much work has this student done".
+
+⭐ **THEY ARE NOT ONE QUESTION.** `_extraChars` is relieved on every hit, which
+is right for pressure and catastrophic for speed: every hit made the game slower,
+so every hit bought more time to be hit in. `adaptive-arcade-test.mjs` H5a
+measured paced WPM 11.1 → 8.0, interval 7,872 → 10,500 ms, four of six shields
+gone after 200 idle seconds with the run still going. ⚠️ **A RUN THAT CANNOT END
+IS A STUCK SESSION, IN AN APP THAT COUNTS MINUTES.** `_rampChars` is monotone.
+
+### E. ⚠️⚠️⚠️ TWO AUDITS, BOTH GREEN, BOTH BLIND — AND THEY ARE BLIND DIFFERENTLY
+
+**`undefined-calls-test.mjs` had no arcade module in its FILES list.** Not one,
+across twenty-odd rounds — 27 root modules never audited, against the list's own
+Round 114 rule written four lines above the gap: *"ANY NEW .js OR ANY NEW PAGE,
+SAME COMMIT."* ⭐ A LIST THAT IS NOT EVERY FILE GOES STALE SILENTLY, AND IT GOES
+STALE TOWARD A GREEN SUITE. Widened to 59 files, it caught `tryScatter`
+immediately and also `spawnSpot()` in `escape-board.js` — reading
+`MIN_SPAWN_DISTANCE`, a constant that file deleted on purpose and says so in
+capitals three times. Nothing called it; **deleted, not repaired**, because
+reviving it would reopen the camping hole the edge rule closed.
+
+**⭐⭐ AND IT STILL COULD NOT SEE THE PING.** Every identifier in that call
+resolves. The defect is the SHAPE of the argument list. ⚠️ **A REFERENCE AUDIT
+IS NOT A SIGNATURE AUDIT**, and believing otherwise is what let a dead control
+survive three rounds of active work on it. `call-shape-test.mjs` is the mirror:
+173 cross-module call sites against their declarations. Too many arguments fails;
+**too few is a NOTE**, because this codebase marks optional trailing parameters
+with an `== null` test rather than a default — the first draft went red on four
+innocent call sites, which is §22C's shape exactly.
+
+### F. ⚠️ THE ONE BUDGET I RAISED, AND WHY IT IS FLAGGED
+
+`adaptive-arcade-test.mjs` H5a: 4000 → 6000 frames. It defends TERMINATION, never
+a duration; the gentler ramp moved an idle run to **202.6 s**, measured, failing
+by 2.6 seconds. ⚠️ Written down because that same line caught a REAL bug (§D)
+earlier in the same round, and widening a budget to make a change pass is how a
+harness stops defending anything. The file says to print the frame count before
+anyone raises it again.
+
+### G. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shatter.js` | **1.15.0** | `tryScatter()` written; `PING_REACH`; `platedText()` call fixed; labels persist while typed |
+| `game-shell.js` | **1.15.0** | `COMFORT_FRACTION`, `RAMP_DOUBLE_CHARS`, `_rampChars` |
+| `escape-board.js` | **2.2.0** | orphaned `spawnSpot()` deleted |
+| `tests/undefined-calls-test.mjs` | — | 27 unaudited modules added; 59 files |
+| `tests/call-shape-test.mjs` | **1.0.0** | ⭐ NEW — argument-shape audit |
+| `tests/adaptive-arcade-test.mjs` | — | H5a budget 4000 → 6000, documented |
+| `tests/run-all-tests.mjs` | — | registers `call-shape-test.mjs` |
+
+### H. ⚠️ OWED, NOT DONE
+
+* **The post-detonation refill.** `MIN_SPAWN_GAP_MS` is capped by the interval
+  (`Math.min(intervalMs, MIN_SPAWN_GAP_MS)`), so at pressure the 700 ms floor
+  never binds — Jake's trace refilled an emptied sky at 477 ms spacing. Left
+  alone because the fix trades against *"nothing gets quieter as it gets
+  harder"*, which is Jake's ruling to make.
+* **A stale number in `typing-calibrator.js`.** Its header argues from *"a 100
+  WPM typist measures 44 in-game"*. Jake's Deadline trace measured 61–68 — Round
+  120's acquisition fix raised every estimate, as documented, but 44 is the
+  number the "the penalty gets worse the better you are" argument rests on.
+* **`acorn` and `jsdom` are undeclared.** Both are needed by harnesses
+  (`call-shape-test`, `undefined-calls-test`, `adaptive-arcade-test` and others)
+  and neither is in `package.json`.

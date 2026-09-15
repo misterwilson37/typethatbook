@@ -1,5 +1,106 @@
 # CHANGELOG — TypeThatBook
 
+## Round 124 (Sholes) — three controls that had never once worked, and the two audits that could not see them
+
+Jake played the arcade and reported three things. All three were defects, and
+**two of them were controls that had never functioned since the day they
+shipped** — not mistuned, not too strict, simply dead.
+
+**⚠️⚠️⚠️ Shatter's scatter had no function behind it.** Round 122 shipped two
+calls to `tryScatter()` and never wrote the body, so Space and Enter both threw a
+`ReferenceError`. Jake: *"neither the space nor the enter key pushed the words
+back. Ever. Didn't matter if I was between words or in the middle of them."* ⭐
+That last clause is the diagnostic — `canWarp()`'s half-typed and reflex guards
+would have produced a control that worked *sometimes*, so a control that works
+*never*, across every condition those guards distinguish, is upstream of them.
+⚠️ Round 122 had spent its effort loosening those guards for a function nobody
+could call.
+
+**⚠️⚠️⚠️ The Shards ping had never drawn a word.** `platedText(ctx, o)` takes an
+options object; the ping label called it with five positional arguments, so `o`
+was a string, `o.text` and `o.x` were `undefined`, the plate's corner computed to
+`NaN` and `roundRect()` painted nothing. ⭐ It shipped in Round 121, was tuned in
+122, had its reach rewritten earlier in *this* round, and the one thing it exists
+to do had never happened once.
+
+**And the ping stopped at the ring.** One literal, `1.05`, was spent twice — as a
+sweep DISTANCE in field units and as a draw RADIUS through `toPixelRadius()`,
+which maps magnitude 1 to `ringR` on the drift board. The picture and the
+mechanic agreed with each other and both were wrong. Shards wraps on a square at
+`WRAP_EDGE = 1.35`, so a pane can sit as far out as the CORNER (≈1.91) — every
+pane between 1.05 and 1.91 is exactly the off-canvas one the control exists for,
+and the wave swept past none of them. `PING_REACH = WRAP_EDGE * √2`, imported
+rather than copied.
+
+**⚠️ A label the student is typing no longer expires.** The old note claimed a
+label that dies mid-word *"costs the student nothing they had"*. It costs them
+the word: they are locked into a pane they cannot see and the only key that frees
+them is Backspace, which reads as giving up.
+
+### Deadline: the ramp started at the ceiling, and both fixes had to be RATIOS
+
+Telemetry: `pacedWPM` ran **8 → 32.8 in ten seconds**, interval **4,500 ms →
+1,061**. Two defects. The calibrator measures a *sustained* rate and
+`spawnIntervalMs()` spent it as a target, then multiplied by pressure — so the
+moment the estimate was believed the game demanded 100% of what the child had
+just proved they could hold. `COMFORT_FRACTION = 0.85` gives the ramp somewhere
+to go. `RAMP_DOUBLE_CHARS = 90` is the speed limit: the estimate is the
+destination, and paced WPM may double every 90 cleared characters.
+
+**⭐⭐ BOTH ARE RATIOS, AND THAT IS A RULE ABOUT THIS PROJECT, NOT A DETAIL.**
+Jake: *"I'm going to be the tester, and I type at 90wpm… if the exponential
+growth gets me, the same relative growth will theoretically hit a slower typist
+just as hard."* ⚠️ A 90 WPM adult is a sound proxy for a sixth grader ONLY for
+the parts of the curve that are ratios. The first draft of both constants was
+additive and failed that test — 5% headroom for a 12 WPM student against 14% for
+a 90 WPM one, and a ramp that was over in thirteen cleared words against
+fifty-seven. Verified scale-invariant: at 45 characters cleared every skill level
+sits at exactly 1.41× the floor; at 90, exactly 2.00×.
+
+**⚠️⚠️ AND A CLAIM MADE MID-ROUND WAS WITHDRAWN BY A HARNESS.** The speed ramp
+first read `_extraChars`, shared with the pressure ramp on a Rule 9 argument —
+one number for "how much work has this student done". They are not one question.
+`_extraChars` is handed back on every hit, so every hit made the game SLOWER,
+which bought the student more time to be hit in. `adaptive-arcade-test.mjs` H5a
+measured it: paced WPM 11.1 → 8.0, interval 7,872 ms → 10,500, four of six
+shields gone after 200 idle seconds and the run still running. ⭐ A run that
+cannot end is a stuck session, in an app that counts minutes. `_rampChars` is
+monotone; the relief reaches pressure only, exactly as every round before this.
+
+### ⚠️⚠️⚠️ TWO AUDITS, BOTH CLEAN, BOTH BLIND
+
+**`undefined-calls-test.mjs` contained no arcade module at all.** Not
+`game-shatter.js`, not `game-shell.js`, not `game-deadline.js` — 27 root modules
+had never been audited, against the list's own Round 114 rule sitting four lines
+above the omission: *"ANY NEW .js OR ANY NEW PAGE, SAME COMMIT."* The arcade was
+built after that rule and never joined. Widened to the whole root (59 files), it
+caught `tryScatter` immediately — and also `spawnSpot()` in `escape-board.js`,
+reading `MIN_SPAWN_DISTANCE`, a constant that file had removed on purpose.
+Nothing called it, which is why it survived, and why it was DELETED rather than
+repaired: a method that looks like the answer to "where do creatures spawn",
+sitting in the file that owns that question, is a landmine, and the edge rule it
+contradicts is the one that closed the camping hole.
+
+**⭐⭐ AND IT STILL COULD NOT SEE THE PING BUG.** Every identifier in
+`platedText(ctx, rock.text, x, y, {...})` resolves. The defect is the SHAPE of
+the argument list, which is a different question from whether the names exist.
+**`call-shape-test.mjs`** is the mirror harness: 173 cross-module call sites
+checked against their declarations. Too many arguments is a failure — JavaScript
+discards them in silence, which is precisely how the label drew nothing for three
+rounds. ⚠️ Too few is a NOTE, because this codebase spells optional trailing
+parameters with an `== null` test rather than a default, and the first draft went
+red on four innocent call sites — a red test defending nothing is the shape §22C
+already warned about.
+
+**One test budget was raised and it is written down.** `adaptive-arcade-test.mjs`
+H5a, 4000 → 6000 frames. That line defends TERMINATION, never a duration, and the
+gentler ramp moved an idle run from under 200 s to **202.6 s**, measured — it
+failed by 2.6 seconds. ⚠️ It is flagged because the same line caught a real bug
+earlier in the same round, and widening a budget to make a change pass is how a
+harness stops defending anything.
+
+**ALL 104 HARNESSES PASS.**
+
 ## Round 123 (Maskelyne) — the volley after a lost shield, and an instrument that was off
 
 Three Deadline runs ended at **1:01, 1:01 and 1:06**. ⭐ A run that ends at the
@@ -397,7 +498,7 @@ exactly where Round 118 left them — reasoned, not measured, and the instructio
 was to wire first. The three-button play-again card is ROADMAP 119a; Escape Key's
 wirability is ROADMAP 119b and needs a ruling, not a round.
 
-**103 harnesses pass** after `npm install`.
+**104 harnesses pass** after `npm install`.
 
 **Upload set:** `game-shell.js`, `game-shatter.js`, `game-deadline.js`,
 `game-escape.js`, `shatter-board.js`, `arcade-telemetry.js`, `arcade.html`,

@@ -1,5 +1,63 @@
 # TYPETHATBOOK — ROADMAP
 
+### 124a — ⚠️⚠️ THE POST-DETONATION REFILL. NEEDS JAKE'S RULING, NOT AN IMPLEMENTATION
+
+**STATUS: OPEN. THE FIX TRADES AGAINST A RULE HE ALREADY SET.**
+
+Jake, 2026-09-14: *"it still ramps up stupid fast, and then doubles that as soon
+as the first dome goes down."* Round 124 addressed the ramp
+(`RAMP_DOUBLE_CHARS`, `COMFORT_FRACTION`) and **left the dome half open.**
+
+⭐ The telemetry says the pacing model is NOT what doubles: pressure actually
+*falls* at each detonation (`HIT_PRESSURE_RELIEF`). What changes is the picture —
+`onScreen` goes 8 → 0, and the refill floor answers an emptied sky.
+
+⚠️⚠️ **ROUND 123 ADDED `MIN_SPAWN_GAP_MS = 700` AND IT CANNOT BIND WHEN IT
+MATTERS.** The line reads `Math.min(this.intervalMs, MIN_SPAWN_GAP_MS)`, so the
+gap is whichever is SHORTER — and Jake's trace ran an interval of 477 ms. The
+700 ms floor is inert at exactly the pressure that produced the complaint.
+
+⚠️ **AND THE `Math.min` IS NOT A BUG ON ITS OWN READING.** It is there so that
+nothing gets quieter as it gets harder: the floor branch REPLACES the metronome
+branch, so an unconditional 700 ms would make a below-target board spawn slower
+than a full one. Both halves are defensible and they disagree.
+
+**⭐ THE OPTIONS, AND THIS IS THE RULING:**
+
+1. **Floor only on an EMPTIED sky** — `onScreen === 0` gets the full 700 ms,
+   `onScreen < target` keeps the interval. Smallest change; only spaces the first
+   word of a rebuild.
+2. **The rebuild wave gets longer fuses** — a detonation grants the next N spawns
+   a lifetime multiplier. Directly answers "a LOT faster" and touches
+   `lifetimeFor()`, which is the most load-bearing function in the shell.
+3. **Leave it.** The gentler ramp may have already made this survivable; one
+   trace with the Round 124 build would say.
+
+⚠️ **DO NOT PICK.** Rule 3. Option 2 in particular changes what a lifetime means
+on a board where `game-shell.js` v1.13.0 already learned that a lifetime is a
+DEADLINE to one view and a SPEED to another.
+
+### 124b — ⚠️ `typing-calibrator.js`'s HEADER ARGUES FROM A STALE NUMBER
+
+The file's central argument — *"the penalty gets worse the better you are: 30
+keeps 73% of its speed, 100 keeps 44%"* — rests on **a 100 WPM typist measuring
+44 in-game**. Jake's Round 124 Deadline trace measured **61–68** for a 90 WPM
+typist.
+
+⭐ Round 120's acquisition fix (`_busyAt`) RAISES every estimate and says so, so
+this is expected drift rather than a defect. ⚠️ But 44 is quoted as evidence in
+the argument that removed the difficulty dropdown, and a document that argues
+from a number the code no longer produces is the §52 shape: the reasoning is
+still right, the citation is not. Re-derive it against a real trace and restate,
+or mark it historical.
+
+### 124c — ⚠️ `acorn` AND `jsdom` ARE UNDECLARED DEPENDENCIES
+
+`call-shape-test.mjs` needs `acorn`; `undefined-calls-test.mjs` needs it too;
+`adaptive-arcade-test.mjs`, `arcade-mount-test.mjs` and a dozen others need
+`jsdom`. **Neither is in `package.json`.** A fresh checkout runs `npm install`
+and still cannot run the two harnesses that caught Round 124's defects.
+
 ### 116a — ⚠️ SHATTER'S BONUS TARGET NEEDS JAKE'S RULING, NOT AN IMPLEMENTATION
 
 **STATUS: OPEN. BLOCKED ON A DESIGN DECISION THAT IS NOT MINE TO MAKE.**

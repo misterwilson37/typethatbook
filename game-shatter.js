@@ -1262,6 +1262,19 @@ export function mount(container, opts) {
         // THE DRAW, where the live set is already in hand. Keeping this map
         // bounded matters over a twenty-minute session.
         if (pingLabels.size) {
+            // ⚠️⚠️ A LABEL THE STUDENT IS ACTIVELY USING DOES NOT EXPIRE — Round
+            // 124. The old comment on `drawPingLabels()` claimed a label that
+            // expires mid-word "costs the student nothing they had". ⭐ IT COSTS
+            // THEM THE WORD: they are locked into a pane they cannot see, and the
+            // one key that would free them is Backspace, which reads as giving up.
+            // ⚠️ Jake's pane takes fifteen seconds to drift into view and the
+            // label lived 2.6 — so the help arrived and left before the pane did.
+            for (const rock of board.rocks) {
+                if (rock.typed > 0 && pingLabels.has(rock.id)) {
+                    pingLabels.set(rock.id, Math.max(pingLabels.get(rock.id),
+                                                     bNow + PING_LABEL_MS));
+                }
+            }
             for (const [id, until] of pingLabels) {
                 if (bNow >= until) pingLabels.delete(id);
             }
@@ -1626,24 +1639,51 @@ export function mount(container, opts) {
             // drawn on it at that range, and two copies of one word a few pixels
             // apart is worse than none — this is the "no extra help in the late
             // game" clause, enforced rather than hoped for.
-            // ⚠️⚠️ TWO BOARDS, TWO ANSWERS TO "IS THIS PANE ALREADY READABLE",
-            // and Round 124 split them because they were never the same question.
-            // On the radial board `ENTRY_M` is where a pane crosses the rim, so
-            // 0.72 of it is a pane comfortably inside. ⭐ ON THE DRIFT BOARD
-            // MAGNITUDE 1 **IS** THE RING — `toPixelRadius()` maps it to `ringR`
-            // exactly — so anything at or under 1 is drawn on the glass with its
-            // own word on it, and anything past 1 is off toward the corner where
-            // the student cannot read it. That line is the whole rule.
-            if (m <= (drift ? 1 : ENTRY_M * 0.72)) continue;
+            // ⚠️⚠️ REVERTED IN ROUND 124, AND IT WAS MY OWN REGRESSION. I tightened
+            // this to `m <= 1` on the drift board reasoning that magnitude 1 IS
+            // the ring, so anything inside is already readable. ⭐⭐ PANES SPAWN AT
+            // `SPAWN_R = 1` — so the guard skipped every freshly-arrived pane,
+            // which is precisely the one the student is waiting to be told about.
+            // ⚠️ THE ORIGINAL 0.72 OF `ENTRY_M` IS THE RULE ON BOTH BOARDS. A
+            // redundant label on a pane the student can already read costs
+            // nothing; a missing one on a pane they cannot costs the control.
+            if (m <= ENTRY_M * 0.72) continue;
             const fade = Math.max(0, Math.min(1, (until - bNow) / 600));
             const x = cx + g.dx * (ringR - 14);
             const y = cy + g.dy * (ringR - 14);
             ctx.save();
             ctx.globalAlpha = fade;
-            platedText(ctx, rock.text, x, y, {
-                size: Math.max(13, Math.round(ringR * 0.065)),
-                typed: rock.typed,
-                colors: rock.colors,
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️⚠️ THE ARGUMENTS WERE POSITIONAL AND `platedText()` TAKES AN
+            //        OPTIONS OBJECT. THIS LABEL HAS NEVER DRAWN. ROUND 124.
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // Jake, 2026-09-14: *"While the ping goes out further, it doesn't
+            // tell me what the words are. That's the whole point."*
+            //
+            // ⭐⭐ `platedText(ctx, o)` READS `o.text` AND `o.x`. The old call
+            // passed `(ctx, rock.text, x, y, {...})`, so `o` was a STRING: `o.text`
+            // and `o.x` were both `undefined`, `px` computed to `NaN`, and
+            // `roundRect()` drew nothing at all. ⚠️ SILENT SINCE ROUND 121 — the
+            // ping shipped, was tuned twice, had its reach rewritten this round,
+            // and the one thing it exists to do had never happened once.
+            //
+            // ⚠️⚠️ AND `tests/undefined-calls-test.mjs` COULD NOT HAVE CAUGHT IT.
+            // Every identifier here resolves; the defect is the SHAPE of the
+            // arguments. ⭐ A REFERENCE AUDIT IS NOT A SIGNATURE AUDIT, and this
+            // file now contains two calls to one function in two different
+            // shapes — see the `banner` call in drawShatter() for the correct one.
+            //
+            // ⚠️ THE DIM TYPED PREFIX IS DROPPED FOR NOW. `platedText()` paints
+            // one colour and has no two-tone mode, and inventing one here would
+            // put a second text renderer in this file. ⭐ THE WHOLE WORD IS THE
+            // THING THE STUDENT ASKED FOR: they are reading it to START typing.
+            platedText(ctx, {
+                x, y, text: rock.text,
+                font: `bold ${Math.max(13, Math.round(ringR * 0.065))}px `
+                    + '"Courier Prime", monospace',
+                color: '#bff7ff', bg: 'rgba(2,10,16,0.90)', border: '#00e5ff',
+                borderWidth: 1, padX: 7, padY: 4,
             });
             ctx.restore();
         }
