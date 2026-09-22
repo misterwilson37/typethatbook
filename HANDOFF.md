@@ -1,8 +1,33 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-14 by Round 124 (Sholes), for whoever is next
+> ## ▶ START HERE — written 2026-09-22 by Round 127 (Didot), for whoever is next
 >
 > **ALL 104 HARNESSES PASS.**
+>
+> ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
+> FIRST.** `calibrator.confident` switches THREE things at the same instant: the
+> estimate, the `SEED_MAX_INTERVAL_MS` cap, and `SEED_MAX_ON_SCREEN` — the only
+> crowd ceiling in `game-shell.js`. ⭐ So the arcade has TWO MODES AND NO PATH
+> BETWEEN THEM. A fast typist flips in seconds, loses the ceiling and dies in ten
+> ("easy easy easy HARD"); a slow one never flips, keeps the ceiling and grinds
+> for seven minutes at one unchanging interval. Student data, 2026-09-22: two of
+> nine adaptive runs never flipped at all, one of them 22 clears over 435 seconds
+> with `pacedWPM` holding a single value start to finish.
+>
+> ⚠️⚠️⚠️ **ROADMAP 125a IS STILL OPEN AND IT IS THE BIGGEST THING IN THE
+> PROJECT. NO ROUND HAS TOUCHED IT.** Round 124 fixed the RAMP (how fast
+> difficulty climbs) and that worked. ⭐ **THAT IS NOT THE SAME FIX** — Jake
+> read 125 as having fixed the pacing and it did not; 125 and 126 shipped no
+> pacing code at all. Do not let a third round pass believing this is done.
+>
+> ⚠️⚠️⚠️ **THE MEASUREMENT:** All
+> three arcade games are bistable: Shatter carries **no risk for 94% of a run**
+> and then loses every shield in **10.7 seconds**. `spawnDue()` spawns sooner
+> when the board is empty and at the same rate when it is drowning — a control
+> loop with a floor and no ceiling — and the only crowd ceiling is gated on
+> `!calibrator.confident`, so the one brake switches off permanently the moment
+> calibration succeeds. Three options are written up; **do not pick one** (Rule
+> 3). Jake's own words: *"easy easy easy HARD."*
 >
 > ⚠️⚠️⚠️ **READ §24E BEFORE YOU TRUST A GREEN SUITE.** Round 124 shipped two
 > controls that had never worked once — `tryScatter()` with two call sites and no
@@ -15,6 +40,13 @@
 > CONDITION, LOOK UPSTREAM OF THE CONDITIONS.** A rule that is too strict fails
 > *sometimes*; a control that fails *always*, across the very cases its guards
 > discriminate, is not reaching those guards.
+>
+> ⚠️ **A TEST THAT CHECKS THE KEY SET CANNOT SEE A HINT THAT LIES.** Round 125:
+> Shatter's radial hint said *"Press Enter to ping"* and Enter SCATTERS on that
+> board — ping is drift-only. `abandon-lock-test.mjs` D1/D2 were green because
+> the view does handle Enter. ⭐ **NAMING THE RIGHT KEY IS NOT DESCRIBING THE
+> RIGHT EFFECT.** D4 pins the effect now. This is the same family as §24E: an
+> audit that is the wrong instrument reports PASS with total confidence.
 >
 > ⚠️ **AND EVERY PACING CONSTANT IN `game-shell.js` MUST BE A RATIO.** Jake is
 > the tester and types at 90 WPM, which makes him a sound proxy for a sixth
@@ -10661,3 +10693,211 @@ anyone raises it again.
 * **`acorn` and `jsdom` are undeclared.** Both are needed by harnesses
   (`call-shape-test`, `undefined-calls-test`, `adaptive-arcade-test` and others)
   and neither is in `package.json`.
+
+---
+
+## §25. Round 125 (Bodoni) — Round 124 worked, and the measurement that matters
+
+**2026-09-15.** Jake played all three on the 124 build. *"Shatter's scatter
+actually worked!"* and *"Shard's ping worked!"* — both controls ran for the first
+time since they shipped.
+
+### A. ⚠️⚠️⚠️ THE HINT WAS STILL LYING, AND THE TEST CERTIFIED IT
+
+Shatter's radial hint: *"Press Enter to ping."* The Enter handler:
+`if (!drift) { tryScatter(true); return; }`. **It returns before the ping. PING
+IS DRIFT-ONLY.**
+
+⭐⭐ **THE COMMENT ABOVE THE HINT IS WHY IT SURVIVED**, and it is worth reading
+as a warning rather than as reassurance: *"EVERY KEY THIS HINT NAMES IS A KEY
+THIS VIEW HANDLES, AND THE REVERSE IS NOW TRUE TOO."* Both halves are true. The
+view handles Enter. It just does something else with it. ⚠️ **D1 and D2 check the
+KEY SET**, so they were green while the sentence was false — the same family as
+§24E's reference-audit-versus-signature-audit. D4 now pins the EFFECT, and it is
+mutation-verified against the exact old sentence.
+
+### B. ⚠️⚠️⚠️ "EASY EASY EASY HARD" IS REAL, MEASURED, AND STRUCTURAL
+
+| game | run | first shield lost | riskless | all shields gone in |
+|---|---|---|---|---|
+| Deadline | 98 s | 63 s | 64% | 35.1 s |
+| Shatter | 191 s | 180 s | **94%** | **10.7 s** |
+| Shards | 264 s | 249 s | **94%** | 14.5 s |
+
+⭐ **`spawnDue()` IS A CONTROL LOOP WITH A FLOOR AND NO CEILING.** Empty board →
+spawn sooner. Drowning board → spawn at exactly the same rate. The only crowd
+ceiling, `SEED_MAX_ON_SCREEN`, is gated on `!this.calibrator.confident`, so **the
+single brake in the system is switched off for good the moment calibration
+succeeds.**
+
+⚠️ No restoring force means a deficit is invisible until the board overflows, and
+then it discharges as near-simultaneous expiries — hence every shield in ten
+seconds instead of one every thirty. ⚠️⚠️ And `HIT_PRESSURE_RELIEF` is **0.10**
+against a Shatter death pressure of **2.799**: a lost shield hands back 3.5%, at
+the exact moment the board most needs to back off. That constant was set when
+pressure lived near 1.2.
+
+**See ROADMAP 125a for the three options. NOT PICKED** — option 1 reverses a
+Round 122 decision, option 2 invents an unseen curve. Rule 3.
+
+### C. ⚠️ JAKE'S DEADLINE SENTENCE IS AMBIGUOUS — ASK BEFORE CODING
+
+*"Deadline needs to slow to a few seconds before the previous release when it
+explodes."* That is either **a spacing floor** (the next word arrives a few
+seconds after the previous) or **a pacing rewind** (roll difficulty back to a few
+seconds earlier). Different patches, and the rewind is the shape §24D showed can
+produce a run that never ends. ROADMAP 125b. **Do not guess.**
+
+### D. WHAT SHIPPED
+
+| file | version | note |
+|---|---|---|
+| `game-shatter.js` | **1.16.0** | radial hint no longer promises a ping; both hints expanded |
+| `game-deadline.js` | **1.19.0** | hint names the domes and the sky-clearing detonation |
+| `game-escape.js` | **2.8.0** | hint names adjacency and what ends the run |
+| `tests/abandon-lock-test.mjs` | — | ⭐ D4: a hint's EFFECT, not just its key set |
+| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | — | this round |
+
+⚠️ **NO PACING CODE CHANGED THIS ROUND.** 125a and 125b are both rulings.
+
+---
+
+## §26. Round 126 (Fournier) — the room came before the copy
+
+**2026-09-15.** Jake: *"Want to go ahead and fix those taglines and what
+documentation you can fit on the side panels?"*
+
+### A. ⚠️⚠️⚠️ ROUND 125 WROTE 1,150 CHARACTERS INTO A 34ch CENTRED BOX
+
+`.gc-sub` was `max-width:34ch; text-align:center`, inside a `.gc-panel` that is
+`position:absolute; inset:0` with **no overflow rule**. Round 125's expanded
+hints came to about 1,150 characters — **thirty-five centred lines** — and the
+Start button sits below them in the same flex column.
+
+⭐⭐ **MORE WORDS IN A BOX THAT CANNOT HOLD THEM IS NOT MORE DOCUMENTATION.** I
+answered a student's "more description would have been helpful" by writing more
+words and never asking where they would land. ⚠️ THE ROOM HAD TO COME FIRST:
+`.gc-help` is 52ch, LEFT aligned (centred prose stops being readable past about
+three lines), and capped at 38vh with its own scroll so no hint can ever bury
+Start. ⚠️ `.gc-sub` is untouched — the result and pause cards still use it.
+
+### B. ⭐ KEYS GET A GRID, BECAUSE A KEY IN A PARAGRAPH IS A KEY NOBODY READS
+
+New optional `controls: [{ keys, what }]` on the view options, rendered by
+`game-chrome.js` as a two-column grid. ⚠️ Shatter's two boards get different
+rows, because **PING IS DRIFT-ONLY** and on the radial board Enter scatters.
+⭐ `controls` omitted means omitted: Escape Key gets one row, and an empty grid
+would imply it was missing something the others have.
+
+### C. ⚠️⚠️ THE HELP AUDIT NEEDED THREE FIXES AND EACH WAS RED AGAINST CORRECT COPY
+
+`abandon-lock-test.mjs` Part D scanned the `hint:` string only. Moving keys into
+`controls` broke it three separate ways, and **every failure was a false alarm**:
+
+1. **The slice stopped at `hint:`+2200.** It now runs `hint:` → `muted:`, because
+   what the part defends is *the help the student sees* — and that is now two
+   fields, not one.
+2. **One split on the ternary colon INTERLEAVED the two fields.** `hint` and
+   `controls` are each a `drift ? … : …`, so a single split yields "radial hint +
+   *drift* controls" — reporting a ping on the radial board and none on the drift
+   one. ⭐ Both answers wrong, both confident. They are now separated at
+   `controls:` before either is split.
+3. **Comments were being scanned as copy.** The block carries a comment saying
+   PING IS DRIFT-ONLY — the word "ping" in prose *about* the rule, on the radial
+   side of the cut. D4b went red against copy that was right. Comments are
+   stripped now, same as D3 already did.
+4. **`/Backspace/` was case-sensitive** and the key labels render uppercase.
+
+⚠️ D4d–D4f were added so "no ping in the radial text" cannot pass by the help
+being empty. Mutation-verified two ways: a ping moved to the radial rows goes
+red on D4b; deleting the grid goes red on D2, D4d and D4e.
+
+### D. TAGLINES
+
+All four rewritten to say what the game asks of you rather than set a mood —
+these are the only words on the arcade floor. Shards names its radar, because it
+is the only cabinet with one and nothing else distinguishes it from Shatter.
+
+### E. ⚠️ STILL NOT FIXED: 125a
+
+No pacing code changed in 125 or 126. The one-sided spawner is exactly as
+measured.
+
+### F. WHAT SHIPPED
+
+| file | version |
+|---|---|
+| `game-chrome.js` | **1.11.0** |
+| `game-shatter.js` | **1.17.0** |
+| `game-deadline.js` | **1.20.0** |
+| `game-escape.js` | **2.9.0** |
+| `game-names.js` | **1.4.0** |
+| `tests/abandon-lock-test.mjs` | — |
+
+---
+
+## §27. Round 127 (Didot) — ten children, and the instrument instead of the fix
+
+**2026-09-22.** Jake's students tested and wrote notes. ⭐ **THE MOST VALUABLE
+DATA THIS PROJECT HAS EVER HAD**, because every trace before this came from one
+90 WPM adult and the defect that mattered most is invisible at 90 WPM.
+
+### A. ⚠️⚠️⚠️ TWO RUNS NEVER GAINED CONFIDENCE. ONE LASTED SEVEN MINUTES.
+
+| run | cleared | duration | `pacedWPM` distinct values |
+|---|---|---|---|
+| shards (AA, claimed ~25 WPM) | 22 | **435 s** | **1** — `8.0`, start to finish |
+| deadline | 59 | 327 s | **1** — `12.0` |
+
+`MIN_SAMPLES` is 4. ⭐⭐ A CHILD WHO FINISHED 22 WORDS PRODUCED FEWER THAN FOUR
+USABLE SAMPLES, and the only record of it was a flat line in a column that could
+not say why.
+
+### B. ⭐⭐ ONE GATE, THREE SWITCHES, TWO MODES, NO PATH BETWEEN
+
+`calibrator.confident` simultaneously governs the estimate, the
+`SEED_MAX_INTERVAL_MS` cap, and `SEED_MAX_ON_SCREEN` — **the only crowd ceiling
+in the file, and the only negative feedback anywhere in the spawner.**
+
+⚠️ Jake flips in seconds → ceiling off → 125a's one-sided loop → dead in ten
+seconds. ⚠️ AA never flips → ceiling stays on → survivable, unchanging, seven
+minutes long. **Both complaints are this gate.** Neither is a separate bug.
+
+### C. ⚠️ THE SUSPECT, AND WHY IT DID NOT MOVE
+
+`BURST_GAP_CAP_MS = 1500`: a pause over 1.5 s inside a word discards the sample
+whole. For a 15-25 WPM sixth-grader that is an ordinary hunt. ⭐ THE CONSTANT'S
+OWN COMMENT SAYS IT EXISTS TO PROTECT "exactly the child we must not
+under-serve" — and it is the fourth absolute constant this project has found in a
+place that needed a ratio.
+
+⚠️⚠️ **I DID NOT CHANGE IT, AND SAYING WHY OUT LOUD IS RULE 10.** Keystroke
+timing appears in no trace we hold. The inference is strong and it is still an
+inference; a constant that cannot be proven on real data does not move.
+
+### D. WHAT SHIPPED INSTEAD — THE INSTRUMENT
+
+`rejected: { gapped, tooShort, noKeys }`, counted at the point of rejection,
+carried by `snapshot()`, emitted as four new trace columns. ⭐ ONE MORE
+SLOW-TYPIST RUN SETTLES IT: 20+ clears with `samples` under 4 and `rejGap` in
+double figures convicts the constant; high `rejShort` or `rejNoKeys` clears it.
+
+### E. ⚠️ STUDENT BUG REPORTS — 127b
+
+Two children described the lock jumping to a nearer word sharing a first letter.
+`aimFor()` picks nearest-to-impact whose next character matches; the re-lock
+rescue recovers only at the DIVERGING character, so progress lights up the wrong
+word for two letters and then jumps. ⭐ WORKING AS DESIGNED AND STILL WRONG, so
+it is not fixed by improving the rescue. Three options, Jake's ruling.
+
+### F. WHAT SHIPPED
+
+| file | version |
+|---|---|
+| `typing-calibrator.js` | **1.3.0** |
+| `arcade-telemetry.js` | **1.4.0** |
+| `game-deadline.js` | **1.21.0** |
+| `game-shatter.js` | **1.18.0** |
+| `tests/typing-calibrator-test.mjs` | — (Part R) |
+
+⚠️ **NO PACING CODE CHANGED.** 125a, 127a and 127b are all rulings.

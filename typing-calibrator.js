@@ -1,3 +1,17 @@
+// typing-calibrator.js v1.3.0 — Round 127 (Didot): ⚠️⚠️⚠️ DISCARDED SAMPLES ARE
+// NOW COUNTED, BY REASON. Ten student traces arrived and two of the nine
+// adaptive runs never gained confidence ONCE: one child cleared 22 words across
+// 435 seconds with `pacedWPM` pinned at the 8 WPM floor — a single distinct value
+// in the entire trace. `MIN_SAMPLES` is 4, so nineteen-plus finished words were
+// thrown away and nothing recorded that it had happened. ⭐⭐ A FLAT ESTIMATE IS
+// AMBIGUOUS: "the child finished nothing" and "everything they finished was
+// rejected" are different bugs with different fixes, and the trace could not tell
+// them apart. ⚠️ THE SUSPECT IS `BURST_GAP_CAP_MS` — 1,500 ms, ABSOLUTE, against
+// sixth-graders at 15-25 WPM for whom a 1.5 s hunt between letters is ORDINARY,
+// and the comment on it says it exists to protect "exactly the child we must not
+// under-serve". ⚠️⚠️ IT IS NOT CHANGED THIS ROUND. Keystroke timing is in no
+// trace we hold, so Rule 10 forbids it; this is the instrument that makes the
+// next round able to prove or clear the suspicion on real data.
 // typing-calibrator.js v1.2.0 — Round 120 (Maskelyne): ⚠️⚠️ THE SENSOR WAS
 // MEASURING THE QUEUE AND REPORTING IT AS THE CHILD. Acquisition ran from the
 // spawn, so a pane that appeared while the student was mid-word charged them for
@@ -88,7 +102,7 @@
 // conversation about a second place a student's speed lives. ⭐ IT IS RULE 10 BY
 // CONSTRUCTION: the number is derived fresh from real play, every time.
 
-export const TYPING_CALIBRATOR_VERSION = '1.2.0';
+export const TYPING_CALIBRATOR_VERSION = '1.3.0';
 
 // ⚠️ HOW MANY CLEAN SAMPLES BEFORE THE ESTIMATE IS TRUSTED. Below this the
 // caller must use the floor. ⭐ FOUR IS A COMPROMISE AND IT IS THE FIRST NUMBER
@@ -195,6 +209,30 @@ export class TypingCalibrator {
         this._busyAt = null;
         this.floorWPM = c.floorWPM > 0 ? c.floorWPM : FLOOR_WPM;
         this.minSamples = c.minSamples > 0 ? c.minSamples : MIN_SAMPLES;
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ WHY SAMPLES ARE THROWN AWAY, COUNTED — Round 127 (Didot).
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // ⭐⭐ TWO OF NINE STUDENT RUNS NEVER GAINED CONFIDENCE AT ALL. One
+        // cleared 22 words across 435 seconds and `pacedWPM` held the 8 WPM floor
+        // for every one of them — a single distinct value in the whole trace.
+        // `MIN_SAMPLES` is 4, so at least 19 finished words were DISCARDED, and
+        // nothing anywhere recorded that it had happened.
+        //
+        // ⚠️ THE TELEMETRY COULD SHOW THE CONSEQUENCE AND NOT THE CAUSE. A flat
+        // `pacedWPM` says the estimate never moved; it cannot say whether that is
+        // because the child never finished a word, or because every word they
+        // finished was rejected, or which rule rejected it. ⭐ THOSE ARE
+        // DIFFERENT BUGS WITH DIFFERENT FIXES and we were guessing between them.
+        //
+        // ⚠️⚠️ THIS SHIPS BEFORE THE FIX ON PURPOSE (Rule 10). The suspect is
+        // `BURST_GAP_CAP_MS` — 1,500 ms, absolute — against sixth-graders typing
+        // at 15-25 WPM for whom a 1.5 s hunt between letters is ORDINARY. But
+        // keystroke timing is not in any trace we hold, so that suspicion cannot
+        // be proven on real data yet, and a constant that cannot be proven does
+        // not get changed. This is the instrument that makes the next round able
+        // to prove it.
+        this.rejected = { gapped: 0, tooShort: 0, noKeys: 0 };
         /** @type {object[]} one entry per cleanly-finished target. */
         this.samples = [];
         this._open = new Map();
@@ -275,7 +313,13 @@ export class TypingCalibrator {
     finished(id, nowMs) {
         const s = this._open.get(id);
         this._open.delete(id);
-        if (!s || s.firstKeyAt == null || s.gapped || s.keys < 2) return;
+        // ⚠️ COUNTED BEFORE THE RETURN, AND EACH REASON SEPARATELY — see the
+        // constructor. "No sample" and "a sample we threw away, for this reason"
+        // are different facts and only one of them names a fix.
+        if (!s) return;
+        if (s.firstKeyAt == null) { this.rejected.noKeys++; return; }
+        if (s.gapped) { this.rejected.gapped++; return; }
+        if (s.keys < 2) { this.rejected.tooShort++; return; }
 
         // ⚠️ MEASURED AT THE FIRST KEY, NOT RECONSTRUCTED HERE — see `keyed()`.
         // Recomputing it from `_busyAt` now would read a field that has moved on
@@ -441,12 +485,17 @@ export class TypingCalibrator {
             onScreenTarget: this.onScreenTarget,
             comfortAt: this.comfortAt,
             samples: this.samples.length,
+            // ⚠️ THE COUNTS TRAVEL WITH THE ESTIMATE. A director reporting
+            // `pacedWPM` without them reports a number and not why it is that
+            // number, which is the whole gap Round 127 was opened to close.
+            rejected: this.rejected,
         };
     }
 
     /** ⚠️ A RESTART IS A NEW CHILD as far as this is concerned. */
     reset() {
         this.samples = [];
+        this.rejected = { gapped: 0, tooShort: 0, noKeys: 0 };
         this._open.clear();
         this.comfortAt = null;
         this._busyAt = null;

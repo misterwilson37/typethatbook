@@ -1,3 +1,16 @@
+// game-deadline.js v1.21.0 — Round 127 (Didot): passes the calibrator's sample
+// and rejection counts through to telemetry. ⚠️ READ OFF `d.calibrator` AT THE
+// SAME INSTANT AS THE ESTIMATE THEY EXPLAIN, not cached (Rule 9).
+// game-deadline.js v1.20.0 — Round 126 (Fournier): ⚠️ Backspace moves into a
+// `controls` row and the hint keeps the domes and the sky-clearing detonation.
+// ⭐ SAYING "IT COSTS NOTHING" IS THE POINT: a child who thinks they are stuck
+// on a word they cannot finish needs to know the way out is not quitting.
+// game-deadline.js v1.19.0 — Round 125 (Bodoni): ⚠️ THE HINT NOW MENTIONS THE
+// DOMES AND THE DETONATION. Two sentences named a key and a target and never
+// said what the six domes were, what losing one does, or that a blast CLEARS THE
+// WHOLE SKY — the most surprising event in the game and the one a child most
+// needs warning about, because the empty sky refills. Jake's student,
+// 2026-09-15: *"more description of all of them would have been helpful."*
 // game-deadline.js v1.18.0 — Round 123 (Maskelyne): ⭐ NO TWO WORDS IN THE SKY
 // SHARE A FIRST LETTER — see spawn(). The game's instruction is "type the one
 // closest to the ground", and two words starting with the same letter make that
@@ -369,7 +382,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.18.0';
+export const GAME_DEADLINE_VERSION = '1.21.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -2206,8 +2219,27 @@ export function mount(container, opts) {
         // buttons live; the page that mounts it does.
         barHost: (opts && opts.barHost) || null,
         title: 'Deadline',
-        hint: 'Words are falling on Nashville. Type the one closest to the ground. '
-            + 'Backspace gives up on a word so you can save a different landmark.',
+        // ⚠️ EXPANDED ROUND 125 ON A STUDENT'S ACCOUNT (Jake, 2026-09-15: *"more
+        // description of all of them would have been helpful"*). The old two
+        // sentences named a key and a target and never said what the domes were,
+        // what losing one does, or that a detonation CLEARS THE SKY — which is
+        // the single most surprising thing that happens in this game and the one
+        // a child most needs warned about, because the empty sky refills.
+        hint: 'Words are falling on Nashville. Type the one closest to the '
+            + 'ground \u2014 it is the one about to land. Six domes protect the '
+            + 'city. When a word gets through, the dome it hits detonates and '
+            + 'the blast clears every word out of the sky at once; the sky then '
+            + 'fills straight back up, so spend that quiet moment well. Lose all '
+            + 'six domes and the run is over.',
+        // ⚠️ KEYS IN A GRID, NOT IN THE PROSE \u2014 see game-shatter.js's block for
+        // why. Deadline has exactly one, and saying so plainly is the point:
+        // a child who thinks they are stuck on a word they cannot finish needs
+        // to know there is a way out that is not quitting.
+        controls: [
+            { keys: 'BACKSPACE', what: 'Give up on the word you are typing and '
+                + 'wipe it clean, so you can save a different landmark instead. '
+                + 'It costs nothing \u2014 it is not a mistake.' },
+        ],
         muted: isMuted(),
         keysOn: kbOn,
         // ⚠️ RE-LAYS OUT IMMEDIATELY. kbH feeds the ground line, the dome radii
@@ -2323,6 +2355,11 @@ export function mount(container, opts) {
                 // AND NOT FOR A SCREEN. Rule 11: this leaves the machine in a
                 // diagnostic CSV or not at all.
                 pacedWPM: d.calibratedWPM,
+                // ⚠️ THE CALIBRATOR'S OWN NUMBERS, NOT A SECOND COPY (Rule 9) —
+                // read straight off `snapshot()` at the same instant as the
+                // estimate they explain.
+                samples: d.calibrator ? d.calibrator.samples.length : null,
+                rejected: d.calibrator ? d.calibrator.rejected : null,
                 shields: d.shields,
                 // ⚠️ COPIES, NOT THE LIVE TARGETS. A harness that could reach in
                 // and set `typed` would be testing something no student can do.

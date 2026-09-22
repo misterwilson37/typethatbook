@@ -1,3 +1,8 @@
+// arcade-telemetry.js v1.4.0 — Round 127 (Didot): ⚠️⚠️ FOUR NEW COLUMNS —
+// `samples`, `rejGap`, `rejShort`, `rejNoKeys`. ⭐ A run with 22 clears, 0
+// samples and 19 gapped rejections names `BURST_GAP_CAP_MS` directly; the same
+// run with 19 `rejShort` names something else entirely. The old trace showed the
+// consequence (a flat `pacedWPM`) and never the cause.
 // arcade-telemetry.js v1.3.0 — Round 123 (Maskelyne): ⚠️⚠️ THE FLAG IS STICKY FOR
 // THE TAB. It lived on the URL alone, so a reload switched the instrument off
 // silently — three of Jake's runs were played and lost that way. See enabled().
@@ -62,7 +67,7 @@
 // This is a file that goes to a teacher for diagnosis, not a number that goes on
 // a screen next to netWPM(). See game-shatter.js's debug().
 
-export const ARCADE_TELEMETRY_VERSION = '1.3.0';
+export const ARCADE_TELEMETRY_VERSION = '1.4.0';
 
 /**
  * ⚠️ FOUR SAMPLES A SECOND. Not sixty.
@@ -123,6 +128,24 @@ export function record(read, meta) {
             intervalMs: d.intervalMs == null ? null : Math.round(d.intervalMs),
             lifetimeMs: d.lifetimeMs == null ? null : Math.round(d.lifetimeMs),
             pacedWPM: d.pacedWPM == null ? null : +d.pacedWPM.toFixed(1),
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️⚠️ WHY THE ESTIMATE IS WHERE IT IS — Round 127 (Didot).
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // ⭐⭐ A FLAT `pacedWPM` WAS AMBIGUOUS AND WE READ IT WRONG FOR A
+            // WHOLE ROUND. One student cleared 22 words in 435 seconds with the
+            // estimate pinned at the 8 WPM floor for every sample in the trace.
+            // That is either "the child finished nothing" or "everything they
+            // finished was thrown away" — and the trace could not tell us which.
+            //
+            // ⚠️ `samples` IS THE NUMERATOR AND `rejGap` IS THE SUSPECT.
+            // `MIN_SAMPLES` is 4; a run with 22 clears, 0 samples and 19 gapped
+            // rejections names `BURST_GAP_CAP_MS` directly, and a run with 22
+            // clears and 19 `rejShort` names something else entirely.
+            samples: d.samples == null ? null : d.samples,
+            rejGap: d.rejected ? d.rejected.gapped : null,
+            rejShort: d.rejected ? d.rejected.tooShort : null,
+            rejNoKeys: d.rejected ? d.rejected.noKeys : null,
             shields: d.shields,
             over: !!d.over,
         });
@@ -152,7 +175,8 @@ export function record(read, meta) {
 export function toCSV(trace) {
     const cols = ['t', 'onScreen', 'parents', 'pieces', 'chars', 'halfTyped',
                   'costFactor', 'cleared', 'pressure', 'intervalMs', 'lifetimeMs',
-                  'pacedWPM', 'shields', 'over'];
+                  'pacedWPM', 'samples', 'rejGap', 'rejShort', 'rejNoKeys',
+                  'shields', 'over'];
     const head = '# ' + JSON.stringify(trace.meta) + '\n' + cols.join(',');
     const body = trace.rows.map(r => cols.map(c => {
         const v = r[c];

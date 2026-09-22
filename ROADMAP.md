@@ -1,5 +1,183 @@
 # TYPETHATBOOK — ROADMAP
 
+### 127a — ⚠️⚠️⚠️ THE CALIBRATOR CANNOT MEASURE THE CHILDREN IT WAS BUILT FOR
+
+**STATUS: DIAGNOSED, INSTRUMENTED, NOT FIXED. RULE 10 BLOCKS THE FIX UNTIL ONE
+MORE TRACE COMES BACK.**
+
+Ten student traces, 2026-09-22. **Two of the nine adaptive runs never gained
+confidence once:**
+
+| run | cleared | duration | `pacedWPM` |
+|---|---|---|---|
+| shards (AA, claimed ~25 WPM) | 22 | **435 s** | **8.0 for every sample — one distinct value** |
+| deadline | 59 | 327 s | 12.0, never moved |
+
+⭐⭐ `MIN_SAMPLES` IS 4. A child who finished 22 words produced **fewer than four
+usable samples**, so at least nineteen finished words were discarded — and
+nothing anywhere recorded that it had happened.
+
+**⚠️⚠️ THE SUSPECT IS `BURST_GAP_CAP_MS = 1500`.** Any pause longer than 1.5 s
+between two keystrokes *inside a word* sets `gapped` and the whole sample is
+thrown away. ⭐ FOR A SIXTH-GRADER AT 15-25 WPM, A 1.5-SECOND HUNT BETWEEN
+LETTERS IS ORDINARY, NOT A HOLE. The rule's own comment says it exists so as not
+to understate "a child who types in confident chunks — which is most beginners,
+and exactly the child we must not under-serve." It does the opposite: it discards
+them entirely and leaves them on the floor.
+
+**⭐⭐ AND THIS UNIFIES "EASY EASY EASY HARD" WITH THE SLOW-TYPIST GRIND.**
+`calibrator.confident` is ONE BINARY that switches THREE things at once:
+
+1. the estimate — floor → measured;
+2. `SEED_MAX_INTERVAL_MS` — the 5,000 ms cap lifts;
+3. `SEED_MAX_ON_SCREEN` — the only crowd ceiling in the file switches OFF.
+
+⚠️ So the arcade has exactly two modes and no path between them. Jake flips in
+seconds, loses the ceiling, and dies in ten (125a). AA never flipped at all, kept
+the ceiling, and ground for seven minutes at one unchanging interval. **Both
+complaints are the same gate.**
+
+**⚠️ WHY IT IS NOT FIXED THIS ROUND (Rule 10):** keystroke timing appears in no
+trace we hold, so "most samples are dying on the gap rule" is a strong inference
+and not a measurement. Round 127 ships the instrument — `samples`, `rejGap`,
+`rejShort`, `rejNoKeys` — instead of the constant.
+
+**⭐ WHAT WOULD SETTLE IT:** one more slow-typist run on this build. A trace
+ending with 20+ clears, `samples` under 4 and `rejGap` in double figures
+convicts `BURST_GAP_CAP_MS` outright. High `rejShort` or `rejNoKeys` clears it
+and points somewhere else.
+
+### 127b — ⚠️ TWO STUDENTS REPORTED THE LOCK JUMPING, AND THEY ARE DESCRIBING THE SAME MECHANISM FROM OPPOSITE SIDES
+
+* **RB (Shards):** *"Starting to type a word, it would stop typing that word
+  because another word with the same letter was closer. It should lock into the
+  word until it's done."*
+* **AA (Shards):** *"sometimes wont let me type for a secound then work again."*
+* **RE (Deadline):** *"when trying to type one word it sticks to that singular
+  word."*
+
+⭐ `aimFor()` locks to the pane NEAREST TO IMPACT whose next character matches.
+Type `c` meaning the far `car` while a nearer `cat` is on the board and the lock
+goes to `cat`. The re-lock rescue in `tryKey()` does recover — but only at the
+character where the two words DIVERGE, so the student watches their progress
+light up the wrong word for two letters and then jump.
+
+⚠️⚠️ **THE RESCUE IS WORKING AS DESIGNED AND THE EXPERIENCE IS STILL WRONG**, so
+this is not a bug report to fix by making the rescue better. The options are a
+display change (show the prefix as provisional until it diverges), a lock change
+(RB's literal ask — sticky until finished, which costs the tactical abandon that
+§ABANDONING A LOCK IS FREE exists to protect), or a spawn change (Escape Key
+enforces distinct first characters; Shatter's pieces come from English and
+cannot). **JAKE'S RULING.**
+
+### 127c — ⭐ WHAT THE STUDENTS LIKED, WHICH IS ALSO DATA
+
+*"I like that the words gradually went down faster and faster and I like the
+variety of words"* (DH, Deadline, 25-30). *"balenced pretty well"* (BL, Shards,
+35). *"All in all a good game it was fun"* (AA — the 435-second run). ⚠️ AND THE
+DISSENT IS CONSISTENT: *"got hard really quick"* (BL), *"The words start off
+really slow but then they get really fast"* (EE), *"I got hard really quick but
+thats the point"* (RE). ⭐ THE COMPLAINT IS CONCENTRATED IN DEADLINE and the
+praise in Shards — which is the board where the crowd ceiling stays on longest.
+
+### 125a — ⚠️⚠️⚠️ "EASY EASY EASY HARD". THE SPAWNER IS A ONE-SIDED CONTROL LOOP
+
+**STATUS: OPEN AFTER THREE ROUNDS. THIS IS THE BIGGEST OPEN DEFECT IN THE
+ARCADE. NEEDS JAKE'S RULING ON SHAPE, NOT ON WHETHER.**
+
+⚠️⚠️⚠️ **DO NOT MISTAKE THE ROUND 124 RAMP FIX FOR THIS.** Jake did, 2026-09-15:
+*"it sounds like the pace itself needs to be fixed...which you did. I think."*
+124 changed how fast difficulty CLIMBS (`COMFORT_FRACTION`, `RAMP_DOUBLE_CHARS`)
+and it worked. ⭐ THIS IS A DIFFERENT DEFECT: the spawner never responds to the
+board filling up, at any pace. Rounds 125 and 126 shipped **no pacing code**.
+
+Jake, 2026-09-15, after playing all three on the Round 124 build: *"All three
+games were easy easy easy HARD."* Three traces, one shape:
+
+| game | run | first shield lost | riskless | every shield gone in |
+|---|---|---|---|---|
+| Deadline | 98 s | 63 s | **64%** | 35.1 s |
+| Shatter | 191 s | 180 s | **94%** | **10.7 s** |
+| Shards | 264 s | 249 s | **94%** | 14.5 s |
+
+⭐⭐ **NINETY-FOUR PERCENT OF A SHATTER RUN CARRIES NO RISK AT ALL, AND THEN THE
+ENTIRE GAME ENDS IN UNDER ELEVEN SECONDS.** That is not a difficulty curve. It is
+a bistable system with no middle.
+
+**⚠️⚠️ THE MECHANISM IS FOUR LINES OF `spawnDue()` AND IT IS ONE-SIDED:**
+
+```js
+if (this.adaptive && !this.calibrator.confident && onScreen >= SEED_MAX_ON_SCREEN)
+    return false;                                   // ← ceiling, PRE-CONFIDENCE ONLY
+if (onScreen < this.onScreenTarget)
+    return (now - _lastSpawnAt) >= Math.min(intervalMs, MIN_SPAWN_GAP_MS);  // ← floor
+return (now - _lastSpawnAt) >= this.intervalMs;     // ← metronome, ALWAYS
+```
+
+⭐ **THE LOOP HAS A FLOOR AND NO CEILING.** When the board is empty it spawns
+SOONER. When the board is drowning it spawns at exactly the same rate as when the
+board is clear. `SEED_MAX_ON_SCREEN` is the only crowd ceiling in the file and it
+is gated on `!confident` — **so the instant the calibrator succeeds, the one
+brake in the system is switched off for the rest of the run.**
+
+⚠️ So there is no restoring force. A student who falls one word behind falls two,
+then four, and nothing in the director notices or responds. The deficit is
+invisible until the board overflows, and then it is discharged all at once as
+near-simultaneous expiries — which is why every shield goes in ten seconds rather
+than one every thirty.
+
+⚠️⚠️ **AND THE RELIEF THAT EXISTS IS ROUNDING ERROR.** `HIT_PRESSURE_RELIEF` is
+0.10. Shatter died at pressure **2.799**. A lost shield gives back **3.5%** of
+the pressure — at the exact moment the student most needs the board to back off.
+
+**THE OPTIONS, AND THIS IS THE RULING:**
+
+1. **A crowd ceiling that outlives confidence.** Delete `&& !this.calibrator.confident`
+   and let `onScreenTarget` (or a multiple of it) hold at all times. Smallest
+   possible change; turns the loop two-sided. ⚠️ Risks capping a strong player's
+   board, which is the thing Round 122 gated it to avoid.
+2. **Proportional backoff.** Stretch the interval as `onScreen` exceeds target,
+   so falling behind visibly slows the flow rather than binary-stopping it.
+   Closest to a real control loop; most new behaviour to tune.
+3. **Make a hit matter.** Scale `HIT_PRESSURE_RELIEF` with current pressure —
+   a fixed 0.10 was set when pressure lived near 1.2, not 2.8.
+
+⭐ They are not exclusive and 3 is nearly free. ⚠️ **DO NOT PICK** (Rule 3): 1
+reverses a Round 122 decision and 2 invents a curve nobody has seen yet.
+
+### 125b — ⚠️ DEADLINE AFTER A DETONATION. JAKE'S SENTENCE IS AMBIGUOUS AND MUST BE RESOLVED BEFORE CODING
+
+Jake, 2026-09-15: *"I think that Deadline needs to slow to a few seconds before
+the previous release when it explodes. You'll see that I died very fast again,
+once I started to die."*
+
+⚠️⚠️ **TWO READINGS AND THEY ARE DIFFERENT PATCHES:**
+
+* **(i) A SPACING FLOOR.** After a detonation, the next word arrives a few
+  seconds after the previous one — a real gap. This is 124a option 1, and it is a
+  change to `spawnDue()`'s floor, which currently caps at `Math.min(intervalMs,
+  MIN_SPAWN_GAP_MS)` so the 700 ms floor is inert at Jake's 444 ms interval.
+* **(ii) A PACING REWIND.** On detonation the director rolls back to the pace it
+  was running a few seconds EARLIER — a difficulty rewind, not a gap. This is a
+  change to the ramp, and it is the shape §24D showed can produce a run that never
+  ends if it is unbounded.
+
+⭐ At death Deadline was at **interval 444 ms, lifetime 1,441 ms, pacedWPM 55.7** —
+a word arriving every 0.44 s and living 1.4 s. Reading (i) alone may not be
+enough at that pace; reading (ii) alone reintroduces the `_extraChars` hazard.
+**ASK HIM WHICH. Do not guess.**
+
+### 125c — ✅ CLOSED (Round 126, Fournier). Taglines rewritten, keys given their own grid, and the panel widened to hold them.
+
+### ~~125c — ⭐ THE CABINET DESCRIPTIONS, BEYOND THE IN-GAME HINT~~
+
+Round 125 rewrote all three in-game `hint` strings, which is what a student sees
+on the gates panel before play. ⚠️ Jake's student's remark was broader than that
+one string: *"more description of all of them would have been helpful."* The
+arcade FLOOR still shows only `tagline` from `game-names.js` — one sentence per
+cabinet, chosen before two of these games had special keys at all. A child
+picking a cabinet still cannot tell that Shards has a radar and Shatter does not.
+
 ### 124a — ⚠️⚠️ THE POST-DETONATION REFILL. NEEDS JAKE'S RULING, NOT AN IMPLEMENTATION
 
 **STATUS: OPEN. THE FIX TRADES AGAINST A RULE HE ALREADY SET.**

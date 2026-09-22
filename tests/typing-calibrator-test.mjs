@@ -514,5 +514,49 @@ function typist(burstWPM, acquireMs, chars = 7, n = 6) {
        + fluke.provisionalWPM(FLOOR_WPM).toFixed(1) + ' from a sample of '
        + fluke.samples[0].wpm.toFixed(0) + ')');
 }
+// ═════════════════════════════════════════════════════════════════════════════
+console.log('\nR — ⚠️⚠️⚠️ A DISCARDED SAMPLE IS COUNTED, AND THE REASON IS NAMED');
+// ⭐⭐ ADDED ROUND 127 (Didot) AGAINST REAL STUDENT DATA. One sixth-grader cleared
+// 22 words across 435 seconds and `pacedWPM` held the 8 WPM floor for every
+// sample in the trace — one distinct value, start to finish. `MIN_SAMPLES` is 4,
+// so nineteen-plus finished words were thrown away and NOTHING RECORDED IT.
+// ⚠️ THIS HARNESS DOES NOT ASSERT A FIX. `BURST_GAP_CAP_MS` is the suspect —
+// 1,500 ms, absolute, against children for whom a 1.5 s hunt between letters is
+// ordinary — but keystroke timing is in no trace we hold, so Rule 10 forbids
+// changing it yet. This pins the INSTRUMENT that will let the next round prove
+// or clear that suspicion on real data.
+{
+    const c = new TypingCalibrator({});
+    ok(c.rejected.gapped === 0 && c.rejected.tooShort === 0 && c.rejected.noKeys === 0,
+       'R1 a fresh calibrator has rejected nothing');
+
+    // A word typed with a 2-second hole in the middle — ordinary for a beginner.
+    c.spawned(1, 5, 0, 1);
+    c.keyed(1, 400); c.keyed(1, 800);
+    c.keyed(1, 3000);                      // ⚠️ 2.2 s gap > BURST_GAP_CAP_MS
+    c.keyed(1, 3300); c.keyed(1, 3600);
+    c.finished(1, 3600);
+    ok(c.samples.length === 0, 'R2 the gapped word produced NO sample');
+    ok(c.rejected.gapped === 1,
+       '⚠️⚠️ R3 and it is COUNTED as gapped — the fact that used to vanish');
+
+    // The same word typed without the hole is kept.
+    c.spawned(2, 5, 4000, 1);
+    for (let i = 1; i <= 5; i++) c.keyed(2, 4000 + i * 400);
+    c.finished(2, 6000);
+    ok(c.samples.length === 1, 'R4 the ungapped word IS a sample');
+    ok(c.rejected.gapped === 1, 'R5 and nothing new was rejected');
+
+    // ⚠️ THE REASONS DO NOT SMEAR INTO EACH OTHER.
+    c.spawned(3, 5, 7000, 1);
+    c.finished(3, 7000);                   // never touched
+    ok(c.rejected.noKeys === 1 && c.rejected.gapped === 1,
+       'R6 an untouched pane counts as noKeys, not as gapped');
+
+    const snap = c.snapshot();
+    ok(snap.rejected && snap.rejected.gapped === 1,
+       '⭐ R7 snapshot() carries the counts, so telemetry sees them');
+}
+
 
 if (fail) { fails.forEach(f => console.log('  ✗ ' + f)); process.exitCode = 1; }

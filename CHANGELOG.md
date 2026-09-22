@@ -1,5 +1,116 @@
 # CHANGELOG — TypeThatBook
 
+## Round 127 (Didot) — ten children, and the gate that explains both complaints
+
+Jake's students tested and left notes. **The traces say something neither Jake
+nor I could have seen from his own play.**
+
+**⚠️⚠️⚠️ TWO OF NINE ADAPTIVE RUNS NEVER GAINED CONFIDENCE ONCE.** One child
+cleared 22 words across **435 seconds** with `pacedWPM` pinned at the 8 WPM floor
+— a single distinct value in the entire trace, and `intervalMs` at 5,000 for
+every sample of seven minutes. `MIN_SAMPLES` is 4, so at least nineteen finished
+words were discarded, and nothing recorded that it had happened.
+
+**⭐⭐ AND IT UNIFIES THE TWO COMPLAINTS.** `calibrator.confident` is one binary
+that switches three things at once: the estimate, the 5,000 ms interval cap, and
+`SEED_MAX_ON_SCREEN` — **the only crowd ceiling in the file.** So there are two
+modes and no path between them. Jake flips in seconds, loses the ceiling, and
+dies in ten (125a). The slow typist never flips, keeps the ceiling, and grinds.
+"Easy easy easy HARD" and "kind of slow throughout" are the same gate seen from
+either side.
+
+**⚠️ THE SUSPECT IS `BURST_GAP_CAP_MS = 1500`** — a pause over 1.5 s inside a
+word discards the whole sample. For a sixth-grader at 15-25 WPM that is an
+ordinary hunt between letters. The rule's own comment says it protects "exactly
+the child we must not under-serve."
+
+**⚠️⚠️ IT WAS NOT CHANGED.** Keystroke timing is in no trace we hold, so that is
+inference, not measurement, and Rule 10 says the constant does not move until a
+harness fails on real data first. **Round 127 ships the instrument instead:**
+`samples`, `rejGap`, `rejShort`, `rejNoKeys` in every trace, counted by reason at
+the point of rejection, with `snapshot()` carrying them to telemetry.
+Mutation-verified.
+
+Two students also reported the lock jumping to a nearer word sharing a first
+letter — `aimFor()` working as designed, and the experience still wrong. ROADMAP
+127b, three options, Jake's ruling.
+
+**ALL 104 HARNESSES PASS.**
+
+## Round 126 (Fournier) — the room came before the copy
+
+Jake asked for the taglines and whatever documentation would fit on the side
+panels.
+
+**⚠️⚠️⚠️ THE FIRST FINDING WAS THAT ROUND 125 HAD ALREADY OVERFLOWED THEM.**
+`.gc-sub` is `max-width:34ch; text-align:center` inside a `.gc-panel` that is
+`position:absolute; inset:0` with no overflow rule, and Round 125 wrote ~1,150
+characters into it — thirty-five centred lines, with the Start button below them
+in the same flex column. ⭐ **More words in a box that cannot hold them is not
+more documentation.** `.gc-help` is now 52ch, left aligned, and scroll-capped at
+38vh so no hint can bury Start.
+
+**⭐ Keys moved out of the prose into a grid.** New optional `controls` array,
+rendered as a two-column key/meaning table. A key buried mid-paragraph is a key a
+sixth-grader skims past — which is how Shatter's scatter went unused long enough
+to be reported broken before we found that it really was.
+
+**All four taglines rewritten.** They are the only words on the arcade floor, and
+the old four set a mood rather than answering "which one do I want". Shards now
+names its radar, the one thing that distinguishes it from Shatter.
+
+**⚠️⚠️ The help audit broke three ways and every failure was a false alarm** —
+a slice that stopped at the prose, a ternary split that interleaved `hint` with
+`controls` (reporting a ping on the wrong board, confidently, in both
+directions), comments being scanned as copy, and a case-sensitive `/Backspace/`
+against uppercase key labels. Fixed and extended; mutation-verified two ways.
+
+**⚠️ ROADMAP 125a is still open.** No pacing code changed in 125 or 126.
+
+**ALL 104 HARNESSES PASS.**
+
+## Round 125 (Bodoni) — a hint that promised the wrong board, and the measurement behind "easy easy easy HARD"
+
+**Round 124 landed and worked.** Jake, 2026-09-15: *"Shatter's scatter actually
+worked!"*, *"Shard's ping worked!"* Both controls ran for the first time since
+they shipped.
+
+**⚠️⚠️⚠️ AND THE HINT WAS STILL LYING ABOUT ONE OF THEM.** Shatter's radial hint
+told a child *"Press Enter to ping."* `game-shatter.js`'s Enter handler reads
+`if (!drift) { tryScatter(true); return; }` — it returns BEFORE the ping. **Ping
+is drift-only; on Shatter proper, Enter scatters.** ⭐ The comment directly above
+that hint certifies that every key it names is a key the view handles — TRUE, and
+insufficient. `abandon-lock-test.mjs` D1/D2 check the KEY SET; naming the right
+key is not describing the right effect. **D4 now pins the effect,**
+mutation-verified against the old sentence.
+
+All three hints also expanded on a student's account (*"more description of all
+of them would have been helpful"*) to say what ENDS a run, not only what the keys
+do — Deadline's never mentioned the six domes or that a detonation clears the
+entire sky.
+
+### ⚠️⚠️⚠️ AND THE MEASUREMENT THAT MATTERS: THE SPAWNER HAS NO CEILING
+
+Jake: *"All three games were easy easy easy HARD."* Three traces agree:
+
+| game | run | first shield | riskless | all shields gone in |
+|---|---|---|---|---|
+| Deadline | 98 s | 63 s | 64% | 35.1 s |
+| Shatter | 191 s | 180 s | **94%** | **10.7 s** |
+| Shards | 264 s | 249 s | **94%** | 14.5 s |
+
+⭐⭐ `spawnDue()` spawns SOONER when the board is empty and at the SAME RATE when
+the board is drowning. The only crowd ceiling, `SEED_MAX_ON_SCREEN`, is gated on
+`!calibrator.confident` — **so the one brake switches off permanently the moment
+the calibrator succeeds.** No restoring force, so a deficit accumulates
+invisibly and discharges all at once. ⚠️ And `HIT_PRESSURE_RELIEF` is 0.10
+against a death pressure of **2.799**: a lost shield returns 3.5%.
+
+**Not fixed — see ROADMAP 125a.** Option 1 reverses a Round 122 decision, option
+2 invents a curve nobody has seen. Rule 3.
+
+**ALL 104 HARNESSES PASS.**
+
 ## Round 124 (Sholes) — three controls that had never once worked, and the two audits that could not see them
 
 Jake played the arcade and reported three things. All three were defects, and

@@ -1,52 +1,59 @@
-# Round 124 (Sholes) — the 10 files that changed
+# Round 127 (Didot) — 8 files
 
-Drop each at the path shown. Everything else in the repo is byte-identical to
-what you uploaded — verified by a full recursive diff against a fresh extraction
-of `typethatbook-main_1_.zip`. 320 files in, 321 out; the one new file is
-`tests/call-shape-test.mjs`.
-
-## Upload order
-
-Test files first if you want the audits live before the code lands.
+⚠️ **Assumes Rounds 124–126 are deployed.** Round 126 (taglines + side-panel
+docs) went out last turn — your message repeated the earlier request, so if you
+haven't uploaded 126 yet, do that first.
 
 | # | path | version | what changed |
 |---|---|---|---|
-| 1 | `tests/undefined-calls-test.mjs` | — | 27 unaudited modules added to `FILES` (13 → 59 files) |
-| 2 | `tests/call-shape-test.mjs` | **1.0.0** | ⭐ NEW — argument-shape audit |
-| 3 | `tests/adaptive-arcade-test.mjs` | — | H5a idle budget 4000 → 6000 frames |
-| 4 | `tests/run-all-tests.mjs` | — | registers `call-shape-test.mjs` (103 → 104) |
-| 5 | `game-shell.js` | 1.14.0 → **1.15.0** | `COMFORT_FRACTION`, `RAMP_DOUBLE_CHARS`, `_rampChars` |
-| 6 | `game-shatter.js` | 1.14.0 → **1.15.0** | `tryScatter()` written; `PING_REACH`; `platedText()` call fixed |
-| 7 | `escape-board.js` | 2.1.0 → **2.2.0** | orphaned `spawnSpot()` deleted |
-| 8 | `HANDOFF.md` | — | new START HERE + §24 |
-| 9 | `CHANGELOG.md` | — | Round 124 entry |
-| 10 | `ROADMAP.md` | — | items 124a, 124b, 124c |
+| 1 | `typing-calibrator.js` | 1.2.0 → **1.3.0** | discarded samples counted by reason |
+| 2 | `arcade-telemetry.js` | 1.3.0 → **1.4.0** | 4 new columns: `samples`, `rejGap`, `rejShort`, `rejNoKeys` |
+| 3 | `game-deadline.js` | 1.20.0 → **1.21.0** | passes the counts through |
+| 4 | `game-shatter.js` | 1.17.0 → **1.18.0** | passes the counts through |
+| 5 | `tests/typing-calibrator-test.mjs` | — | Part R, mutation-verified |
+| 6 | `HANDOFF.md` | — | new START HERE + §27 |
+| 7 | `CHANGELOG.md` | — | Round 127 entry |
+| 8 | `ROADMAP.md` | — | 127a, 127b, 127c |
 
-## ⚠️ Every original line that was REMOVED, accounted for
+## The students found something you and I could not
 
-You asked whether I torched anything. Here is the full accounting — 41 original
-lines were removed across all ten files, and this is all of them:
+**Two of the nine adaptive runs never gained confidence once.**
 
-* **`escape-board.js` — 24 lines.** The `spawnSpot()` method and its docblock,
-  deleted on purpose (§24E). It read `MIN_SPAWN_DISTANCE`, a constant this file
-  had already removed; nothing in the repo called it. ⚠️ **This is the only real
-  deletion in the round.**
-* **`game-shatter.js` — 9 lines.** The broken `platedText(...)` positional call
-  (5 lines), the old label-expiry loop (4 lines) — both replaced in place.
-* **`game-shell.js` — 2 lines.** The one-line body of `calibratedWPM`, and the
-  `_extraChars` constructor line — both replaced and expanded.
-* **CHANGELOG / ROADMAP / run-all-tests / adaptive-arcade — 1 line each,**
-  HANDOFF 3: the heading or list row being edited in place (the harness count,
-  the START HERE stamp, the H5a `for` line, the registry row).
-* **`undefined-calls-test.mjs` / `ROADMAP.md` — 0 removed.** Purely additive.
+| run | cleared | duration | distinct `pacedWPM` values |
+|---|---|---|---|
+| shards (AA, claimed ~25 WPM) | 22 | **435 s** | **1** — `8.0`, start to finish |
+| deadline | 59 | 327 s | **1** — `12.0` |
 
-Everything else in all ten files is an addition. Nothing else in the repo was
-touched.
+`MIN_SAMPLES` is 4. A child who finished 22 words produced fewer than four usable
+samples, and `intervalMs` sat at 5,000 for every sample of a seven-minute run.
 
-## Verify it yourself after uploading
+**⭐ One gate explains both of your complaints.** `calibrator.confident` switches
+three things at the same instant: the estimate, the `SEED_MAX_INTERVAL_MS` cap,
+and `SEED_MAX_ON_SCREEN` — the only crowd ceiling in the file, and the only
+negative feedback anywhere in the spawner. So there are two modes and no path
+between them. You flip in seconds, lose the ceiling, and die in ten. AA never
+flipped, kept the ceiling, and ground for seven minutes. "Easy easy easy HARD"
+and "kind of slow throughout" are the same gate from either side.
+
+## ⚠️ What I did NOT change, and why
+
+The suspect is `BURST_GAP_CAP_MS = 1500` — a pause over 1.5 s *inside a word*
+throws the whole sample away. For a 15-25 WPM sixth-grader that is an ordinary
+hunt between letters, not a hole. The constant's own comment says it exists to
+protect "exactly the child we must not under-serve."
+
+**Keystroke timing is in no trace we hold.** That makes this a strong inference
+and not a measurement, and Rule 10 says the number does not move until a harness
+fails on real data first. So this round ships the instrument, not the fix.
+
+**One more slow-typist run settles it.** A trace ending with 20+ clears,
+`samples` under 4 and `rejGap` in double figures convicts the constant outright.
+High `rejShort` or `rejNoKeys` clears it and points somewhere else.
+
+## Verify after uploading
 
 ```
-npm install acorn jsdom      # ⚠️ see ROADMAP 124c — neither is declared
+npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 

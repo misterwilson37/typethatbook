@@ -1,3 +1,23 @@
+// game-shatter.js v1.18.0 — Round 127 (Didot): passes the calibrator's sample and
+// rejection counts through to telemetry, same as Deadline.
+// game-shatter.js v1.17.0 — Round 126 (Fournier): ⚠️⚠️ THE KEYS COME OUT OF THE
+// PROSE. Round 125 fixed the sentence that promised a ping on the radial board;
+// this puts every key in `controls`, which game-chrome.js renders as a scannable
+// grid. ⭐ A KEY BURIED MID-PARAGRAPH IS A KEY A SIXTH-GRADER SKIMS PAST — which
+// is how the scatter went unused long enough to be reported broken before we
+// found that it really was. The two boards get different rows because they have
+// different keys: PING IS DRIFT-ONLY, and on the radial board Enter scatters.
+// game-shatter.js v1.16.0 — Round 125 (Bodoni): ⚠️⚠️⚠️ THE RADIAL HINT
+// PROMISED A PING THAT BOARD DOES NOT HAVE. Enter's handler reads
+// `if (!drift) { tryScatter(true); return; }` — it returns BEFORE the ping, so
+// PING IS DRIFT-ONLY and on Shatter proper Enter scatters. A child on the radial
+// board was told to press Enter for "a wave that writes each pane's word on the
+// ring" and got a scatter or a refusal. ⭐⭐ AND THE COMMENT ABOVE THE HINT IS WHY
+// IT LIVED: it certifies that every key the hint names is a key this view
+// handles, which is TRUE and INSUFFICIENT — naming the right key is not
+// describing the right effect, and `abandon-lock-test.mjs` D1/D2 check only the
+// key set. D4 now pins the effect. ⚠️ Both hints also expanded on a student's
+// account (Jake, 2026-09-15) to say what ENDS the run, not only what the keys do.
 // game-shatter.js v1.15.0 — Round 124 (Sholes): ⚠️⚠️⚠️ `tryScatter()` HAD NO
 // BODY. Round 122 shipped two call sites and no function, so Space and Enter
 // both threw a ReferenceError and the scatter has been dead since — Jake:
@@ -264,7 +284,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.15.0';
+export const GAME_SHATTER_VERSION = '1.18.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -1809,24 +1829,78 @@ export function mount(container, opts) {
         // REVERSE IS NOW TRUE TOO. `abandon-lock-test.mjs` Part D exists because
         // four sentences once promised Escape to a child who was already stuck;
         // Round 121 added Enter, so it is named here and on the panel.
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ THE RADIAL HINT PROMISED A PING THAT BOARD DOES NOT HAVE.
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // Read the Enter handler: `if (!drift) { tryScatter(true); return; }` —
+        // it returns BEFORE the ping. ⭐ **PING IS DRIFT-ONLY. On Shatter, Enter
+        // scatters.** The old copy told a child on the radial board to press
+        // Enter for "a wave that writes each pane's word on the ring", and what
+        // they got was a scatter or a refusal.
+        //
+        // ⚠️⚠️ AND THE COMMENT DIRECTLY ABOVE THIS ONE IS WHY IT SURVIVED. It
+        // claims every key the hint names is a key this view handles "and the
+        // reverse is now true too" — which is TRUE and INSUFFICIENT. This view
+        // does handle Enter. It just does something else with it. ⭐ NAMING THE
+        // RIGHT KEY IS NOT THE SAME AS DESCRIBING THE RIGHT EFFECT, and a test
+        // that checks the key set cannot see the difference.
+        //
+        // ⚠️ EXPANDED ON JAKE'S STUDENT'S ACCOUNT, 2026-09-15: *"she admitted
+        // that more description of all of them would have been helpful."* Each
+        // hint now says what ends the run, not only what the keys do — a child
+        // who does not know what they are protecting cannot prioritise.
         hint: drift
-            ? 'Panes of glass drift across the field and wrap around the edges '
-              + 'the way they do in Asteroids \u2014 nothing lands on a timer, so a '
-              + 'word you ignore comes back. Type one to light it up and shatter '
-              + 'it, and its pieces really do fly apart. Press Enter to ping: a '
-              + 'wave goes out and writes each pane\u2019s word on the ring for a '
-              + 'few seconds, so you can start typing before you can read it. '
-              + 'Clearing panes charges the meter; Space jumps your prism '
-              + 'somewhere quieter. Backspace lets go of the word you are on and '
-              + 'wipes it clean.'
+            ? 'Panes of glass drift across the field and wrap around the edges, '
+              + 'the way rocks do in Asteroids \u2014 nothing lands on a timer, so a '
+              + 'word you ignore comes back around. Type a pane to light it up '
+              + 'and shatter it, and its pieces really do fly apart into more '
+              + 'words. If a pane reaches your prism in the middle you lose a '
+              + 'shield. Lose all three and the run is over.'
             : 'Each word is a pane of glass, one panel per letter, coloured for '
-            + 'the finger that types it. Light up every panel and the pane '
-            + 'shatters \u2014 into its pieces, which you have to type too. Go for '
-            + 'whatever is closest to your prism. Press Enter to ping: a wave '
-            + 'goes out and writes each pane\u2019s word on the ring for a few '
-            + 'seconds. Clearing panes charges the meter; Space scatters every '
-            + 'pane back out to the ring. Backspace lets go of the word you are '
-            + 'on and wipes it clean so you can start it again.',
+              + 'the finger that types it. Light up every panel and the pane '
+              + 'shatters \u2014 into pieces, which you have to type too. Go for '
+              + 'whatever is closest to your prism. If a pane reaches the prism '
+              + 'you lose a shield. Lose all three and the run is over.',
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️ THE KEYS LIVE HERE NOW, NOT IN THE PROSE \u2014 Round 126 (Fournier).
+        // ═══════════════════════════════════════════════════════════════════
+        //
+        // ⭐ A KEY BURIED MID-PARAGRAPH IS A KEY A SIXTH-GRADER SKIMS PAST, which
+        // is how Shatter's scatter went unused long enough for Jake to call it
+        // broken before we found it really was. `game-chrome.js` renders these as
+        // a grid the eye can run down.
+        //
+        // ⚠️⚠️ AND THE TWO BOARDS GET DIFFERENT ROWS BECAUSE THEY HAVE DIFFERENT
+        // KEYS. Enter's handler reads `if (!drift) { tryScatter(true); return; }`
+        // \u2014 it returns BEFORE the ping, so PING IS DRIFT-ONLY and on the radial
+        // board Enter scatters. Round 125 fixed the sentence that got this wrong;
+        // this is the same fact in a shape a child can scan.
+        controls: drift
+            ? [
+                { keys: 'ENTER', what: 'Radar ping. A wave sweeps out to the far '
+                    + 'edge of the field and writes the word of every pane it '
+                    + 'finds around the ring \u2014 including ones still too far out '
+                    + 'to see \u2014 so you can start typing a word before it '
+                    + 'arrives. Free, and you can ping again about once a second.' },
+                { keys: 'SPACE', what: 'Warp. Clearing panes charges the meter in '
+                    + 'the corner; when it is full your prism jumps somewhere '
+                    + 'quieter and leaves the crowd behind. Finish your word '
+                    + 'first \u2014 mid-word it will wait.' },
+                { keys: 'BACKSPACE', what: 'Let go of the word you are on and '
+                    + 'wipe it clean, so you can chase a closer one.' },
+              ]
+            : [
+                { keys: 'ENTER', what: 'Scatter. Clearing panes charges the meter '
+                    + 'in the corner; when it is full, a scatter shoves every '
+                    + 'pane on the board back out to the ring and buys you room. '
+                    + 'Enter always works.' },
+                { keys: 'SPACE', what: 'Scatter, but only between words \u2014 in the '
+                    + 'middle of one the board cannot tell a scatter from a typo, '
+                    + 'and it will tell you to press Enter instead.' },
+                { keys: 'BACKSPACE', what: 'Let go of the word you are on and '
+                    + 'wipe it clean, so you can start it again or pick another.' },
+              ],
         muted: isMuted(),
         onStart() {
         // ⚠️⚠️ THE RUN CLOCK STARTS HERE, AT THE END OF THE COUNTDOWN, NOT ON THE
@@ -1925,6 +1999,11 @@ export function mount(container, opts) {
                 // AND NOT FOR A SCREEN. Rule 11: this leaves the machine in a
                 // diagnostic CSV or not at all.
                 pacedWPM: d.calibratedWPM,
+                // ⚠️ THE CALIBRATOR'S OWN NUMBERS, NOT A SECOND COPY (Rule 9) —
+                // read straight off `snapshot()` at the same instant as the
+                // estimate they explain.
+                samples: d.calibrator ? d.calibrator.samples.length : null,
+                rejected: d.calibrator ? d.calibrator.rejected : null,
                 shields: d.shields,
                 // ⚠️ COPIES, NOT THE ROCKS. Handing out live board objects would
                 // let a caller mutate the game, and a harness that can reach in
