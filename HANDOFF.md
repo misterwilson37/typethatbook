@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-22 by Round 127 (Didot), for whoever is next
+> ## ▶ START HERE — written 2026-09-22 by Round 128 (Bembo), for whoever is next
 >
-> **ALL 104 HARNESSES PASS.**
+> **ALL 105 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **104 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **105 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -10901,3 +10901,78 @@ it is not fixed by improving the rescue. Three options, Jake's ruling.
 | `tests/typing-calibrator-test.mjs` | — (Part R) |
 
 ⚠️ **NO PACING CODE CHANGED.** 125a, 127a and 127b are all rulings.
+
+---
+
+## §28. Round 128 (Bembo) — one character broke a button, a message and a number
+
+**2026-09-22.** Jake ruled on 125a (option C) and 127b (option A), and sent a
+screenshot of a delete failing.
+
+### A. ⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER WORKED. NOT ONCE. THE CAUSE WAS U+0000.
+
+`sprintIdentity()` joined its fields with U+0000. The identity is written into
+`data-run-id` and read back as `dataset.runId`, and **the HTML parser is required
+by spec to replace U+0000 in an attribute value with U+FFFD.** The string that
+went in was never the string that came out, so
+`sprints.findIndex(sp => sprintIdentity(sp) === runId)` returned **-1 on every
+click since the button shipped**.
+
+⭐⭐ **EVERY SYMPTOM JAKE REPORTED FALLS OUT OF THAT ONE CHARACTER:**
+
+* *"Could not find that run — the session may have changed"* is the -1 branch,
+  blaming a race that never happened;
+* *"deleting individual runs didn't change the times"* — the Firestore write sits
+  BELOW the -1 return, so it never ran and no rollup ever moved;
+* nothing in the console — it is a HANDLED branch, which is why the full dump he
+  pasted was clean.
+
+⚠️ **AND THE ERROR MESSAGE ACTIVELY MISLED US.** It named a stale session, so
+two rounds of investigation looked at refresh timing and dataset plumbing. ⭐ A
+HANDLED BRANCH THAT GUESSES AT A CAUSE IS WORSE THAN AN UNHANDLED ONE, because
+it spends someone else's afternoon.
+
+Separator is `IDENTITY_SEP = '\u001f'` now — a control character that survives
+attribute round-tripping and cannot occur in a date, a detail or a number.
+
+### B. ⚠️⚠️ AND THE HARNESS CAUGHT A SECOND ONE ON THE WAY PAST
+
+`escapeHtml()` was `createTextNode(s).innerHTML`, which escapes `&`, `<` and `>`
+and **leaves quotes alone** — correct in TEXT position and catastrophic in the
+ATTRIBUTES it is actually used in. A double quote closes the attribute and
+everything after it is reparsed as further attributes on the element.
+
+⭐ **`data-name` CARRIES STUDENT NAMES.** This is not a display glitch; it is
+attributes injected from stored data. Found only because part B of the new
+harness round-trips an adversarial detail through a real parser rather than
+checking the happy path.
+
+### C. ⚠️ THE ORPHANED RUNS JAKE KEPT SEEING
+
+`.session-entry` and `.sprint-list` are SIBLINGS in the template, so
+`row.remove()` took the header and left every run of the deleted session on
+screen with a dead ✕ beside it. ⭐ His *"the runs and sessions never actually
+seem to disappear"* was a fair reading of what the page showed him.
+
+### D. 125a OPTION C — THE RELIEF IS A RATIO
+
+`HIT_PRESSURE_RELIEF` 0.10 returned ~8% at pressure 1.2 and 3.5% at Shatter's
+death pressure of 2.799. ⚠️ AN ABSOLUTE SUBTRACTION FROM A GROWING QUANTITY IS A
+RELIEF THAT FADES OUT AS IT IS NEEDED. Now `max(flat, ramp × 0.40)` — the `max`
+is why this is one change and not two: an early hit is unchanged.
+
+⚠️⚠️ **125a IS STILL OPEN.** C makes the collapse survivable, not gradual. A and
+B are Jake's call and he is still thinking.
+
+### E. ⚠️ OPEN AND UNADDRESSED — READ BEFORE PICKING WORK
+
+* **1,593 reads to look at one student.** `readLogById()` is one `getDoc` per
+  student-day, 1,435 of them misses. Jake: *"I've now had to do 700 reads
+  multiple times just to get information on...me."* A single-student filter
+  before the per-day loop takes that to three. **Cost is priority one.**
+* **Zero counts on days that had runs, fixed by a refresh.** `readLogById()`
+  returns `{missing:true}` and `{error}` as distinct things and its header
+  promises a failed read is never rendered as zero. Jake saw zeros. Check whether
+  the CALLER honours that distinction.
+* **127b option A** — Jake chose it: show both words highlighting until they
+  diverge, then commit and stay committed until finished or backspaced.

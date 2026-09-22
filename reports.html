@@ -1,5 +1,22 @@
 <!DOCTYPE html>
-<!-- reports.html v1.11.0
+<!-- reports.html v1.12.0 — Round 128 (Bembo): ⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER
+     WORKED ONCE. `sprintIdentity()` joined on U+0000 and the identity travels
+     through a `data-run-id` attribute — the HTML parser is REQUIRED BY SPEC to
+     replace U+0000 with U+FFFD, so `findIndex(… === runId)` returned -1 on every
+     click since the button shipped. ⭐ Every symptom falls out of that one
+     character: the "session may have changed" notice is the -1 branch blaming a
+     race that never happened; the day totals never moved because the write sits
+     below the return; and nothing reached the console because it is a HANDLED
+     branch. Separator is U+001F now, round-trip proven rather than reasoned.
+     ⚠️⚠️ `escapeHtml()` ESCAPED &, < AND > BUT NOT QUOTES — correct in text
+     position, catastrophic in the attributes it is actually used in, including
+     `data-name` carrying student names, where a quote closes the attribute and
+     the rest is reparsed. Found by the adversarial case in the new harness.
+     ⚠️ Deleting a session now removes its `.sprint-list` SIBLING too; it used to
+     take the header and leave the runs orphaned on screen with dead ✕ buttons.
+     See tests/reports-identity-test.mjs.
+
+     reports.html v1.11.0
      v1.11.0 — ⚠️⚠️ ROADMAP 54's PANEL SAID IT COUNTED typing_logs' `bookId`, AND
      THERE IS NO SUCH FIELD. The copy now names what is actually counted —
      students with a progress document for the book — and the panel gains two
@@ -3506,7 +3523,18 @@
             try {
                 e.target.disabled = true;
                 await deleteDoc(doc(db, "typing_sessions", sessionId));
+                // ⚠️⚠️ THE RUNS ARE A SIBLING, NOT A CHILD — Round 128 (Bembo).
+                // The template emits `<div class="session-entry">…</div>` and
+                // then `<div class="sprint-list">…</div>` NEXT TO IT, so
+                // `row.remove()` took the header and left every run of the
+                // deleted session sitting on screen with a dead ✕ beside it.
+                // ⭐ Jake's screenshot, 2026-09-22: two session headers gone and
+                // six orphaned runs still listed under them — and he read it as
+                // *"the runs and sessions never actually seem to disappear"*,
+                // which is a fair reading of what the page showed him.
                 const row = e.target.closest('.session-entry');
+                const runs = row && row.nextElementSibling;
+                if (runs && runs.classList.contains('sprint-list')) runs.remove();
                 if (row) row.remove();
 
                 // ⚠️ v2.13.0 — CONNECTING THE BUTTONS. Deleting the evidence used
@@ -3757,8 +3785,38 @@
         return out;
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ THE SEPARATOR WAS U+0000 AND THE IDENTITY TRAVELS THROUGH AN HTML
+    //        ATTRIBUTE. PER-RUN DELETE HAS NEVER WORKED, FOR ANYONE, ONCE.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-22, screenshot: *"Could not find that run — the session may
+    // have changed. Reopen the day and try again."*
+    //
+    // ⭐⭐ THAT MESSAGE IS NOT A RACE AND THE SESSION HAD NOT CHANGED. The
+    // identity is written into `data-run-id` and read back as `dataset.runId`,
+    // and **the HTML parser is required by spec to replace U+0000 in an
+    // attribute value with U+FFFD**. So the string that goes in is not the
+    // string that comes out, `findIndex(sp => sprintIdentity(sp) === runId)`
+    // returns -1 every single time, and the only branch left is the one that
+    // blames a stale session.
+    //
+    // ⚠️⚠️ AND THE FAILURE IS SILENT IN EVERY WAY THAT MATTERS. It is a handled
+    // branch, so nothing reaches the console; Jake pasted a full console dump
+    // with no error in it. The Firestore write never happens, so the day totals
+    // never move — which is exactly the symptom he reported as *"deleting
+    // individual runs didn't change the times."* One dead separator produced a
+    // broken button, a misleading error and a wrong number.
+    //
+    // ⚠️ U+001F IS THE FIX AND IT IS NOT ARBITRARY. It is a control character
+    // that survives attribute round-tripping (only U+0000 is replaced), it
+    // cannot occur in a date, a detail string or a number, and it keeps the
+    // property the join was chosen for: no field value can forge a boundary.
+    // ⭐ VERIFIED BY ROUND-TRIP IN `reports-identity-test.mjs`, NOT BY READING
+    // THE SPEC — the spec is why, the harness is proof.
+    const IDENTITY_SEP = '\u001f';
     const sprintIdentity = (sp) =>
-        [sp.at || '', sp.detail || '', sp.seconds || 0, sp.chars || 0].join('\u0000');
+        [sp.at || '', sp.detail || '', sp.seconds || 0, sp.chars || 0].join(IDENTITY_SEP);
     const runIndexFromDetailLocal = (detail) => {
         const m = /^\s*run\s+(\d+)/i.exec(String(detail || ''));
         if (!m) return null;
@@ -4654,10 +4712,33 @@
         return `${m}m ${s}s`;
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ THE TEXTNODE TRICK DOES NOT ESCAPE QUOTES, AND THIS IS USED INSIDE
+    //        ATTRIBUTES — Round 128 (Bembo).
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // `innerHTML` of a text node escapes `&`, `<` and `>` and leaves `"` and `'`
+    // exactly as they were, because in TEXT position a quote needs no escaping.
+    // ⭐⭐ BUT THIS FUNCTION'S CALLERS PUT THE RESULT IN ATTRIBUTES —
+    // `data-run-id`, `data-name`, `title` — where a double quote CLOSES THE
+    // ATTRIBUTE. A value containing one is silently truncated at the quote, and
+    // whatever followed is reparsed as further attributes on the element.
+    //
+    // ⚠️ FOUND BY `reports-identity-test.mjs` B1, which round-trips an
+    // adversarial detail through a real parser. It was written to prove the
+    // U+0000 separator fix and it caught this on the way past — the identity
+    // survived the new separator and still came back as `run 1 ` because the
+    // attribute ended at the student's quote mark.
+    //
+    // ⚠️⚠️ `data-name` CARRIES STUDENT NAMES. A name with a double quote in it is
+    // rare and it is not hypothetical, and the failure is not a display glitch:
+    // it is arbitrary attributes injected from stored data. ⭐ ESCAPING ALL FIVE
+    // IS CORRECT IN BOTH POSITIONS, so there is no call site to audit and no
+    // second function to choose between.
     function escapeHtml(str) {
-        const d = document.createElement('div');
-        d.appendChild(document.createTextNode(str));
-        return d.innerHTML;
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 </script>
 

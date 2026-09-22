@@ -1,5 +1,33 @@
 # CHANGELOG — TypeThatBook
 
+## Round 128 (Bembo) — one character broke a button, a message and a number
+
+**⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER WORKED ONCE.** `sprintIdentity()` joined on
+U+0000; the identity travels through a `data-run-id` attribute; **the HTML parser
+is required by spec to replace U+0000 with U+FFFD.** The lookup returned -1 on
+every click since the button shipped.
+
+⭐ Every symptom fell out of that one character — the "session may have changed"
+notice (the -1 branch blaming a race that never happened), the day totals never
+moving (the write sits below the return), and nothing in the console (a handled
+branch). ⚠️ **A HANDLED BRANCH THAT GUESSES AT A CAUSE IS WORSE THAN AN UNHANDLED
+ONE**: it named a stale session and spent two rounds of investigation.
+
+**⚠️⚠️ The new harness caught a second bug on the way past.** `escapeHtml()`
+escaped `&`, `<` and `>` but not quotes — correct in text position, catastrophic
+in the attributes it is used in, including `data-name` carrying student names,
+where a quote closes the attribute and the rest is reparsed.
+
+**⚠️ Deleting a session now takes its runs with it.** `.session-entry` and
+`.sprint-list` are siblings, so the old removal orphaned every run on screen.
+
+**125a option C, on Jake's ruling:** hit relief is `max(flat, ramp × 0.40)`
+instead of a flat 0.10 that returned 8% at pressure 1.2 and 3.5% at 2.8. The
+`max` means early hits are unchanged. **125a is still open** — C makes the
+collapse survivable, not gradual.
+
+**ALL 105 HARNESSES PASS.**
+
 ## Round 127 (Didot) — ten children, and the gate that explains both complaints
 
 Jake's students tested and left notes. **The traces say something neither Jake

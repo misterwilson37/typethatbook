@@ -1,3 +1,13 @@
+// game-shell.js v1.16.0 — Round 128 (Bembo): ⚠️⚠️ JAKE RULED 125a OPTION C, AND THE
+// RELIEF IS A RATIO NOW. `HIT_PRESSURE_RELIEF` is 0.10 and was set when pressure
+// lived near 1.2, where it returned about 8%; Shatter died at pressure 2.799,
+// where the same 0.10 returns 3.5%. ⭐⭐ AN ABSOLUTE SUBTRACTION FROM A QUANTITY
+// THAT GROWS IS A RELIEF THAT FADES OUT EXACTLY AS THE BOARD TURNS LETHAL — the
+// fifth constant in this project to be absolute where it needed to be a ratio.
+// A hit now hands back `max(flat, ramp × HIT_RELIEF_FRACTION)`, so it can never
+// give back LESS than it always did and only the late hits change.
+// ⚠️⚠️⚠️ THIS DOES NOT FIX 125a. The spawner still has a floor and no ceiling;
+// this makes the collapse SURVIVABLE, not gradual. Options A and B are open.
 // game-shell.js v1.15.0 — Round 124 (Sholes): ⚠️⚠️ THE RAMP AND THE HEADROOM ARE
 // BOTH RATIOS NOW, AND THE REASON IS WHO TESTS THIS. Jake, 2026-09-14: *"I'm
 // going to be the tester, and I type at 90wpm… if the exponential growth gets
@@ -223,7 +233,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.15.0';
+export const GAME_SHELL_VERSION = '1.16.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -430,6 +440,30 @@ export const RAMP_DOUBLE_CHARS = 90;
 // negative — relief can undo the ramp and can never make a game easier than the
 // gate it was launched at.
 export const HIT_PRESSURE_RELIEF = 0.10;
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ THE RELIEF IS A FRACTION OF WHERE PRESSURE ACTUALLY IS — Round 128.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-22, choosing option C of ROADMAP 125a: *"definitely C. Having it
+// actually scale via measurement will help, too."*
+//
+// ⭐⭐ `HIT_PRESSURE_RELIEF` IS 0.10 AND IT WAS SET WHEN PRESSURE LIVED NEAR 1.2,
+// where it gave back about 8%. Shatter died at pressure **2.799**, where the same
+// 0.10 gives back **3.5%** — so the worse the board gets, the less a lost shield
+// buys, and the relief fades out exactly as it starts to matter. ⚠️ AN ABSOLUTE
+// SUBTRACTION FROM A QUANTITY THAT GROWS IS A SHRINKING RELIEF, and this is the
+// fifth constant in this project to be absolute where it needed to be a ratio.
+//
+// ⭐ SO A HIT NOW HANDS BACK A FIXED FRACTION OF THE RAMP ABOVE 1.0, which is the
+// same 8% at 1.2 that it always was and a real 8% at 2.8 as well. ⚠️ OF THE RAMP,
+// NOT OF PRESSURE: pressure has a floor of 1.0 (`MISSION_PRESSURE`) that nothing
+// may push it under, so the fraction is taken of the part that can actually move.
+//
+// ⚠️⚠️ IT DOES NOT FIX 125a AND MUST NOT BE READ AS DOING SO. The spawner still
+// has a floor and no ceiling; this makes the collapse SURVIVABLE, not gradual.
+// Options A and B are still open and are still Jake's call.
+export const HIT_RELIEF_FRACTION = 0.40;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️⚠️ NOTHING MAY WAIT LONGER THAN THIS FOR ITS FIRST WORK WHILE THE GAME IS
@@ -1571,7 +1605,15 @@ export class GameDirector {
             this._graceUntil = nowMs + HIT_GRACE_MS;
             // ⚠️ NEVER NEGATIVE. Relief can unwind the ramp and can never push a
             // run below the gate it launched at — MISSION_PRESSURE is the floor.
-            this._extraChars = Math.max(0, this._extraChars - HIT_PRESSURE_RELIEF / RAMP_PER_CHAR);
+            // ⚠️⚠️ THE LARGER OF THE TWO, so this can never give back LESS than
+            // the flat relief always did — at low pressure the old number still
+            // governs, and the fraction only takes over once the ramp has grown
+            // enough for 0.10 to have become rounding error. ⭐ A CHANGE THAT
+            // COULD MAKE AN EARLY HIT GENTLER *AND* A LATE HIT HARSHER WOULD BE
+            // TWO CHANGES, and only one of them was asked for.
+            const ramp = this._extraChars * RAMP_PER_CHAR;
+            const give = Math.max(HIT_PRESSURE_RELIEF, ramp * HIT_RELIEF_FRACTION);
+            this._extraChars = Math.max(0, this._extraChars - give / RAMP_PER_CHAR);
         }
         if (this.shields <= 0) this.end(nowMs);
         return true;

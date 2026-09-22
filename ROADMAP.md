@@ -1,5 +1,62 @@
 # TYPETHATBOOK — ROADMAP
 
+### 128a — ⚠️⚠️⚠️ 1,593 READS TO LOOK AT ONE STUDENT. COST IS PRIORITY ONE.
+
+Jake, 2026-09-22: *"Really wish I could run reports on just a single kid, as I've
+now had to do 700 reads multiple times just to get information on...me."*
+
+His meter, one page load:
+
+| call site | reads | misses |
+|---|---|---|
+| `reports.html:2227` (`readLogById`) | **1,593** | **1,435** |
+| `reports.html:2208` (roster) | 531 | 0 |
+| everything else combined | 222 | 4 |
+
+⭐ `readLogById()` is one `getDoc` per student-day and **90% of them are misses** —
+documents for children who did not type that day. The roster is already in hand
+before the loop starts.
+
+**⚠️ THE FIX IS A FILTER, NOT A CACHE:** let the report take a student (or a
+class) and narrow the roster BEFORE the per-day loop. One student over three days
+is three reads instead of 1,593. ⚠️⚠️ AND IT IS NOT ONLY MONEY — Jake re-runs
+this to check his own test runs, several times a day, and every run is a
+four-figure read bill against a school budget.
+
+### 128b — ⚠️⚠️ ZERO COUNTS ON DAYS THAT HAD RUNS, FIXED BY A REFRESH
+
+Jake, 2026-09-22: *"a student who reported he typed every day. I checked the
+record, and it showed zero counts for two of his days even though he had runs and
+everything on those days. A refresh fixed it."*
+
+⭐ `readLogById()`'s own header says: *"A FAILED READ RETURNS null, NEVER ZERO. A
+day we could not read is not a day with no typing, and a report that cannot tell
+those apart shows a child a zero they did not earn. Callers count nulls and say
+so."* It returns `{missing:true}`, `{error}` and `{missing:false, data}` as three
+distinct things.
+
+⚠️⚠️ **A ZERO REACHED THE SCREEN ANYWAY, SO A CALLER IS COLLAPSING THEM.** The
+promise is in the right place and something downstream is not keeping it. With
+1,435 misses per load, a transient failure in that flood is likely and would look
+exactly like this. **CHECK THE CALLER AT `reports.html:2565`** before touching
+`readLogById()` — the function is probably innocent.
+
+⚠️ THIS IS A GRADES-CORRECTNESS BUG, which outranks everything except cost: a
+child who typed and is shown zero is the one failure a teacher cannot argue with.
+
+### 128c — ⭐ 127b OPTION A, RULED AND NOT YET BUILT
+
+Jake, 2026-09-22: *"Option A — show both words highlighting until they diverge,
+and then pick the one — is probably my choice. They can backspace out of it, but
+it stays with the one word until they're done (or choose to be done)."*
+
+⚠️ THE MECHANIC DOES NOT CHANGE, THE DISPLAY DOES. Until the candidates diverge,
+every word matching the typed prefix shows the prefix lit; at the diverging
+character the existing re-lock rescue already picks the right one, and from there
+the lock holds until finished or Backspaced. ⭐ Jake also confirms the underlying
+report: *"on at least one of the shatter games, it definitely shifts targets
+midway through typing."*
+
 ### 127a — ⚠️⚠️⚠️ THE CALIBRATOR CANNOT MEASURE THE CHILDREN IT WAS BUILT FOR
 
 **STATUS: DIAGNOSED, INSTRUMENTED, NOT FIXED. RULE 10 BLOCKS THE FIX UNTIL ONE

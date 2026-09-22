@@ -1,54 +1,69 @@
-# Round 127 (Didot) — 8 files
+# Round 128 (Bembo) — 8 files
 
-⚠️ **Assumes Rounds 124–126 are deployed.** Round 126 (taglines + side-panel
-docs) went out last turn — your message repeated the earlier request, so if you
-haven't uploaded 126 yet, do that first.
+⚠️ **Assumes Rounds 124–127 are deployed.**
 
 | # | path | version | what changed |
 |---|---|---|---|
-| 1 | `typing-calibrator.js` | 1.2.0 → **1.3.0** | discarded samples counted by reason |
-| 2 | `arcade-telemetry.js` | 1.3.0 → **1.4.0** | 4 new columns: `samples`, `rejGap`, `rejShort`, `rejNoKeys` |
-| 3 | `game-deadline.js` | 1.20.0 → **1.21.0** | passes the counts through |
-| 4 | `game-shatter.js` | 1.17.0 → **1.18.0** | passes the counts through |
-| 5 | `tests/typing-calibrator-test.mjs` | — | Part R, mutation-verified |
-| 6 | `HANDOFF.md` | — | new START HERE + §27 |
-| 7 | `CHANGELOG.md` | — | Round 127 entry |
-| 8 | `ROADMAP.md` | — | 127a, 127b, 127c |
+| 1 | `reports.html` | 1.11.0 → **1.12.0** | the delete fix, the quote fix, the orphaned rows |
+| 2 | `game-shell.js` | 1.15.0 → **1.16.0** | 125a option C — hit relief scales |
+| 3 | `tests/reports-identity-test.mjs` | **1.0.0** | ⭐ NEW, 13 assertions |
+| 4 | `tests/game-shell-test.mjs` | — | relief assertion rewritten as a ratio |
+| 5 | `tests/run-all-tests.mjs` | — | registers the new harness (104 → 105) |
+| 6-8 | `HANDOFF.md`, `CHANGELOG.md`, `ROADMAP.md` | — | §28, 128a–c |
 
-## The students found something you and I could not
+## ⚠️⚠️⚠️ Per-run delete had never worked. Not once, for anyone.
 
-**Two of the nine adaptive runs never gained confidence once.**
+`sprintIdentity()` joined its fields with **U+0000**. That identity gets written
+into `data-run-id` and read back as `dataset.runId` — and the HTML parser is
+**required by spec** to replace U+0000 in an attribute with U+FFFD. The string
+going in was never the string coming out, so the lookup returned -1 on every
+click since the button shipped.
 
-| run | cleared | duration | distinct `pacedWPM` values |
-|---|---|---|---|
-| shards (AA, claimed ~25 WPM) | 22 | **435 s** | **1** — `8.0`, start to finish |
-| deadline | 59 | 327 s | **1** — `12.0` |
+Every symptom you reported is that one character:
 
-`MIN_SAMPLES` is 4. A child who finished 22 words produced fewer than four usable
-samples, and `intervalMs` sat at 5,000 for every sample of a seven-minute run.
+* *"Could not find that run — the session may have changed"* is the -1 branch,
+  blaming a race that never happened;
+* *"deleting individual runs didn't change the times"* — the Firestore write sits
+  **below** that return, so it never ran and no total ever moved;
+* nothing in the console — it's a handled branch, which is why your dump was clean.
 
-**⭐ One gate explains both of your complaints.** `calibrator.confident` switches
-three things at the same instant: the estimate, the `SEED_MAX_INTERVAL_MS` cap,
-and `SEED_MAX_ON_SCREEN` — the only crowd ceiling in the file, and the only
-negative feedback anywhere in the spawner. So there are two modes and no path
-between them. You flip in seconds, lose the ceiling, and die in ten. AA never
-flipped, kept the ceiling, and ground for seven minutes. "Easy easy easy HARD"
-and "kind of slow throughout" are the same gate from either side.
+Separator is U+001F now, proven by round-tripping through a real parser rather
+than by reading the spec.
 
-## ⚠️ What I did NOT change, and why
+## ⚠️⚠️ The new harness caught a second bug on its way past
 
-The suspect is `BURST_GAP_CAP_MS = 1500` — a pause over 1.5 s *inside a word*
-throws the whole sample away. For a 15-25 WPM sixth-grader that is an ordinary
-hunt between letters, not a hole. The constant's own comment says it exists to
-protect "exactly the child we must not under-serve."
+`escapeHtml()` was the `createTextNode().innerHTML` trick, which escapes `&`, `<`
+and `>` and **leaves quotes alone** — correct in text position, wrong in the
+attributes it's actually used in. A double quote closes the attribute and
+everything after is reparsed as further attributes.
 
-**Keystroke timing is in no trace we hold.** That makes this a strong inference
-and not a measurement, and Rule 10 says the number does not move until a harness
-fails on real data first. So this round ships the instrument, not the fix.
+**`data-name` carries student names.** Not a display glitch.
 
-**One more slow-typist run settles it.** A trace ending with 20+ clears,
-`samples` under 4 and `rejGap` in double figures convicts the constant outright.
-High `rejShort` or `rejNoKeys` clears it and points somewhere else.
+## ⚠️ The orphaned rows
+
+`.session-entry` and `.sprint-list` are siblings, so `row.remove()` took the
+header and left the runs. Your screenshot showed exactly that.
+
+## 125a option C
+
+Relief is `max(flat 0.10, ramp × 0.40)`. The `max` means early hits are
+unchanged — only the late ones, where 0.10 had become rounding error against a
+pressure of 2.8. **125a is still open**; C makes the collapse survivable, not
+gradual.
+
+## ⚠️ Two things I did NOT do, both in ROADMAP
+
+**128a — the read cost.** Your meter: 1,593 reads at `readLogById`, 1,435 of them
+misses, to show you three days. The fix is a student/class filter applied before
+the per-day loop — three reads instead of 1,593. This is the biggest item open
+and I'd like it to be next.
+
+**128b — the zeros on days that had runs.** `readLogById()` returns "missing",
+"error" and "has data" as three distinct things, and its header promises a failed
+read is never shown as zero. A zero reached your screen, so a caller is
+collapsing them — check `reports.html:2565` before touching the reader. With
+1,435 misses per load a transient failure is likely and would look exactly like
+this. Grades correctness, so it outranks everything but cost.
 
 ## Verify after uploading
 
@@ -57,4 +72,4 @@ npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 
-Expect **ALL 104 HARNESSES PASS**.
+Expect **ALL 105 HARNESSES PASS**. Then try deleting one run.

@@ -32,7 +32,7 @@ import {
     missionConfigFromRun, charsPerSecondFor, GAME_SHELL_VERSION,
     enemyStepMs, targetTimeMs, POINTS_PER_CORRECT_CHAR, POINTS_PER_INTACT_SHIELD,
     SURVIVAL_MAX_WPM, survivalCeilingFor, RAMP_PER_CHAR, arcadeConfig, MIN_SPAWN_GAP_MS,
-    HIT_GRACE_MS, HIT_PRESSURE_RELIEF,
+    HIT_GRACE_MS, HIT_PRESSURE_RELIEF, HIT_RELIEF_FRACTION,
 } from '../game-shell.js';
 import { chunkSequence, gatesForRun } from '../run-grade.js';
 import { firstBlocked } from '../drill-filter.js';
@@ -914,9 +914,49 @@ console.log('\nPART K — SURVIVAL: the score that must not be a subtraction');
     for (let i = 0; i < 60; i++) r.cleared('abcd', 1);
     const before = r.pressure;
     r.hit(5000);
-    ok(Math.abs((before - r.pressure) - HIT_PRESSURE_RELIEF) < 1e-9,
-       '\u2b50 a hit hands back exactly HIT_PRESSURE_RELIEF of pressure (' +
-       before.toFixed(3) + ' \u2192 ' + r.pressure.toFixed(3) + ')');
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ CHANGED IN ROUND 128 ON JAKE'S RULING (125a option C), AND THE OLD
+    //        ASSERTION WAS CORRECT — IT PINNED A RULE WE DECIDED TO REPLACE.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // ⭐⭐ THE FLAT 0.10 SHRANK AS IT WAS NEEDED MOST. It was set when pressure
+    // lived near 1.2, where it returned about 8%; Shatter died at pressure 2.799,
+    // where the same 0.10 returns 3.5%. An absolute subtraction from a quantity
+    // that grows is a relief that fades out exactly as the board gets lethal.
+    //
+    // ⚠️ THE RELIEF IS NOW `max(flat, ramp × HIT_RELIEF_FRACTION)`, so it can
+    // never give back LESS than it always did — the flat number still governs
+    // early, and the fraction only takes over once the ramp has grown enough for
+    // 0.10 to be rounding error. ⭐ THAT `max` IS WHY THIS IS ONE CHANGE AND NOT
+    // TWO: making an early hit gentler was not asked for and does not happen.
+    const gave = before - r.pressure;
+    const rampBefore = before - 1;
+    ok(gave >= HIT_PRESSURE_RELIEF - 1e-9,
+       '⭐ a hit never hands back less than the old flat relief (' +
+       before.toFixed(3) + ' → ' + r.pressure.toFixed(3) + ', gave ' +
+       gave.toFixed(3) + ')');
+    ok(Math.abs(gave - Math.max(HIT_PRESSURE_RELIEF, rampBefore * HIT_RELIEF_FRACTION)) < 1e-9,
+       '⚠️⚠️ and it is a FRACTION OF THE RAMP above 1.0, not a fixed subtraction');
+
+    // ⭐ THE PROPERTY THE WHOLE CHANGE EXISTS FOR, stated as a ratio: the relief
+    // must not shrink as pressure grows. Shatter's death pressure was 2.799.
+    // ⚠️ 130, NOT 400. At 400 the ramp is past PRESSURE_CEILING and `pressure`
+    // is clamped, so subtracting from the ramp moves NOTHING and the assertion
+    // reads 2.500 → 2.500. ⭐ THE OLD COMMENT TWELVE LINES UP ALREADY WARNED
+    // ABOUT THIS — "a clamped pressure gives the same number back… the assertion
+    // would be testing Math.min()" — and I walked into it anyway. 130 clears
+    // lands near 2.1: genuinely hot, genuinely below the clamp.
+    const hot = endless();
+    for (let i = 0; i < 130; i++) hot.cleared('abcd', 1);
+    const hotBefore = hot.pressure;
+    hot.hit(5000);
+    const hotGave = hotBefore - hot.pressure;
+    ok(hotBefore > 2.0, 'the hot board really is past 2.0 (' + hotBefore.toFixed(3) + ')');
+    ok(hotGave / (hotBefore - 1) >= gave / rampBefore - 1e-9,
+       '⚠️⚠️⚠️ a hit at high pressure returns at least as LARGE A SHARE of the ramp '
+       + 'as a hit at low pressure — the fade-out that made the collapse '
+       + 'unsurvivable is gone (' + hotBefore.toFixed(3) + ' → '
+       + hot.pressure.toFixed(3) + ')');
 
     // ⚠️ AND IT NEVER GOES BELOW THE GATE. Relief can unwind the ramp; it cannot
     // make a run easier than the pressure it launched at.
