@@ -1,6 +1,8 @@
 # TYPETHATBOOK — ROADMAP
 
-### 128a — ⚠️⚠️⚠️ 1,593 READS TO LOOK AT ONE STUDENT. COST IS PRIORITY ONE.
+### 128a — ✅ CLOSED (Round 129, Caslon). Student picker, narrowing before the sweep — one student over three days is three reads instead of 1,593.
+
+### ~~128a — ⚠️⚠️⚠️ 1,593 READS TO LOOK AT ONE STUDENT~~
 
 Jake, 2026-09-22: *"Really wish I could run reports on just a single kid, as I've
 now had to do 700 reads multiple times just to get information on...me."*

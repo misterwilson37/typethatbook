@@ -149,6 +149,38 @@ console.log('\nD — ⚠️⚠️ DELETING A SESSION TAKES ITS RUNS WITH IT');
        '\u26a0\ufe0f and the surviving session header is untouched');
 }
 
+console.log('\nE — ⚠️⚠️⚠️ THE STUDENT FILTER NARROWS BEFORE THE SWEEP, NOT AFTER');
+{
+    // ⭐⭐ THE POSITION IS THE WHOLE FIX. The sweep is one getDoc per student-day;
+    // filtering the rendered OUTPUT would read all 1,593 documents and throw
+    // 1,590 away — the convenience without the saving, which is the version that
+    // looks finished and fixes nothing. Jake's meter, 2026-09-22: 1,593 reads at
+    // readLogById, 1,435 of them misses, to show three days.
+    const src = readFileSync(path.join(ROOT, 'reports.html'), 'utf8');
+    const code = src.replace(/^\s*\/\/.*$/gm, '');
+
+    const iFilter = code.indexOf("document.getElementById('scope-student').value");
+    const iPairs = code.indexOf('plan.fetch.forEach(date => pairs.push');
+    const iSweep = code.indexOf('await readLogById(p.uid, p.date)');
+    ok(iFilter > 0, 'E1 generateReport() reads the student picker');
+    ok(iPairs > 0 && iSweep > 0, 'E2 the per-student-day sweep is still where we think it is');
+    ok(iFilter < iPairs,
+       '⚠️⚠️⚠️ E3 the narrowing runs BEFORE `pairs` is built — so the saved reads '
+       + 'are never issued, rather than issued and discarded');
+    ok(iFilter < iSweep, 'E4 and before readLogById is ever called');
+
+    // ⚠️ THE PICKER MUST NOT PAY FOR ITSELF. A dropdown that queried the roster
+    // to populate itself would add a read every time the class picker moved.
+    const iRemember = code.indexOf('rememberStudents(uids)');
+    ok(iRemember > 0 && iRemember < iPairs,
+       '⭐ E5 the list is captured from the roster the report already assembled');
+
+    // ⚠️ AND AN OUT-OF-SCOPE CHILD IS REFUSED, NOT SILENTLY EMPTIED. An empty
+    // report reads on screen exactly like a child who did no typing.
+    ok(/not in the selected school\/class/.test(code),
+       '⚠️⚠️ E6 picking a student outside the scope says so instead of showing zero');
+}
+
 console.log(fails.length ? `\nFAIL — ${pass} ok, ${fails.length} failed`
                          : `\nPASS — ${pass} ok, 0 failed`);
 if (fails.length) process.exitCode = 1;

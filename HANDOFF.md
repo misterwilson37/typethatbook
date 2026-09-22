@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-22 by Round 128 (Bembo), for whoever is next
+> ## ▶ START HERE — written 2026-09-22 by Round 129 (Caslon), for whoever is next
 >
 > **ALL 105 HARNESSES PASS.**
 >
@@ -10976,3 +10976,51 @@ B are Jake's call and he is still thinking.
   the CALLER honours that distinction.
 * **127b option A** — Jake chose it: show both words highlighting until they
   diverge, then commit and stay committed until finished or backspaced.
+
+
+---
+
+## §29. Round 129 (Caslon) — one student, three reads
+
+**2026-09-22.** Jake confirmed the Round 128 delete fix works, then asked the
+obvious next thing: *"How do I pull up only one kid? I can filter by school and
+class, but I don't see how to filter by kid."* ⭐ HE COULD NOT, AND THAT WAS
+ROADMAP 128a — the largest open item, and a cost item, which outranks everything.
+
+### A. ⚠️⚠️⚠️ THE POSITION OF THE FILTER IS THE ENTIRE FIX
+
+The per-day sweep is **one `getDoc` per student-day**. Jake's meter: **1,593
+reads at `readLogById`, 1,435 of them misses**, to display three days.
+
+⭐⭐ **FILTERING THE RENDERED OUTPUT WOULD READ ALL 1,593 AND THROW 1,590 AWAY** —
+the convenience without the saving, and it would look finished. The narrowing
+runs before `pairs` is built, so the saved reads are never issued at all. One
+student over three days is three reads.
+
+⚠️ `reports-identity-test.mjs` part E pins the ORDER, not the feature:
+mutation-verified by moving the filter below the `pairs` build, which goes red on
+E3 while everything else still passes — exactly the wrong fix this defends against.
+
+### B. ⭐ THE PICKER DOES NOT PAY FOR ITSELF
+
+A dropdown that queried the roster to populate itself would add a read every time
+the class picker moved. `rememberStudents()` is called from inside
+`generateReport()` with the map it had already assembled, so the list is free;
+the ⟳ button loads it before running anything and does the **roster query only**,
+never the per-day sweep.
+
+⚠️ Changing school or class clears the list, because leaving a stale child
+selected under a new class is how a teacher gets an empty report and believes it.
+⚠️⚠️ And a student outside the chosen scope is REFUSED with a message rather than
+returning nothing — an empty report reads on screen exactly like a child who did
+no typing, which is the zero-they-did-not-earn this file keeps promising not to
+show.
+
+### C. ⚠️ STILL OPEN
+
+* **128b — zeros on days that had runs.** Untouched. `readLogById()` distinguishes
+  `{missing}`, `{error}` and `{data}`; a zero reached the screen, so a caller is
+  collapsing them. Check `reports.html`'s sweep, where `res.error` increments
+  `unreadable` and returns. **Grades correctness.**
+* **128c — 127b option A**, ruled and not built.
+* **125a options A and B.** Jake has C and is still thinking.

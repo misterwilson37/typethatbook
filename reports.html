@@ -1,5 +1,19 @@
 <!DOCTYPE html>
-<!-- reports.html v1.12.0 — Round 128 (Bembo): ⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER
+<!-- reports.html v1.13.0 — Round 129 (Caslon): ⚠️⚠️⚠️ A STUDENT PICKER, AND IT IS
+     A COST CONTROL BEFORE IT IS A CONVENIENCE. Jake, 2026-09-22: *"I've now had
+     to do 700 reads multiple times just to get information on...me."* His meter
+     showed 1,593 reads at readLogById with 1,435 of them MISSES, to display three
+     days. ⭐⭐ THE SWEEP IS ONE getDoc PER STUDENT-DAY, so the narrowing happens
+     BEFORE `pairs` is built — filtering the rendered output would read all 1,593
+     and throw 1,590 away, which is the version that looks finished and fixes
+     nothing. One student over three days is now three reads. ⚠️ The list fills
+     from the roster a report already assembled (rememberStudents), so offering it
+     costs nothing; ⟳ loads it without running a report, roster query only.
+     ⚠️⚠️ A student outside the chosen school/class is REFUSED with a message, not
+     silently emptied — an empty report reads on screen exactly like a child who
+     did no typing. See tests/reports-identity-test.mjs part E.
+
+     reports.html v1.12.0 — Round 128 (Bembo): ⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER
      WORKED ONCE. `sprintIdentity()` joined on U+0000 and the identity travels
      through a `data-run-id` attribute — the HTML parser is REQUIRED BY SPEC to
      replace U+0000 with U+FFFD, so `findIndex(… === runId)` returned -1 on every
@@ -701,6 +715,25 @@
             <div class="control-group">
                 <label for="scope-class">Class</label>
                 <select id="scope-class"></select>
+            </div>
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ⚠️⚠️⚠️ ONE STUDENT — Round 129 (Caslon). THIS IS A COST CONTROL
+                        THAT HAPPENS TO BE A CONVENIENCE.
+                 ═══════════════════════════════════════════════════════════════
+                 Jake, 2026-09-22: *"I've now had to do 700 reads multiple times
+                 just to get information on...me."* His meter: 1,593 reads at
+                 readLogById, 1,435 of them MISSES, to show three days.
+                 ⭐ The per-day sweep is one getDoc per student-day, so narrowing
+                 the roster to one child before that loop turns a four-figure
+                 read bill into one read per day in range.
+                 ⚠️ IT STARTS EMPTY AND FILLS FROM A REPORT YOU ALREADY RAN, so
+                 offering the list costs nothing on its own — see loadStudents(). -->
+            <div class="control-group">
+                <label for="scope-student">Student</label>
+                <div style="display:flex;gap:6px;align-items:center">
+                    <select id="scope-student"><option value="__all__">All students</option></select>
+                    <button id="scope-student-load" type="button" title="Load the student list for this class (one roster read; no day reads)" style="padding:4px 8px">&#8635;</button>
+                </div>
             </div>
             <div class="control-group" style="align-self:flex-end">
                 <span id="scope-note" style="font-size:.8em;opacity:.7"></span>
@@ -2203,6 +2236,71 @@
     // ~630 — small, and each is a point read, the cheapest thing Firestore does.
     const MAX_ROSTER_PAIRS = 4000;
 
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️ THE STUDENT PICKER FILLS FROM WORK ALREADY DONE — Round 129 (Caslon).
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // ⭐ A dropdown that queried the roster to populate itself would add a read
+    // every time the class picker moved, which is the opposite of the point.
+    // `rememberStudents()` is called from inside generateReport() with the map it
+    // had already assembled, so the list costs nothing; the ⟳ button is for
+    // choosing a student BEFORE running anything, and does the roster query only.
+    //
+    // ⚠️ THE SELECTION SURVIVES A REFILL. A teacher who picks a child, changes
+    // the dates and regenerates must not silently get the whole class back.
+    function rememberStudents(uids) {
+        const sel = document.getElementById('scope-student');
+        if (!sel || !uids || !uids.size) return;
+        const prev = sel.value;
+        const names = [...uids.entries()]
+            .map(([uid, info]) => ({ uid, name: info.name || 'Unknown', email: info.email || '' }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        sel.innerHTML = '<option value="__all__">All students</option>'
+            + names.map(n => `<option value="${escapeHtml(n.uid)}">${escapeHtml(n.name)}`
+                + `${n.email ? ' — ' + escapeHtml(n.email) : ''}</option>`).join('');
+        // ⚠️ RESTORE ONLY IF STILL PRESENT. A child who is not in the new scope
+        // must fall back to "All students" rather than sit selected and invisible.
+        sel.value = [...uids.keys()].includes(prev) ? prev : '__all__';
+    }
+
+    async function loadStudents() {
+        const btn = document.getElementById('scope-student-load');
+        const sel = document.getElementById('scope-student');
+        if (!btn || !sel) return;
+        btn.disabled = true;
+        const wasText = btn.textContent;
+        btn.textContent = '\u2026';
+        try {
+            // ⚠️ THE ROSTER QUERY ONLY \u2014 no per-day reads. This is the cheap half
+            // of a report and it is the only half a picker needs.
+            const start = document.getElementById('date-start').value;
+            const end = document.getElementById('date-end').value;
+            const roster = await readRosterUids(start, end);
+            if (!roster.size) {
+                ttbNotice('No students found in that school/class.', { bad: true });
+                return;
+            }
+            rememberStudents(roster);
+            ttbNotice(`Loaded ${roster.size} student${roster.size === 1 ? '' : 's'}.`);
+        } catch (e) {
+            console.error('[roster] student load failed', e);
+            ttbNotice('Could not load the student list: ' + (e.message || e), { bad: true });
+        } finally {
+            btn.disabled = false;
+            btn.textContent = wasText;
+        }
+    }
+
+    document.getElementById('scope-student-load')?.addEventListener('click', loadStudents);
+    // ⚠️ CHANGING SCHOOL OR CLASS INVALIDATES THE LIST. Leaving a stale child
+    // selected under a new class is how a teacher gets an empty report and
+    // believes it.
+    ['scope-school', 'scope-class'].forEach(id =>
+        document.getElementById(id)?.addEventListener('change', () => {
+            const sel = document.getElementById('scope-student');
+            if (sel) sel.innerHTML = '<option value="__all__">All students</option>';
+        }));
+
     async function readRosterUids(startDate, endDate) {
         const schoolId = document.getElementById('scope-school').value;
         const classId  = document.getElementById('scope-class').value;
@@ -2504,6 +2602,40 @@
             } catch (e) {
                 rosterOk = false;
                 console.warn('[roster] roster read failed:', e);
+            }
+
+            // ═══════════════════════════════════════════════════════════════
+            // ⚠️⚠️⚠️ THE NARROWING HAPPENS HERE, BEFORE `pairs` IS BUILT, AND
+            //        THAT POSITION IS THE ENTIRE POINT — Round 129 (Caslon).
+            // ═══════════════════════════════════════════════════════════════
+            //
+            // The sweep below is ONE getDoc PER STUDENT-DAY. Filtering the
+            // rendered output instead would read all 1,593 documents and then
+            // throw 1,590 away — the convenience without the saving, which is
+            // the version that looks finished and fixes nothing.
+            //
+            // ⚠️ THE LOG QUERY ABOVE IS SCOPED BY CLASS AND CANNOT BE NARROWED
+            // FURTHER HERE without a different index, so `uids` may already hold
+            // children from the class query. Deleting them from the map is what
+            // keeps them out of `pairs`.
+            // ⭐ AND THE ROSTER IS CAPTURED FOR THE PICKER ON THE WAY PAST, so
+            // the list fills from work already done rather than a fresh read.
+            rememberStudents(uids);
+            const onlyUid = document.getElementById('scope-student').value;
+            if (onlyUid && onlyUid !== '__all__') {
+                if (!uids.has(onlyUid)) {
+                    // ⚠️ NOT SILENT. An empty result because the chosen child is
+                    // outside the chosen class is indistinguishable, on screen,
+                    // from a child who did no typing — and that is exactly the
+                    // zero-they-did-not-earn this file keeps promising not to show.
+                    statusEl.innerText = 'That student is not in the selected school/class — '
+                        + 'widen the scope or pick a different student.';
+                    statusEl.style.borderColor = 'var(--notice)';
+                    return;
+                }
+                const keep = uids.get(onlyUid);
+                uids.clear();
+                uids.set(onlyUid, keep);
             }
 
             const dateList = datesInRange(startDate, endDate);

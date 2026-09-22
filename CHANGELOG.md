@@ -1,5 +1,28 @@
 # CHANGELOG — TypeThatBook
 
+## Round 129 (Caslon) — one student, three reads
+
+Jake confirmed the Round 128 delete fix, then asked how to pull up a single kid.
+He could not — ROADMAP 128a, the largest open item and a cost item.
+
+**⚠️⚠️⚠️ THE POSITION OF THE FILTER IS THE ENTIRE FIX.** The sweep is one
+`getDoc` per student-day; his meter showed **1,593 reads, 1,435 of them misses**,
+to display three days. Filtering the rendered output would read all 1,593 and
+discard 1,590 — the convenience without the saving. The narrowing runs before
+`pairs` is built, so those reads are never issued. One student over three days is
+now three reads.
+
+**⭐ The picker does not pay for itself.** The list fills from the roster a report
+already assembled; the ⟳ button loads it without running a report and does the
+roster query only. Changing school or class clears it, and a student outside the
+chosen scope is refused with a message rather than silently returning an empty
+report that reads exactly like a child who did no typing.
+
+Part E of `reports-identity-test.mjs` pins the ORDER, mutation-verified by moving
+the filter below the `pairs` build.
+
+**ALL 105 HARNESSES PASS.**
+
 ## Round 128 (Bembo) — one character broke a button, a message and a number
 
 **⚠️⚠️⚠️ PER-RUN DELETE HAD NEVER WORKED ONCE.** `sprintIdentity()` joined on

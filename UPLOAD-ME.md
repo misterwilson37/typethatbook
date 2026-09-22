@@ -1,75 +1,60 @@
-# Round 128 (Bembo) — 8 files
+# Round 129 (Caslon) — 5 files
 
-⚠️ **Assumes Rounds 124–127 are deployed.**
+⚠️ **Assumes Round 128 is deployed** (it is — your per-run delete works).
 
 | # | path | version | what changed |
 |---|---|---|---|
-| 1 | `reports.html` | 1.11.0 → **1.12.0** | the delete fix, the quote fix, the orphaned rows |
-| 2 | `game-shell.js` | 1.15.0 → **1.16.0** | 125a option C — hit relief scales |
-| 3 | `tests/reports-identity-test.mjs` | **1.0.0** | ⭐ NEW, 13 assertions |
-| 4 | `tests/game-shell-test.mjs` | — | relief assertion rewritten as a ratio |
-| 5 | `tests/run-all-tests.mjs` | — | registers the new harness (104 → 105) |
-| 6-8 | `HANDOFF.md`, `CHANGELOG.md`, `ROADMAP.md` | — | §28, 128a–c |
+| 1 | `reports.html` | 1.12.0 → **1.13.0** | Student picker + ⟳ load button |
+| 2 | `tests/reports-identity-test.mjs` | 1.0.0 → **1.1.0** | part E — pins the filter's POSITION |
+| 3-5 | `HANDOFF.md`, `CHANGELOG.md`, `ROADMAP.md` | — | §29, 128a closed |
 
-## ⚠️⚠️⚠️ Per-run delete had never worked. Not once, for anyone.
+## How to use it
 
-`sprintIdentity()` joined its fields with **U+0000**. That identity gets written
-into `data-run-id` and read back as `dataset.runId` — and the HTML parser is
-**required by spec** to replace U+0000 in an attribute with U+FFFD. The string
-going in was never the string coming out, so the lookup returned -1 on every
-click since the button shipped.
+A **Student** dropdown now sits next to School and Class. It starts empty
+("All students"), and fills two ways:
 
-Every symptom you reported is that one character:
+1. **Run any report** — the list populates from the roster that report already
+   read, at no extra cost. Then pick yourself and hit Generate again.
+2. **Click ⟳** — loads the student list for the current school/class without
+   running a report. That's the roster query only, no per-day reads.
 
-* *"Could not find that run — the session may have changed"* is the -1 branch,
-  blaming a race that never happened;
-* *"deleting individual runs didn't change the times"* — the Firestore write sits
-  **below** that return, so it never ran and no total ever moved;
-* nothing in the console — it's a handled branch, which is why your dump was clean.
+Changing School or Class clears the list, so you'll need to reload it for the new
+scope. That's deliberate — a stale child left selected under a new class gives you
+an empty report that looks like a kid who didn't type.
 
-Separator is U+001F now, proven by round-tripping through a real parser rather
-than by reading the spec.
+## ⚠️⚠️ Why this is a cost fix, not a convenience
 
-## ⚠️⚠️ The new harness caught a second bug on its way past
+Your meter: **1,593 reads at `readLogById`, 1,435 of them misses**, to show three
+days. That sweep is one `getDoc` per student-day.
 
-`escapeHtml()` was the `createTextNode().innerHTML` trick, which escapes `&`, `<`
-and `>` and **leaves quotes alone** — correct in text position, wrong in the
-attributes it's actually used in. A double quote closes the attribute and
-everything after is reparsed as further attributes.
+The filter runs **before** the read list is built, so the saved reads are never
+issued. Filtering the displayed results instead would have read all 1,593 and
+thrown 1,590 away — it would look identical on screen and save you nothing.
 
-**`data-name` carries student names.** Not a display glitch.
+**You, three days: 3 reads instead of 1,593.**
 
-## ⚠️ The orphaned rows
+Part E of the harness pins the *order*, not the feature. Mutation-verified by
+moving the filter below the read-list build: E3 goes red and everything else
+still passes, which is exactly the wrong fix it exists to catch.
 
-`.session-entry` and `.sprint-list` are siblings, so `row.remove()` took the
-header and left the runs. Your screenshot showed exactly that.
+## ⚠️ Still open, in priority order
 
-## 125a option C
+1. **128b — the zeros.** Untouched. `readLogById()` returns "missing", "error"
+   and "has data" as three distinct things, and a zero still reached your screen,
+   so a caller is collapsing them. In the sweep, `res.error` increments an
+   `unreadable` counter and returns — I'd start there. Grades correctness.
+   ⭐ **This gets much rarer on its own now**: 1,435 fewer reads per load means
+   far fewer chances for a transient failure. That makes it harder to reproduce,
+   not fixed.
+2. **128c** — the word-lock display (127b option A), ruled and not built.
+3. **125a A and B** — still yours.
 
-Relief is `max(flat 0.10, ramp × 0.40)`. The `max` means early hits are
-unchanged — only the late ones, where 0.10 had become rounding error against a
-pressure of 2.8. **125a is still open**; C makes the collapse survivable, not
-gradual.
-
-## ⚠️ Two things I did NOT do, both in ROADMAP
-
-**128a — the read cost.** Your meter: 1,593 reads at `readLogById`, 1,435 of them
-misses, to show you three days. The fix is a student/class filter applied before
-the per-day loop — three reads instead of 1,593. This is the biggest item open
-and I'd like it to be next.
-
-**128b — the zeros on days that had runs.** `readLogById()` returns "missing",
-"error" and "has data" as three distinct things, and its header promises a failed
-read is never shown as zero. A zero reached your screen, so a caller is
-collapsing them — check `reports.html:2565` before touching the reader. With
-1,435 misses per load a transient failure is likely and would look exactly like
-this. Grades correctness, so it outranks everything but cost.
-
-## Verify after uploading
+## Verify
 
 ```
 npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 
-Expect **ALL 105 HARNESSES PASS**. Then try deleting one run.
+Expect **ALL 105 HARNESSES PASS**. Then run a report, pick yourself, run it again
+and watch the meter.
