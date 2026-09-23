@@ -1,5 +1,96 @@
 # TYPETHATBOOK — ROADMAP
 
+### 131a — ⭐ LESSONS-FIRST NUDGE IN LIBRARY. SPEC RULED; ONE QUESTION BLOCKS THE BUILD.
+
+**STATUS: ✅ SPEC COMPLETE (Round 133). Ready to build.**
+
+⚠️⚠️⚠️ **ROUND 131 FRAMED THIS WRONG AND JAKE CORRECTED IT.** Round 131's options
+treated sub-15 WPM in Library as a possible *reading* difficulty — harder text,
+accommodations, a child "reading Aesop at 13". Jake, 2026-09-23:
+
+> *"Kids who are typing less than 15 words a minute do not know how to type. It's
+> not a reading thing or a reading assessment. To pass the typing classes, they
+> have to accurately type (greater than 80%) at speed (20 wpm by the end maybe?),
+> so expecting kids to do at least that well all of the time is not a stretch —
+> it's technically required. … we need to make sure we're remembering the purpose
+> of the project — typing practice."*
+
+⭐⭐ **THIS IS A TYPING CLASS AND THE LINE IS THE COURSE REQUIREMENT, NOT A
+DIAGNOSIS.** Library is where a child who can already type practises; a child
+under 15 WPM or 80% needs the lessons, and the nudge is the app reinforcing an
+expectation the class already has. Do not reintroduce the reading framing.
+
+**THE SPEC, AS RULED:**
+
+1. **First minute gathers data.** Nothing is judged before one minute of Library
+   typing; by then WPM and accuracy are meaningful.
+2. **Threshold:** under 15 WPM **OR** under 80% accuracy.
+3. **First modal** — at the end of the current sentence, or after an error reset,
+   never mid-word. Two choices: **Go to lessons**, or **Give me another chance**
+   ("it's been a rough morning").
+4. **Second modal** — after ANOTHER minute, if still under. Same two choices, but
+   the second one now says plainly that time **will not count until they do some
+   lessons**.
+5. **Uncounted state** — seconds stop growing and **the timer visibly stops**:
+   frozen, and greyed or flashing red, so the child can see it is not moving.
+6. **Exemption** — per class or per student is fine (Jake). ⚠️ The purpose stays
+   typing practice: an exemption is an exception a teacher grants, not a default.
+
+**⭐⭐ THE UNLOCK, RULED BY JAKE 2026-09-23 — AND IT IS NOT "DO LESSONS":**
+
+> *"I would go so far as to give a kid a minute of garbage typing every day if
+> they want it. So we can reset the count every day. … We don't even need the kid
+> to go type in school — maybe they want to practice elsewhere — but they won't
+> get to count the time until they're better, and that's what matters."*
+
+* **The unlock is PERFORMANCE, not attendance.** Time resumes counting when the
+  child's measured WPM and accuracy come back above the line — wherever they got
+  better. ⚠️ Round 132 proposed "complete a School lesson"; that is withdrawn. A
+  child who practises at home and returns at 20 WPM is simply counted again.
+* **It resets every day.** Each day starts with a fresh free minute, garbage or
+  not. ⭐ THIS MAKES THE LOCK EPHEMERAL: no persisted lock document, no Firestore
+  rule change, no stuck-across-days state — which also retires Round 132's
+  proposed default that the lock should survive reloads and days.
+* ⚠️ **A RELOAD MUST NOT BE A FREE RESET WITHIN THE DAY**, or a child reloads for
+  a new free minute every minute. The day's judgement needs to survive a reload
+  even though it dies at midnight. Cheapest honest home: the student's own
+  localStorage, keyed by date — per-viewer, costs no reads or writes, and a child
+  clearing it gains one minute, which is exactly what Jake is willing to give.
+
+**Defaults still standing from Round 132:** the second minute is judged on that
+minute alone; "error reset" is the existing consecutive-mistakes hard stop; a
+child above the line gets no modal.
+
+**⚠️ RULE 11:** the uncounted state must be RECORDED on the day, so the report can
+say *"typed in Library — uncounted, lessons pending"* rather than show a zero that
+reads exactly like a child who did not type (128b).
+
+### 132a — ⚠️⚠️ "chars" MEANS TWO DIFFERENT THINGS ONE ROW APART
+
+Found by testing ⏸ against Jake's two real farming students (Round 132).
+
+* A **run's** `chars` is **NET progress** — `currentCharIndex - sprintCharStart`,
+  where the cursor ended minus where it started. Backspacing reduces it.
+* A **day's** `chars` is **GROSS correct keystrokes** — `statsData.charsToday++`
+  on every correct key, so type-erase-retype counts every time.
+
+| student | day | day says | its runs sum to |
+|---|---|---|---|
+| Sherlock | 09-22 | 132 | 30 |
+| Sherlock | 09-23 | 474 | 399 |
+| Lost World | 09-22 | 1 | 0 |
+| **Lost World** | **09-23** | **322** | **14** |
+
+⭐ Neither is wrong on its own terms. ⚠️⚠️ But the report labels both `chars`, on
+adjacent rows, and they answer different questions — and gross characters are
+exactly what type-erase-retype inflates, which is why the ⏸ flag catches Lost
+World 09-23 at run level and misses it at day level.
+
+⚠️ **NOT FIXED, DELIBERATELY.** Changing what the day log counts touches daylog.js
+and the carry-over and cutover logic, the most heavily-guarded code in the
+project. The minimum honest step is LABELLING — "keystrokes" vs "progress" — and
+even that is Jake's call, since `chars` appears in the CSV export too.
+
 ### 128a — ✅ CLOSED (Round 129, Caslon). Student picker, narrowing before the sweep — one student over three days is three reads instead of 1,593.
 
 ### ~~128a — ⚠️⚠️⚠️ 1,593 READS TO LOOK AT ONE STUDENT~~

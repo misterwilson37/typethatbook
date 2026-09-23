@@ -1,3 +1,11 @@
+// game-escape.js v2.9.0 — Round 126 (Fournier): ⚠️ Backspace moves into a
+// `controls` row; the hint names adjacency and what ends the run. ⚠️⚠️ ONE ROW
+// AND NO MORE — `controls` is omitted where there is nothing to say, because an
+// empty grid would imply this game is missing a key the others have.
+// game-escape.js v2.8.0 — Round 125 (Bodoni): ⚠️ HINT EXPANDED, same reason as
+// Deadline's and Shatter's — it now says that adjacency is the movement rule and
+// that a creature reaching you ends the run. A child who does not know what ends
+// the run cannot prioritise.
 // game-escape.js v2.7.0 — Round 122 (Maskelyne): ⭐ IT HONOURS `onCountdown` AT
 // LAST — ROADMAP 116b, open since Round 116. The three digits run in the gauge
 // readout and the run clock takes over, exactly as Deadline has done since Round
@@ -214,7 +222,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.7.0';
+export const GAME_ESCAPE_VERSION = '2.9.0';
 
 /**
  * @param {HTMLElement} container
@@ -1148,9 +1156,19 @@ export function mount(container, opts) {
         // WHERE IT IS USED BEFORE BELIEVING IT WORKS.
         barHost: (opts && opts.barHost) || null,
         title: 'Escape Key',
-        hint: 'Type a word next to you to move onto it. Your row and column are '
-            + 'tinted — that is where creatures come from, so keep moving. '
-            + 'Backspace clears what you have typed.',
+        // ⚠️ EXPANDED ROUND 125, same reason as Deadline's and Shatter's: a
+        // child who does not know what ends the run cannot prioritise.
+        hint: 'Type a word next to you to move onto it \u2014 you can only move to '
+            + 'a square that touches the one you are standing on. Your row and '
+            + 'your column are tinted, and that is where creatures come in from, '
+            + 'so standing still is the one thing that never works. A creature '
+            + 'reaching you ends the run.',
+        // ⚠️ ONE ROW, AND `controls` IS OMITTED WHERE THERE IS NOTHING TO SAY:
+        // an empty grid would imply this game is missing a key the others have.
+        controls: [
+            { keys: 'BACKSPACE', what: 'Clear what you have typed so you can aim '
+                + 'at a different square.' },
+        ],
         muted: isMuted(),
         // ⚠️ THE CHROME OWNS THE NUMBER AND THIS ONLY STORES IT. A view that ran
         // its own timer here would be the second clock Round 95 deleted.

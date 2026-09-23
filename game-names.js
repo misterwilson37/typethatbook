@@ -1,3 +1,9 @@
+// game-names.js v1.4.0 — Round 126 (Fournier): ⚠️⚠️ ALL FOUR TAGLINES REWRITTEN
+// TO SAY WHAT THE GAME ASKS OF YOU. These are the only words on the arcade
+// FLOOR — a child choosing a cabinet sees the title and this line and nothing
+// else, and the old four were moods rather than answers. ⭐ Shards names its
+// radar, because it is the only cabinet that has one and there is otherwise no
+// way to tell it from Shatter.
 // game-names.js v1.3.0 — Round 116 (Sun): ⭐ SHARDS, the fourth cabinet and the
 // second Shatter. Same view, different board. ⚠️ THE REGISTRY IS THE LAST STEP
 // OF BUILDING A GAME, NOT A NOTE ABOUT ONE — see the `unbuilt` note below, which
@@ -34,7 +40,7 @@
 // ⚠️ THIS IS ALSO WHY THE FILES ARE `game-escape.js` AND `game-deadline.js`
 // RATHER THAN `game-escape-key.js` AND SO ON. Filenames are ids too.
 
-export const GAME_NAMES_VERSION = '1.3.0';
+export const GAME_NAMES_VERSION = '1.4.0';
 
 /**
  * ⚠️ `id` VALUES ARE FROZEN. Add games; never rename these strings.
@@ -46,7 +52,14 @@ export const GAMES = {
         // Jake, 2026-09-07: *"Escape Key is brilliant. That is now the name."*
         // It is a real key, it is literally what the game is about, and the words
         // the student types ARE their escape keys.
-        tagline: 'Type your way out. Standing still is not an option.',
+        // ⚠️ ROUND 126: EVERY TAGLINE NOW SAYS WHAT THE GAME ASKS OF YOU.
+        // These are the only words on the arcade FLOOR — a child choosing a
+        // cabinet sees the title and this line and nothing else. Jake's student,
+        // 2026-09-15: *"more description of all of them would have been
+        // helpful."* ⭐ The get-ready panel answers "how do I play"; this has to
+        // answer "which one do I want", and four moods is not four answers.
+        tagline: 'A grid. Type a word beside you to step onto it \u2014 and keep '
+            + 'stepping, because creatures come down your row and column.',
         kind: 'throughput',   // was 'cadence' until the row/column spawn rule
         // ⚠️⚠️ ARCADE-ONLY FOR NOW, BY JAKE'S RULING (2026-09-07): *"I'm leaning
         // toward arcade for now, but time typed should still count."*
@@ -75,7 +88,10 @@ export const GAMES = {
         // city is gone. Also what every writer calls time pressure, and a real
         // newspaper-press term, which keeps it in this app's world rather than
         // Atari's.
-        tagline: 'Words are falling on Nashville. Beat the deadline.',
+        // ⚠️ THE ONE THAT SAYS "ASSESSED" WITHOUT SAYING IT: Deadline is the
+        // lesson gate, so its line names the pressure honestly.
+        tagline: 'Words fall on the skyline. Type the lowest one first and keep '
+            + 'six domes standing.',
         kind: 'throughput',
         // The assessed one: replaces the FINAL run of a lesson, and reads that
         // run's real gates through run-grade.js's gatesForRun().
@@ -103,7 +119,8 @@ export const GAMES = {
         // ⚠️ AND A HARNESS WAS PINNING IT: game-assumptions-test.mjs asserted
         // `unbuilt === true`, so the bug had a passing test defending it. See
         // that file's Part on the registry for the corrected assertion.
-        tagline: 'Break the long words into pieces before they reach you.',
+        tagline: 'Words are panes of glass closing in. Shatter them, then type '
+            + 'the pieces \u2014 and scatter the board when it gets thick.',
         kind: 'throughput',
         assessed: false,
         countsTime: true,
@@ -123,7 +140,10 @@ export const GAMES = {
         // the whole point of offering both is to find out which one a class
         // actually prefers, and "2" tells a twelve-year-old the answer.
         title: 'Shards',
-        tagline: 'The same glass, drifting. Nothing lands — it comes back around.',
+        // ⭐ AND THIS ONE NAMES THE RADAR, because it is the only cabinet that
+        // has one and a child cannot otherwise tell Shards from Shatter.
+        tagline: 'The same glass, adrift and wrapping \u2014 nothing lands, it comes '
+            + 'back around. Ping the radar to read what is still off-screen.',
         kind: 'throughput',
         assessed: false,
         countsTime: true,

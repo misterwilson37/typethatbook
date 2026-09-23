@@ -1,3 +1,12 @@
+// game-chrome.js v1.11.0 — Round 126 (Fournier): ⚠️⚠️⚠️ THE GET-READY PANEL HAD
+// ONE 34ch CENTRED PARAGRAPH AND NO SCROLL, and Round 125 wrote ~1,150
+// characters into it — thirty-five centred lines inside a `.gc-panel` that is
+// `position:absolute; inset:0` with no overflow rule, which would have pushed
+// the Start button out of a laptop viewport. ⭐⭐ MORE WORDS IN A BOX THAT CANNOT
+// HOLD THEM IS NOT MORE DOCUMENTATION. `.gc-help` is wider (52ch), LEFT aligned,
+// and scroll-capped at 38vh so a long hint can never bury Start; `.gc-keys` is a
+// new two-column grid fed by an optional `controls` array. ⚠️ `.gc-sub` IS
+// UNCHANGED — the result and pause cards still use it for one-liners.
 // game-chrome.js v1.10.0 — Round 116 (Sun): ⚠⚠ `pauseKey` MOVES OUT OF
 // showReady() AND INTO MOUNT SCOPE. It was declared inside the function that
 // paints the get-ready panel while destroy() removed its listener at mount
@@ -100,7 +109,7 @@
 
 import { prefersReducedMotion } from './game-draw.js';
 
-export const GAME_CHROME_VERSION = '1.10.0';
+export const GAME_CHROME_VERSION = '1.11.0';
 
 // ⚠️ THREE SECONDS, AND THE SPAWNS WAIT FOR IT. Not the clock — the clock starts
 // on the first keystroke regardless, and always did.
@@ -226,6 +235,32 @@ const CSS = `
             background:rgba(2,4,10,0.82); pointer-events:auto; }
 .gc-title { color:#ffd700; font-size:30px; font-weight:700; letter-spacing:1px; }
 .gc-sub { color:#9fb6c6; font-size:14px; text-align:center; max-width:34ch; line-height:1.5; }
+/* ═════════════════════════════════════════════════════════════════════════
+   ⚠️⚠️⚠️ THE GET-READY PANEL HAD ONE 34ch CENTRED PARAGRAPH AND NO SCROLL,
+          AND ROUND 125 NEARLY DROWNED IT — Round 126 (Fournier).
+   ═════════════════════════════════════════════════════════════════════════
+   Round 125 expanded every "hint" on a student's account that *"more
+   description of all of them would have been helpful"* \u2014 and wrote ~1,150
+   characters into ".gc-sub". At 34ch that is thirty-five CENTRED lines inside a
+   ".gc-panel" that is "position:absolute; inset:0" with no overflow rule. ⭐⭐
+   MORE WORDS IN A BOX THAT CANNOT HOLD THEM IS NOT MORE DOCUMENTATION; the
+   Start button would have been pushed out of a laptop viewport.
+   ⚠️ SO THE ROOM CAME FIRST AND THE COPY SECOND. This block is wider, LEFT
+   aligned (centred prose stops being readable past about three lines), and
+   capped with its own scroll so a long hint can never bury the Start button.
+   ⚠️ ".gc-sub" IS UNCHANGED because the result card and the pause card still
+   use it for one-liners, and widening it would have moved those too. */
+.gc-help { color:#9fb6c6; font-size:14px; text-align:left; max-width:52ch;
+           line-height:1.55; max-height:38vh; overflow-y:auto; }
+/* ⭐ KEYS GET A GRID, NOT A SENTENCE. A key buried mid-paragraph is a key a
+   sixth-grader skims past \u2014 which is exactly how Shatter's scatter went unused
+   long enough for Jake to call it broken. The label column is fixed so the keys
+   line up into a column the eye can run down. */
+.gc-keys { display:grid; grid-template-columns:max-content 1fr; gap:6px 12px;
+           margin-top:12px; max-width:52ch; text-align:left; }
+.gc-key { color:#ffd700; font-weight:700; font-size:13px; letter-spacing:0.5px;
+          white-space:nowrap; font-family:"Courier Prime",monospace; }
+.gc-keywhat { color:#9fb6c6; font-size:13px; line-height:1.45; }
 .gc-row { display:flex; gap:10px; }
 .gc-count { color:#00e5ff; font-size:96px; font-weight:700; line-height:1; }
 .gc-hidden { display:none; }
@@ -345,11 +380,25 @@ export function mountChrome(container, opts) {
         go.style.padding = '10px 26px';
         go.addEventListener('click', beginCountdown);
         const row = el('gc-row'); row.appendChild(go);
-        panelHTML([
-            el('gc-title', o.title || 'Ready?'),
-            el('gc-sub', o.hint || ''),
-            row,
-        ]);
+        // ⚠️ THE HINT MOVES TO `.gc-help` (wide, left, scroll-capped) and the
+        // KEYS come out of the prose into their own grid \u2014 see the CSS above.
+        // ⭐ `controls` IS OPTIONAL AND ABSENT MEANS ABSENT: Escape Key has no
+        // special key beyond Backspace, and an empty grid there would imply it
+        // was missing something.
+        const nodes = [el('gc-title', o.title || 'Ready?')];
+        if (o.hint) nodes.push(el('gc-help', o.hint));
+        const controls = Array.isArray(o.controls) ? o.controls : [];
+        if (controls.length) {
+            const grid = el('gc-keys');
+            for (const c of controls) {
+                if (!c || !c.keys || !c.what) continue;
+                grid.appendChild(el('gc-key', c.keys));
+                grid.appendChild(el('gc-keywhat', c.what));
+            }
+            if (grid.childNodes.length) nodes.push(grid);
+        }
+        nodes.push(row);
+        panelHTML(nodes);
         // Enter or Space also starts, since their hands are already on the keys.
     }
 

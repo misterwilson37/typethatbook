@@ -181,6 +181,54 @@ console.log('\nE — ⚠️⚠️⚠️ THE STUDENT FILTER NARROWS BEFORE THE SW
        '⚠️⚠️ E6 picking a student outside the scope says so instead of showing zero');
 }
 
+console.log('\nF — ⚠️⚠️⚠️ THE PICKER NEVER RENDERS A WALL OF IDENTICAL LABELS');
+{
+    // ⭐⭐ Jake's screenshot, 2026-09-23: thirty rows of the word "Unknown".
+    // `readRosterUids()` reads the `users` collection and takes `u.displayName`,
+    // which for students is EMPTY — the authoritative name is written onto each
+    // typing_logs document by game.js at save time. The ⟳ button is the only
+    // path that never touches a log, so it is the only path that cannot know a
+    // name. ⚠️ Buying names with log reads would undo Round 129 entirely, so the
+    // fix is to REMEMBER them from reports and to degrade to something DISTINCT.
+    const src = readFileSync(path.join(ROOT, 'reports.html'), 'utf8');
+    const code = src.replace(/^\s*\/\/.*$/gm, '');
+
+    ok(/const _studentNames = new Map\(\)/.test(code),
+       'F1 names learned from a report are banked for the page load');
+    ok(/_studentNames\.set\(uid, info\.name\)/.test(code),
+       'F2 and banked only when the name is real, never the placeholder');
+    ok(/function labelFor\(/.test(code) && /\(no name\) \$\{String\(uid\)\.slice\(0, 8\)\}/.test(code),
+       '⚠️⚠️ F3 the last resort is a uid fragment, so every row is DISTINCT');
+    ok(!/name: info\.name \|\| 'Unknown'[\s\S]{0,200}<option/.test(code),
+       'F4 no path builds an <option> labelled from a bare Unknown fallback');
+
+    // ⚠️ THE ⟳ PATH MUST STILL NOT READ LOGS — that is the whole of Round 129.
+    const iLoad = code.indexOf('async function loadStudents');
+    const loadBody = code.slice(iLoad, code.indexOf('\n    }', iLoad));
+    ok(iLoad > 0 && !/readLogById/.test(loadBody),
+       '⭐ F5 loadStudents() still issues the roster query ONLY — no per-day reads');
+    ok(/run a /.test(code) && /report once for this class/.test(code),
+       '⚠️ F6 and when names are missing it says what to do about it');
+
+    // The label ladder, exercised directly.
+    const labelFor = (uid, info, remembered) => {
+        const name = (info && info.name) || remembered || '';
+        const email = (info && info.email) || '';
+        if (name && name !== 'Unknown') return email ? `${name} — ${email}` : name;
+        if (email) return email;
+        return `(no name) ${String(uid).slice(0, 8)}`;
+    };
+    ok(labelFor('abcdefgh1234', { name: 'Ada L', email: 'a@b.c' }) === 'Ada L — a@b.c',
+       'F7 a real name wins');
+    ok(labelFor('abcdefgh1234', { name: 'Unknown', email: 'a@b.c' }) === 'a@b.c',
+       'F8 the placeholder loses to an email');
+    const bare = ['u1111111aaaa', 'u2222222bbbb']
+        .map(u => labelFor(u, { name: 'Unknown', email: '' }));
+    ok(new Set(bare).size === 2,
+       '⚠️⚠️⚠️ F9 two nameless students get two DIFFERENT labels — the failure '
+       + 'Jake photographed cannot recur');
+}
+
 console.log(fails.length ? `\nFAIL — ${pass} ok, ${fails.length} failed`
                          : `\nPASS — ${pass} ok, 0 failed`);
 if (fails.length) process.exitCode = 1;

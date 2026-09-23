@@ -1,5 +1,83 @@
 # CHANGELOG — TypeThatBook
 
+## Round 133 (Plantin) — the downloads were deleting each other
+
+**⚠️⚠️⚠️ Every round's packaging deleted the previous round's zip**, so the file
+Jake needed was always the one just removed — and the anti-farming fix sat
+undeployed for two rounds because of it. This round is cumulative since Round 128.
+
+Harness part F reworded: there is no ground truth for any individual run, only
+for the certain holds. ROADMAP 131a spec completed — unlock is performance, reset
+daily.
+
+**ALL 106 HARNESSES PASS.**
+
+## Round 132 (Janson) — the flag, tested on real children
+
+Jake sent two students he caught farming time. **⭐ Rule 10 satisfied at last** —
+⏸ was written before the numbers existed, so this is out-of-sample.
+
+Every sustained hold is caught (0–2 characters a minute), both students are found
+from the roster row, and the genuine runs start near 17 — the 15 line sits in the
+gap. One honest miss (17.4 a minute) is pinned so nobody lowers the bar onto slow
+children to close it.
+
+**⚠️⚠️ It also surfaced ROADMAP 132a:** a run's `chars` is net progress and a
+day's is gross correct keystrokes. Lost World 09-23: day 322, runs 14. Not
+changed — it touches daylog.js.
+
+**⚠️ 131a rewritten.** Round 131 framed sub-15 WPM as a possible reading
+difficulty; Jake corrected it — this is typing practice, and 15 WPM / 80% is the
+course requirement. The spec is ruled except the unlock condition.
+
+**ALL 106 HARNESSES PASS.**
+
+## Round 131 (Garamond) — a held key earned ten minutes
+
+Students discovered that holding Backspace earned Library time. **⚠️⚠️⚠️
+`handleTyping()` stamped activity on its first line, for every key, before
+looking at which one**, and a held key auto-repeats ~30 Hz. Once the hold rewound
+to the start of the run every Backspace was a no-op — and still stamped.
+
+⭐ School was always immune (`learn.js` stamps only on a real character press).
+`countsAsActivity()` copies that rule into Library and also refuses `e.repeat`,
+closing every hold-a-key variant. A held Backspace now auto-pauses after 5 s.
+
+⚠️ **Rule 10:** reproduced, not recorded — no farmed session was available. The
+harness replays the exploit through the real thresholds lifted from game.js
+(600 s credited before, 0 after).
+
+**⏸ history flag** (Jake's option 5) — under 15 characters per minute of credited
+time, at student, day, session and run level. Distinct from 🚩, which means the
+opposite. **Flags; never deducts** — Rule 11. Tuned against real slow children
+from the 2026-09-22 traces so it cannot be lowered onto them.
+
+**ALL 106 HARNESSES PASS.**
+
+## Round 130 (Baskerville) — the name was never in the collection we asked
+
+Jake: *"Students aren't loading."* ⚠️⚠️⚠️ **THEY LOADED PERFECTLY.** Thirty came
+back, all labelled `Unknown`.
+
+`readRosterUids()` reads the **`users`** collection and takes `u.displayName`,
+which for students is empty — the authoritative name is written onto each
+**typing_logs** document by `game.js` at save time. ⭐ Every other name on the
+page is right because every other path reads a LOG; ⟳ is the only path that never
+touches one, which is exactly what made it cheap. **The cheapness and the
+blindness are the same property.**
+
+⚠️⚠️ Resolving names by reading logs would have been the 1,593-read bill arriving
+through a different door one round after it closed. Names are REMEMBERED instead,
+from any report that already resolved them.
+
+**⭐ And the fallback ladder is the real lesson.** `info.name || 'Unknown'` is a
+reasonable line to write and it produced an unusable control — thirty identical
+options, none selectable with intent. A placeholder is fine in a cell and fatal
+in a list. Now name → email → `(no name) <uid8>`, matching the uid chip the
+roster table already shows.
+
+**ALL 105 HARNESSES PASS.**
+
 ## Round 129 (Caslon) — one student, three reads
 
 Jake confirmed the Round 128 delete fix, then asked how to pull up a single kid.

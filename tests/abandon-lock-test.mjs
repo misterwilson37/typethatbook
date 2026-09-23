@@ -214,11 +214,26 @@ console.log('\nD — ⚠️⚠️ NO HINT NAMES A KEY ITS VIEW DOES NOT HANDLE')
 {
     for (const f of ['game-shatter.js', 'game-deadline.js', 'game-escape.js']) {
         const src = read(f);
+        // ⚠️⚠️ THE SLICE RUNS `hint:` → `muted:` BECAUSE THE HELP IS TWO FIELDS
+        // NOW — Round 126. `controls:` sits between them and carries every key
+        // row; a scan that stopped at the prose would report that no view names
+        // Backspace, which is false and would have been read as a regression.
+        // ⭐ WHAT THIS PART DEFENDS IS "THE HELP THE STUDENT SEES", and that is
+        // whatever `game-chrome.js` renders — prose AND grid, not one field.
         const hintStart = src.indexOf('hint:');
-        const hints = hintStart < 0 ? '' : src.slice(hintStart, hintStart + 2200);
-        ok(!/\bEsc\b/.test(hints),
+        const hintEnd = src.indexOf('muted:', hintStart);
+        // ⚠️ COMMENTS STRIPPED — see D4. The rule is the same one: audit the
+        // strings the student reads, not the prose explaining them.
+        const hints = (hintStart < 0 ? ''
+            : src.slice(hintStart, hintEnd > hintStart ? hintEnd : hintStart + 2200))
+            .replace(/^\s*\/\/.*$/gm, '');
+        // ⚠️ CASE-INSENSITIVE SINCE ROUND 126. The key rows render as uppercase
+        // labels in a monospace column (`BACKSPACE`, `ENTER`, `SPACE`), so a
+        // case-sensitive `/Backspace/` reported that no view names it — three
+        // red assertions against help that was correct and complete.
+        ok(!/\besc\b/i.test(hints),
            `⚠️⚠️ D1 ${f}'s hint does not promise Esc — game-chrome.js owns that key`);
-        ok(/Backspace/.test(hints),
+        ok(/backspace/i.test(hints),
            `D2 ${f}'s hint names Backspace, which the view really does handle`);
 
         // ⚠️ AND THE BRANCH IS GONE, NOT MERELY SUPERSEDED. A dead `if (e.key ===
@@ -227,6 +242,66 @@ console.log('\nD — ⚠️⚠️ NO HINT NAMES A KEY ITS VIEW DOES NOT HANDLE')
         const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
         ok(!/e\.key\s*===\s*'Escape'/.test(code),
            `⭐ D3 ${f} carries no unreachable Escape branch`);
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ D3 — NAMING THE RIGHT KEY IS NOT DESCRIBING THE RIGHT EFFECT.
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // D1 and D2 check the KEY SET, and for ten rounds that felt like enough.
+    // ⭐⭐ IT IS NOT. Shatter's radial hint told a child *"Press Enter to ping: a
+    // wave goes out and writes each pane's word on the ring"* — and
+    // `game-shatter.js`'s Enter handler reads
+    // `if (!drift) { tryScatter(true); return; }`, returning BEFORE the ping.
+    // **PING IS DRIFT-ONLY.** The hint named a key this view handles, so D1/D2
+    // were green, and the sentence was still false.
+    //
+    // ⚠️ THE RADIAL BRANCH IS THE ONE BEFORE THE `:` IN THE TERNARY \u2014 the
+    // `drift ? \u2026 : \u2026` means the SECOND string is Shatter's. A ping promised
+    // there is a promise to the wrong board.
+    {
+        const src = read('game-shatter.js');
+        const h = src.indexOf('hint: drift');
+        // ⚠️⚠️ TWO FIELDS, EACH ITS OWN TERNARY, SO THEY ARE SEPARATED BEFORE
+        // THEY ARE SPLIT — Round 126. A single split on the ternary colon over
+        // the whole block interleaves them: the second piece comes out as
+        // "radial hint + DRIFT controls", which reports a ping on the radial
+        // board and no ping on the drift one. ⭐ BOTH ANSWERS WRONG, BOTH
+        // CONFIDENTLY. `hint:` is cut at `controls:` first, and each half of the
+        // help is then the drift (or radial) half of BOTH fields joined —
+        // because a ping promised in either place is the same lie.
+        // ⚠️⚠️⚠️ COMMENTS ARE STRIPPED FIRST, AND THIS BIT ME IMMEDIATELY. The
+        // block carries a comment explaining that PING IS DRIFT-ONLY — the word
+        // "ping" in prose ABOUT the rule, sitting on the radial side of the cut.
+        // ⭐ D4b went red against copy that was correct. What a student sees is
+        // the string literals; a comment is for the next author, and a help
+        // audit that cannot tell them apart audits the wrong document.
+        const block = (h < 0 ? '' : src.slice(h, src.indexOf('muted:', h)))
+            .replace(/^\s*\/\/.*$/gm, '');
+        const cIdx = block.indexOf('controls:');
+        const halfOf = (txt, radialSide) => {
+            const i = txt.indexOf('\n            : ');
+            if (i < 0) return radialSide ? '' : txt;
+            return radialSide ? txt.slice(i) : txt.slice(0, i);
+        };
+        const hintSrc = cIdx < 0 ? block : block.slice(0, cIdx);
+        const ctlSrc = cIdx < 0 ? '' : block.slice(cIdx);
+        const drift = halfOf(hintSrc, false) + '\n' + halfOf(ctlSrc, false);
+        const radial = halfOf(hintSrc, true) + '\n' + halfOf(ctlSrc, true);
+        ok(h >= 0 && radial.trim().length > 0 && drift.trim().length > 0,
+           'D4a Shatter’s help still splits into a drift half and a radial half');
+        ok(!/ping/i.test(radial),
+           '⚠️⚠️ D4b the RADIAL help does not promise a ping — Enter scatters '
+           + 'on that board and returns before the ping ever runs');
+        ok(/ping/i.test(drift),
+           'D4c the DRIFT help still explains the ping, which is real there');
+        // ⭐ D4d — THE KEYS ARE ACTUALLY PRESENT AS ROWS, not merely absent from
+        // the prose. Round 126 moved them out of the paragraph, and "no ping in
+        // the radial text" would pass just as well if the help were empty.
+        ok(/controls:/.test(block), 'D4d Shatter still supplies a controls grid');
+        ok(/SPACE/.test(radial) && /ENTER/.test(radial),
+           'D4e the radial help names both scatter keys as rows');
+        ok(/ENTER/.test(drift) && /SPACE/.test(drift),
+           'D4f the drift help names ping and warp as rows');
     }
 }
 

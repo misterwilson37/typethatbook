@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-22 by Round 129 (Caslon), for whoever is next
+> ## ▶ START HERE — written 2026-09-23 by Round 133 (Plantin), for whoever is next
 >
-> **ALL 105 HARNESSES PASS.**
+> **ALL 106 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **105 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **106 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11024,3 +11024,197 @@ show.
   `unreadable` and returns. **Grades correctness.**
 * **128c — 127b option A**, ruled and not built.
 * **125a options A and B.** Jake has C and is still thinking.
+
+
+---
+
+## §30. Round 130 (Baskerville) — the name was never in the collection we asked
+
+**2026-09-23.** Jake: *"Students aren't loading."* Screenshot: a full-height
+dropdown of the word **Unknown**, thirty times over, no emails.
+
+### A. ⚠️⚠️⚠️ NOT A LOADING FAILURE. THE ROSTER LOADED PERFECTLY.
+
+Thirty students came back. ⭐ `readRosterUids()` reads the **`users`** collection
+and takes `u.displayName`, and for students that field is empty. The
+authoritative name is written onto each **typing_logs** document by `game.js` at
+save time (`displayName: currentUser.displayName || "Anonymous"`).
+
+⚠️⚠️ **THAT IS WHY EVERY OTHER NAME ON THIS PAGE IS RIGHT.** `uids.set(data.uid,
+{ name: data.displayName … })` reads a log. The `userMap` build reads a log. The
+roster table reads a log. ⭐ THE ⟳ BUTTON IS THE ONLY PATH THAT NEVER TOUCHES A
+LOG — which is exactly what made it cheap — SO IT IS THE ONLY PATH THAT CANNOT
+KNOW A NAME. The cheapness and the blindness are the same property.
+
+### B. ⚠️⚠️ THE OBVIOUS FIX WOULD HAVE UNDONE ROUND 129
+
+Reading logs to resolve names is the 1,593-read bill arriving through a different
+door, one round after it was closed. ⭐ Names are REMEMBERED instead:
+`_studentNames` banks every name any report resolved, and the picker prefers a
+remembered name over a blank one. Part F5 pins that `loadStudents()` still issues
+the roster query only.
+
+### C. ⭐ AND THE FALLBACK LADDER IS THE REAL LESSON
+
+`info.name || 'Unknown'` is a reasonable line to write and it produced an
+UNUSABLE CONTROL: thirty identical options, none distinguishable, none
+selectable with intent. ⚠️ A PLACEHOLDER IS FINE IN A CELL AND FATAL IN A LIST.
+The ladder is name → email → `(no name) <uid8>`, using the same eight characters
+the roster table's uid chip already shows so a teacher can match by eye.
+
+⚠️ And when names are missing, ⟳ now says what to do about it — run one report
+for the class and they fill in for the page load — rather than handing back a
+wall of placeholders and calling it success.
+
+### D. ⚠️ STILL OPEN
+
+* **128b — zeros on days that had runs.** Untouched, and Round 129 made it
+  RARER rather than fixed: 1,435 fewer reads per load means fewer transient
+  failures, so it is now harder to reproduce. Grades correctness.
+* **128c** — word-lock display (127b option A), ruled and not built.
+* **125a A and B** — Jake has C and is still thinking.
+
+
+---
+
+## §31. Round 131 (Garamond) — a held key earned ten minutes
+
+**2026-09-23.** Jake: *"students have learned that they can hold the backspace
+key and it counts it as time. So some students are just sitting and holding the
+delete/backspace key for 10 straight minutes apparently."* ⭐ **GRADES
+INTEGRITY** — this outranked the Round 130 picker fix, which Jake has not yet
+uploaded for exactly that reason.
+
+### A. ⚠️⚠️⚠️ THE STAMP WAS THE FIRST LINE OF handleTyping()
+
+`lastInputTime = Date.now()` ran for every key, before the function looked at
+which one. The clock credits time while input is under IDLE_THRESHOLD (2 s) old,
+and a held key auto-repeats ~30 Hz. ⚠️ **AND IT WAS WORSE THAN IT LOOKED:** once
+the hold rewound to `sprintCharStart`, every further Backspace was a NO-OP — the
+screen did not change — and it still stamped. Most of those ten minutes were a
+child at position zero, erasing nothing, earning.
+
+⭐ **WHY BACKSPACE AND NOT A LETTER:** a held letter farms time equally well, but
+every repeat is a mistake and accuracy collapses in plain sight. Backspace is the
+one key that erases its own evidence. The students converged on it.
+
+### B. ⭐⭐ SCHOOL WAS ALREADY IMMUNE, SO THE FIX IS A COPY
+
+`learn.js` stamps `learnLastInputTime` only on a real character press, correct or
+wrong, and its Backspace branch returns before either. Nobody has farmed School
+because it cannot be farmed. `countsAsActivity()` in game.js applies that rule to
+Library and ADDITIONALLY refuses `e.repeat` — the browser's own held-key flag,
+which nothing in this repo had ever read — so the whole family of hold-a-key
+exploits closes, including the next one.
+
+⚠️ It governs AFK too, on purpose: a held Backspace auto-pauses after 5 s. The
+cost is that a genuine pure-Backspace correction over five seconds pauses too;
+School already does exactly this at three seconds.
+
+### C. ⚠️⚠️ RULE 10, SAID OUT LOUD
+
+**No farmed session from a real student was available.** `backspace-farm-test.mjs`
+part C replays the exploit through the REAL `IDLE_THRESHOLD` and `AFK_THRESHOLD`
+lifted from game.js — 600 s credited before, 0 after — which proves the
+mechanism and is still a reproduction, not a recording. Jake ordered it shipped
+knowing that. ⭐ **THE FIRST REAL ⏸ SESSION THE NEW FLAG SURFACES BELONGS IN THAT
+FILE AS PART F.**
+
+### D. ⏸ — THE HISTORY FLAG (Jake's option 5)
+
+`idleTimeSuspect(seconds, chars)`: under 15 characters per minute of credited
+time, for anything over a minute. 15 is 3 WPM — nearly four times below the
+slowest genuine run in the 2026-09-22 student traces, forty times above a hold.
+Marked at student, day, session and run level.
+
+⚠️ **A DIFFERENT FLAG FROM 🚩 AND IT MUST STAY ONE.** 🚩 means too fast or too
+accurate — copying. ⏸ means time with no output. ⚠️ **IT FLAGS; IT NEVER
+DEDUCTS** — adjusting stored minutes in reports would give the student one
+number and the teacher another (Rule 11). A teacher deletes the run instead.
+
+⚠️⚠️ **KNOWN LIMIT, PINNED AS E6:** five genuine minutes plus a ten-minute hold
+inside ONE run averages about 33 a minute and passes. The flag catches holds
+that dominate their run, day or session; a child who genuinely typed a lot and
+ALSO held in the same run escapes. Pinned so nobody lowers the bar onto real
+slow children to close it.
+
+### E. OPEN — 131a, the lessons-first nudge. SEE ROADMAP. Design only.
+
+
+---
+
+## §32. Round 132 (Janson) — the flag, tested on real children
+
+**2026-09-23.** Jake sent the session records of two students he caught holding
+Backspace, and offered to wait before deleting them so the ⏸ flag could be tested.
+⭐ **RULE 10, FINALLY SATISFIED** — the flag was written in Round 131 before these
+numbers existed, so this is out-of-sample, not a fit.
+
+### A. ⭐ BOTH STUDENTS ARE FOUND FROM THE ROSTER ROW
+
+Every sustained hold is caught: 11m03s/0 chars, 10m02s/0, 4m50s/2, 6m04s/12.
+Both students' 09-22 days trip, so both carry ⏸ on the roster row and Jake finds
+them without expanding anything.
+
+⚠️⚠️ **THE REAL HOLDS SIT AT 0–2 CHARACTERS A MINUTE; THE GENUINE RUNS START NEAR
+17.** The 15 line lands in that gap. That is the strongest evidence this threshold
+has, and it is the reason not to move it.
+
+### B. ⚠️ THE HONEST MISS
+
+Sherlock 09-23 run 2: 6m06s, 106 chars, 17.4 a minute. Jake says this child
+cheated today; at run level it is indistinguishable from a very slow child.
+Pinned as F9 so nobody lowers the bar onto slow children to close it. ⭐ It
+cannot recur (Round 131's game.js fix), and the 131a nudge catches the whole day
+directly — 6 WPM.
+
+### C. ⚠️⚠️ AND IT SURFACED 132a — "chars" IS TWO QUANTITIES
+
+A run's `chars` is NET progress; a day's is GROSS correct keystrokes. Lost World
+09-23: the day says 322, its runs sum to 14. Type-erase-retype inflates gross and
+never moves the cursor. See ROADMAP 132a. **Not changed.**
+
+### D. ⚠️⚠️⚠️ I GOT 131a WRONG AND JAKE CORRECTED IT
+
+Round 131 framed sub-15 WPM in Library as possibly a *reading* difficulty.
+Jake: *"Kids who are typing less than 15 words a minute do not know how to type.
+… we need to make sure we're remembering the purpose of the project — typing
+practice."* ⭐ **15 WPM / 80% is the course requirement, not a diagnosis.** 131a
+is rewritten to the ruled spec; one question — what unlocks the uncounted state —
+blocks the build.
+
+
+---
+
+## §33. Round 133 (Plantin) — the downloads were deleting each other
+
+**2026-09-23.** Jake: *"Round 131 isn't available anymore. Can you send me all the
+updated files for this run? I've been caught up in our conversation — not your
+tweaks."*
+
+### A. ⚠️⚠️⚠️ EVERY ROUND DELETED THE PREVIOUS ROUND'S DOWNLOAD
+
+Each packaging step ran `rm -f /mnt/user-data/outputs/*.zip` before zipping, so
+presenting Round N destroyed Round N−1. Jake was a round behind, so the file he
+needed was always the one just deleted. ⭐ **THE ANTI-FARMING FIX (game.js
+v3.52.0) WAS NOT LIVE FOR TWO ROUNDS BECAUSE OF THIS.** Stopped. Round 133 ships
+CUMULATIVE since Round 128, the last round Jake confirmed deployed.
+
+⚠️ **STANDING PRACTICE FROM HERE:** never delete a prior round's zip, and when
+Jake is behind, ship cumulative from his last CONFIRMED round, not from the last
+round written.
+
+### B. ⚠️ THE HARNESS WAS CLAIMING GROUND TRUTH NOBODY HAS
+
+Jake: *"I don't know whether or not they cheated the whole time, and I'm not sure
+I can trust them to actually tell me."* Round 132's part F called some runs
+"genuine-looking" and one "the known miss" — quietly assuming an answer. ⭐ WHAT
+IS KNOWN: a multi-minute run with zero or near-zero characters cannot be anything
+but a hold, and every one is flagged. Everything else is behaviour on a shape,
+not a verdict on a child. Reworded.
+
+### C. ⭐ 131a IS BUILDABLE
+
+Jake ruled the unlock: **performance, not lessons**, and **reset daily**. See
+ROADMAP 131a. The daily reset makes the lock ephemeral — no persisted document —
+but a reload must not buy a fresh free minute within the day.

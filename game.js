@@ -1,4 +1,17 @@
-// game.js v3.51.0
+// game.js v3.52.0
+//
+// v3.52.0 — Round 131 (Garamond): ⚠️⚠️⚠️ A HELD BACKSPACE EARNED TEN MINUTES.
+// Jake, 2026-09-23: *"students have learned that they can hold the backspace key
+// and it counts it as time."* `handleTyping()` stamped `lastInputTime` on its
+// FIRST LINE, for every key, before looking at which one — and a held key
+// auto-repeats ~30 Hz, so the idle clock never ran out. Once the hold rewound to
+// the start of the run, every further Backspace was a NO-OP that still stamped.
+// ⭐ School was always immune: learn.js stamps only on a real character press.
+// countsAsActivity() copies that rule and also refuses `e.repeat`, which nothing
+// in this repo had ever read, so the whole "hold a key" family closes, not just
+// the key being used. ⚠️ It governs AFK too, deliberately: a held Backspace now
+// auto-pauses the game after five seconds. See tests/backspace-farm-test.mjs.
+//
 //
 // v3.51.0 — ⚠️ ROADMAP 67 (Jake, 2026-09-08): A FINISHED BOOK KEPT APPEARING
 //           UNDER "CONTINUE READING". *"It's still showing in my continue
@@ -212,7 +225,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.51.0";
+const VERSION = "3.52.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3166,7 +3179,7 @@ document.addEventListener('keydown', (e) => {
 
             if (isMatch) {
                 resumeGame();
-                handleTyping(e.key);
+                handleTyping(e.key, { repeat: e.repeat === true });
             }
             return;
         }
@@ -3247,7 +3260,7 @@ document.addEventListener('keydown', (e) => {
                 if(skippedEl) skippedEl.classList.add('done-perfect');
                 currentCharIndex++;
             }
-            handleTyping(e.key);
+            handleTyping(e.key, { repeat: e.repeat === true });
             return;
         }
         return;
@@ -3281,12 +3294,64 @@ document.addEventListener('keydown', (e) => {
          e.key === "Backspace")) {
         e.preventDefault();
     }
-    handleTyping(e.key);
+    handleTyping(e.key, { repeat: e.repeat === true });
 });
 
-function handleTyping(key) {
-    lastInputTime = Date.now();
-    timerDisplay.style.opacity = '1';
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ WHAT COUNTS AS A STUDENT BEING ACTIVE — Round 131 (Garamond).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-23: *"students have learned that they can hold the backspace key
+// and it counts it as time. So some students are just sitting and holding the
+// delete/backspace key for 10 straight minutes."*
+//
+// ⭐⭐ `handleTyping()` USED TO STAMP `lastInputTime` ON ITS FIRST LINE, BEFORE
+// IT HAD EVEN LOOKED AT THE KEY. The clock credits time whenever the last input
+// was under IDLE_THRESHOLD ago, and a held key auto-repeats about thirty times a
+// second — so a held Backspace kept the clock fresh forever. ⚠️ AND IT WAS WORSE
+// THAN IT LOOKED: once the hold rewound to `sprintCharStart`, every further
+// Backspace was a NO-OP — nothing on screen changed — and it still stamped. Most
+// of those ten minutes were a child at position zero, erasing nothing, earning.
+//
+// ⚠️⚠️ WHY BACKSPACE SPECIFICALLY, AND NOT A HELD LETTER. Holding `a` farms time
+// just as well, but every repeat is a MISTAKE and accuracy collapses in plain
+// sight. Backspace is the one key that erases its own evidence — which is why
+// the students converged on it rather than stumbling on it.
+//
+// ⭐ SCHOOL MODE WAS ALREADY IMMUNE AND THIS COPIES IT. `learn.js` stamps
+// `learnLastInputTime` only on a real character press, correct or wrong, and its
+// Backspace branch returns before reaching either. Nobody has farmed School
+// because it cannot be farmed. This is not a new rule; it is the rule the app
+// already trusts, applied to the mode that did not have it.
+//
+// ⚠️ TWO CONDITIONS, AND THEY CLOSE DIFFERENT HOLES:
+//   • Backspace never counts — closes the exploit that is being used;
+//   • an auto-repeat never counts — closes the whole family of "hold a key",
+//     including whatever gets discovered next. `e.repeat` is the browser's own
+//     flag for a held key; nothing in this repo had ever read it before.
+//
+// ⚠️⚠️ AND IT GOVERNS AFK TOO, DELIBERATELY. `lastInputTime` is read by the time
+// credit (IDLE_THRESHOLD, 2 s) AND by the auto-pause (AFK_THRESHOLD, 5 s). A held
+// Backspace now pauses the game after five seconds, not just stops paying — so the
+// exploit ends visibly instead of silently. ⭐ THE COST: a student doing a GENUINE
+// pure-Backspace correction for more than five seconds straight gets paused and
+// resumes by typing. School already behaves exactly this way at three seconds and
+// nobody has noticed. A correction always ends in retyping, which stamps normally.
+function countsAsActivity(key, repeat) {
+    if (repeat) return false;
+    if (key === 'Backspace') return false;
+    return true;
+}
+
+function handleTyping(key, opts) {
+    // ⚠️ THE ONLY WRITE OF `lastInputTime` DURING PLAY, AND IT IS GUARDED. See
+    // countsAsActivity(). The key is still PROCESSED below either way — a held
+    // letter still lands as mistakes, a Backspace still corrects. Only the
+    // crediting of time changed, which is the one thing that was wrong.
+    if (countsAsActivity(key, !!(opts && opts.repeat))) {
+        lastInputTime = Date.now();
+        timerDisplay.style.opacity = '1';
+    }
 
     let inputChar = key;
     if (key === "Tab") inputChar = "\t";

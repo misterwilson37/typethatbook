@@ -1,5 +1,29 @@
 <!DOCTYPE html>
-<!-- reports.html v1.13.0 — Round 129 (Caslon): ⚠️⚠️⚠️ A STUDENT PICKER, AND IT IS
+<!-- reports.html v1.15.0 — Round 131 (Garamond): ⚠️⚠️ ⏸ — TIME WITH ALMOST NO
+     TYPING, Jake's option 5. game.js v3.52.0 stops new Backspace farming; it
+     cannot un-farm what is already stored. idleTimeSuspect() flags any student,
+     day, session or run with under 15 characters per minute of credited time
+     (3 WPM — nearly four times below the slowest genuine child in the
+     2026-09-22 traces, forty times above a hold). ⚠️⚠️ A DIFFERENT FLAG FROM 🚩,
+     which means too fast/too accurate; this means the opposite, and one icon for
+     both would leave a teacher guessing which way. ⚠️ IT FLAGS AND NEVER DEDUCTS
+     — adjusting stored minutes here would give student and teacher different
+     numbers (Rule 11). Delete the run instead.
+
+     reports.html v1.14.0 — Round 130 (Baskerville): ⚠️⚠️⚠️ THE STUDENT PICKER
+     SHOWED "Unknown" THIRTY TIMES, AND THE NAME WAS NEVER IN THE COLLECTION IT
+     ASKED. `readRosterUids()` reads `users` and takes `u.displayName`, which for
+     students is EMPTY — the authoritative name is written onto each typing_logs
+     document by game.js at save time. ⭐ Every other name on this page resolves
+     because every other path reads a LOG; ⟳ is the one path that never touches
+     one, so it is the one path that cannot know a name. ⚠️⚠️ AND BUYING NAMES
+     WITH LOG READS WOULD UNDO ROUND 129 — that is the 1,593-read bill arriving
+     through a different door. So names are REMEMBERED from any report
+     (`_studentNames`), and the fallback ladder is name → email → uid fragment,
+     never a repeated placeholder: thirty identical labels are not a list.
+     See tests/reports-identity-test.mjs part F.
+
+     reports.html v1.13.0 — Round 129 (Caslon): ⚠️⚠️⚠️ A STUDENT PICKER, AND IT IS
      A COST CONTROL BEFORE IT IS A CONVENIENCE. Jake, 2026-09-22: *"I've now had
      to do 700 reads multiple times just to get information on...me."* His meter
      showed 1,593 reads at readLogById with 1,435 of them MISSES, to display three
@@ -538,6 +562,10 @@
             border-left: 2px solid var(--rule);
         }
         .session-entry.suspicious { border-left-color: var(--bad); background: rgba(255,50,50,0.05); }
+        /* ⚠️ ROUND 131: TIME WITH NO OUTPUT. Amber, not red — it is a question for
+           the teacher, not a verdict, and it must not be mistaken for 🚩. */
+        .idle-flag { color: var(--notice); margin-left: 6px; cursor: help; font-weight: 700; }
+        .session-entry.idle-farm { border-left-color: var(--notice); }
         .session-time { color: var(--ink-dimmer); width: 70px; flex-shrink: 0; }
         .session-stat { width: 65px; text-align: right; }
         .session-book { color: var(--ink-ghost); font-style: italic; font-size: 0.7rem; }
@@ -2248,19 +2276,61 @@
     //
     // ⚠️ THE SELECTION SURVIVES A REFILL. A teacher who picks a child, changes
     // the dates and regenerates must not silently get the whole class back.
+    // ══════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ THE NAME IS NOT IN `users`. IT IS ON THE LOG DOCUMENTS.
+    // ══════════════════════════════════════════════════════════════════════
+    //
+    // Jake, 2026-09-23, screenshot: a full-height dropdown of the word
+    // **Unknown**, thirty times over, with no emails either.
+    //
+    // ⭐⭐ `readRosterUids()` READS THE `users` COLLECTION AND TAKES
+    // `u.displayName`, AND FOR STUDENTS THAT FIELD IS EMPTY. The authoritative
+    // name is written onto each typing_logs document by `game.js` at save time
+    // (`displayName: currentUser.displayName || "Anonymous"`), which is why every
+    // other name on this page resolves correctly — `uids.set(data.uid, { name:
+    // data.displayName … })` and the `userMap` build both read a LOG, not a user.
+    // ⚠️ THE ⟳ BUTTON IS THE ONE PATH THAT NEVER TOUCHES A LOG, so it is the one
+    // path that cannot know a name. Not a bug in the button: the button is asking
+    // the only collection that does not hold the answer.
+    //
+    // ⚠️⚠️ AND FIXING IT BY READING LOGS WOULD UNDO ROUND 129. The entire point of
+    // ⟳ is to offer the list WITHOUT the per-student-day sweep; buying names with
+    // reads is the 1,593-read bill arriving through a different door.
+    //
+    // ⭐ SO NAMES ARE REMEMBERED INSTEAD. Every report resolves them from the logs
+    // it already read; `_studentNames` banks what has been learned this page load
+    // and the picker prefers a remembered name over a blank one.
+    // ⚠️ AND THE LAST RESORT IS NEVER "Unknown" REPEATED. Thirty identical labels
+    // are not a list — email, then a short uid, so every row is at least DISTINCT
+    // and selectable.
+    const _studentNames = new Map();   // uid -> name learned from a log
+
+    function labelFor(uid, info) {
+        const name = (info && info.name) || _studentNames.get(uid) || '';
+        const email = (info && info.email) || '';
+        if (name && name !== 'Unknown') return email ? `${name} \u2014 ${email}` : name;
+        if (email) return email;
+        // ⚠️ THE SAME EIGHT CHARACTERS THE ROSTER TABLE'S uid CHIP ALREADY SHOWS,
+        // so a teacher can match an option to a row by eye rather than guess.
+        return `(no name) ${String(uid).slice(0, 8)}`;
+    }
+
     function rememberStudents(uids) {
         const sel = document.getElementById('scope-student');
-        if (!sel || !uids || !uids.size) return;
+        if (!sel || !uids || !uids.size) return 0;
+        // ⚠️ LEARN FIRST, THEN RENDER. A report that resolved names from logs is
+        // the only place they come from, so every pass through here banks them.
+        uids.forEach((info, uid) => {
+            if (info && info.name && info.name !== 'Unknown') _studentNames.set(uid, info.name);
+        });
         const prev = sel.value;
-        const names = [...uids.entries()]
-            .map(([uid, info]) => ({ uid, name: info.name || 'Unknown', email: info.email || '' }))
-            .sort((a, b) => a.name.localeCompare(b.name));
+        const rows = [...uids.entries()]
+            .map(([uid, info]) => ({ uid, label: labelFor(uid, info) }))
+            .sort((a, b) => a.label.localeCompare(b.label));
         sel.innerHTML = '<option value="__all__">All students</option>'
-            + names.map(n => `<option value="${escapeHtml(n.uid)}">${escapeHtml(n.name)}`
-                + `${n.email ? ' — ' + escapeHtml(n.email) : ''}</option>`).join('');
-        // ⚠️ RESTORE ONLY IF STILL PRESENT. A child who is not in the new scope
-        // must fall back to "All students" rather than sit selected and invisible.
+            + rows.map(r => `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.label)}</option>`).join('');
         sel.value = [...uids.keys()].includes(prev) ? prev : '__all__';
+        return rows.filter(r => r.label.startsWith('(no name)')).length;
     }
 
     async function loadStudents() {
@@ -2280,8 +2350,18 @@
                 ttbNotice('No students found in that school/class.', { bad: true });
                 return;
             }
-            rememberStudents(roster);
-            ttbNotice(`Loaded ${roster.size} student${roster.size === 1 ? '' : 's'}.`);
+            const nameless = rememberStudents(roster);
+            // ⚠️⚠️ SAY IT PLAINLY RATHER THAN HAND BACK A WALL OF PLACEHOLDERS. The
+            // names live on the log documents, so one report fills them in for the
+            // rest of this page load — which is an instruction the teacher can act
+            // on, not an apology.
+            if (nameless) {
+                ttbNotice(`Loaded ${roster.size} students, but ${nameless} have no name on `
+                    + `their account. Names are stored with their typing records \u2014 run a `
+                    + `report once for this class and they will fill in.`, { bad: true });
+            } else {
+                ttbNotice(`Loaded ${roster.size} student${roster.size === 1 ? '' : 's'}.`);
+            }
         } catch (e) {
             console.error('[roster] student load failed', e);
             ttbNotice('Could not load the student list: ' + (e.message || e), { bad: true });
@@ -3123,7 +3203,9 @@
                 <td>${r.chars.toLocaleString()}</td>
                 <td class="wpm-cell">${r.wpm}</td>
                 <td>${r.accuracy}%</td>
-                <td>${r.days}</td>
+                <td>${r.days}${(r.dailyLogs || []).some(l => idleTimeSuspect(l.seconds, l.chars))
+                    ? `<span class="idle-flag" title="At least one day for this student has credited time with almost no typing \u2014 possibly a held key. Open Details to see which.">\u23f8</span>`
+                    : ''}</td>
                 <td><button class="details-row-btn" data-idx="${idx}">Details</button></td>
             </tr>
             <tr class="detail-row hidden" id="detail-${idx}">
@@ -3139,7 +3221,7 @@
                                 <span class="goal-unit">m</span>
                                 <input type="number" class="log-sec-input" value="${secs}" min="0" max="59" step="1" title="Seconds" style="width:45px;" />
                                 <span class="goal-unit">s</span>
-                                <span class="log-chars">${log.chars.toLocaleString()} chars</span>
+                                <span class="log-chars">${log.chars.toLocaleString()} chars</span>${idleTimeSuspect(log.seconds, log.chars) ? IDLE_FLAG(log.seconds, log.chars) : ''}
                                 ${dayErrorCell(log)}
                                 <span class="scan-cell" data-uid="${r.uid}" data-date="${log.date}">${scanCell(r.uid, log.date)}</span>
                                 <button class="save-log-btn" data-idx="${idx}" data-li="${li}">Save</button>
@@ -3482,7 +3564,7 @@
                                 <span class="session-stat">${formatTime(sp.seconds || 0)}</span>
                                 <span class="session-stat">${sp.wpm || 0} WPM</span>
                                 <span class="session-stat">${sp.accuracy != null ? sp.accuracy : '\u2014'}%</span>
-                                <span class="session-stat">${(sp.chars || 0).toLocaleString()} ch</span>
+                                <span class="session-stat">${(sp.chars || 0).toLocaleString()} ch${idleTimeSuspect(sp.seconds, sp.chars) ? IDLE_FLAG(sp.seconds, sp.chars) : ''}</span>
                                 <span class="session-book">${escapeHtml(sp.detail || '')}</span>
                                 ${(() => {
                                     // ⚠️ THE GRADE OF THE ATTEMPT THIS SPRINT BELONGS TO, not of
@@ -3507,9 +3589,9 @@
                             </div>`;
                     }).join('');
                     return `
-                        <div class="session-entry${suspicious ? ' suspicious' : ''}" data-session-id="${s.id}">
+                        <div class="session-entry${suspicious ? ' suspicious' : ''}${idleTimeSuspect(s.seconds, s.chars) ? ' idle-farm' : ''}" data-session-id="${s.id}">
                             <span class="session-time">${timeStr}</span>
-                            <span class="session-stat">${formatTime(s.seconds)}</span>
+                            <span class="session-stat">${formatTime(s.seconds)}${idleTimeSuspect(s.seconds, s.chars) ? IDLE_FLAG(s.seconds, s.chars) : ''}</span>
                             <span class="session-stat">${s.wpm} WPM</span>
                             <span class="session-stat">${s.accuracy}%</span>
                             <span class="session-stat">${s.sprintCount || sprints.length} runs</span>
@@ -4867,6 +4949,47 @@
     // it is arbitrary attributes injected from stored data. ⭐ ESCAPING ALL FIVE
     // IS CORRECT IN BOTH POSITIONS, so there is no call site to audit and no
     // second function to choose between.
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ TIME WITH ALMOST NO TYPING — Round 131 (Garamond), Jake's option 5.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // ⭐⭐ THE FIX IN game.js STOPS NEW FARMING; IT CANNOT UN-FARM WHAT IS
+    // ALREADY IN THE RECORD. Students held Backspace for ten minutes at a time
+    // and every second of it was credited and stored. This finds those minutes.
+    //
+    // ⚠️ THE FINGERPRINT IS CHARACTERS PER MINUTE OF CREDITED TIME. A held
+    // Backspace erases as fast as it types, so a ten-minute hold ends with a
+    // handful of characters against 600 seconds — about 0.5 per minute. ⭐ 15 IS
+    // THE LINE BECAUSE IT IS 3 WPM: the slowest genuine run in the student
+    // traces (2026-09-22) was about 11 WPM, 55 per minute, so the threshold sits
+    // nearly four times below the slowest real child and forty times above a hold.
+    //
+    // ⚠️⚠️ IT IS A DIFFERENT FLAG FROM 🚩 AND MUST STAY ONE. 🚩 means "too fast or
+    // too accurate for this student" — copying. This means the opposite: time and
+    // no output. One icon for both would tell a teacher something is wrong and
+    // leave them to guess which way, which is the ambiguity this page keeps
+    // spending rounds removing.
+    //
+    // ⚠️ AT THE DAY LEVEL IT CAN BE DILUTED. Five genuine minutes plus a ten-minute
+    // hold is a day at about 33 per minute, which passes. The day and student
+    // markers catch farming that DOMINATES a day; the session and run markers,
+    // which see the hold on its own, catch it precisely. Expand to be sure.
+    //
+    // ⚠️⚠️ IT FLAGS, IT DOES NOT DEDUCT. Adjusting the stored minutes here would
+    // give the student one number and the teacher another (Rule 11). A teacher
+    // who agrees can delete the run, which Round 128 made work.
+    const IDLE_FARM_CPM = 15;
+    const IDLE_FARM_MIN_SECONDS = 60;
+    function idleTimeSuspect(seconds, chars) {
+        const sec = Number(seconds) || 0;
+        if (sec < IDLE_FARM_MIN_SECONDS) return false;
+        return ((Number(chars) || 0) / (sec / 60)) < IDLE_FARM_CPM;
+    }
+    const IDLE_FLAG = (seconds, chars) =>
+        `<span class="idle-flag" title="${Math.round(seconds)}s of credited time with only `
+        + `${Number(chars) || 0} characters typed \u2014 fewer than ${IDLE_FARM_CPM} a minute. `
+        + `Possibly a held key (Backspace) earning time. Expand the day to find the run.">\u23f8</span>`;
+
     function escapeHtml(str) {
         return String(str == null ? '' : str)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
