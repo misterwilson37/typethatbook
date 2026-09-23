@@ -1,5 +1,21 @@
 # CHANGELOG — TypeThatBook
 
+## Round 135 (Tory) — privacy, part one
+
+**`SECURITY.md`** — the written information security program the amended COPPA
+Rule requires, in plain language for a district reviewer, with every claim
+checked against the rules or the code.
+
+**Google Fonts removed from all seven pages** — self-hosted in `fonts/` (SIL OFL,
+licences included), so no page tells Google who is visiting. ⚠️ The first attempt
+silently pointed every page at a missing stylesheet; `self-hosted-fonts-test.mjs`
+now catches that.
+
+**Retention set at 24 months of inactivity**, because rotations can put ~17
+months between a student's uses. ROADMAP's privacy track lays out 135a–d.
+
+**ALL 108 HARNESSES PASS.**
+
 ## Round 134 (Bodoni II) — the Library lesson gate
 
 **⭐ ROADMAP 131a, as Jake ruled it.** Under 15 WPM or 80% in Library offers

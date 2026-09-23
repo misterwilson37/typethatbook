@@ -112,7 +112,12 @@ ok(rJs.includes('&#8635;'),
 // ─────────────────────────────────────────────────────────────────────────────
 console.log('\n--- D. THE PRODUCT FONT IS LOADED ON BOTH ---');
 for (const [name, src] of [['reports.html', reports], ['admin.html', admin]]) {
-    ok(/fonts\.googleapis\.com[^"]*Courier\+Prime/.test(src),
+    // ⚠️ ROUND 135: the face is SELF-HOSTED now (fonts/fonts.css), so Google's URL
+    // is gone on purpose — for privacy. What D1 defends is that the page loads the
+    // REAL Courier Prime rather than falling back to 'Courier New', and that is
+    // still true exactly when it links the stylesheet that declares it.
+    ok(/href="fonts\/fonts\.css"/.test(src)
+       && /font-family: 'Courier Prime'/.test(readFileSync(new URL('../fonts/fonts.css', import.meta.url), 'utf8')),
        `⚠️ D1 ${name} loads Courier Prime. It was on plain 'Courier New' while ` +
        `index.html and learn.html loaded the real face — half of why the staff ` +
        `pages read as a different product`);

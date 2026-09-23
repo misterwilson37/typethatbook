@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 134 (Bodoni II), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 135 (Tory), for whoever is next
 >
-> **ALL 107 HARNESSES PASS.**
+> **ALL 108 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **107 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **108 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -7650,6 +7650,7 @@ a pointer to a file you should go and read.**
 | `HANDOFF.md` | this file, and **as of Round 114 this row is finally true**: the only handoff. **Root**, and it stays there. ⚠️⚠️ **IT SAID "the only handoff" FROM ROUND 23 TO ROUND 114 WHILE THIS VERY TABLE LISTED THREE SIBLINGS FOUR ROWS BELOW** — `HANDOFF-games.md`, `HANDOFF-learn2.md`, plus `INTEGRATION.md` and `NEXT-STEPS.md` doing a handoff's job under other names. ⭐ Jake, 2026-09-10: *"that ends up being dozens of documents... it gets superconfusing for me."* All five are now §§10–14 below, appended verbatim. ⚠️ **DO NOT CREATE `HANDOFF-<anything>.md` AGAIN** — a round's handoff is a new numbered section in this file, which is what the section numbers are for |
 | `README.md` | what the project is; file map, data model. **Root** |
 | `ROADMAP.md` | **Root.** Every open item, the index at the top, and the § CONVENTIONS block. ⚠️⚠️ **MISSING FROM THIS TABLE UNTIL ROUND 81** — the document every round reads most, absent from the map that lists the ones it reads least. Found by `docs-vs-repo-test.mjs` on its first run, which is the entire argument for that harness. ⚠️ It is Claude's working file, NOT Jake's: *"the document is too large and unwieldy for me to even navigate"* — never answer him in item numbers |
+| `SECURITY.md` | **Root.** ⭐ The written information security program (Round 135) — what is collected, who can see it, outside services, retention, deletion, breach steps. Written for a DISTRICT REVIEWER, so keep it plain and keep every claim true to the rules and code; mark anything not yet real as **Planned**. Update it whenever a new kind of data or a new outside service is added |
 | `CHANGELOG.md` | **Root.** Kept, but its index is stale — §6.4. The file headers are the more reliable history. ⚠️ Round 17 left it untouched on purpose: a changelog is a record of what happened, and rewriting old entries to use new paths would falsify it |
 | `docs/README.md` | 🆕 index of the folder below — one line per document on when to read it |
 | `docs/DESIGN-TELEMETRY.md` | ⚠️ the forward plan. §2 verification-only, §7 build order, §8 things that must not happen |
@@ -11287,3 +11288,45 @@ student is judged.**
   `logOpenSprint()` calls; two anchors relaxed ONLY to allow a trailing `&&` and
   comment lines, with the properties they defend unchanged.
 * game.js v3.45.0 header entry archived to CHANGELOG (8-entry budget).
+
+
+---
+
+## §35. Round 135 (Tory) — privacy, part one
+
+**2026-09-24.** Jake asked how to make the site COPPA-compliant, then ruled on
+the plan. Google use is already district-approved; the goal is to have the site
+and the paperwork ready before he takes it to the district. See ROADMAP's
+**PRIVACY AND COMPLIANCE TRACK**, 135a–d.
+
+### A. `SECURITY.md` — THE WRITTEN SECURITY PROGRAM
+
+The amended COPPA Rule (effective June 2025, compliance April 2026) requires one,
+and Tennessee's SOPPA requires "reasonable security procedures". ⭐ WRITTEN IN
+PLAIN LANGUAGE FOR A DISTRICT REVIEWER, and every claim checked against the rules
+or the code: the data inventory, the four roles and how `teachesClass()` scopes a
+teacher, the three outside services, the 24-month retention, deletion within 30
+days, breach steps. Anything not yet real is marked **Planned**.
+
+⚠️ ONE CLAIM WAS VERIFIED BEFORE IT WAS WRITTEN AND ONE WAS CORRECTED: guests
+really do leave nothing server-side (no `signInAnonymously` anywhere, every write
+gated on a signed-in user) — but their progress IS adopted into their account if
+they later sign in, and the document now says so.
+
+### B. GOOGLE FONTS REMOVED FROM EVERY PAGE
+
+Seven pages called fonts.googleapis.com — Google received every visitor's IP. The
+three families (Courier Prime, Bitter, IM Fell English — all SIL OFL) are now in
+`fonts/` with their licences. ⚠️⚠️ **THE FIRST ATTEMPT BROKE EVERY PAGE, SILENTLY.**
+The build shell has no brace expansion, so the copy failed, the `&&` chain
+stopped — and the separate HTML-editing step ran anyway, pointing all seven pages
+at a `fonts.css` that did not exist. They would have loaded with fallback fonts
+and no error anywhere. `self-hosted-fonts-test.mjs` part B is the check that
+catches exactly that. It also found `shatter-preview.html` naming Courier Prime
+and never having loaded it at all.
+
+### C. ⚠️ THE RETENTION NUMBER IS 24 MONTHS, NOT 12, AND THE REASON IS ROTATIONS
+
+Jake proposed one year. Nine-week related-arts rotations mean a student in the
+first rotation of 6th grade and the last of 7th goes about 17 months between uses;
+12 months would delete them. 24 clears it. See ROADMAP 135b.

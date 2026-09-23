@@ -1,5 +1,61 @@
 # TYPETHATBOOK — ROADMAP
 
+## ⭐ PRIVACY AND COMPLIANCE TRACK (Round 135 onward)
+
+Jake, 2026-09-24: *"I'd just like to get the page up to snuff, have the privacy
+stuff ready to rock, and then be able to say 'Look! I'm a good listener and heard
+what you needed.'"* Google use is already district-approved. Order matters: the
+privacy policy (135d) must describe what 135a–c actually do, so it comes LAST.
+
+**Done in Round 135:** `SECURITY.md` (the written security program the amended
+COPPA Rule requires); Google Fonts removed from every page (self-hosted, OFL).
+
+### 135a — ⚠️⚠️ "DELETE THIS STUDENT" — NEXT
+
+Student data lives in: `users/{uid}` and its `profile`, `progress`,
+`lessonProgress` and `stats` subcollections; `typing_logs` (`{uid}_{date}`);
+`typing_sessions`; `practice_sessions`; `leaderboard/{uid}`;
+`pendingClassAssignments/{email}`; `practice_limits/{uid}`; and the Firebase
+**Auth** record itself.
+
+⚠️⚠️ **TWO THINGS A BROWSER CANNOT DELETE, AND THE TOOL MUST SAY SO:**
+* `users/{uid}/stats/*` and `users/{uid}/{collection}/*` are **owner-only** in the
+  rules today — not even a super-admin may delete them. **Needs a rules change**
+  (add `|| isSuper()` to delete), deployed from the Firebase console.
+* `practice_limits/{uid}` is `read, write: if false`, and **another user's Auth
+  record can only be removed with the Admin SDK** — so both are a Firebase-console
+  step. The tool should finish by showing the uid and email and saying exactly
+  where to click.
+
+SECURITY.md §7 promises deletion within 30 days; this is what makes it fast.
+
+### 135b — RETENTION: 24 MONTHS OF INACTIVITY
+
+⚠️ **NOT 12.** Jake teaches nine-week related-arts rotations, so a student in the
+FIRST rotation of 6th grade and the LAST of 7th goes about 17 months without
+touching the site. A 12-month rule would delete a returning 7th grader's lesson
+progress — exactly what Jake wanted to avoid. 24 months clears the longest gap
+with margin, and is the purpose SECURITY.md §6 now states.
+
+Built on 135a. ⚠️ **NO SCHEDULED JOB IS POSSIBLE WITHOUT A CLI** — a timed Cloud
+Function needs `firebase deploy`. So it is a panel Jake opens (say, once a term)
+that lists accounts past 24 months and purges them after one confirmation.
+⭐ **The warning email is not needed:** with a 24-month window the only accounts
+it ever reaches belong to students who have left the school.
+
+### 135c — ⚠️ STOP COPYING NAMES ONTO EVERY LOG
+
+Every daily `typing_logs` document carries `displayName`, multiplying where a real
+name lives. Jake: *"Their email is enough information for me."* Store name and
+email ONCE on `users/{uid}` (Round 130 already noted game.js should write it at
+the source), and have reports fall back to email. ⚠️ Touches daylog.js and every
+report name path — its own round, with the reports-identity harness updated.
+
+### 135d — THE PRIVACY POLICY. LAST.
+
+Written from SECURITY.md once 135a–c are real, so every sentence describes what
+the site actually does.
+
 ### 134a — ⚠️⚠️ THE LESSON-GATE EXEMPTION. NEXT.
 
 Jake, 2026-09-23: *"Having an exemption per class or per kid is fine, but we need
