@@ -100,6 +100,13 @@ function makeLibrarySandbox() {
         'let sprintLoggedSeconds = 0, sprintLoggedChars = 0, sprintLoggedMistakes = 0;',
         'let statsDocDirty = false;',
         'let currentChapterNum = 3;',
+        // ⚠️ ROUND 134: logOpenSprint() NOW CONSULTS THE LIBRARY LESSON GATE ON ITS
+        // FIRST LINE, so this sandbox must supply the two gate functions it calls.
+        // A never-locked gate is the correct stub for every case in this file —
+        // none of them is about the lock — and the lock's own behaviour inside
+        // logOpenSprint() is pinned in library-gate-test.mjs part H.
+        'function gateLocked() { return false; }',
+        'function gateResetSprintMarkers() { sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex; }',
         sanBody, resetBody, body, openBody,
         'function apply() {',
         '  isGameActive = state.isGameActive;',
@@ -404,7 +411,10 @@ ok(gameIncs === 1,
        'i.e. not until the first CORRECT keystroke — Jake\'s ruling, 2026-08-18');
 }
 
-ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2),
+// ⚠️ ROUND 134: the gate may be FOLLOWED by further conditions (the Library lesson
+// gate's `&& gateOnActiveTick(100)`). What this defends is that the tick is gated
+// on lastInputTime being set — still true — so the anchor allows a trailing `&&`.
+ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD(?:\)| &&)/.test(gameSrc2),
    '⚠️ game.js: the tick is gated on lastInputTime being set — no free seconds ' +
    'before the first keystroke of a sprint');
 
@@ -416,7 +426,10 @@ ok(/if \(lastInputTime && now - lastInputTime > AFK_THRESHOLD/.test(gameSrc2),
 // side; this guards the drawing side, because v3.26.0 got the first right and the
 // second wrong and shipped looking correct. A gate answers "did time pass?";
 // drawing answers "what does the student see?".
-ok(/\n    updateTimerUI\(\);\n\n    if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD\)/.test(gameSrc2),
+// ⚠️ ROUND 134: COMMENT LINES may now sit between the paint and the gate (the
+// lesson gate's explanation). The ORDER is the property and it is unchanged, so
+// only `//` lines are allowed in between — any code there still fails this.
+ok(/\n    updateTimerUI\(\);\n\n(?:    \/\/[^\n]*\n)*    if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD/.test(gameSrc2),
    '⚠️ game.js paints the readout ABOVE the idle gate — inside it, students see ' +
    'game.html\'s hardcoded "Daily 0:00" placeholder until they type');
 

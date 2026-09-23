@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-23 by Round 133 (Plantin), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 134 (Bodoni II), for whoever is next
 >
-> **ALL 106 HARNESSES PASS.**
+> **ALL 107 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **106 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **107 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11218,3 +11218,72 @@ not a verdict on a child. Reworded.
 Jake ruled the unlock: **performance, not lessons**, and **reset daily**. See
 ROADMAP 131a. The daily reset makes the lock ephemeral — no persisted document —
 but a reload must not buy a fresh free minute within the day.
+
+
+---
+
+## §34. Round 134 (Bodoni II) — the Library lesson gate
+
+**2026-09-24.** Jake confirmed the farming fix is live, and ROADMAP 131a was fully
+ruled, so this round built it. game.js v3.53.0.
+
+### A. ⭐ WHAT IT DOES
+
+Every minute of active Library typing is a judging window. Under 15 WPM **or**
+under 80% → at the next sentence end, hard-stop resume, or (after 20 s pending)
+word boundary, the child chooses **Go to lessons** or **Give me another chance**.
+The next minute is judged alone; still under → the same choice, except keeping
+going means time will not count. Locked: nothing is recorded, the timer greys and
+pulses red with "⏸ not counting". **One good minute unlocks.** Resets daily; a
+reload does not. One "another chance" per day.
+
+### B. ⚠️⚠️⚠️ "NOTHING RECORDED" IS THE ONLY CONSISTENT CHOICE
+
+The credit block drives three clocks — `activeSeconds`, `sprintSeconds` and
+`statsData.seconds*`.
+* Freeze only the DAY's seconds and the RUN's keep growing — and ⟳ Recalculate
+  rebuilds the day from runs, silently un-freezing it (Rule 9, then 11).
+* Freeze seconds but keep counting characters, and a run records 500 characters
+  in a frozen 60 seconds: 100 WPM, which trips 🚩. **The lock would manufacture
+  the cheating flag.**
+
+So the lock records nothing; the gate keeps its OWN window counters to see the
+child improve; the honest run is closed at the moment of locking; a fresh run
+starts on unlock. Live `mistakes`/`consecutiveMistakes` stay unguarded so the hard
+stop still fires on garbage.
+
+### C. ⚠️⚠️ TWO REAL BUGS CAUGHT ON THE FIRST RUN
+
+1. **The watermark.** `gateResetSprintMarkers()` reset the run's three fields and
+   not `resetSprintLogWatermark()`. `open-unit-test.mjs` caught it immediately
+   ("5 resets, 4 watermark calls"). Resetting a run without its watermark makes
+   the next write compute a delta against a stale mark and corrupts session
+   totals. ⭐ An existing harness, written for a different bug, guarding a
+   convention this round did not know about.
+2. **The proving minute.** The tick that completes a locked proving minute ran the
+   judgement, unlocked, and then credited itself 100 ms. Credit is now decided
+   BEFORE judging.
+
+### D. ⚠️ DESIGN CHOICES JAKE SHOULD KNOW ABOUT
+
+* **One "another chance" per day.** A rough MORNING, not a rough every minute: a
+  child who recovers and slips again goes straight to the second choice.
+* **The proving minute is not credited retroactively.**
+* **The buttons are disabled for 0.9 s** — it appears mid-typing, and a focused
+  button fires on Space.
+* **Going to lessons does not log the run itself** — the unload flush does, once.
+* **Console hooks for testing:** `ttbGate.state()`, `ttbGate.force('first')`,
+  `ttbGate.force('second')`, `ttbGate.reset()`.
+
+### E. ⚠️⚠️ NOT BUILT: THE EXEMPTION — ROADMAP 134a
+
+No per-student profile exists in game.js to hang it on, and a hook that always
+returns false is the `spawnSpot()` kind of dead code. **Until 134a ships, every
+student is judged.**
+
+### F. OTHER HARNESSES TOUCHED, AND WHY
+
+* `open-unit-test.mjs` — its sandbox now supplies the two gate functions
+  `logOpenSprint()` calls; two anchors relaxed ONLY to allow a trailing `&&` and
+  comment lines, with the properties they defend unchanged.
+* game.js v3.45.0 header entry archived to CHANGELOG (8-entry budget).

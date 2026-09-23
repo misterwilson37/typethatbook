@@ -1,48 +1,75 @@
-# Round 133 — CUMULATIVE, 23 files
+# Round 134 (Bodoni II) — 7 files — the Library lesson gate
 
-Everything changed since your original upload (Rounds 124–133). Each file is the
-final version, so re-uploading one you already have does no harm.
+⚠️ **Assumes Round 133 is deployed** (you confirmed the farming fix is out).
+Every file here was checked against the 133 package, not from memory.
 
-⚠️ **Why this exists:** every round I packaged, I deleted the previous round's zip
-first. So the file you needed was always the one I'd just removed, and the
-anti-farming fix never reached you. That's fixed — I won't delete old zips again.
+| # | path | version | what changed |
+|---|---|---|---|
+| 1 | `game.js` | 3.52.0 → **3.53.0** | ⭐ the lesson gate |
+| 2 | `tests/library-gate-test.mjs` | **1.0.0** | ⭐ NEW, 51 assertions |
+| 3 | `tests/open-unit-test.mjs` | — | sandbox + two anchors, see below |
+| 4 | `tests/run-all-tests.mjs` | — | registers the new harness (106 → 107) |
+| 5-7 | `HANDOFF.md`, `CHANGELOG.md`, `ROADMAP.md` | — | §34, 131a built, 134a |
 
----
+## ⚠️⚠️ Read before deploying: there is no exemption yet
 
-## 1. UPLOAD THESE FIRST — you definitely don't have them
+Every student is judged. A kid with an accommodation that genuinely keeps them
+under 15 WPM will be uncounted after their second slow minute each day. The
+exemption is ROADMAP 134a and it's next. If you have a student who needs one
+*now*, hold this until 134a ships.
 
-| path | version | why it matters |
-|---|---|---|
-| **`game.js`** | **v3.52.0** | ⚠️⚠️⚠️ **Stops the Backspace farming.** Kids are still doing it until this is live. |
-| `reports.html` | v1.15.0 | ⏸ flag, student picker, "Unknown" fix |
-| `tests/backspace-farm-test.mjs` | v1.0.0 | NEW |
-| `tests/reports-identity-test.mjs` | v1.2.0 | picker + flag parts |
-| `tests/run-all-tests.mjs` | — | registers both |
-| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | — | through §33 |
+## What a student sees
 
-## 2. Probably already live — re-upload to be sure
+1. Their first minute of Library typing each day always counts.
+2. If a minute comes in **under 15 WPM or under 80%**, then at the next sentence
+   end (or after a hard-stop resume, or at the next space if 20 seconds pass):
+   **Go to lessons** / **Give me another chance — rough morning**.
+3. The next minute is judged on its own. Still under →
+   **Go to lessons** / **Keep typing — my time won't count**.
+4. If they keep typing: the timer greys out and pulses red with
+   "⏸ not counting". Nothing is recorded.
+5. **One good minute and they're counting again**, with a green "your time is
+   counting again" message. Wherever they got better.
+6. Tomorrow is a fresh start. A reload today is not.
 
-These are from Rounds 124–128, which you've confirmed working, plus 126 (side
-panels/taglines) and 127 (telemetry counters), which you may or may not have
-uploaded. Uploading them again is safe.
+## Choices I made that you might want to change
 
-| path | version | round |
-|---|---|---|
-| `game-shell.js` | v1.16.0 | 124, 128 |
-| `game-shatter.js` | v1.18.0 | 124–127 |
-| `game-deadline.js` | v1.21.0 | 125–127 |
-| `game-escape.js` | v2.9.0 | 125–126 |
-| `game-chrome.js` | v1.11.0 | 126 |
-| `game-names.js` | v1.4.0 | 126 |
-| `typing-calibrator.js` | v1.3.0 | 127 |
-| `arcade-telemetry.js` | v1.4.0 | 127 |
-| `escape-board.js` | v2.2.0 | 124 |
-| `tests/abandon-lock-test.mjs` | — | 125–126 |
-| `tests/adaptive-arcade-test.mjs` | — | 124 |
-| `tests/call-shape-test.mjs` | — | 124 (new) |
-| `tests/game-shell-test.mjs` | — | 128 |
-| `tests/typing-calibrator-test.mjs` | — | 127 |
-| `tests/undefined-calls-test.mjs` | — | 124 |
+* **"Another chance" is once per day.** A kid who recovers and slips again goes
+  straight to the "won't count" choice. A rough morning, not a rough every minute.
+* **The minute that proves they've improved isn't credited back** — counting
+  resumes from the end of it.
+* **The buttons ignore input for under a second** — the box appears mid-typing,
+  and a focused button fires on Space.
+* **Locked means nothing is recorded — not just time, but characters and mistakes
+  too.** That one isn't really a choice; see below.
+
+## ⚠️⚠️ Why the lock records nothing at all
+
+Time is counted in three places at once: the live clock, the current run, and the
+day. If only the day stops, the run keeps growing — and ⟳ Recalculate rebuilds the
+day from its runs, silently undoing the lock. If time stops but characters keep
+counting, a run records 500 characters in a frozen minute: **100 WPM, which trips
+🚩.** The lock would manufacture the cheating flag. So the gate keeps its own
+private measurement to see the kid improve, and records nothing while locked.
+
+## ⚠️ Two real bugs caught before you saw them
+
+* **The run reset missed its log watermark.** `open-unit-test.mjs` — written months
+  ago for a different bug — caught it on the first run. Left in, it would have
+  corrupted session totals every time a kid locked or unlocked.
+* **The proving minute credited itself 100 ms.** The tick that finished it
+  unlocked and then counted itself.
+
+## Testing it yourself
+
+At 90 WPM you'll never trigger it. Open the console in a book:
+
+```
+ttbGate.force('first')    // then end a sentence or press space
+ttbGate.force('second')   // the "won't count" version
+ttbGate.state()           // what it currently thinks
+ttbGate.reset()           // back to a fresh day
+```
 
 ## Verify
 
@@ -51,5 +78,4 @@ npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 
-Expect **ALL 106 HARNESSES PASS**. Then hold Backspace in a book: the timer should
-stop and the game should pause within five seconds.
+Expect **ALL 107 HARNESSES PASS**.

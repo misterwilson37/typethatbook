@@ -1,5 +1,24 @@
 # CHANGELOG — TypeThatBook
 
+## Round 134 (Bodoni II) — the Library lesson gate
+
+**⭐ ROADMAP 131a, as Jake ruled it.** Under 15 WPM or 80% in Library offers
+lessons or another chance; a second bad minute locks, and while locked nothing is
+recorded and the timer visibly stops. One good minute unlocks. Resets daily;
+reloads don't reset it. game.js v3.53.0.
+
+**⚠️⚠️ "Nothing recorded" was the only consistent option** — freezing only the
+day's seconds lets ⟳ Recalculate rebuild it from runs; freezing seconds but
+counting characters records a 100 WPM run and trips 🚩.
+
+**⚠️ Two real bugs caught on the first run:** a run reset missing its log
+watermark (caught by `open-unit-test.mjs`, written for something else), and a
+proving minute crediting itself 100 ms.
+
+**Not built:** the per-student exemption (134a). Every student is judged.
+
+**ALL 107 HARNESSES PASS.**
+
 ## Round 133 (Plantin) — the downloads were deleting each other
 
 **⚠️⚠️⚠️ Every round's packaging deleted the previous round's zip**, so the file
@@ -13086,4 +13105,45 @@ try { sessionStorage.removeItem(LEGACY_CACHE_KEY); } catch (_) {}
 //           then it is not there on the press that mattered (v3.23.0's lesson,
 //           one control over).
 //           ⚠️ v3.44.0's colour change was a WARNING, not a guard. Keep both.
+```
+
+### game.js v3.45.0 — archived by Round 134 (Bodoni II), 8-entry budget
+
+Round 134 added v3.53.0 (the Library lesson gate) and put game.js one entry over
+its budget; the oldest live entry moves here verbatim. Nothing deleted.
+
+```
+// v3.45.0 — ⚠️ THE BUILD PANEL NO LONGER KEEPS ITS OWN "already loaded" FLAG.
+//           It was a THIRD layer of staleness on top of versions.js's cache and
+//           the HTTP cache, and none of the three expired inside a tab — which
+//           is why a hard reload could not refresh the one instrument that
+//           reports what is deployed. versions.js v1.13.0 owns freshness now
+//           (60s TTL, page-scoped); this file just asks on every hover.
+//           ⚠️ DO NOT REINTRODUCE A CACHE HERE. HANDOFF §0.-22.
+//
+// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
+// ⚠️ v3.42.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 60) —
+//    the 8-entry budget, not a deletion. It was the stale-stamp round, and its
+//    warning still lives ON the constant itself at `const VERSION` below.
+//
+// ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
+//
+// ⚠️ v3.43.0 — 33 OLDER ENTRIES (v3.39.0 back to v3.17.0) MOVED TO CHANGELOG.md
+//    § ARCHIVED FILE HEADERS. Nothing was deleted. The header budget is
+//    PROPORTIONAL now — see versions.js's HEADER_MAX_LINES — so this block is
+//    allowed to grow as the file does. The ENTRY budget is not proportional and
+//    is the one that fired: a changelog nobody scrolls to the bottom of is the
+//    defect, and it does not get better because the file got bigger.
+//
+// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
+//
+//   * The write-ahead log is MORE durable than the per-sentence writes it
+//     replaced. visibilitychange:hidden is the flush event that matters;
+//     beforeunload does not fire reliably on Chromebooks.
+//   * The leaderboard cache is deliberately NOT busted on the hot path.
+//     Doing so cost ~$34,300/year at 7,000 students.
+//   * VIEW_MODE is `let`. It changes at runtime three ways: Settings, the
+//     splash, and reconciliation against the student's Firestore profile.
+//   * applyViewMode() must replay textLoaded + positionSet. A renderer
+//     mounted mid-session missed those events and will draw nothing.
 ```

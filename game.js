@@ -1,4 +1,18 @@
-// game.js v3.52.0
+// game.js v3.53.0
+//
+// v3.53.0 — Round 134 (Bodoni II): ⭐⭐ THE LIBRARY LESSON GATE — ROADMAP 131a, as
+// Jake ruled it. Every minute of active Library typing is judged; under 15 WPM OR
+// under 80% accuracy offers GO TO LESSONS or ANOTHER CHANCE at the next sentence
+// end, hard-stop resume, or (after 20 s) word boundary. A second bad minute offers
+// the same choice, except that keeping going means time will not count — and then
+// NOTHING is recorded (seconds, characters or mistakes) and the timer greys out and
+// pulses red. ⭐ THE UNLOCK IS PERFORMANCE: one good minute and counting resumes.
+// It resets daily; a reload does NOT reset it. ⚠️⚠️ "NOTHING RECORDED" IS THE ONLY
+// CONSISTENT CHOICE — freezing only the day's seconds leaves the run's growing and
+// ⟳ Recalculate rebuilds the day from runs; freezing seconds but counting
+// characters manufactures a 100 WPM run and trips 🚩. ⚠️ NO EXEMPTION YET (134a).
+// Console: ttbGate.state() / .force('first'|'second') / .reset().
+// See tests/library-gate-test.mjs.
 //
 // v3.52.0 — Round 131 (Garamond): ⚠️⚠️⚠️ A HELD BACKSPACE EARNED TEN MINUTES.
 // Jake, 2026-09-23: *"students have learned that they can hold the backspace key
@@ -120,39 +134,9 @@
 //           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
 //           — do not deploy this without it.
 //
-// v3.45.0 — ⚠️ THE BUILD PANEL NO LONGER KEEPS ITS OWN "already loaded" FLAG.
-//           It was a THIRD layer of staleness on top of versions.js's cache and
-//           the HTTP cache, and none of the three expired inside a tab — which
-//           is why a hard reload could not refresh the one instrument that
-//           reports what is deployed. versions.js v1.13.0 owns freshness now
-//           (60s TTL, page-scoped); this file just asks on every hover.
-//           ⚠️ DO NOT REINTRODUCE A CACHE HERE. HANDOFF §0.-22.
+// (Older entries — v3.45.0 and before — are archived verbatim in CHANGELOG.md
+//  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
-// ⚠️ v3.44.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 71).
-// ⚠️ v3.42.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 60) —
-//    the 8-entry budget, not a deletion. It was the stale-stamp round, and its
-//    warning still lives ON the constant itself at `const VERSION` below.
-//
-// ── Full history: CHANGELOG.md § game.js ──────────────────────────────────
-//
-// ⚠️ v3.43.0 — 33 OLDER ENTRIES (v3.39.0 back to v3.17.0) MOVED TO CHANGELOG.md
-//    § ARCHIVED FILE HEADERS. Nothing was deleted. The header budget is
-//    PROPORTIONAL now — see versions.js's HEADER_MAX_LINES — so this block is
-//    allowed to grow as the file does. The ENTRY budget is not proportional and
-//    is the one that fired: a changelog nobody scrolls to the bottom of is the
-//    defect, and it does not get better because the file got bigger.
-//
-// ── Load-bearing. Do not "simplify" these ─────────────────────────────────
-//
-//   * The write-ahead log is MORE durable than the per-sentence writes it
-//     replaced. visibilitychange:hidden is the flush event that matters;
-//     beforeunload does not fire reliably on Chromebooks.
-//   * The leaderboard cache is deliberately NOT busted on the hot path.
-//     Doing so cost ~$34,300/year at 7,000 students.
-//   * VIEW_MODE is `let`. It changes at runtime three ways: Settings, the
-//     splash, and reconciliation against the student's Firestore profile.
-//   * applyViewMode() must replay textLoaded + positionSet. A renderer
-//     mounted mid-session missed those events and will draw nothing.
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10's gate lives in School, but its clock is fed from BOTH pages —
 // Jake: "when I say a month, I mean a month of typing ANYTHING". A student who
@@ -225,7 +209,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.52.0";
+const VERSION = "3.53.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2845,7 +2829,10 @@ function gameTick() {
     // textContent writes and some string building — cheap enough to do always.
     updateTimerUI();
 
-    if (lastInputTime && now - lastInputTime < IDLE_THRESHOLD) {
+    // ⚠️⚠️ THE LESSON GATE DECIDES WHETHER THIS 100 ms MAY BE CREDITED — see
+    // gateOnActiveTick(). It is called only when the student is genuinely
+    // active, so the gate's own window keeps measuring even while locked.
+    if (lastInputTime && now - lastInputTime < IDLE_THRESHOLD && gateOnActiveTick(100)) {
         timeAccumulator += 100;
         timerDisplay.style.opacity = '1';
         if (timeAccumulator >= 1000) {
@@ -3298,6 +3285,313 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ THE LESSON GATE — Round 134 (Bodoni II). ROADMAP 131a, AS RULED.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-23: *"Kids who are typing less than 15 words a minute do not know
+// how to type. It's not a reading thing … To pass the typing classes, they have
+// to accurately type (greater than 80%) at speed … so pushing kids to the lessons
+// if they're doing less than 15 wpm or 80% accuracy is just reinforcing the
+// expectation."* ⭐⭐ THIS IS THE COURSE REQUIREMENT, NOT A DIAGNOSIS. Do not
+// reintroduce Round 131's "maybe it's a reading difficulty" framing.
+//
+// THE FLOW, EXACTLY AS RULED:
+//   1. Every minute of ACTIVE Library typing is one judging window.
+//   2. Under 15 WPM OR under 80% accuracy → at the next sentence end, or after a
+//      hard stop resumes, a choice: GO TO LESSONS, or ANOTHER CHANCE.
+//   3. Another chance → the NEXT minute is judged ALONE. Still under → the same
+//      choice, except the second option now says plainly that time will not count.
+//   4. They choose to keep going → LOCKED: nothing is recorded, and the timer
+//      visibly stops (greyed, pulsing red, "not counting").
+//   5. ⭐ THE UNLOCK IS PERFORMANCE, NOT ATTENDANCE. Jake: *"We don't even need the
+//      kid to go type in school — maybe they want to practice elsewhere — but they
+//      won't get to count the time until they're better."* A good minute while
+//      locked unlocks, and counting resumes from there.
+//   6. It resets every day. Jake: *"I would go so far as to give a kid a minute
+//      of garbage typing every day if they want it."*
+//
+// ⚠️⚠️⚠️ "NOTHING IS RECORDED" MEANS NOTHING — SECONDS, CHARACTERS AND MISTAKES —
+//        AND THAT IS NOT OVER-REACH, IT IS THE ONLY CONSISTENT CHOICE.
+//
+// The credit block in gameTick() drives THREE clocks: `activeSeconds`,
+// `sprintSeconds` (the run's time) and `statsData.seconds*` (the day's).
+//   • Freeze only the day's seconds and the run's keep growing — and ⟳
+//     Recalculate in reports rebuilds the DAY FROM THE RUNS, which would quietly
+//     un-freeze it. Two numbers for one quantity: Rule 9, then Rule 11.
+//   • Freeze all three but keep counting characters and the run's WPM goes to
+//     infinity: 500 characters over a frozen 60 seconds is recorded as 100 WPM
+//     and trips reports' 🚩. The lock would manufacture the cheating flag.
+// ⭐ So the lock records NOTHING, and the gate keeps its OWN window counters so it
+// can still see the child improve. The run before the lock is closed honestly at
+// the moment it engages; the run after an unlock starts fresh. The locked stretch
+// never becomes a run at all.
+//
+// ⚠️ LIVE `mistakes` AND `consecutiveMistakes` ARE NOT GUARDED, ON PURPOSE. The
+// hard stop must still fire on garbage — it is one of Jake's two trigger points,
+// and a lock that disabled it would make mashing keys free again.
+//
+// ⚠️⚠️ NO EXEMPTION YET. Jake: *"Having an exemption per class or per kid is
+// fine."* There is no per-student profile in game.js to hang it on, and a hook
+// that always returns false is dead code of the `spawnSpot()` kind. It needs a
+// teacher-side write path; see ROADMAP 134a. Until it exists, EVERY student is
+// judged.
+//
+// ⚠️ A RELOAD IS NOT A FREE RESET. The whole state — stage, window counters and
+// any pending choice — lives in the student's own localStorage keyed by uid, and
+// is discarded only when the date changes. Costs no reads and no writes. A child
+// who clears it by hand gains, at most, the minute Jake is willing to give anyway.
+
+const GATE_WINDOW_MS = 60000;     // one minute of ACTIVE typing per judgement
+const GATE_MIN_WPM = 15;          // Jake, 2026-09-23 — the course requirement
+const GATE_MIN_ACC = 80;          // Jake, 2026-09-23
+// ⚠️ THE FALLBACK. A child who never ends a sentence would otherwise never see the
+// choice. After this long pending, the next SPACE is a trigger too — a word
+// boundary, never mid-word.
+const GATE_FALLBACK_MS = 20000;
+const GATE_ARM_MS = 900;          // buttons ignore input this long — see gateShow()
+const GATE_KEY = 'ttb_libGate_v1';
+
+let gate = null;
+
+function gateToday() { return getLocalDateStr(new Date()); }
+function gateStorageKey() {
+    const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) || 'guest';
+    return `${GATE_KEY}_${uid}`;
+}
+function gateFresh() {
+    return { date: gateToday(), stage: 'ok', chanceUsed: false, pending: null,
+             pendingSince: 0, win: { ms: 0, correct: 0, mistakes: 0 }, last: null };
+}
+function gateEnsure() {
+    // ⚠️ THE KEY INCLUDES THE UID, SO THE CACHE MUST TOO. If the gate first loads
+    // before sign-in completes it would otherwise cache under `guest` and go on
+    // judging a signed-in child against a guest's state for the rest of the day.
+    if (gate && gate.date === gateToday() && gate.key === gateStorageKey()) return gate;
+    let loaded = null;
+    try { loaded = JSON.parse(localStorage.getItem(gateStorageKey()) || 'null'); } catch (_) {}
+    // ⭐ A NEW DAY IS A NEW START — Jake's ruling. Anything from yesterday is dropped.
+    gate = (loaded && loaded.date === gateToday() && loaded.win) ? loaded : gateFresh();
+    gate.key = gateStorageKey();
+    gateApplyTimerLook();
+    return gate;
+}
+function gateSave() {
+    if (!gate) return;
+    try { localStorage.setItem(gateStorageKey(), JSON.stringify(gate)); } catch (_) {}
+}
+function gateLocked() { return !!(gate && gate.stage === 'locked'); }
+
+// Called from gameTick() on every ACTIVE 100 ms. Returns whether that 100 ms may be
+// CREDITED. The window always accrues — that is how a locked child proves they
+// have got better.
+function gateOnActiveTick(ms) {
+    gateEnsure();
+    // ⚠️ DECIDED BEFORE THE JUDGEMENT, NOT AFTER. The tick that completes a locked
+    // proving minute is the one that unlocks — and if the answer were read after
+    // gateJudge() ran, that tick would credit itself 100 ms of the locked window.
+    // Caught by library-gate-test C15.
+    const creditThisTick = !gateLocked();
+    gate.win.ms += ms;
+    if (gate.win.ms >= GATE_WINDOW_MS && !gate.pending) gateJudge();
+    if (gate.win.ms % 1000 < ms) gateSave();
+    return creditThisTick;
+}
+function gateOnKey(correct) {
+    gateEnsure();
+    if (correct) gate.win.correct++; else gate.win.mistakes++;
+}
+function gateMeasure(w) {
+    const minutes = w.ms / 60000;
+    const wpm = minutes > 0 ? (w.correct / 5) / minutes : 0;
+    const entries = w.correct + w.mistakes;
+    const acc = entries > 0 ? (w.correct / entries) * 100 : 100;
+    return { wpm: Math.round(wpm), acc: Math.round(acc) };
+}
+function gatePasses(m) { return m.wpm >= GATE_MIN_WPM && m.acc >= GATE_MIN_ACC; }
+function gateResetWindow() { gate.win = { ms: 0, correct: 0, mistakes: 0 }; }
+function gateResetSprintMarkers() {
+    // ⚠️ THE SAME RESET the rest of this file uses to begin a run — INCLUDING THE
+    // WATERMARK. The first draft reset the three run fields and not
+    // resetSprintLogWatermark(), and open-unit-test caught it at once: the
+    // watermark records how much of the current run has already been written, so
+    // resetting the run without it makes the next write compute its delta against
+    // a stale mark and corrupts the session totals. Every sprintSeconds reset in
+    // this file is paired with a watermark reset; this one now is too.
+    sprintSeconds = 0; sprintMistakes = 0; sprintCharStart = currentCharIndex;
+    resetSprintLogWatermark();
+}
+
+function gateJudge() {
+    const m = gateMeasure(gate.win);
+    gate.last = m;
+    if (gatePasses(m)) {
+        if (gate.stage === 'locked') {
+            // ⭐ THE UNLOCK. The locked stretch was never a run; this starts a new one.
+            gateResetSprintMarkers();
+            gate.stage = 'ok';
+            gateApplyTimerLook();
+            gateToast('Your time is counting again \u2014 nice work.');
+        } else {
+            gate.stage = 'ok';
+        }
+    } else if (gate.stage === 'locked') {
+        // Already chose to keep going uncounted. Jake: tell them "until they either
+        // switch or approve" — they approved, so no more nagging today.
+    } else if (gate.stage === 'chance') {
+        gate.pending = 'second';
+    } else {
+        // ⚠️ ONE "ANOTHER CHANCE" PER DAY. It is a rough MORNING, not a rough every
+        // minute; a child who recovers and then slips again goes straight to the
+        // second choice rather than cycling counted-bad-minutes forever.
+        gate.pending = gate.chanceUsed ? 'second' : 'first';
+    }
+    if (gate.pending && !gate.pendingSince) gate.pendingSince = Date.now();
+    gateResetWindow();
+    gateSave();
+}
+
+// Trigger points: a sentence end, a hard-stop resume, or — after GATE_FALLBACK_MS
+// pending — the next word boundary. Never mid-word.
+function gateMaybeShow(ch) {
+    gateEnsure();
+    if (!gate.pending || document.getElementById('ttb-gate')) return;
+    const sentenceEnd = ch === '.' || ch === '!' || ch === '?' || ch === '\n';
+    const fallback = ch === ' ' && Date.now() - (gate.pendingSince || 0) >= GATE_FALLBACK_MS;
+    if (sentenceEnd || fallback || ch === '__resume__') gateShow(gate.pending);
+}
+
+function gateShow(kind) {
+    if (document.getElementById('ttb-gate')) return;
+    const m = gate.last || { wpm: 0, acc: 0 };
+    isGameActive = false;
+    clearInterval(timerInterval);
+    isModalOpen = true; isInputBlocked = true;
+
+    const second = kind === 'second';
+    const el = document.createElement('div');
+    el.id = 'ttb-gate';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-modal', 'true');
+    el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;'
+        + 'justify-content:center;background:rgba(0,0,0,0.72);padding:16px;';
+    el.innerHTML = `
+      <div style="max-width:520px;background:#1c1f24;color:#e8e8e8;border:2px solid ${second ? '#d9534f' : '#e0a800'};
+                  border-radius:10px;padding:22px 24px;font-family:inherit;line-height:1.5;box-shadow:0 8px 30px rgba(0,0,0,.5)">
+        <div style="font-size:1.25em;font-weight:700;margin-bottom:10px">
+          ${second ? 'Still below the line' : 'Quick check-in'}</div>
+        <div style="margin-bottom:14px">
+          ${second ? 'This minute' : 'Over the last minute'} you typed about
+          <b>${m.wpm} words a minute</b> with <b>${m.acc}% accuracy</b>.
+          Books count once you are at <b>${GATE_MIN_WPM} WPM and ${GATE_MIN_ACC}%</b> \u2014
+          that is what the typing class expects, and the lessons are built to get you there.
+          ${second ? '<br><br>You can keep typing here, but <b>your time will not count</b> until your typing is back above the line. Practise anywhere \u2014 the lessons are the fastest way.' : ''}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button id="ttb-gate-lessons" disabled style="flex:1;min-width:170px;padding:10px 12px;font-weight:700;
+                  background:#2e7d32;color:#fff;border:none;border-radius:6px;cursor:pointer">Go to lessons</button>
+          <button id="ttb-gate-stay" disabled style="flex:1;min-width:170px;padding:10px 12px;
+                  background:#3a3f47;color:#e8e8e8;border:1px solid #5a606a;border-radius:6px;cursor:pointer">
+            ${second ? 'Keep typing \u2014 my time won\u2019t count' : 'Give me another chance \u2014 rough morning'}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+
+    // ⚠️⚠️ THE ARM DELAY. This appears in the middle of typing, and a focused
+    // button fires on Space. A child typing "the cat " would otherwise pick an
+    // option with their next keystroke without ever reading the box. Both buttons
+    // start disabled and nothing takes focus until the child has had time to see it.
+    setTimeout(() => {
+        const a = document.getElementById('ttb-gate-lessons');
+        const b = document.getElementById('ttb-gate-stay');
+        if (a) a.disabled = false;
+        if (b) b.disabled = false;
+    }, GATE_ARM_MS);
+
+    document.getElementById('ttb-gate-lessons').addEventListener('click', () => {
+        gateChooseLessons();
+        window.location.href = 'learn.html';
+    });
+    document.getElementById('ttb-gate-stay').addEventListener('click', () => {
+        if (second) gateChooseLock(); else gateChooseChance();
+        el.remove();
+        isInputBlocked = false;
+        resumeGame();
+    });
+}
+
+// ⚠️ THE THREE CHOICES ARE NAMED FUNCTIONS, NOT INLINE HANDLERS, so the harness
+// exercises THESE rather than a copy of them (tests/lesson-gate-test.mjs).
+function gateChooseLessons() {
+    // ⚠️ NO EXTRA LOGGING. Leaving the page already flushes the open run through
+    // the pagehide/visibilitychange path; logging here too would record it twice.
+    gate.pending = null; gate.pendingSince = 0; gateSave();
+}
+function gateChooseChance() {
+    gate.stage = 'chance';
+    gate.chanceUsed = true;
+    gate.pending = null; gate.pendingSince = 0;
+    gateResetWindow(); gateSave(); gateApplyTimerLook();
+}
+function gateChooseLock() {
+    // ⚠️⚠️ ORDER MATTERS: close the honest run BEFORE the lock engages, or the lock
+    // guard at the top of logOpenSprint() swallows it and the good minutes before
+    // the lock are lost.
+    logOpenSprint('lesson gate');
+    gateResetSprintMarkers();
+    gate.stage = 'locked';
+    gate.pending = null; gate.pendingSince = 0;
+    gateResetWindow(); gateSave(); gateApplyTimerLook();
+}
+
+// ⭐ THE TIMER HAS TO SHOW IT. Jake: *"the timer stops ticking — maybe even flashes
+// red while not moving? Greys out? Something to indicate it's not growing."* A
+// child who picks "keep going" and sees an ordinary timer would believe they are
+// earning, and the teacher's report would disagree with what they saw.
+function gateApplyTimerLook() {
+    if (typeof document === 'undefined' || !timerDisplay) return;
+    if (!document.getElementById('ttb-gate-style')) {
+        const st = document.createElement('style');
+        st.id = 'ttb-gate-style';
+        st.textContent = '@keyframes ttbGatePulse{0%,100%{box-shadow:0 0 0 0 rgba(217,83,79,.0)}'
+            + '50%{box-shadow:0 0 0 4px rgba(217,83,79,.65)}}'
+            + '.ttb-uncounted{color:#8a8a8a !important;animation:ttbGatePulse 1.4s ease-in-out infinite;'
+            + 'border-radius:4px}'
+            + '.ttb-uncounted::after{content:" \\23F8 not counting";font-size:.7em;color:#d9534f;'
+            + 'margin-left:6px;letter-spacing:.5px}';
+        document.head.appendChild(st);
+    }
+    timerDisplay.classList.toggle('ttb-uncounted', gateLocked());
+    timerDisplay.title = gateLocked()
+        ? `Not counting \u2014 your time resumes once you type ${GATE_MIN_WPM}+ WPM at ${GATE_MIN_ACC}%+ for a minute.`
+        : '';
+}
+
+function gateToast(msg) {
+    const t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:100001;'
+        + 'background:#2e7d32;color:#fff;padding:10px 16px;border-radius:6px;font-weight:700;'
+        + 'box-shadow:0 4px 16px rgba(0,0,0,.4);transition:opacity .6s';
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; }, 2600);
+    setTimeout(() => t.remove(), 3300);
+}
+
+// ⭐ FOR JAKE'S OWN TESTING. At 90 WPM he will never see either choice, so the
+// console needs a way in: ttbGate.state(), ttbGate.force('first'|'second'),
+// ttbGate.reset(). Same spirit as ttbMeter.
+if (typeof window !== 'undefined') {
+    window.ttbGate = {
+        state: () => { gateEnsure(); return JSON.parse(JSON.stringify(gate)); },
+        force: (kind) => { gateEnsure(); gate.last = gate.last || { wpm: 9, acc: 72 };
+                           gate.pending = kind === 'second' ? 'second' : 'first';
+                           gate.pendingSince = Date.now() - GATE_FALLBACK_MS; gateSave();
+                           return 'pending ' + gate.pending + ' \u2014 end a sentence or press space'; },
+        reset: () => { gate = gateFresh(); gate.key = gateStorageKey(); gateSave(); gateApplyTimerLook(); return 'reset'; },
+    };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️⚠️ WHAT COUNTS AS A STUDENT BEING ACTIVE — Round 131 (Garamond).
 // ═════════════════════════════════════════════════════════════════════════════
 //
@@ -3390,8 +3684,15 @@ function handleTyping(key, opts) {
     }
 
     if (inputChar === targetChar) {
-        statsData.charsToday++; statsData.charsWeek++; statsData.charsLibrary++;
-        anonCharsTyped++;
+        // ⚠️ THE GATE ALWAYS MEASURES; THE STATS RECORD ONLY WHILE UNLOCKED. A locked
+        // character counted here would inflate a run whose seconds are frozen.
+        gateOnKey(true);
+        if (!gateLocked()) {
+            statsData.charsToday++; statsData.charsWeek++; statsData.charsLibrary++;
+            anonCharsTyped++;
+        }
+        // Deferred so it runs after this keystroke has finished advancing.
+        { const _gc = inputChar; setTimeout(() => gateMaybeShow(_gc), 0); }
         consecutiveMistakes = 0;
 
         currentEl.classList.remove('active'); currentEl.classList.remove('error-state');
@@ -3447,11 +3748,13 @@ function handleTyping(key, opts) {
         flashFingerPressed();
         highlightCurrentChar(); centerView();
     } else {
-        mistakes++; sprintMistakes++;
+        // ⚠️ LIVE `mistakes` STAYS UNGUARDED so the hard stop still fires on garbage.
+        mistakes++; if (!gateLocked()) sprintMistakes++;
+        gateOnKey(false);
         consecutiveMistakes++;
         anonMistakes++;
 
-        statsData.mistakesToday++; statsData.mistakesWeek++; statsData.mistakesLibrary++;
+        if (!gateLocked()) { statsData.mistakesToday++; statsData.mistakesWeek++; statsData.mistakesLibrary++; }
         if (currentLetterStatus === 'clean') currentLetterStatus = 'error';
         mistakesAtCurrent++;
         const errEl = document.getElementById(`char-${currentCharIndex}`);
@@ -3588,6 +3891,9 @@ function resumeGame() {
 
     const keyboard = document.getElementById('virtual-keyboard');
     if(keyboard) keyboard.focus();
+    // ⭐ "AFTER AN ERROR RESET" — Jake's second trigger point. Deferred so the
+    // game is fully running before the gate decides whether to pause it again.
+    setTimeout(() => gateMaybeShow('__resume__'), 0);
 }
 
 document.addEventListener('keyup', (e) => { if (e.key === "Shift") toggleKeyboardCase(false); });
@@ -4948,6 +5254,10 @@ function rollDayIfNeeded(reason) {
 }
 
 function logOpenSprint(reason, dateOverride) {
+    // ⚠️⚠️ A LOCKED STRETCH IS NEVER A RUN. The gate closes the honest run at the
+    // moment the lock engages; anything that tries to log while locked would
+    // record characters against frozen seconds. Reset instead.
+    if (gateLocked()) { gateResetSprintMarkers(); return; }
     if (!isGameActive && sprintSeconds <= 0) return;
     const charsTyped = currentCharIndex - sprintCharStart;
     const sprintMinutes = sprintSeconds / 60;

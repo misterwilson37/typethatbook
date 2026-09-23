@@ -1,8 +1,21 @@
 # TYPETHATBOOK — ROADMAP
 
+### 134a — ⚠️⚠️ THE LESSON-GATE EXEMPTION. NEXT.
+
+Jake, 2026-09-23: *"Having an exemption per class or per kid is fine, but we need
+to make sure we're remembering the purpose of the project — typing practice."*
+
+⚠️ **Until this ships, EVERY student is judged by the 131a gate.** A child with an
+accommodation that genuinely keeps them under 15 WPM is currently uncounted after
+their second slow minute each day.
+
+Needs: a field the teacher can set (per student, and per class), a write path in
+reports.html, a Firestore rule allowing staff to write it, and game.js reading it
+before judging. ⚠️ An exemption is an EXCEPTION a teacher grants, never a default.
+
 ### 131a — ⭐ LESSONS-FIRST NUDGE IN LIBRARY. SPEC RULED; ONE QUESTION BLOCKS THE BUILD.
 
-**STATUS: ✅ SPEC COMPLETE (Round 133). Ready to build.**
+**STATUS: ✅ BUILT (Round 134, game.js v3.53.0). Exemption is 134a.**
 
 ⚠️⚠️⚠️ **ROUND 131 FRAMED THIS WRONG AND JAKE CORRECTED IT.** Round 131's options
 treated sub-15 WPM in Library as a possible *reading* difficulty — harder text,
