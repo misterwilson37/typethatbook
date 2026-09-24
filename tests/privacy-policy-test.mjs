@@ -42,19 +42,26 @@ for (const f of readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
 }
 
 console.log('\nB — WHAT 312.4(d) REQUIRES');
-ok(/created, and is run, by a Sumner County Schools Computer Science teacher/.test(text),
-   'B1 the operator is described');
+ok(/created, and is run, by Jake Wilson/.test(text) && /Jake Wilson, operator of TypeThatBook/.test(text),
+   'B1 the operator is named, in the introduction and in the contact block (312.4(d)(1))');
 // ⚠️ JAKE, 2026-09-24: *"don't include my email or anything."* Pinned so a later edit
 // cannot quietly put a personal address back on a public page.
 ok(!/jacob\.v\.wilson|@gmail\.com/i.test(pol), 'B2 no personal email anywhere on the page');
-ok(/contact your child\u2019s school|contact your child's school/.test(text),
-   'B2b and requests are routed through the school instead');
+// ⭐ ROUND 143: the contact is a FORWARDING address and a dedicated number, so the
+// policy can carry them without exposing anything personal.
+const EMAIL = 'privacy@misterwilson.org', PHONE = '(615) 379-7226';
+ok(text.includes(EMAIL) && sec.includes(EMAIL), `B2b both documents give the same email (${EMAIL})`);
+ok(text.includes(PHONE) && sec.includes(PHONE), `B2c and the same phone (${PHONE})`);
+ok(/href="tel:\+16153797226"/.test(pol), 'B2d the phone link dials the number it displays');
 ok(/review/.test(text) && /deleted/.test(text) && /no further information be collected/.test(text),
    'B3 the three parental rights: review, delete, refuse further collection');
 ok(/confirm the request through the school/.test(text),
    'B4 and how a parent\u2019s identity is confirmed before acting (312.6)');
-notes.push('COPPA 312.4(d)(1) lists the operator\u2019s name, address, phone and email; the policy routes '
-         + 'contact through the school instead \u2014 confirm the principal agrees the school office is the contact');
+// ⚠️ THE TWO FIELDS STILL MISSING. 312.4(d)(1) lists name, address, phone and email;
+// phone and email are in. Notes, not failures — Jake has decided to add them later.
+if (!/Jake Wilson/.test(text)) notes.push('the policy does not name the operator \u2014 COPPA 312.4(d)(1) lists a name');
+if (!/P\.?\s?O\.? Box|\d+ [A-Z][a-z]+ (Street|St|Road|Rd|Ave|Avenue|Drive|Dr|Pike|Blvd)/.test(text))
+    notes.push('the policy has no mailing address yet \u2014 COPPA 312.4(d)(1) lists one');
 
 console.log('\nC — ⚠️⚠️⚠️ EACH PROMISE MATCHES THE CODE THAT KEEPS IT');
 const months = (/const RETENTION_MONTHS = (\d+);/.exec(reports) || [])[1];

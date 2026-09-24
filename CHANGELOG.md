@@ -1,5 +1,20 @@
 # CHANGELOG — TypeThatBook
 
+## Round 144 (Caslon VI) — the operator is named
+
+`privacy.html` v2.2.0 names Jake Wilson as operator. Only a mailing address remains
+open under COPPA 312.4(d)(1).
+
+**ALL 112 HARNESSES PASS.**
+
+## Round 143 (Caslon V) — contact details
+
+`privacy.html` v2.1.0 and SECURITY.md now list **privacy@misterwilson.org** and
+**(615) 379-7226**; the harness checks both documents agree. Operator name and
+mailing address remain open, as notes.
+
+**ALL 112 HARNESSES PASS.**
+
 ## Round 142 (Caslon IV) — the school-consent checkbox
 
 **⭐ Every staff member now confirms, once, that their school has approved

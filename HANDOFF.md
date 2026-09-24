@@ -1,6 +1,6 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 142 (Caslon IV), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 144 (Caslon VI), for whoever is next
 >
 > **ALL 112 HARNESSES PASS.**
 >
@@ -11620,3 +11620,31 @@ The first "remove the owner check" mutation hit an identical line in a DIFFERENT
 rule earlier in the file, and the suite stayed green — correctly. Re-aimed inside
 the attestation block, A2 fails as it should. ⚠️ When mutating the rules, anchor on
 the block, not the line.
+
+
+---
+
+## §43. Round 143 (Caslon V) — contact details
+
+**2026-09-24.** Round 142 and rules v2.15.0 are live. Jake set up Cloudflare Email
+Routing: `privacy@` and `admin@misterwilson.org` both forward to his Gmail. Phone:
+**(615) 379-7226**. Address: *"will just have to be blank for now."*
+
+`privacy.html` v2.1.0 and SECURITY.md now carry **privacy@misterwilson.org** and the
+phone. Harness B2b–d checks both documents agree and the `tel:` link dials what it
+shows. ⚠️ **Still open under 312.4(d)(1): the operator's NAME and MAILING ADDRESS**
+— printed as notes every run. SECURITY.md names Jake; the policy does not, by his
+earlier instruction.
+
+⚠️ Email Routing is receive-only: replies to parents come from Jake's Gmail until
+he has a sending service.
+
+
+---
+
+## §44. Round 144 (Caslon VI) — the operator is named
+
+Jake: *"Jake Wilson as my name is fine."* `privacy.html` v2.2.0 names him in the
+introduction and the contact block. ⚠️ **The ONLY 312.4(d)(1) element still missing
+is a mailing address.** A SpotOn compliance kit was also produced this round, for a
+future instance — it lives outside this repo (see the reply that shipped it).
