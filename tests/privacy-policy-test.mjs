@@ -41,7 +41,7 @@ ok(/review/.test(text) && /deleted/.test(text) && /no further information be col
    'B3 the three parental rights: review, delete, refuse further collection');
 ok(/confirm the request through the school/.test(text),
    'B4 and how a parent\u2019s identity is confirmed before acting (312.6)');
-for (const ph of ['[SCHOOL NAME]', '[SCHOOL MAILING ADDRESS]', '[SCHOOL TELEPHONE]'])
+for (const ph of ['[MAILING ADDRESS]', '[TELEPHONE]'])
     if (text.includes(ph)) notes.push(`privacy.html still says ${ph} \u2014 COPPA requires the operator\u2019s address and phone`);
 
 console.log('\nC — ⚠️⚠️⚠️ EACH PROMISE MATCHES THE CODE THAT KEEPS IT');
@@ -72,6 +72,17 @@ console.log('\nD — ⭐ THE POLICY PAGE ITSELF CALLS NO ONE');
 const ext = [...pol.matchAll(/(?:src|href)="(https?:[^"]+)"/g)].map(m => m[1]);
 ok(ext.length === 0, `D1 privacy.html loads nothing from another site (${ext.join(', ') || 'none'})`);
 
+// ⚠️⚠️ THE CONSENT CLAIM IS THE ONE THIS HARNESS CANNOT CHECK AGAINST CODE — it is a
+// fact about an agreement with the district, not about the site. Round 138 asserted
+// it before it was true. So while the policy is a draft it must SAY it is a draft,
+// and it must not claim the approval in its visible text.
+if (/PENDING DISTRICT REVIEW/.test(text) || /\bDraft\b/.test(text))
+    notes.push('privacy.html is a DRAFT pending district review \u2014 do not publish it as final');
+ok(!/used as part of classroom instruction, with the school district's approval/.test(text)
+   || !/PENDING DISTRICT REVIEW|\bDraft\b/.test(text),
+   '⚠️⚠️⚠️ E1 the policy never claims district approval while it is still marked a draft');
+ok(!/with the school district's approval/.test(text) || !/\[PENDING/.test(text),
+   'E2 and never claims it alongside the pending placeholder');
 for (const n of notes) console.log('  note  ' + n);
 console.log(fails.length ? `\nFAIL — ${pass} ok, ${fails.length} failed` : `\nPASS — ${pass} ok, 0 failed`);
 if (fails.length) process.exitCode = 1;

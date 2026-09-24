@@ -1,5 +1,16 @@
 # CHANGELOG — TypeThatBook
 
+## Round 139 (Plantin III) — the policy is a draft
+
+**⚠️⚠️⚠️ Round 138's privacy policy claimed district approval that does not exist.**
+I read "approval to utilize Google" as approval of TypeThatBook; Jake has not yet
+spoken to his administration. `privacy.html` is now marked **Draft**, the consent
+section is a `[PENDING DISTRICT REVIEW]` placeholder, and the contact placeholders
+no longer assume the school. `privacy-policy-test.mjs` part E stops it claiming
+approval while it's a draft. Round 138 was not deployed.
+
+**ALL 111 HARNESSES PASS.**
+
 ## Round 138 (Plantin II) — the privacy policy
 
 **⭐ `privacy.html`** — the COPPA online notice, in plain language for parents,

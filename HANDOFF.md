@@ -1,8 +1,13 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 138 (Plantin II), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 139 (Plantin III), for whoever is next
 >
 > **ALL 111 HARNESSES PASS.**
+>
+> ⚠️⚠️⚠️ **THE DISTRICT HAS NOT APPROVED TYPETHATBOOK — READ §39 BEFORE ANY
+> PRIVACY WORK.** Jake is the sole publisher and has not spoken to his
+> administration. "Approval to use Google" meant Google Workspace, NOT this app.
+> `privacy.html` is a DRAFT until the district agrees; do not let it claim approval.
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -11468,3 +11473,36 @@ Each claim is pinned to the code that keeps it. Two harness bugs of mine on the
 way: the first `lbOwnEntry = {` in game.js is the empty fallback, and the real
 entry has a COMMENT mentioning email — both made C5 fail against correct code.
 Fixed by anchoring on the real entry and checking field keys only.
+
+
+---
+
+## §39. Round 139 (Plantin III) — the policy claimed an approval that did not exist
+
+**2026-09-24.** Jake: *"I'm the sole publisher and creator — I have not spoken to
+them about it at all. Does it have to have a sponsoring school?"*
+
+### A. ⚠️⚠️⚠️ I MISREAD "APPROVAL TO UTILIZE GOOGLE"
+
+Round 135 took *"I've already got approval to utilize Google"* to mean the
+district had approved TypeThatBook. It meant Google Workspace. Round 138's
+`privacy.html` therefore stated that the site is used *"with the school district's
+approval"* and that *"the school provides that permission"* on parents' behalf.
+**Neither was true.** Caught before deployment.
+
+⭐ THE LESSON: a privacy policy's CONSENT BASIS is a fact about an agreement, not
+about the code, so `privacy-policy-test.mjs` could not catch it. When a claim can
+only be verified by asking Jake, ASK — do not infer it from an adjacent remark.
+
+### B. WHAT CHANGED
+`privacy.html` v1.1.0 carries a visible **Draft** banner and a `[PENDING DISTRICT
+REVIEW]` placeholder in place of the consent paragraph (the intended text is kept
+in a comment for when it becomes true). Contact placeholders are neutral:
+`[MAILING ADDRESS]`, `[TELEPHONE]` — the school's only if the district agrees to be
+the contact. Harness part E: the policy may not claim approval while it is a draft.
+
+### C. ⚠️ WHY THE DISTRICT IS NOW THE CRITICAL PATH
+COPPA's school-consent route requires the school to actually authorise the
+service. Without it, collecting from under-13s needs verifiable consent from each
+parent. The technical work (SECURITY.md, delete, retention, fonts, the draft
+policy) is done and is what Jake brings to that conversation.
