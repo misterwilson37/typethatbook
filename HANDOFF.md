@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 137 (Caslon III), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 138 (Plantin II), for whoever is next
 >
-> **ALL 110 HARNESSES PASS.**
+> **ALL 111 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **110 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **111 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -7650,6 +7650,7 @@ a pointer to a file you should go and read.**
 | `HANDOFF.md` | this file, and **as of Round 114 this row is finally true**: the only handoff. **Root**, and it stays there. ⚠️⚠️ **IT SAID "the only handoff" FROM ROUND 23 TO ROUND 114 WHILE THIS VERY TABLE LISTED THREE SIBLINGS FOUR ROWS BELOW** — `HANDOFF-games.md`, `HANDOFF-learn2.md`, plus `INTEGRATION.md` and `NEXT-STEPS.md` doing a handoff's job under other names. ⭐ Jake, 2026-09-10: *"that ends up being dozens of documents... it gets superconfusing for me."* All five are now §§10–14 below, appended verbatim. ⚠️ **DO NOT CREATE `HANDOFF-<anything>.md` AGAIN** — a round's handoff is a new numbered section in this file, which is what the section numbers are for |
 | `README.md` | what the project is; file map, data model. **Root** |
 | `ROADMAP.md` | **Root.** Every open item, the index at the top, and the § CONVENTIONS block. ⚠️⚠️ **MISSING FROM THIS TABLE UNTIL ROUND 81** — the document every round reads most, absent from the map that lists the ones it reads least. Found by `docs-vs-repo-test.mjs` on its first run, which is the entire argument for that harness. ⚠️ It is Claude's working file, NOT Jake's: *"the document is too large and unwieldy for me to even navigate"* — never answer him in item numbers |
+| `privacy.html` | **Root.** ⭐ The COPPA online notice (Round 138) — the page a PARENT reads. Every claim in it is pinned to code or to SECURITY.md by `privacy-policy-test.mjs`; change a promise and its source together or the suite fails |
 | `SECURITY.md` | **Root.** ⭐ The written information security program (Round 135) — what is collected, who can see it, outside services, retention, deletion, breach steps. Written for a DISTRICT REVIEWER, so keep it plain and keep every claim true to the rules and code; mark anything not yet real as **Planned**. Update it whenever a new kind of data or a new outside service is added |
 | `CHANGELOG.md` | **Root.** Kept, but its index is stale — §6.4. The file headers are the more reliable history. ⚠️ Round 17 left it untouched on purpose: a changelog is a record of what happened, and rewriting old entries to use new paths would falsify it |
 | `docs/README.md` | 🆕 index of the folder below — one line per document on when to read it |
@@ -11419,3 +11420,51 @@ They will not appear in the panel until ~24 months after their last activity
 (about spring 2028). 24 months is a MAXIMUM, not a minimum: deleting a student
 who has left the school sooner, with "Delete student…", is fully consistent with
 the policy.
+
+
+---
+
+## §38. Round 138 (Plantin II) — the privacy policy, and 135c reconsidered
+
+**2026-09-24.** Jake: *"Updated. Continue on!"* (Round 137 cumulative deployed.)
+
+### A. ⚠️⚠️ 135c WAS RECONSIDERED ONCE IT WAS MAPPED, AND IS NOW JAKE'S CALL
+
+Names are written onto logs, sessions and practice sessions at **eight** sites in
+game.js and learn.js. Mapped properly, the case for moving them collapsed:
+* every copy sits in collections **only staff can read**, under the same rules as
+  the student's own record — extra copies do not widen who can see a name;
+* the Round 136/137 delete and retention tools **remove every copy**;
+* ⚠️ doing it properly collides with **Rule 9**: a name on `users/{uid}` while
+  thousands of historical logs still carry theirs is two records of one quantity,
+  and deleting the old ones is a write to every historical log;
+* reports resolve student names FROM those logs, so this is the path that puts
+  names beside grades.
+⭐ Recommended: **skip it.** Not built. ROADMAP 135c now says so.
+
+### B. ⭐ THE LEADERBOARD WAS ALREADY RIGHT
+
+The only student-readable collection (`leaderboard`, `read: if signedIn()`)
+carries student-chosen **initials** (profanity-filtered), an opt-out flag, class
+and school ids and scores — no name, no email — and the board filters opted-out
+students before display (`!e.leaderboardOptOut`).
+
+### C. `privacy.html` — THE ONLINE NOTICE (ROADMAP 135d)
+
+Plain language for parents: who runs it, how school consent works, what is
+collected and why, who can see it, the three outside services, parents' rights
+(review, delete, stop collection; identity confirmed through the school; 30 days),
+24-month retention, security, changes. Linked from the home page footer and from
+**every** page with a sign-in button (six — the first search missed three,
+including the student-facing Lessons beta).
+
+⚠️⚠️ **THREE PLACEHOLDERS REMAIN FOR JAKE: school name, mailing address, telephone.**
+312.4(d) requires the operator's address and phone. `privacy-policy-test.mjs`
+prints them as notes until filled.
+
+### D. ⭐ `privacy-policy-test.mjs` — A PROMISE AND ITS SOURCE MOVE TOGETHER
+
+Each claim is pinned to the code that keeps it. Two harness bugs of mine on the
+way: the first `lbOwnEntry = {` in game.js is the empty fallback, and the real
+entry has a COMMENT mentioning email — both made C5 fail against correct code.
+Fixed by anchoring on the real entry and checking field keys only.

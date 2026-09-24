@@ -1,51 +1,33 @@
-# Round 137 — CUMULATIVE, 49 files — everything since your original upload
+# Round 138 (Plantin II) — 12 files — the privacy policy
 
-Derived by diffing the whole repo against your original zip, not assembled from
-earlier packages. Every file is its final version, so re-uploading one you already
-have is harmless. Nothing from the original repo is missing.
+⚠️ **Assumes Round 137 (cumulative) is deployed** — you confirmed it is. List
+derived by diffing against the 137 package.
 
----
+| file | what changed |
+|---|---|
+| **`privacy.html`** | ⭐ NEW — the privacy policy, for parents |
+| 6 HTML pages | one line each: a **Privacy Policy** link in the footer. Nothing else changed — verified by diff |
+| `tests/privacy-policy-test.mjs` | ⭐ NEW, 23 assertions |
+| `tests/run-all-tests.mjs` | registers it (110 → 111) |
+| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | §38 |
 
-## ⚠️⚠️ Order matters — three steps
+## ⚠️⚠️ Before you show it to anyone: three blanks to fill in
 
-**1. Rules, in the Firebase console.** `firebase/firestore.rules` (v2.14.0) →
-Firebase console → Firestore → **Rules** → paste → **Publish**. Without it, the
-delete tools stop partway with a permission error.
+Open `privacy.html`, find **"Who runs TypeThatBook"**, and replace:
 
-**2. The `fonts/` folder.** Every page now loads `fonts/fonts.css` instead of Google
-Fonts. Upload the folder before the HTML, or pages show system fonts until it lands.
+* `[SCHOOL NAME]`
+* `[SCHOOL MAILING ADDRESS]`
+* `[SCHOOL TELEPHONE]`
 
-**3. Everything else.**
+COPPA requires the operator's address and phone number in the policy. The
+school's are the right ones — nobody expects a teacher's home address. The test
+suite prints a note for each blank until they're gone.
 
----
+## The policy links to SECURITY.md
 
-## What's in here, by round
-
-| round | what | main files |
-|---|---|---|
-| 124–127 | arcade fixes: scatter, ping, ramp, side-panel help, telemetry counters | `game-*.js`, `typing-calibrator.js`, `arcade-telemetry.js`, `escape-board.js` |
-| 128–130 | per-run delete fix, student picker, "Unknown" names | `reports.html` |
-| 131 | ⚠️ held-Backspace farming stopped; ⏸ flag | `game.js`, `reports.html` |
-| 134 | ⭐ Library lesson gate | `game.js` |
-| 135 | `SECURITY.md`; fonts self-hosted | `SECURITY.md`, `fonts/`, 8 HTML pages |
-| 136 | ⭐ Delete student… | `reports.html`, `firestore.rules` |
-| 137 | ⭐ Retention… | `reports.html` |
-
-Plus the harnesses for all of it in `tests/`, and HANDOFF / CHANGELOG / ROADMAP
-through §37.
-
-## The two new buttons (you'll see them; teachers won't)
-
-Both sit next to the **Student** dropdown in reports and are super-admin only.
-
-**Delete student…** — pick a student first. It counts every record, then you type
-their email exactly, then it deletes, then it gives you two console links to
-finish.
-
-**Retention…** — no student needed. It scans for accounts with no typing of any
-kind for 24 months, shows you the list, and deletes them after you type
-`delete` and the number. Accounts with *no typing ever* are listed separately
-and never removed in bulk — they might be brand-new students. Run it once a term.
+"How it is protected" links to `./SECURITY.md` on your own site. That file came
+in Round 137, so it's already up. On GitHub Pages it'll show as plain text, which
+is fine for a reviewer.
 
 ## Verify
 
@@ -54,4 +36,5 @@ npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 
-Expect **ALL 110 HARNESSES PASS**.
+Expect **ALL 111 HARNESSES PASS**, plus three notes about the blanks until you
+fill them in.

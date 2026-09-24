@@ -47,7 +47,14 @@ that lists accounts past 24 months and purges them after one confirmation.
 ⭐ **The warning email is not needed:** with a 24-month window the only accounts
 it ever reaches belong to students who have left the school.
 
-### 135c — ⚠️ STOP COPYING NAMES ONTO EVERY LOG — NEXT
+### 135c — ⏸ RECONSIDERED (Round 138). RECOMMENDED: SKIP. JAKE'S CALL.
+
+Mapped properly, names are written at eight sites into collections only staff can
+read, and the delete and retention tools remove every copy — so extra copies do
+not widen exposure. Doing it right needs a write to every historical log to keep
+Rule 9, and touches the path that shows names beside grades. See HANDOFF §38A.
+
+### ~~135c — STOP COPYING NAMES ONTO EVERY LOG~~
 
 Every daily `typing_logs` document carries `displayName`, multiplying where a real
 name lives. Jake: *"Their email is enough information for me."* Store name and
@@ -55,7 +62,9 @@ email ONCE on `users/{uid}` (Round 130 already noted game.js should write it at
 the source), and have reports fall back to email. ⚠️ Touches daylog.js and every
 report name path — its own round, with the reports-identity harness updated.
 
-### 135d — THE PRIVACY POLICY. LAST.
+### 135d — ✅ BUILT (Round 138). `privacy.html`. Three placeholders for Jake.
+
+### ~~135d — THE PRIVACY POLICY~~
 
 Written from SECURITY.md once 135a–c are real, so every sentence describes what
 the site actually does.

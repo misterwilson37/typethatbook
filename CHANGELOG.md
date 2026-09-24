@@ -1,5 +1,19 @@
 # CHANGELOG — TypeThatBook
 
+## Round 138 (Plantin II) — the privacy policy
+
+**⭐ `privacy.html`** — the COPPA online notice, in plain language for parents,
+linked from the home page and every sign-in page. **`privacy-policy-test.mjs`**
+pins each promise to the code that keeps it (retention months, leaderboard fields,
+opt-out filter, guest mode, the outside services), so the policy cannot quietly
+go false. Three placeholders remain for Jake: school name, address, phone.
+
+**135c reconsidered and not built** — names on logs sit only in staff-readable
+collections and are removed by the delete and retention tools; moving them would
+collide with Rule 9 and touch the grade-display path. Jake's call.
+
+**ALL 111 HARNESSES PASS.**
+
 ## Round 137 (Caslon III) — retention
 
 **⭐ ROADMAP 135b built.** Super-admin "Retention…" finds student accounts with no
