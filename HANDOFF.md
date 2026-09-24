@@ -1,13 +1,14 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 139 (Plantin III), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 142 (Caslon IV), for whoever is next
 >
-> **ALL 111 HARNESSES PASS.**
+> **ALL 112 HARNESSES PASS.**
 >
-> ⚠️⚠️⚠️ **THE DISTRICT HAS NOT APPROVED TYPETHATBOOK — READ §39 BEFORE ANY
-> PRIVACY WORK.** Jake is the sole publisher and has not spoken to his
-> administration. "Approval to use Google" meant Google Workspace, NOT this app.
-> `privacy.html` is a DRAFT until the district agrees; do not let it claim approval.
+> ⚠️⚠️⚠️ **`privacy.html` IS WRITTEN AS FINAL, AND ITS COPPA SECTION IS TRUE ONLY
+> ONCE JAKE'S PRINCIPAL APPROVES** — read §39–40. Jake: *"I'll get explicit approval
+> from my principal ... Don't make anything a draft ... don't include my email."*
+> ⚠️ It DESCRIBES practices and must never CERTIFY them: `privacy-policy-test.mjs` E2
+> fails on "COPPA compliant". Every other claim is pinned to code.
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1822,7 +1823,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **111 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **112 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11506,3 +11507,116 @@ COPPA's school-consent route requires the school to actually authorise the
 service. Without it, collecting from under-13s needs verifiable consent from each
 parent. The technical work (SECURITY.md, delete, retention, fonts, the draft
 policy) is done and is what Jake brings to that conversation.
+
+
+---
+
+## §40. Round 140 (Baskerville II) — the Privacy & Data Policy, final
+
+**2026-09-24.** The district's technology reviewer, quoted by Jake: *"Any website
+that wants to work within the American education system usually has to be COPPA
+compliant. If they don't have that listed on their website anywhere, it's pretty
+much a full stop for me. Most ... have some sort of privacy policy or data policy
+that is readily available in the footer of the site, or maybe in the main menu."*
+
+### A. WHAT CHANGED
+* `privacy.html` v2.0.0 — **final**, no draft markers, **no personal email or
+  contact**; requests route through the child's school. A prominent **Children's
+  privacy (COPPA)** section; Jake's three — no advertising, no data mining, no
+  selling; the **quarterly** 24-month check; cookies and browser storage; staff
+  accounts; what deletion removes.
+* **Footer link on six pages, and — new — a Privacy link in the shared main menu**
+  (`site-nav.js` v1.3.0). ⚠️ The arcade has NO footer; before this it had no route to
+  the policy at all. A small link beside the pill, not a fourth tab.
+* `SECURITY.md`: contact through the school; the check is **every quarter**.
+* The Retention panel's own text now says the policy promises it every quarter.
+
+### B. ⚠️⚠️⚠️ IT DESCRIBES; IT NEVER CERTIFIES
+The reviewer wants COPPA "listed". The page names it in a heading and gives the
+notice COPPA requires — but never says "COPPA compliant". Jake says he is not fully
+compliant yet, and an unverified compliance claim is the one sentence that turns a
+practices document into a misrepresentation. Harness E2 enforces it.
+
+### C. ⚠️ TWO CLAIMS WITHDRAWN BECAUSE THEY COULD NOT BE VERIFIED
+**"Stored in the United States"** — in SECURITY.md since Round 135, and never
+checked. A Firestore region is chosen at project creation and is not in the repo.
+Removed from both documents; Jake can read it in the Firebase console (Project
+settings → default resource location) and restore it if true. ⭐ "Students never
+create a password" WAS verified: no email/password sign-in exists anywhere.
+
+### D. ⚠️ WHAT THE POLICY STILL NEEDS FROM JAKE, NOT FROM CODE
+1. **The principal's explicit approval**, in writing, before publishing — the COPPA
+   section says the school approves and provides consent.
+2. **A contact the principal agrees to.** COPPA 312.4(d)(1) lists the operator's
+   name, address, phone and email; the policy uses the school instead. The principal
+   agreeing that the office is the contact is what makes that work.
+Both print as NOTES in `privacy-policy-test.mjs` every run.
+
+
+---
+
+## §41. Round 141 (Baskerville III) — nam5, and whose job is whose
+
+**2026-09-24.** Jake read the Firestore location in the Google Cloud console:
+**`nam5` (United States multi-region)**. Restored to `privacy.html` and SECURITY.md
+with a comment recording who verified it and when, since the region is not in the
+repo. Harness C13 now checks both documents agree.
+
+### ⚠️⚠️ THE OPERATOR / SCHOOL LINE — Jake corrected it, and he was right
+Jake: *"It sounds like you're asking for our school to follow COPPA through this
+website. I just need the website to check the boxes."* Round 140's advice drifted
+into the school's obligations — how parents are told, whether a list of approved
+tools exists. **Those are the school's and the district's, not the site's.** COPPA
+does not require the site to list which schools use it.
+
+What the OPERATOR needs from each school is exactly one thing: its
+**authorisation** — consent on parents' behalf for students under 13. That is not
+the school following COPPA through the site; it is the operator's own legal basis
+for collecting. ⚠️ It is needed from EVERY school whose students use TypeThatBook —
+Jake's and Hawkins.
+
+### OPERATOR CHECKLIST, AS OF THIS ROUND
+Done: online notice · notice given to the school (the policy he sends) · use
+limited to school purposes · no commercial use · written security program ·
+published retention policy · deletion on request · no non-integral third-party
+disclosure. **Remaining: (1) each school's authorisation; (2) operator contact in
+the policy — address, phone AND email** (312.4(d)(1)). With a PO box, a phone
+number of his own and a misterwilson.org address, (2) needs nobody's permission.
+
+
+---
+
+## §42. Round 142 (Caslon IV) — the school-consent checkbox
+
+**2026-09-24.** Jake: *"Build the checkbox now so that when the other guy signs in,
+it asks for permission. It can ask me for permission, too."*
+
+### A. WHAT IT IS
+On reports.html, every staff member is asked ONCE to confirm: *"my school has
+approved my use of TypeThatBook with my students, and on behalf of my school I
+consent..."* Confirm is disabled until the box is ticked; "Not yet" writes nothing
+and asks again next visit. ⭐ This is how most classroom sites get a school's COPPA
+consent — the TEACHER records it; a student never can.
+
+### B. ⚠️⚠️ WHERE IT LIVES, AND WHY NOT ON staff/{uid}
+`coppaAttestations/{uid}_{version}` — rules v2.15.0. Staff only; own record only;
+fixed fields; server-stamped date; **`update: if false`** — evidence nobody can
+edit. ⭐ NOT a field on `staff/{uid}`, because that document's rules are what stop
+a student making themselves an admin, and loosening them for a new field is the
+most dangerous edit available in the rules file. Read is by DOCUMENT ID so the
+check for a not-yet-created record returns "not found", not "denied". Changing the
+wording means bumping `COPPA_ATTEST_VERSION`: everyone is asked again, old records
+stay.
+
+### C. ⚠️⚠️ JAKE STILL NEEDS HIS PRINCIPAL — FOR HIS OWN CLASSES
+The checkbox records a SCHOOL's authorisation; the teacher is the witness, not the
+source. For the Hawkins teacher that is the normal arrangement. For Jake's own
+classes he is the operator AND the consenting teacher — consenting to his own
+collection removes the independence the consent exists to provide. His principal's
+yes comes first; after that his own tick is truthful.
+
+### D. A MUTATION THAT MISSED
+The first "remove the owner check" mutation hit an identical line in a DIFFERENT
+rule earlier in the file, and the suite stayed green — correctly. Re-aimed inside
+the attestation block, A2 fails as it should. ⚠️ When mutating the rules, anchor on
+the block, not the line.

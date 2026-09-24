@@ -26,8 +26,15 @@ const reports = read('reports.html');
 const game = read('game.js');
 
 console.log('\nA — ⚠️⚠️ LINKED FROM THE HOME PAGE AND WHEREVER INFORMATION IS COLLECTED');
-ok(/href="\.\/privacy\.html"[^>]*>Privacy Policy</.test(read('index.html')),
-   'A1 the home page carries a clearly labelled "Privacy Policy" link');
+ok(/href="\.\/privacy\.html"[^>]*>Privacy &amp; Data Policy</.test(read('index.html')),
+   'A1 the home page footer carries a clearly labelled "Privacy & Data Policy" link');
+// ⚠️⚠️ THE MAIN MENU TOO — the reviewer looks in "the footer of the site, or maybe in
+// the main menu", and the arcade has no footer at all.
+const nav = read('site-nav.js');
+ok(/privacy\.href = '\.\/privacy\.html'/.test(nav) && /nav\.appendChild\(privacy\)/.test(nav),
+   '⚠️⚠️ A3 the shared main menu carries a Privacy link on every page that mounts it');
+ok(/site-nav\.js/.test(read('arcade.html')),
+   'A4 and the arcade — which has no footer — mounts that menu, so it is covered');
 for (const f of readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
     const s = read(f);
     if (!/id="login-btn"/.test(s)) continue;
@@ -35,14 +42,19 @@ for (const f of readdirSync(ROOT).filter(f => f.endsWith('.html'))) {
 }
 
 console.log('\nB — WHAT 312.4(d) REQUIRES');
-ok(/Jake Wilson/.test(text), 'B1 the operator is named');
-ok(/jacob\.v\.wilson@gmail\.com/.test(text), 'B2 an email address is given');
+ok(/created, and is run, by a Sumner County Schools Computer Science teacher/.test(text),
+   'B1 the operator is described');
+// ⚠️ JAKE, 2026-09-24: *"don't include my email or anything."* Pinned so a later edit
+// cannot quietly put a personal address back on a public page.
+ok(!/jacob\.v\.wilson|@gmail\.com/i.test(pol), 'B2 no personal email anywhere on the page');
+ok(/contact your child\u2019s school|contact your child's school/.test(text),
+   'B2b and requests are routed through the school instead');
 ok(/review/.test(text) && /deleted/.test(text) && /no further information be collected/.test(text),
    'B3 the three parental rights: review, delete, refuse further collection');
 ok(/confirm the request through the school/.test(text),
    'B4 and how a parent\u2019s identity is confirmed before acting (312.6)');
-for (const ph of ['[MAILING ADDRESS]', '[TELEPHONE]'])
-    if (text.includes(ph)) notes.push(`privacy.html still says ${ph} \u2014 COPPA requires the operator\u2019s address and phone`);
+notes.push('COPPA 312.4(d)(1) lists the operator\u2019s name, address, phone and email; the policy routes '
+         + 'contact through the school instead \u2014 confirm the principal agrees the school office is the contact');
 
 console.log('\nC — ⚠️⚠️⚠️ EACH PROMISE MATCHES THE CODE THAT KEEPS IT');
 const months = (/const RETENTION_MONTHS = (\d+);/.exec(reports) || [])[1];
@@ -51,7 +63,24 @@ ok(months && new RegExp(`${months} months`).test(text) && new RegExp(`${months} 
 ok(/within 30 days/.test(text) && /within 30 days/.test(sec), 'C2 deletion requests: 30 days in both documents');
 for (const svc of ['Google Firebase', 'reCAPTCHA', 'GitHub Pages'])
     ok(text.includes(svc) && sec.includes(svc), `C3 "${svc}" is disclosed in both documents`);
-ok(/no advertisements/i.test(text) && /never sell/i.test(text), 'C4 no ads, no selling');
+ok(/No advertising\. No data mining\. No selling\./.test(text), 'C4 no ads, no data mining, no selling \u2014 Jake\u2019s three');
+ok(/every quarter/.test(text) && /every quarter/.test(sec),
+   '⚠️ C9 the quarterly retention check is promised in BOTH documents');
+ok(/The privacy policy promises this every quarter/.test(reports),
+   'C10 and the Retention panel itself says so, so the tool and the promise agree');
+ok(!/getAnalytics|gtag\(|google-analytics/.test(game + reports + read('index.html')) && /no analytics or tracking/.test(text),
+   'C11 "no analytics or tracking" \u2014 none is loaded anywhere');
+ok(!/signInWithEmailAndPassword|createUserWithEmailAndPassword/.test(game + read('learn.js') + read('index.html'))
+   && /never create a password/.test(text),
+   'C12 "students never create a password" \u2014 only Google sign-in exists');
+// ⚠️ THE REGION IS NOT IN THE REPO, SO THIS RESTS ON A HUMAN CHECK: Jake read `nam5`
+// (United States multi-region) off the Google Cloud console on 2026-09-24. What the
+// harness CAN hold is that both documents say the same thing, and that each records
+// where the claim came from.
+ok(/database is located in the United States/.test(text) && /United States/.test(sec) && /nam5/.test(sec),
+   '⚠️ C13 both documents say the database is in the United States, and SECURITY.md names nam5');
+ok(/VERIFIED by Jake, 2026-09-24[\s\S]{0,120}nam5/.test(pol),
+   'C13b and the policy records who verified it and when, since no code can');
 // the leaderboard promise: initials only, and opting out really hides you
 // ⚠️ ANCHORED ON THE REAL ENTRY. The first `lbOwnEntry = {` in game.js is the
 // empty `{}` fallback, and slicing from it reads nothing — the first draft of this
@@ -72,17 +101,16 @@ console.log('\nD — ⭐ THE POLICY PAGE ITSELF CALLS NO ONE');
 const ext = [...pol.matchAll(/(?:src|href)="(https?:[^"]+)"/g)].map(m => m[1]);
 ok(ext.length === 0, `D1 privacy.html loads nothing from another site (${ext.join(', ') || 'none'})`);
 
-// ⚠️⚠️ THE CONSENT CLAIM IS THE ONE THIS HARNESS CANNOT CHECK AGAINST CODE — it is a
-// fact about an agreement with the district, not about the site. Round 138 asserted
-// it before it was true. So while the policy is a draft it must SAY it is a draft,
-// and it must not claim the approval in its visible text.
-if (/PENDING DISTRICT REVIEW/.test(text) || /\bDraft\b/.test(text))
-    notes.push('privacy.html is a DRAFT pending district review \u2014 do not publish it as final');
-ok(!/used as part of classroom instruction, with the school district's approval/.test(text)
-   || !/PENDING DISTRICT REVIEW|\bDraft\b/.test(text),
-   '⚠️⚠️⚠️ E1 the policy never claims district approval while it is still marked a draft');
-ok(!/with the school district's approval/.test(text) || !/\[PENDING/.test(text),
-   'E2 and never claims it alongside the pending placeholder');
+// ⚠️⚠️ FINAL, AT JAKE'S INSTRUCTION — and the consent paragraph is true only once his
+// principal has approved. That cannot be checked in code, so it is a NOTE every run.
+ok(!/PENDING DISTRICT REVIEW|\bDraft\b/.test(text), 'E1 no draft markers remain');
+notes.push('the COPPA section says the school approves TypeThatBook \u2014 publish only after the principal has');
+// ⚠️⚠️⚠️ NEVER A CERTIFICATION. The policy DESCRIBES practices. "COPPA compliant" is a
+// claim about an outcome no one has verified, and an unverified compliance claim is
+// the sentence that turns a practices document into a misrepresentation.
+ok(!/COPPA[- ]compliant|compliant with COPPA|COPPA compliance|fully compliant/i.test(text),
+   '⚠️⚠️⚠️ E2 the policy never claims to BE compliant \u2014 it describes what the site does');
+ok(/Children's privacy \(COPPA\)/.test(text), 'E3 but COPPA is named in a heading a reviewer can find');
 for (const n of notes) console.log('  note  ' + n);
 console.log(fails.length ? `\nFAIL — ${pass} ok, ${fails.length} failed` : `\nPASS — ${pass} ok, 0 failed`);
 if (fails.length) process.exitCode = 1;

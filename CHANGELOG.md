@@ -1,5 +1,39 @@
 # CHANGELOG — TypeThatBook
 
+## Round 142 (Caslon IV) — the school-consent checkbox
+
+**⭐ Every staff member now confirms, once, that their school has approved
+TypeThatBook and consents on parents' behalf.** Saved write-once in
+`coppaAttestations` (rules v2.15.0): own record only, exact wording, server date,
+never editable. "Not yet" writes nothing. The policy and SECURITY.md describe it.
+⚠️ For Jake's own classes the principal's yes still comes first — he is the
+operator, and can't be the independent consent for his own collection.
+
+**ALL 112 HARNESSES PASS.**
+
+## Round 141 (Baskerville III) — nam5
+
+Database location verified by Jake in the Google Cloud console: **nam5 (United
+States)**. Restored to `privacy.html` and SECURITY.md with provenance; harness C13
+checks the two agree. HANDOFF §41 records the operator-versus-school line Jake drew.
+
+**ALL 111 HARNESSES PASS.**
+
+## Round 140 (Baskerville II) — the Privacy & Data Policy
+
+**⭐ `privacy.html` v2.0.0, final**, at Jake's instruction: no draft markers, no
+personal contact, requests through the school. A findable **Children's privacy
+(COPPA)** section, and "No advertising. No data mining. No selling." **Linked from
+every footer and — new — from the shared main menu**, which is the arcade's only
+route to it.
+
+**⚠️ It describes practices and never claims compliance** — harness E2 fails on
+"COPPA compliant". **⚠️ "Stored in the United States" withdrawn** from both
+documents: never verified, and not knowable from the repo. Retention check is
+**quarterly** everywhere, including the panel's own wording.
+
+**ALL 111 HARNESSES PASS.**
+
 ## Round 139 (Plantin III) — the policy is a draft
 
 **⚠️⚠️⚠️ Round 138's privacy policy claimed district approval that does not exist.**

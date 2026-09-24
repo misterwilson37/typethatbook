@@ -1,3 +1,7 @@
+// site-nav.js v1.3.0 — Round 140 (Baskerville II): ⚠️⚠️ A "Privacy" LINK BESIDE THE
+// PILL, on every page that mounts the menu — the arcade has no footer, so this is its
+// only route to the Privacy & Data Policy. A text link, not a fourth tab.
+//
 // site-nav.js v1.2.0 — Round 123 (Maskelyne): ⚠️⚠️ THE SCHOOL MENU IS POSITIONED
 // FIXED. Jake: *"the school/school beta dropdown doesn't work from library."* The
 // handler fires and the menu opens — it was being clipped or stacked out of sight
@@ -47,7 +51,7 @@
 // pages here have different palettes — so the colours come from CSS custom
 // properties with per-page fallbacks rather than from literals.
 
-export const SITE_NAV_VERSION = '1.2.0';
+export const SITE_NAV_VERSION = '1.3.0';
 
 /**
  * ⚠️ ORDER IS THE SITE MAP AND IT IS DELIBERATE: School first because it is what
@@ -73,6 +77,9 @@ const SCHOOL_PAGES = [
 
 const CSS = `
 .ttb-nav { position: relative; display: inline-flex; align-items: center; }
+.ttb-privacy { margin-left: 10px; font-size: 12px; color: var(--ttb-nav-ink, #9a9a9a);
+    opacity: .8; text-decoration: none; }
+.ttb-privacy:hover, .ttb-privacy:focus-visible { opacity: 1; text-decoration: underline; }
 .ttb-pill {
     display: inline-flex; border-radius: 999px; overflow: hidden; flex-shrink: 0;
     border: 1px solid var(--ttb-nav-rule, #3a3a3a);
@@ -328,6 +335,19 @@ export function mountSiteNav(host, current, page, opts) {
         document.addEventListener('click', () => nav.classList.remove('ttb-open'));
     }
 
+    // ⚠️⚠️ ROUND 140 — THE PRIVACY & DATA POLICY, IN THE MAIN MENU ON EVERY PAGE THAT
+    // MOUNTS IT. The district's technology reviewer: *"Most of the websites or
+    // applications have some sort of privacy policy or data policy that is readily
+    // available in the footer of the site, or maybe in the main menu."* The arcade has
+    // no footer at all, so this is the only link it carries. ⭐ A SMALL TEXT LINK
+    // BESIDE THE PILL, NOT A FOURTH TAB: the pill is where a child chooses where to
+    // go, and "Privacy" is not a place to play.
+    const privacy = document.createElement('a');
+    privacy.className = 'ttb-privacy';
+    privacy.href = './privacy.html';
+    privacy.textContent = 'Privacy';
+    privacy.title = 'Privacy & Data Policy';
+    nav.appendChild(privacy);
     el.appendChild(nav);
     return nav;
 }

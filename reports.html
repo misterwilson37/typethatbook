@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<!-- reports.html v1.17.0 — Round 137 (Caslon III): ⚠️⚠️⚠️ RETENTION — ROADMAP
+<!-- reports.html v1.18.0 — Round 142: ⚠️⚠️ THE SCHOOL-CONSENT ATTESTATION. Every staff
+     member is asked once to confirm their school has approved TypeThatBook and consents
+     on parents' behalf; the exact wording is saved, write-once, in coppaAttestations
+     (rules v2.15.0). "Not yet" writes nothing and asks again next visit. See
+     tests/coppa-attestation-test.mjs.
+
+     reports.html v1.17.0 — Round 137 (Caslon III): ⚠️⚠️⚠️ RETENTION — ROADMAP
      135b. Super-admin "Retention…" finds accounts with no activity for 24 months
      and removes them with the SAME purge as "Delete student…". ⚠️⚠️ "LAST ACTIVE"
      IS DECIDED BY THE TYPING LOGS, NOT BY `activeDayLast` — the arcade never
@@ -868,7 +874,7 @@
      built to spot a stale deploy could not be used on the two pages where a
      stale deploy does the most damage. -->
 <footer id="reports-footer">
-        <a href="./privacy.html" style="color:inherit;opacity:.8;margin-right:10px">Privacy Policy</a><!-- ⚠️ COPPA 312.4(d): linked wherever sign-in collects information. Round 138. -->
+        <a href="./privacy.html" style="color:inherit;opacity:.8;margin-right:10px">Privacy &amp; Data Policy</a><!-- ⚠️ COPPA 312.4(d): linked wherever sign-in collects information. Round 138. -->
     <span id="footer-version">Reports</span>
     <button id="build-toggle" type="button"
             style="margin-left:10px;font:inherit;font-size:.85em;background:none;
@@ -1375,7 +1381,7 @@
 
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, documentId, limit, ttbMeter } from "./read-meter.js";
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, documentId, limit, serverTimestamp, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
     // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
@@ -1500,6 +1506,8 @@
             // ⚠️ ROUND 137: the super-admin-only tools appear the moment the role is
             // known, not only after a report has refreshed the student list.
             updatePurgeButton();
+            // ⚠️⚠️ ROUND 142: every staff member confirms their school's consent once.
+            maybeAskCoppaAttestation();
             // ⚠️⚠️ ROADMAP 58 STEP TWO. setDefaultDates() now calls
             // resolveWeekAnchor(), which reads classesById AND
             // schoolWeekStartDay — so it MUST run after both loadScopeOptions()
@@ -2741,7 +2749,7 @@
               ${escapeHtml(cutoff)}</b> \u2014 Library, School or arcade. Staff accounts and your own are skipped.
               Nothing is deleted until you confirm.</div>
             <div style="margin-bottom:14px;opacity:.8">Cost: one read per account, plus one or two more for
-              each account that hasn't typed recently. Once a term is plenty.</div>
+              each account that hasn't typed recently. The privacy policy promises this every quarter.</div>
             <div style="display:flex;gap:10px;justify-content:flex-end">
               <button type="button" id="ttb-ret-cancel">Cancel</button>
               <button type="button" id="ttb-ret-scan">Scan</button></div>`;
@@ -2827,6 +2835,139 @@
                     <div style="text-align:right"><button type="button" id="ttb-ret-x">Done</button></div>`;
                 box.querySelector('#ttb-ret-x').onclick = close;
             };
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ THE SCHOOL-CONSENT ATTESTATION — Round 142.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"Build the checkbox now so that when the other guy signs in, it asks
+    // for permission. It can ask me for permission, too. That way there's a record
+    // of it in the database, as well as a truthful method of getting that
+    // permission moving forward."*
+    //
+    // ⭐ THIS IS HOW MOST CLASSROOM SITES GET A SCHOOL'S COPPA CONSENT: the teacher
+    // setting up a class confirms that their school has authorised them. A STUDENT
+    // cannot consent for themselves, which is why this is on the staff page and
+    // never on a student one.
+    //
+    // ⚠️⚠️ THE WORDING SAYS THE SCHOOL APPROVED, NOT THAT THE TEACHER DOES. The
+    // authority is the school's; the teacher records it. That is also why ticking it
+    // is only truthful once the school has actually said yes — and why, for Jake's
+    // OWN classes, his principal's yes comes first: he is the operator, and consenting
+    // to his own collection would remove the independence the consent exists to give.
+    //
+    // ⚠️ THE STATEMENT IS STORED VERBATIM. If this wording ever changes, bump
+    // COPPA_ATTEST_VERSION: the record id carries the version, so every teacher is
+    // asked again and the old records stay as they were — write-once in the rules.
+    const COPPA_ATTEST_VERSION = 'v1';
+    const COPPA_ATTEST_STATEMENT =
+        'I confirm that my school has approved my use of TypeThatBook with my students, '
+        + 'and that on behalf of my school I consent to TypeThatBook collecting the student '
+        + 'information described in its Privacy & Data Policy, for use in my class only.';
+
+    async function maybeAskCoppaAttestation() {
+        if (!me.uid || !me.role) return;                          // staff only
+        const localKey = `ttb_coppa_attested_${me.uid}_${COPPA_ATTEST_VERSION}`;
+        try { if (localStorage.getItem(localKey) === '1') return; } catch (_) {}
+        const id = `${me.uid}_${COPPA_ATTEST_VERSION}`;
+        try {
+            const snap = await getDoc(doc(db, 'coppaAttestations', id));
+            if (snap.exists()) {
+                try { localStorage.setItem(localKey, '1'); } catch (_) {}
+                return;
+            }
+        } catch (e) {
+            // ⚠️ A FAILED CHECK IS NOT A "NO". Say nothing and ask next visit, rather
+            // than put a consent form in front of a teacher who has already signed it.
+            console.warn('[coppa] attestation check failed; will ask next visit', e);
+            return;
+        }
+        openCoppaAttestation(id, localKey);
+    }
+
+    function openCoppaAttestation(id, localKey) {
+        if (document.getElementById('ttb-coppa')) return;
+        const el = document.createElement('div');
+        el.id = 'ttb-coppa';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.setAttribute('aria-labelledby', 'ttb-coppa-title');
+        el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;'
+            + 'justify-content:center;background:rgba(0,0,0,.72);padding:16px';
+        const box = document.createElement('div');
+        box.style.cssText = 'max-width:560px;width:100%;background:var(--surface);color:var(--ink);'
+            + 'border:2px solid var(--rule-strong);border-radius:10px;padding:20px 22px;line-height:1.55;'
+            + 'max-height:85vh;overflow-y:auto';
+        el.appendChild(box);
+        document.body.appendChild(el);
+        const onKey = (e) => { if (e.key === 'Escape') notYet(); };
+        const close = () => { el.remove(); document.removeEventListener('keydown', onKey); };
+        document.addEventListener('keydown', onKey);
+
+        box.innerHTML = `
+            <div id="ttb-coppa-title" style="font-size:1.2em;font-weight:700;margin-bottom:10px">
+              Before your students use TypeThatBook</div>
+            <p style="margin:0 0 10px">Many TypeThatBook students are under 13, so the Children's Online
+              Privacy Protection Act (COPPA) requires consent before their information is collected.
+              In schools, that consent comes from the school.</p>
+            <p style="margin:0 0 12px">Please read the
+              <a href="./privacy.html" target="_blank" rel="noopener">Privacy &amp; Data Policy</a>,
+              then confirm:</p>
+            <label for="ttb-coppa-check" style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;
+                          border:1px solid var(--rule-strong);border-radius:6px;cursor:pointer;margin-bottom:14px">
+              <input type="checkbox" id="ttb-coppa-check" style="margin-top:4px">
+              <span>${escapeHtml(COPPA_ATTEST_STATEMENT)}</span>
+            </label>
+            <div id="ttb-coppa-err" style="color:var(--bad);min-height:1.2em;margin-bottom:6px"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button type="button" id="ttb-coppa-later">Not yet</button>
+              <button type="button" id="ttb-coppa-ok" disabled style="font-weight:700">Confirm</button>
+            </div>`;
+        const check = box.querySelector('#ttb-coppa-check');
+        const ok = box.querySelector('#ttb-coppa-ok');
+        check.addEventListener('change', () => { ok.disabled = !check.checked; });
+        check.focus();
+
+        function notYet() {
+            // ⚠️ NOTHING IS WRITTEN. "Not yet" is not a refusal on record; it is the
+            // teacher saying their school has not answered, and the honest response is
+            // to ask again next time.
+            box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">No problem.</div>
+                <p style="margin:0 0 14px">Please hold off on having students under 13 sign in until your
+                  school has approved TypeThatBook. You'll be asked again next time you open this page.</p>
+                <div style="text-align:right"><button type="button" id="ttb-coppa-x">Close</button></div>`;
+            box.querySelector('#ttb-coppa-x').onclick = close;
+            box.querySelector('#ttb-coppa-x').focus();
+        }
+        box.querySelector('#ttb-coppa-later').onclick = notYet;
+
+        ok.onclick = async () => {
+            if (!check.checked) return;
+            ok.disabled = true;
+            try {
+                await setDoc(doc(db, 'coppaAttestations', id), {
+                    uid: me.uid,
+                    email: String(me.email || '').toLowerCase(),
+                    role: me.role,
+                    schoolIds: Array.isArray(me.schoolIds) ? me.schoolIds : [],
+                    version: COPPA_ATTEST_VERSION,
+                    statement: COPPA_ATTEST_STATEMENT,
+                    attestedAt: serverTimestamp(),
+                });
+            } catch (e) {
+                ok.disabled = false;
+                box.querySelector('#ttb-coppa-err').textContent =
+                    'Could not save your confirmation \u2014 ' + (e.message || e) + '. Please try again.';
+                return;
+            }
+            try { localStorage.setItem(localKey, '1'); } catch (_) {}
+            box.innerHTML = `<div style="font-weight:700;margin-bottom:8px">\u2713 Thank you \u2014 recorded.</div>
+                <p style="margin:0 0 14px">Your confirmation has been saved with today's date.</p>
+                <div style="text-align:right"><button type="button" id="ttb-coppa-x">Close</button></div>`;
+            box.querySelector('#ttb-coppa-x').onclick = close;
+            box.querySelector('#ttb-coppa-x').focus();
         };
     }
 

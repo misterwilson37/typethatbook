@@ -1,6 +1,10 @@
 rules_version = '2';
 
-// firestore.rules v2.14.0 — TypeThatBook
+// firestore.rules v2.15.0 — TypeThatBook
+//
+// v2.15.0 — ⚠️⚠️ ROUND 142: `coppaAttestations/{uid}_{version}` — a teacher's
+//           write-once confirmation that their school has approved TypeThatBook and
+//           consents on parents' behalf. Own collection, never editable, server-stamped.
 //
 // v2.14.0 — ⚠️⚠️ ROADMAP 135a: A SUPER-ADMIN MAY NOW DELETE A STUDENT'S `progress`
 //           AND `profile` SUBCOLLECTIONS. Before this only the student could, so
@@ -905,6 +909,35 @@ service cloud.firestore {
     // THE SECURITY BOUNDARY OF THE WHOLE APP. Read the constraints carefully
     // before editing: with roles in documents rather than claims, this rule is the
     // only thing stopping someone writing themselves a role.
+    // ─────────────────── COPPA school-consent attestations ───────────────────
+    // ⚠️⚠️ v2.15.0 — ROUND 142. One record per staff member per wording version,
+    // created by that staff member, NEVER EDITABLE. Jake: "That way there's a record
+    // of it in the database, as well as a truthful method of getting that permission
+    // moving forward."
+    // ⭐ ITS OWN COLLECTION, NOT A FIELD ON staff/{uid}: that document guards role
+    // escalation, and loosening its update rule to allow one new field would put the
+    // most dangerous rule in this file one typo away from a student making
+    // themselves an admin.
+    // ⚠️ READ IS BY DOCUMENT ID, NOT resource.data. The page checks for its own record
+    // BEFORE one exists; a rule reading resource.data would throw on the missing
+    // document and return permission-denied instead of "not found".
+    match /coppaAttestations/{docId} {
+      allow read: if isSuper()
+        || (signedIn() && docId.matches('^' + request.auth.uid + '_.+$'));
+      allow create: if isStaff()
+        && docId == request.auth.uid + '_' + request.resource.data.version
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(
+             ['uid', 'email', 'role', 'schoolIds', 'version', 'statement', 'attestedAt'])
+        && request.resource.data.statement is string
+        && request.resource.data.version is string
+        && request.resource.data.attestedAt == request.time;
+      // An attestation is evidence. Nobody edits evidence.
+      allow update: if false;
+      // A super-admin may remove a departed staff member's records.
+      allow delete: if isSuper();
+    }
+
     match /staff/{uid} {
       // Self first — reading your own record shouldn't cost a get() to prove
       // you're staff when you might not be.

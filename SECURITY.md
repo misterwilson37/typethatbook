@@ -3,7 +3,7 @@
 **Operator:** Jake Wilson, Computer Science, Sumner County Schools
 **Site:** https://typethatbook.misterwilson.org
 **Last reviewed:** September 2026
-**Contact for security or privacy concerns:** jacob.v.wilson@gmail.com
+**Contact for security or privacy concerns:** through the student's school
 
 This document describes how TypeThatBook protects the information it collects
 from students. It is written to meet the written information-security program
@@ -48,8 +48,9 @@ their account.
 ## 3. Where the information is stored
 
 All student information is stored in **Google Firebase** (Firestore database and
-Firebase Authentication), a service of Google LLC, in Google's United States data
-centres. The site's pages themselves are hosted on **GitHub Pages** and contain
+Firebase Authentication), a service of Google LLC. The database is located in the
+**United States** (Firestore location `nam5`, Google's United States multi-region,
+verified in the Google Cloud console in September 2026). The site's pages themselves are hosted on **GitHub Pages** and contain
 no student information.
 
 ## 4. Who can see it
@@ -69,6 +70,11 @@ browser. The rules are kept in this repository at `firebase/firestore.rules`.
 Staff accounts work only if they have been set up by the site administrator,
 are marked active, and are assigned a specific role. A student account cannot
 grant itself staff access.
+
+Before their students use TypeThatBook, each staff member confirms that their
+school has approved it and consents on parents' behalf under COPPA. The exact
+wording they agreed to is saved with the date, and the record cannot be edited
+afterward.
 
 ## 5. Other services involved
 
@@ -98,7 +104,7 @@ removed.
 A school or parent may also ask for a student's information to be deleted at any
 time; see section 7.
 
-The site administrator runs a retention check at least once each term. It looks
+The site administrator runs a retention check every quarter. It looks
 at every student account — skipping staff accounts — and finds those with no
 typing of any kind in the last 24 months, counting practice, lessons and games
 alike. Accounts with no typing ever recorded are never removed automatically,

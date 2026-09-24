@@ -62,7 +62,7 @@ email ONCE on `users/{uid}` (Round 130 already noted game.js should write it at
 the source), and have reports fall back to email. ⚠️ Touches daylog.js and every
 report name path — its own round, with the reports-identity harness updated.
 
-### 135d — ⚠️ DRAFT (Round 139). `privacy.html` written; BLOCKED ON THE DISTRICT. The consent basis, address and phone depend on whether the district approves and agrees to be the contact.
+### 135d — ✅ FINAL (Round 140). Publish after the principal's written approval, and confirm the school office is the contact.
 
 ### ~~135d — THE PRIVACY POLICY~~
 

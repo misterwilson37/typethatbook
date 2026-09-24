@@ -55,6 +55,8 @@ const CLASS = {
     'practice_limits/{uid}': 'console',
     // not student data
     'staff/{uid}': 'staff', 'pendingStaffRoles/{email}': 'staff', 'staffRequests/{uid}': 'staff',
+    // Round 142: a teacher's write-once COPPA consent record — staff data, not a child's.
+    'coppaAttestations/{docId}': 'staff',
     'schools/{schoolId}': 'none', 'classes/{classId}': 'none', 'books/{bookId}': 'none',
     'chapters/{chapterId}': 'none', 'lessons/{lessonId}': 'none', 'settings/{docId}': 'none',
     '{document=**}': 'none',

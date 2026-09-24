@@ -1,32 +1,40 @@
-# Round 139 — 12 files — includes Round 138, which you should NOT use
+# Round 142 — the privacy work, complete — replaces 138 through 141
 
-⚠️ **Assumes Round 137 (cumulative) is deployed.** This replaces Round 138
-entirely — skip that zip.
+⚠️ **Assumes Round 137 (cumulative) is deployed.** Everything from 138–141 is in
+here; skip those zips.
 
-## ⚠️⚠️ What's safe to upload now, and what isn't
+## ⚠️⚠️ Order
 
-**Safe now:** everything in here. The privacy page is marked **Draft** at the top
-and says its consent section is pending district review, so nothing on it
-claims an approval you don't have.
+**1. Rules first.** `firebase/firestore.rules` is now **v2.15.0** → Firebase console
+→ Firestore → Rules → paste → Publish. Without it, the checkbox can't save and
+teachers will see "Could not save your confirmation."
 
-**But consider holding `privacy.html` and the six footer links** until you've
-talked to your administration. A visibly draft policy is honest, but you may
-prefer they see it before the public does. If you hold them, hold all seven
-together — the links point at `privacy.html`.
+**2. Everything else.**
 
-| file | what changed |
+## What's in here
+
+| file | what |
 |---|---|
-| `privacy.html` | NEW — draft privacy policy |
-| 6 HTML pages | one line each: a Privacy Policy footer link |
-| `tests/privacy-policy-test.mjs` | NEW |
-| `tests/run-all-tests.mjs` | registers it |
-| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | §38–39 |
+| `firebase/firestore.rules` | **v2.15.0** — the write-once consent records |
+| `reports.html` | the consent checkbox, asked once of every staff member |
+| `privacy.html` | the Privacy & Data Policy — now also says teachers confirm consent, and the database is in the US |
+| `SECURITY.md` | same additions |
+| `site-nav.js` + 6 HTML pages | the policy link in every footer and the main menu |
+| `tests/…` | `coppa-attestation-test.mjs` (new), `privacy-policy-test.mjs`, `student-purge-test.mjs` |
+| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | through §42 |
 
-## Still to fill in, once you know
+## When you open reports
 
-* `[MAILING ADDRESS]` and `[TELEPHONE]` in "Who runs TypeThatBook"
-* the `[PENDING DISTRICT REVIEW]` section — the intended text is saved in a comment
-  right above it, ready to restore if the district agrees
-* the **Draft** banner at the top — remove it when it's final
+You'll get the checkbox too. **Don't tick it until your principal has said yes** —
+the statement says your school has approved TypeThatBook, and for your own classes
+she's the one who can say that. Click **Not yet** in the meantime; it records
+nothing and asks again next visit.
 
-Expect **ALL 111 HARNESSES PASS**, with notes for the blanks.
+To see who has confirmed: Firebase console → Firestore → `coppaAttestations`. Each
+record shows the teacher's email, the exact wording and the date.
+
+## Still to fill in
+
+The policy has no address, phone or email yet. Send them over once you've decided.
+
+Expect **ALL 112 HARNESSES PASS**.
