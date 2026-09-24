@@ -1,5 +1,26 @@
 <!DOCTYPE html>
-<!-- reports.html v1.15.0 — Round 131 (Garamond): ⚠️⚠️ ⏸ — TIME WITH ALMOST NO
+<!-- reports.html v1.17.0 — Round 137 (Caslon III): ⚠️⚠️⚠️ RETENTION — ROADMAP
+     135b. Super-admin "Retention…" finds accounts with no activity for 24 months
+     and removes them with the SAME purge as "Delete student…". ⚠️⚠️ "LAST ACTIVE"
+     IS DECIDED BY THE TYPING LOGS, NOT BY `activeDayLast` — the arcade never
+     stamps that field, so trusting it alone would delete a child who played last
+     week. One read per candidate on the document-id index, no composite index.
+     Staff and the viewer are excluded first; accounts with NO evidence are listed
+     for review and never bulk-deleted. Type "delete N" to confirm. It cannot run
+     itself — a scheduled job needs a CLI deploy — so run it once a term. See
+     tests/retention-test.mjs.
+
+     reports.html v1.16.0 — Round 136 (Caslon II): ⚠️⚠️⚠️ DELETE THIS STUDENT —
+     ROADMAP 135a. Super-admin only, next to the Student picker. THREE PHASES: count
+     every record first (reads only), then require the student's email typed
+     EXACTLY to arm the button, then delete in a fixed order with the ACCOUNT RECORD
+     LAST, so an interrupted run leaves the child findable and can simply be run
+     again. Ends with the two console-only steps (the Auth account and
+     practice_limits) and a link to each. Needs firestore.rules v2.14.0. See
+     tests/student-purge-test.mjs — which runs the real purge against two students
+     and fails if the wrong one loses a single record.
+
+     reports.html v1.15.0 — Round 131 (Garamond): ⚠️⚠️ ⏸ — TIME WITH ALMOST NO
      TYPING, Jake's option 5. game.js v3.52.0 stops new Backspace farming; it
      cannot un-farm what is already stored. idleTimeSuspect() flags any student,
      day, session or run with under 15 characters per minute of credited time
@@ -762,6 +783,16 @@
                 <div style="display:flex;gap:6px;align-items:center">
                     <select id="scope-student"><option value="__all__">All students</option></select>
                     <button id="scope-student-load" type="button" title="Load the student list for this class (one roster read; no day reads)" style="padding:4px 8px">&#8635;</button>
+                    <!-- ⚠️⚠️ ROADMAP 135a — SUPER-ADMIN ONLY, and only once a real student is
+                         selected. See openPurgeDialog(). Hidden, not disabled, for everyone
+                         else: a teacher should never see a delete control they cannot use. -->
+                    <button id="scope-student-delete" type="button" hidden
+                            title="Permanently delete everything TypeThatBook stores about this student"
+                            style="padding:4px 8px;border:1px solid var(--bad);color:var(--bad);background:transparent">Delete student…</button>
+                    <!-- ⚠️ ROADMAP 135b — SUPER-ADMIN ONLY. See openRetentionDialog(). -->
+                    <button id="retention-open" type="button" hidden
+                            title="Find and remove accounts with no typing in the last 24 months"
+                            style="padding:4px 8px">Retention…</button>
                 </div>
             </div>
             <div class="control-group" style="align-self:flex-end">
@@ -1343,7 +1374,7 @@
 
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
-    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, ttbMeter } from "./read-meter.js";
+    import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, documentId, limit, ttbMeter } from "./read-meter.js";
     import { ledgerFrom, planReads } from "./logdays.js";
     // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
@@ -1465,6 +1496,9 @@
             // isSuper()-only in firestore.rules; a plain teacher who could see
             // it would only ever get a permission-denied on click.
             if (isSuper()) document.getElementById('popularity-panel').classList.remove('hidden');
+            // ⚠️ ROUND 137: the super-admin-only tools appear the moment the role is
+            // known, not only after a report has refreshed the student list.
+            updatePurgeButton();
             // ⚠️⚠️ ROADMAP 58 STEP TWO. setDefaultDates() now calls
             // resolveWeekAnchor(), which reads classesById AND
             // schoolWeekStartDay — so it MUST run after both loadScopeOptions()
@@ -2331,6 +2365,7 @@
         sel.innerHTML = '<option value="__all__">All students</option>'
             + rows.map(r => `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.label)}</option>`).join('');
         sel.value = [...uids.keys()].includes(prev) ? prev : '__all__';
+        updatePurgeButton();
         return rows.filter(r => r.label.startsWith('(no name)')).length;
     }
 
@@ -2371,6 +2406,434 @@
             btn.textContent = wasText;
         }
     }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ DELETE THIS STUDENT — ROADMAP 135a, Round 136 (Caslon II).
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // SECURITY.md §7 promises that a student's information is removed within 30
+    // days of a request, and Tenn. Code § 49-1-708 requires deletion on a
+    // district's request. Jake: *"obviously we need a 'are you super duper sure?'
+    // modal before deleting stuff."*
+    //
+    // ⭐ THREE PHASES, AND THE FIRST ONE DELETES NOTHING:
+    //   1. COUNT — every document that will go, read and listed, so the teacher
+    //      sees exactly what they are about to destroy before being asked to.
+    //   2. CONFIRM — the Delete button stays disabled until the student's email
+    //      (or, without one, their uid fragment) is typed exactly. A button and a
+    //      checkbox can both be clicked without reading; typing a specific
+    //      child's address cannot. Focus goes to the text box, never to Delete.
+    //   3. DELETE — in a fixed order with the ACCOUNT RECORD LAST.
+    //
+    // ⚠️⚠️ WHY LAST: every step is an ordinary deleteDoc(), so an interrupted run
+    // (a closed tab, a dropped connection) is safe to simply run again — but only
+    // if the student is still FINDABLE. Delete the account first and a half-done
+    // purge leaves logs and sessions orphaned under a uid nobody can look up.
+    //
+    // ⚠️ TWO THINGS NO BROWSER CAN DELETE, AND THE DIALOG SAYS SO RATHER THAN
+    // PRETENDING: the Firebase Auth record (another user's account can only be
+    // removed with the Admin SDK or the console) and `practice_limits/{uid}`
+    // (`read, write: if false`). Phase 3 ends with both, and a link to each.
+    //
+    // ⚠️ THE COLLECTION LIST IS PINNED BY tests/student-purge-test.mjs AGAINST
+    // THE RULES FILE — a collection added to the rules later without being
+    // classified here as student data or not fails the suite.
+    const PURGE_SUBCOLLECTIONS = ['progress', 'profile', 'lessonProgress', 'stats'];
+    const PURGE_BY_UID_FIELD = [
+        ['typing_logs', 'daily typing logs'],
+        ['typing_sessions', 'typing sessions'],
+        ['practice_sessions', 'practice sessions'],
+    ];
+    const FIREBASE_PROJECT = 'typethatbook';
+
+    function updatePurgeButton() {
+        updateRetentionButton();
+        const btn = document.getElementById('scope-student-delete');
+        const sel = document.getElementById('scope-student');
+        if (!btn || !sel) return;
+        btn.hidden = !(isSuper() && sel.value && sel.value !== '__all__');
+    }
+
+    // PHASE 1 — READS ONLY. Nothing in this function writes.
+    async function purgePlan(uid) {
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        const u = userSnap.exists() ? userSnap.data() : {};
+        const plan = { uid, email: String(u.email || '').toLowerCase(),
+                       name: u.displayName || '', steps: [] };
+        for (const sub of PURGE_SUBCOLLECTIONS) {
+            const snap = await getDocs(collection(db, 'users', uid, sub));
+            plan.steps.push({ label: `${sub} records`, refs: snap.docs.map(d => d.ref) });
+        }
+        for (const [coll, label] of PURGE_BY_UID_FIELD) {
+            const snap = await getDocs(query(collection(db, coll), where('uid', '==', uid)));
+            plan.steps.push({ label, refs: snap.docs.map(d => d.ref) });
+            // ⚠️ THE USER DOCUMENT MAY LACK A NAME OR EMAIL (Round 130 found students'
+            // do), so the logs they wrote are the fallback source for both.
+            for (const d of snap.docs) {
+                const x = d.data();
+                if (!plan.email && x.email) plan.email = String(x.email).toLowerCase();
+                if (!plan.name && x.displayName) plan.name = x.displayName;
+            }
+        }
+        const lb = await getDoc(doc(db, 'leaderboard', uid));
+        plan.steps.push({ label: 'leaderboard entry', refs: lb.exists() ? [lb.ref] : [] });
+        if (plan.email) {
+            const pca = await getDoc(doc(db, 'pendingClassAssignments', plan.email));
+            plan.steps.push({ label: 'pending class assignment', refs: pca.exists() ? [pca.ref] : [] });
+        }
+        // ⚠️⚠️ THE ACCOUNT RECORD LAST — see the header. Pushed last; deleted last.
+        plan.steps.push({ label: 'account record', refs: userSnap.exists() ? [userSnap.ref] : [] });
+        plan.total = plan.steps.reduce((n, st) => n + st.refs.length, 0);
+        return plan;
+    }
+
+    // PHASE 3 — in plan order, a few at a time, so the meter and the rules see
+    // ordinary single deletes and a failure stops at a known step.
+    async function purgeExecute(plan, onProgress) {
+        let done = 0;
+        for (const st of plan.steps) {
+            for (let i = 0; i < st.refs.length; i += 8) {
+                const chunk = st.refs.slice(i, i + 8);
+                await Promise.all(chunk.map(r => deleteDoc(r)));
+                done += chunk.length;
+                onProgress(done, plan.total, st.label);
+            }
+        }
+    }
+
+    async function openPurgeDialog(uid) {
+        if (!isSuper() || !uid || uid === '__all__') return;
+        if (document.getElementById('ttb-purge')) return;
+        const el = document.createElement('div');
+        el.id = 'ttb-purge';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;'
+            + 'justify-content:center;background:rgba(0,0,0,.72);padding:16px';
+        const box = document.createElement('div');
+        box.style.cssText = 'max-width:560px;width:100%;background:var(--surface);color:var(--ink);'
+            + 'border:2px solid var(--bad);border-radius:10px;padding:20px 22px;line-height:1.5;'
+            + 'max-height:85vh;overflow-y:auto';
+        el.appendChild(box);
+        document.body.appendChild(el);
+        let busy = false;
+        const close = () => { if (!busy) { el.remove(); document.removeEventListener('keydown', onKey); } };
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+
+        box.innerHTML = '<b>Counting everything stored for this student…</b><br>'
+            + '<span style="opacity:.75">Nothing has been deleted.</span>';
+        let plan;
+        try { plan = await purgePlan(uid); }
+        catch (e) {
+            box.innerHTML = `<b>Could not read this student's records.</b><br>${escapeHtml(e.message || String(e))}`
+                + '<div style="margin-top:14px"><button type="button" id="ttb-purge-x">Close</button></div>';
+            box.querySelector('#ttb-purge-x').onclick = close;
+            return;
+        }
+
+        // PHASE 2 — CONFIRM
+        const phrase = plan.email || String(uid).slice(0, 8);
+        const who = plan.name ? `${escapeHtml(plan.name)}${plan.email ? ' \u2014 ' + escapeHtml(plan.email) : ''}`
+                              : escapeHtml(plan.email || `(no name) ${String(uid).slice(0, 8)}`);
+        const rows = plan.steps.filter(st => st.refs.length)
+            .map(st => `<li>${st.refs.length} ${escapeHtml(st.label)}</li>`).join('');
+        box.innerHTML = `
+            <div style="font-size:1.2em;font-weight:700;color:var(--bad);margin-bottom:8px">
+              Permanently delete this student?</div>
+            <div style="margin-bottom:10px"><b>${who}</b></div>
+            <div style="margin-bottom:6px">This removes <b>${plan.total}</b> record${plan.total === 1 ? '' : 's'}:</div>
+            <ul style="margin:0 0 12px 18px;padding:0">${rows || '<li>No records found.</li>'}</ul>
+            <div style="margin-bottom:12px;padding:8px 10px;border-left:3px solid var(--bad);background:var(--bad-fill)">
+              <b>This cannot be undone.</b> Every minute, lesson and book position is gone for good.
+              If the student comes back, they start from the beginning.</div>
+            <label for="ttb-purge-type" style="display:block;margin-bottom:4px">
+              Type <b style="font-family:monospace">${escapeHtml(phrase)}</b> to confirm:</label>
+            <input id="ttb-purge-type" type="text" autocomplete="off" spellcheck="false"
+                   style="width:100%;box-sizing:border-box;padding:8px;font-family:monospace;margin-bottom:14px">
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button type="button" id="ttb-purge-cancel">Cancel</button>
+              <button type="button" id="ttb-purge-go" disabled
+                      style="background:var(--danger-fill);color:var(--danger-ink);border:1px solid var(--danger-edge);padding:8px 14px;font-weight:700">
+                Delete forever</button>
+            </div>`;
+        const input = box.querySelector('#ttb-purge-type');
+        const go = box.querySelector('#ttb-purge-go');
+        box.querySelector('#ttb-purge-cancel').onclick = close;
+        // ⚠️ EXACT MATCH, TRIMMED, CASE-INSENSITIVE FOR THE EMAIL. Not "contains",
+        // not a prefix: the point is that a particular child was identified.
+        input.addEventListener('input', () => {
+            go.disabled = input.value.trim().toLowerCase() !== phrase.toLowerCase();
+        });
+        // ⭐ FOCUS TO THE TEXT BOX, NEVER TO THE DESTRUCTIVE BUTTON (dialogs rule).
+        input.focus();
+
+        go.onclick = async () => {
+            if (go.disabled) return;
+            busy = true;
+            box.innerHTML = '<b>Deleting…</b><div id="ttb-purge-prog" style="margin-top:8px;opacity:.85"></div>'
+                + '<div style="margin-top:8px;opacity:.7">Keep this tab open until it finishes.</div>';
+            const prog = box.querySelector('#ttb-purge-prog');
+            try {
+                await purgeExecute(plan, (n, total, label) => { prog.textContent = `${n} of ${total} \u2014 ${label}`; });
+            } catch (e) {
+                busy = false;
+                // ⚠️ SAFE TO RETRY, AND IT SAYS SO. The account record goes last, so the
+                // student is still in the picker and a second run finishes the job.
+                box.innerHTML = `<b style="color:var(--bad)">Deletion stopped partway.</b><br>`
+                    + `${escapeHtml(e.message || String(e))}<br><br>`
+                    + 'Nothing is corrupted, and the student is still listed. Close this and run '
+                    + '<b>Delete student…</b> again to finish.'
+                    + '<div style="margin-top:14px;text-align:right"><button type="button" id="ttb-purge-x">Close</button></div>';
+                box.querySelector('#ttb-purge-x').onclick = close;
+                return;
+            }
+            busy = false;
+            // Out of the picker and the name cache, so nothing still offers them.
+            const sel = document.getElementById('scope-student');
+            if (sel) {
+                const opt = [...sel.options].find(o => o.value === uid);
+                if (opt) opt.remove();
+                sel.value = '__all__';
+            }
+            _studentNames.delete(uid);
+            updatePurgeButton();
+
+            // PHASE 4 — THE TWO CONSOLE STEPS, WITH THE LINKS AND THE IDENTIFIERS.
+            const authUrl = `https://console.firebase.google.com/project/${FIREBASE_PROJECT}/authentication/users`;
+            const limitUrl = `https://console.firebase.google.com/project/${FIREBASE_PROJECT}/firestore/data/~2Fpractice_limits~2F${encodeURIComponent(uid)}`;
+            box.innerHTML = `
+                <div style="font-size:1.15em;font-weight:700;margin-bottom:8px">\u2713 ${plan.total} records deleted.</div>
+                <div style="margin-bottom:10px">Two last steps have to be done in the Firebase console \u2014
+                  no web page is allowed to do them:</div>
+                <ol style="margin:0 0 12px 18px;padding:0">
+                  <li style="margin-bottom:8px"><b>Delete the sign-in account.</b>
+                    <a href="${authUrl}" target="_blank" rel="noopener">Open Authentication</a>,
+                    search for <b style="font-family:monospace">${escapeHtml(plan.email || uid)}</b>, and delete it.</li>
+                  <li><b>Delete the practice-limit record</b>, if there is one.
+                    <a href="${limitUrl}" target="_blank" rel="noopener">Open it</a> and delete the document.</li>
+                </ol>
+                <div style="margin-bottom:12px;opacity:.8">Student ID (uid):
+                  <code style="user-select:all">${escapeHtml(uid)}</code></div>
+                <div style="text-align:right"><button type="button" id="ttb-purge-x">Done</button></div>`;
+            box.querySelector('#ttb-purge-x').onclick = close;
+        };
+    }
+
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ RETENTION — 24 MONTHS OF INACTIVITY. ROADMAP 135b, Round 137.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // SECURITY.md §6: records are deleted after 24 months with no activity. ⚠️ 24,
+    // NOT 12, because nine-week rotations can put ~17 months between a student's
+    // uses (first rotation of 6th grade, last of 7th).
+    //
+    // ⚠️⚠️ IT DOES NOT RUN ITSELF. A timer that fires on its own needs a scheduled
+    // Cloud Function, and those need `firebase deploy` from a command line this
+    // project does not have. So it is a panel Jake opens — once a term is plenty.
+    //
+    // ⚠️⚠️⚠️ "LAST ACTIVE" IS NOT ONE FIELD, AND TRUSTING ONE FIELD WOULD DELETE AN
+    // ACTIVE CHILD. `activeDayLast` is stamped by Library (game.js) and School
+    // (learn.js) — and NOT by the arcade. A child who has only played games for two
+    // years would look long gone by that field alone. ⭐ Every kind of activity,
+    // arcade included, writes a daily typing log with the id `{uid}_{YYYY-MM-DD}`,
+    // and ids sort as strings — so "has this child any log dated on or after the
+    // cutoff?" is ONE read per child, on the document-id index, needing no
+    // composite index and no console setup. That is the check that decides.
+    //
+    // THE VERDICTS, cheapest evidence first (see retentionVerdict()):
+    //   active — stamped active on/after the cutoff, OR first seen on/after it,
+    //            OR any log on/after it. Never touched.
+    //   stale  — some evidence of activity, ALL of it before the cutoff.
+    //   review — NO evidence at all: no stamp, no first-seen date, no log ever.
+    //            ⚠️ NEVER BULK-DELETED. An account with nothing is as likely a
+    //            student who signed in yesterday as one who left in 2024.
+    // ⚠️ STAFF AND THE VIEWER THEMSELVES ARE EXCLUDED BEFORE ANY OF THIS RUNS.
+    const RETENTION_MONTHS = 24;
+
+    function retentionCutoff(today) {
+        const d = new Date(today.getFullYear(), today.getMonth() - RETENTION_MONTHS, today.getDate());
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
+    // Pure. `recent`/`any` are undefined when the read was not needed.
+    function retentionVerdict(u, cutoff, recent, any) {
+        const stamp = (u && u.activeDayLast) || '';
+        const since = (u && u.ttbLogDaysSince) || '';
+        if (stamp && stamp >= cutoff) return 'active';
+        if (since && since >= cutoff) return 'active';
+        if (recent) return 'active';
+        if (stamp || since || any) return 'stale';
+        return 'review';
+    }
+
+    async function logExistsFrom(uid, fromDate) {
+        const lo = fromDate ? `${uid}_${fromDate}` : `${uid}_`;
+        const snap = await getDocs(query(collection(db, 'typing_logs'),
+            where(documentId(), '>=', lo), where(documentId(), '<=', `${uid}_\uf8ff`), limit(1)));
+        return !snap.empty;
+    }
+
+    async function retentionScan(onProgress) {
+        const cutoff = retentionCutoff(new Date());
+        const [usersSnap, staffSnap] = await Promise.all([
+            getDocs(collection(db, 'users')), getDocs(collection(db, 'staff'))]);
+        const staff = new Set(staffSnap.docs.map(d => d.id));
+        const out = { cutoff, active: 0, stale: [], review: [], skipped: 0 };
+        const people = usersSnap.docs.filter(d => {
+            if (staff.has(d.id) || d.id === me.uid) { out.skipped++; return false; }
+            return true;
+        });
+        let i = 0;
+        for (const d of people) {
+            const u = d.data();
+            let v = retentionVerdict(u, cutoff);          // no reads yet
+            if (v !== 'active') {
+                const recent = await logExistsFrom(d.id, cutoff);
+                const any = recent ? true
+                    : ((u.activeDayLast || u.ttbLogDaysSince) ? undefined : await logExistsFrom(d.id, ''));
+                v = retentionVerdict(u, cutoff, recent, any);
+            }
+            const row = { uid: d.id, name: u.displayName || _studentNames.get(d.id) || '',
+                          email: String(u.email || '').toLowerCase(),
+                          last: u.activeDayLast || u.ttbLogDaysSince || '' };
+            if (v === 'active') out.active++;
+            else if (v === 'stale') out.stale.push(row);
+            else out.review.push(row);
+            if (++i % 20 === 0) onProgress(i, people.length);
+        }
+        return out;
+    }
+
+    function updateRetentionButton() {
+        const b = document.getElementById('retention-open');
+        if (b) b.hidden = !isSuper();
+    }
+
+    async function openRetentionDialog() {
+        if (!isSuper() || document.getElementById('ttb-retention')) return;
+        const el = document.createElement('div');
+        el.id = 'ttb-retention';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-modal', 'true');
+        el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;'
+            + 'justify-content:center;background:rgba(0,0,0,.72);padding:16px';
+        const box = document.createElement('div');
+        box.style.cssText = 'max-width:620px;width:100%;background:var(--surface);color:var(--ink);'
+            + 'border:2px solid var(--rule-strong);border-radius:10px;padding:20px 22px;line-height:1.5;'
+            + 'max-height:85vh;overflow-y:auto';
+        el.appendChild(box);
+        document.body.appendChild(el);
+        let busy = false;
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        const close = () => { if (!busy) { el.remove(); document.removeEventListener('keydown', onKey); } };
+        document.addEventListener('keydown', onKey);
+        const cutoff = retentionCutoff(new Date());
+        const list = (rows) => rows.map(r => `<li>${escapeHtml(r.name || '(no name)')}`
+            + `${r.email ? ' \u2014 ' + escapeHtml(r.email) : ''}`
+            + `${r.last ? ` <span style="opacity:.7">(last ${escapeHtml(r.last)})</span>` : ''}</li>`).join('');
+
+        box.innerHTML = `
+            <div style="font-size:1.2em;font-weight:700;margin-bottom:8px">Retention \u2014 ${RETENTION_MONTHS} months</div>
+            <div style="margin-bottom:10px">Finds student accounts with <b>no typing of any kind since
+              ${escapeHtml(cutoff)}</b> \u2014 Library, School or arcade. Staff accounts and your own are skipped.
+              Nothing is deleted until you confirm.</div>
+            <div style="margin-bottom:14px;opacity:.8">Cost: one read per account, plus one or two more for
+              each account that hasn't typed recently. Once a term is plenty.</div>
+            <div style="display:flex;gap:10px;justify-content:flex-end">
+              <button type="button" id="ttb-ret-cancel">Cancel</button>
+              <button type="button" id="ttb-ret-scan">Scan</button></div>`;
+        box.querySelector('#ttb-ret-cancel').onclick = close;
+        box.querySelector('#ttb-ret-scan').focus();
+        box.querySelector('#ttb-ret-scan').onclick = async () => {
+            box.innerHTML = '<b>Scanning\u2026</b><div id="ttb-ret-prog" style="margin-top:6px;opacity:.8">'
+                + 'Nothing has been deleted.</div>';
+            let r;
+            try { r = await retentionScan((n, t) => { box.querySelector('#ttb-ret-prog').textContent = `${n} of ${t} checked\u2026`; }); }
+            catch (e) {
+                box.innerHTML = `<b>Scan failed.</b><br>${escapeHtml(e.message || String(e))}`
+                    + '<div style="margin-top:14px;text-align:right"><button type="button" id="ttb-ret-x">Close</button></div>';
+                box.querySelector('#ttb-ret-x').onclick = close; return;
+            }
+            const n = r.stale.length;
+            const phrase = `delete ${n}`;
+            box.innerHTML = `
+                <div style="font-size:1.15em;font-weight:700;margin-bottom:8px">Scan complete</div>
+                <ul style="margin:0 0 12px 18px;padding:0">
+                  <li><b>${r.active}</b> active \u2014 typed since ${escapeHtml(r.cutoff)}. Kept.</li>
+                  <li><b>${n}</b> inactive for ${RETENTION_MONTHS}+ months \u2014 <b>will be deleted</b>.</li>
+                  <li><b>${r.review.length}</b> with no typing ever recorded \u2014 <b>not deleted</b>; listed for you to review.</li>
+                </ul>
+                ${n ? `<details open style="margin-bottom:10px"><summary><b>To be deleted (${n})</b></summary>
+                       <ul style="margin:6px 0 0 18px;padding:0">${list(r.stale)}</ul></details>` : ''}
+                ${r.review.length ? `<details style="margin-bottom:10px"><summary>No typing ever recorded (${r.review.length})</summary>
+                       <div style="opacity:.8;margin:6px 0">These could be brand-new students who haven't typed yet,
+                       so they are never removed in bulk. Delete any you're sure about with <b>Delete student\u2026</b>.</div>
+                       <ul style="margin:0 0 0 18px;padding:0">${list(r.review)}</ul></details>` : ''}
+                ${n ? `<div style="margin:12px 0;padding:8px 10px;border-left:3px solid var(--bad);background:var(--bad-fill)">
+                         <b>This cannot be undone.</b> Every record for these ${n} students is removed for good.</div>
+                       <label for="ttb-ret-type" style="display:block;margin-bottom:4px">Type
+                         <b style="font-family:monospace">${phrase}</b> to confirm:</label>
+                       <input id="ttb-ret-type" type="text" autocomplete="off" spellcheck="false"
+                              style="width:100%;box-sizing:border-box;padding:8px;font-family:monospace;margin-bottom:14px">`
+                     : '<div style="margin:12px 0">Nothing to delete.</div>'}
+                <div style="display:flex;gap:10px;justify-content:flex-end">
+                  <button type="button" id="ttb-ret-close">${n ? 'Cancel' : 'Close'}</button>
+                  ${n ? `<button type="button" id="ttb-ret-go" disabled
+                          style="background:var(--danger-fill);color:var(--danger-ink);border:1px solid var(--danger-edge);padding:8px 14px;font-weight:700">
+                          Delete ${n} forever</button>` : ''}
+                </div>`;
+            box.querySelector('#ttb-ret-close').onclick = close;
+            if (!n) return;
+            const input = box.querySelector('#ttb-ret-type');
+            const go = box.querySelector('#ttb-ret-go');
+            input.addEventListener('input', () => { go.disabled = input.value.trim().toLowerCase() !== phrase; });
+            input.focus();
+            go.onclick = async () => {
+                if (go.disabled) return;
+                busy = true;
+                box.innerHTML = '<b>Deleting\u2026</b><div id="ttb-ret-prog" style="margin-top:8px;opacity:.85"></div>'
+                    + '<div style="margin-top:8px;opacity:.7">Keep this tab open until it finishes.</div>';
+                const prog = box.querySelector('#ttb-ret-prog');
+                const done = [];
+                try {
+                    for (const row of r.stale) {
+                        prog.textContent = `Student ${done.length + 1} of ${n}\u2026`;
+                        // ⭐ THE SAME MACHINERY AS "Delete student…" — one purge, proven by
+                        // student-purge-test, not a second implementation of it.
+                        await purgeExecute(await purgePlan(row.uid), () => {});
+                        done.push(row);
+                        _studentNames.delete(row.uid);
+                    }
+                } catch (e) {
+                    busy = false;
+                    box.innerHTML = `<b style="color:var(--bad)">Stopped after ${done.length} of ${n}.</b><br>`
+                        + `${escapeHtml(e.message || String(e))}<br><br>Nothing is corrupted. Run <b>Retention\u2026</b> `
+                        + 'again \u2014 finished students won\u2019t appear, and the rest will be picked up.'
+                        + '<div style="margin-top:14px;text-align:right"><button type="button" id="ttb-ret-x">Close</button></div>';
+                    box.querySelector('#ttb-ret-x').onclick = close; return;
+                }
+                busy = false;
+                const authUrl = `https://console.firebase.google.com/project/${FIREBASE_PROJECT}/authentication/users`;
+                box.innerHTML = `
+                    <div style="font-size:1.15em;font-weight:700;margin-bottom:8px">\u2713 ${n} students removed.</div>
+                    <div style="margin-bottom:8px">Last step, in the Firebase console: <b>delete their sign-in accounts</b>.
+                      <a href="${authUrl}" target="_blank" rel="noopener">Open Authentication</a> \u2014 you can tick several
+                      and delete them together.</div>
+                    <textarea readonly style="width:100%;box-sizing:border-box;height:120px;font-family:monospace;margin-bottom:12px">${
+                      escapeHtml(done.map(x => x.email || x.uid).join('\n'))}</textarea>
+                    <div style="text-align:right"><button type="button" id="ttb-ret-x">Done</button></div>`;
+                box.querySelector('#ttb-ret-x').onclick = close;
+            };
+        };
+    }
+
+    document.getElementById('retention-open')?.addEventListener('click', openRetentionDialog);
+
+    document.getElementById('scope-student-delete')?.addEventListener('click', () =>
+        openPurgeDialog(document.getElementById('scope-student').value));
+    document.getElementById('scope-student')?.addEventListener('change', updatePurgeButton);
 
     document.getElementById('scope-student-load')?.addEventListener('click', loadStudents);
     // ⚠️ CHANGING SCHOOL OR CLASS INVALIDATES THE LIST. Leaving a stale child

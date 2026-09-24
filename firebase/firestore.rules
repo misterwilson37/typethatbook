@@ -1,6 +1,13 @@
 rules_version = '2';
 
-// firestore.rules v2.13.0 — TypeThatBook
+// firestore.rules v2.14.0 — TypeThatBook
+//
+// v2.14.0 — ⚠️⚠️ ROADMAP 135a: A SUPER-ADMIN MAY NOW DELETE A STUDENT'S `progress`
+//           AND `profile` SUBCOLLECTIONS. Before this only the student could, so
+//           "delete this student's information" — promised in SECURITY.md §7 and
+//           required on district request by Tenn. Code § 49-1-708 — could not be
+//           done from the browser at all. ⭐ A SEPARATE `allow delete: if
+//           isSuper()`, NOT A WIDER `write`: nobody gains create or update.
 //
 // v2.13.0 — ⭐ THE ARCADE SOURCE (daylog.js v1.10.0). validDailyLog() now bounds
 //           secondsArcade/charsArcade/mistakesArcade, and — the part that
@@ -585,6 +592,16 @@ service cloud.firestore {
         || isSuper()
         || (isStaff() && inMySchool(
               get(/databases/$(database)/documents/users/$(uid)).data.schoolId));
+      // ⚠️⚠️ v2.14.0 — ROADMAP 135a. A SUPER-ADMIN MAY DELETE ANY OF A STUDENT'S
+      // SUBCOLLECTION DOCUMENTS, AND MAY ONLY DELETE. Before this, the `write`
+      // grant above let a super-admin touch `lessonProgress` alone, so a
+      // student's `progress` (book positions) and `profile` documents could be
+      // removed by NOBODY but the student — which made SECURITY.md's promise to
+      // delete a student's information on request impossible to keep from the
+      // browser. ⭐ DELETE, NOT WRITE: a separate `allow delete` widens nothing
+      // about create or update, so no staff member gains the ability to alter a
+      // student's progress, only to remove it entirely.
+      allow delete: if isSuper();
     }
 
     // ─────────────────────────── activity logs ───────────────────────────

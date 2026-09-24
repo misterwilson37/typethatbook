@@ -10,7 +10,9 @@ privacy policy (135d) must describe what 135a–c actually do, so it comes LAST.
 **Done in Round 135:** `SECURITY.md` (the written security program the amended
 COPPA Rule requires); Google Fonts removed from every page (self-hosted, OFL).
 
-### 135a — ⚠️⚠️ "DELETE THIS STUDENT" — NEXT
+### 135a — ✅ BUILT (Round 136). Needs firestore.rules v2.14.0 deployed first.
+
+### ~~135a — "DELETE THIS STUDENT"~~
 
 Student data lives in: `users/{uid}` and its `profile`, `progress`,
 `lessonProgress` and `stats` subcollections; `typing_logs` (`{uid}_{date}`);
@@ -29,7 +31,9 @@ Student data lives in: `users/{uid}` and its `profile`, `progress`,
 
 SECURITY.md §7 promises deletion within 30 days; this is what makes it fast.
 
-### 135b — RETENTION: 24 MONTHS OF INACTIVITY
+### 135b — ✅ BUILT (Round 137). Retention panel, run once a term.
+
+### ~~135b — RETENTION: 24 MONTHS OF INACTIVITY~~
 
 ⚠️ **NOT 12.** Jake teaches nine-week related-arts rotations, so a student in the
 FIRST rotation of 6th grade and the LAST of 7th goes about 17 months without
@@ -43,7 +47,7 @@ that lists accounts past 24 months and purges them after one confirmation.
 ⭐ **The warning email is not needed:** with a 24-month window the only accounts
 it ever reaches belong to students who have left the school.
 
-### 135c — ⚠️ STOP COPYING NAMES ONTO EVERY LOG
+### 135c — ⚠️ STOP COPYING NAMES ONTO EVERY LOG — NEXT
 
 Every daily `typing_logs` document carries `displayName`, multiplying where a real
 name lives. Jake: *"Their email is enough information for me."* Store name and

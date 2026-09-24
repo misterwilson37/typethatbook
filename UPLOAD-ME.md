@@ -1,36 +1,51 @@
-# Round 135 (Tory) — 26 files — privacy, part one
+# Round 137 — CUMULATIVE, 49 files — everything since your original upload
 
-⚠️ **Assumes Round 134 is deployed.** List derived by diffing against the 133 + 134
-packages, not from memory.
+Derived by diffing the whole repo against your original zip, not assembled from
+earlier packages. Every file is its final version, so re-uploading one you already
+have is harmless. Nothing from the original repo is missing.
 
-## ⚠️⚠️ Upload the `fonts/` folder FIRST
+---
 
-Every page now loads `fonts/fonts.css` instead of Google Fonts. If the HTML goes up
-before the folder does, every page falls back to plain system fonts until it
-arrives. Nothing breaks — it just looks wrong for a minute.
+## ⚠️⚠️ Order matters — three steps
 
-| what | files |
-|---|---|
-| **`fonts/`** — upload first | 7 `.woff2` fonts, `fonts.css`, 3 licence files |
-| **`SECURITY.md`** — NEW | the written security program |
-| 8 HTML pages | the Google Fonts `<link>` swapped for `fonts/fonts.css`. ⭐ **Nothing else changed in any of them** — verified by diff |
-| `tests/self-hosted-fonts-test.mjs` | NEW, 30 assertions |
-| `tests/staff-tokens-test.mjs` | D1 now accepts the local stylesheet |
-| `tests/run-all-tests.mjs` | registers the new harness (107 → 108) |
-| `HANDOFF.md` / `CHANGELOG.md` / `ROADMAP.md` | §35, the privacy track 135a–d |
+**1. Rules, in the Firebase console.** `firebase/firestore.rules` (v2.14.0) →
+Firebase console → Firestore → **Rules** → paste → **Publish**. Without it, the
+delete tools stop partway with a permission error.
 
-## Before you share SECURITY.md
+**2. The `fonts/` folder.** Every page now loads `fonts/fonts.css` instead of Google
+Fonts. Upload the folder before the HTML, or pages show system fonts until it lands.
 
-Three things only you can fill in or confirm:
+**3. Everything else.**
 
-1. **Your contact email** — there's a placeholder at the top.
-2. **24 months** for retention (§6) — see the reasoning in the reply.
-3. **30 days** for deletion requests (§7) — a promise, so make sure you're
-   comfortable with it.
+---
 
-Two items are honestly marked **Planned** — the delete tool and the retention
-sweep. That's deliberate: a reviewer trusts a document that says what's not done
-yet far more than one that claims everything.
+## What's in here, by round
+
+| round | what | main files |
+|---|---|---|
+| 124–127 | arcade fixes: scatter, ping, ramp, side-panel help, telemetry counters | `game-*.js`, `typing-calibrator.js`, `arcade-telemetry.js`, `escape-board.js` |
+| 128–130 | per-run delete fix, student picker, "Unknown" names | `reports.html` |
+| 131 | ⚠️ held-Backspace farming stopped; ⏸ flag | `game.js`, `reports.html` |
+| 134 | ⭐ Library lesson gate | `game.js` |
+| 135 | `SECURITY.md`; fonts self-hosted | `SECURITY.md`, `fonts/`, 8 HTML pages |
+| 136 | ⭐ Delete student… | `reports.html`, `firestore.rules` |
+| 137 | ⭐ Retention… | `reports.html` |
+
+Plus the harnesses for all of it in `tests/`, and HANDOFF / CHANGELOG / ROADMAP
+through §37.
+
+## The two new buttons (you'll see them; teachers won't)
+
+Both sit next to the **Student** dropdown in reports and are super-admin only.
+
+**Delete student…** — pick a student first. It counts every record, then you type
+their email exactly, then it deletes, then it gives you two console links to
+finish.
+
+**Retention…** — no student needed. It scans for accounts with no typing of any
+kind for 24 months, shows you the list, and deletes them after you type
+`delete` and the number. Accounts with *no typing ever* are listed separately
+and never removed in bulk — they might be brand-new students. Run it once a term.
 
 ## Verify
 
@@ -39,5 +54,4 @@ npm install acorn jsdom
 node tests/run-all-tests.mjs
 ```
 
-Expect **ALL 108 HARNESSES PASS**. Then open any page and check the typewriter
-font still looks like Courier Prime, not Courier New.
+Expect **ALL 110 HARNESSES PASS**.

@@ -161,8 +161,14 @@ ok(/keydown[\s\S]{0,600}\.uid-chip,\s*\.expand-sessions/.test(reports),
    'user to a control which then ignores them is worse than no focus ring — it ' +
    'promises something the page does not deliver');
 
-ok(/e\.preventDefault\(\)/.test(reports.slice(reports.indexOf("addEventListener('keydown'"),
-                                              reports.indexOf("addEventListener('keydown'") + 600)),
+// ⚠️ ROUND 136: ANCHORED ON THE CHIP HANDLER, NOT ON THE FIRST keydown IN THE FILE.
+// The old slice took whichever `addEventListener('keydown'` came first — which was
+// correct only while the chip handler happened to be first. The delete-student
+// dialog added an Escape listener above it, and this assertion quietly started
+// inspecting the wrong handler. It now finds the listener E5 is about.
+const _chip = reports.indexOf('.uid-chip, .expand-sessions');
+const _kd = reports.lastIndexOf("addEventListener('keydown'", _chip);
+ok(_chip > 0 && _kd > 0 && /e\.preventDefault\(\)/.test(reports.slice(_kd, _kd + 600)),
    '⚠️ E6 SPACE IS preventDefault()ed. Its default action is to scroll, which ' +
    'would fire the control AND jump the teacher away from the row they were on');
 

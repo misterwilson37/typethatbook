@@ -3,7 +3,7 @@
 **Operator:** Jake Wilson, Computer Science, Sumner County Schools
 **Site:** https://typethatbook.misterwilson.org
 **Last reviewed:** September 2026
-**Contact for security or privacy concerns:** *[Jake's school email]*
+**Contact for security or privacy concerns:** jacob.v.wilson@gmail.com
 
 This document describes how TypeThatBook protects the information it collects
 from students. It is written to meet the written information-security program
@@ -98,8 +98,12 @@ removed.
 A school or parent may also ask for a student's information to be deleted at any
 time; see section 7.
 
-**Planned:** the 24-month deletion is currently carried out by hand. A tool for
-the site administrator to find and remove inactive accounts is being built.
+The site administrator runs a retention check at least once each term. It looks
+at every student account — skipping staff accounts — and finds those with no
+typing of any kind in the last 24 months, counting practice, lessons and games
+alike. Accounts with no typing ever recorded are never removed automatically,
+since they may belong to a new student who has not started yet; those are
+reviewed individually. Nothing is deleted until the administrator confirms.
 
 ## 7. Deleting a student's information
 
@@ -108,8 +112,12 @@ information to be deleted, the site administrator removes it within 30 days.
 This includes the student's account, typing records, lesson progress, reading
 positions and game scores.
 
-**Planned:** a single "delete this student" tool for the site administrator.
-Until it is ready, deletion is done by hand through the Firebase console.
+The site administrator does this with a delete tool on the reports page. The tool
+first lists every record it will remove, then requires the student's email
+address to be typed exactly before anything is deleted, so the wrong student
+cannot be removed by accident. Two final steps — removing the student's sign-in
+account and one internal usage-limit record — are done in the Firebase console,
+because web pages are not permitted to delete another person's account.
 
 ## 8. How the information is protected
 

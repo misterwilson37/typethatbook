@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 135 (Tory), for whoever is next
+> ## ▶ START HERE — written 2026-09-24 by Round 137 (Caslon III), for whoever is next
 >
-> **ALL 108 HARNESSES PASS.**
+> **ALL 110 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **ONE GATE EXPLAINS BOTH OF JAKE'S COMPLAINTS — READ ROADMAP 127a
 > FIRST.** `calibrator.confident` switches THREE things at the same instant: the
@@ -1817,7 +1817,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **108 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **110 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11330,3 +11330,92 @@ and never having loaded it at all.
 Jake proposed one year. Nine-week related-arts rotations mean a student in the
 first rotation of 6th grade and the last of 7th goes about 17 months between uses;
 12 months would delete them. 24 clears it. See ROADMAP 135b.
+
+
+---
+
+## §36. Round 136 (Caslon II) — delete this student
+
+**2026-09-24.** Jake: *"Only the student can delete his own stats? That's crazy!
+Seems worthy of firebase changes — although obviously we need a 'are you super
+duper sure?' modal before deleting stuff."* ROADMAP 135a, built.
+
+### A. ⚠️⚠️ I OVERSTATED THE RULES PROBLEM, AND THE REAL ONE WAS SMALLER
+
+Round 135 said super-admins could not delete a student's `stats`. **Wrong** — a
+search printed only the first line of that rule; the full rule already grants
+`isSuper()`. `pendingClassAssignments` was fine too (`|| isStaff()`). ⭐ The only
+genuine gap was `users/{uid}/{collection}/*` — `progress` and `profile` — where
+`write` reached super-admins for `lessonProgress` alone. **Fixed with one
+delete-only line (rules v2.14.0).** Lesson: read the whole rule before describing
+it to Jake, not the first grep hit.
+
+### B. THE TOOL
+
+Super-admin only, next to the Student picker. **Count → confirm → delete.**
+Counting is reads only; the button arms only when the student's email is typed
+exactly; deletion runs in a fixed order with the **account record last**, so an
+interrupted run leaves the child findable and is safe to repeat. It ends with the
+two console-only steps (Auth account, `practice_limits`) and a link to each.
+Uses read-meter's `deleteDoc`, so every deletion shows on the meter.
+
+### C. ⭐⭐ THE HARNESS RUNS THE REAL PURGE AGAINST TWO STUDENTS
+
+`student-purge-test.mjs` lifts `purgePlan()`/`purgeExecute()` and runs them on an
+in-memory database with two children. Mutation-verified: a query that drops its
+uid filter deletes the OTHER child's records, and B5 goes red. ⭐ Part A classifies
+every collection in the rules file — a new one nobody classified fails the suite.
+
+### D. TWO EXISTING HARNESSES TOUCHED
+* `staff-tokens-test` C2 (no raw hex): the dialog uses `--surface`, `--ink`,
+  `--bad`, `--bad-fill` and the `--danger-*` tokens.
+* `staff-tokens-test` E6 inspected the FIRST keydown listener in the file — right
+  only while the chip handler happened to be first. Re-anchored on the handler E5
+  is about.
+
+### E. ⚠️ DEPLOY ORDER: RULES FIRST
+Without rules v2.14.0 the purge stops at `progress` with a permission error. The
+dialog says it stopped partway and is safe to rerun — true — but deploy the rules
+before trying it.
+
+
+---
+
+## §37. Round 137 (Caslon III) — retention, and a cumulative package
+
+**2026-09-24.** Jake: *"They'll get deleted automatically after the 24 months,
+right? Or is that forthcoming?"* — forthcoming, and now built (ROADMAP 135b). And:
+*"Make sure the zip includes everything before, too — I'm probably not uploading
+136, but I will upload 137."* ⭐ **This round ships CUMULATIVE from the original
+upload**, so it carries Rounds 124–137.
+
+### A. ⚠️⚠️ IT CANNOT RUN ITSELF
+
+A timer needs a scheduled Cloud Function, which needs `firebase deploy` from a
+command line this project does not have. It is a super-admin panel, run once a
+term; SECURITY.md §6 says exactly that.
+
+### B. ⚠️⚠️⚠️ "LAST ACTIVE" CANNOT BE ONE FIELD
+
+`activeDayLast` is stamped by game.js and learn.js — **not by the arcade.** A
+child who only played games for two years looks gone by the stamp alone. ⭐ Every
+activity writes `typing_logs/{uid}_{date}`, and ids sort as strings, so "any log
+on or after the cutoff?" is one read per candidate on the document-id index — no
+composite index, no console setup. Recently stamped children cost no reads.
+
+### C. VERDICTS
+`active` (stamped, first-seen, or logged since the cutoff) · `stale` (evidence of
+activity, all older) · `review` (no evidence at all — **never bulk-deleted**; a
+brand-new student looks identical to one who left). Staff and the viewer are
+excluded before any verdict.
+
+### D. REUSES THE PURGE
+Bulk deletion is a loop over `purgePlan`/`purgeExecute` from Round 136 — one
+implementation, already proven by `student-purge-test.mjs`. Confirmation is typing
+`delete N`, so the count is read rather than skipped past.
+
+### E. ON TESTING WITH LAST YEAR'S 8TH GRADERS
+They will not appear in the panel until ~24 months after their last activity
+(about spring 2028). 24 months is a MAXIMUM, not a minimum: deleting a student
+who has left the school sooner, with "Delete student…", is fully consistent with
+the policy.

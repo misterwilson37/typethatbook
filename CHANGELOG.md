@@ -1,5 +1,32 @@
 # CHANGELOG — TypeThatBook
 
+## Round 137 (Caslon III) — retention
+
+**⭐ ROADMAP 135b built.** Super-admin "Retention…" finds student accounts with no
+activity of any kind for 24 months and removes them with the same purge as
+"Delete student…". ⚠️⚠️ Activity is decided by the typing logs, not `activeDayLast`,
+because the arcade never stamps that field — trusting it would delete a child who
+played last week. Staff and the viewer are excluded; accounts with no evidence at
+all are listed for review, never bulk-deleted. Type "delete N" to confirm.
+SECURITY.md §6 now describes it. **Shipped cumulative from the original upload.**
+
+**ALL 110 HARNESSES PASS.**
+
+## Round 136 (Caslon II) — delete this student
+
+**⭐ ROADMAP 135a built.** Super-admin "Delete student…" in reports: count every
+record first, type the student's email exactly to arm the button, delete with the
+account record last so an interrupted run is safe to repeat, then the two
+console-only steps with links. **firestore.rules v2.14.0** adds one delete-only
+line for `progress`/`profile` — the only real gap; Round 135 overstated it
+(`stats` and `pendingClassAssignments` were already deletable).
+
+`student-purge-test.mjs` runs the real purge against two students and fails if the
+wrong one loses a record; it also fails on any rules collection nobody classified.
+`SECURITY.md` §7 updated and the contact filled in.
+
+**ALL 109 HARNESSES PASS.**
+
 ## Round 135 (Tory) — privacy, part one
 
 **`SECURITY.md`** — the written information security program the amended COPPA
