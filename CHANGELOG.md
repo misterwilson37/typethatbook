@@ -1,5 +1,16 @@
 # CHANGELOG — TypeThatBook
 
+## Round 147 — the hand guide reports on itself
+
+**The dash key's missing circle, in standard mode.** The live console showed the dash
+key lit and its finger never activated; the same code, run here, handles the dash
+fine, so the live cause is still unknown. `updateHandGuide()` now falls back to the
+lit key (either face) when it can't place a finger, records every decision —
+`ttbGuide.last()` in the console — and prints one warning per kind of problem with
+the exact character's code point. game.js v3.56.0.
+
+**ALL 116 HARNESSES PASS.**
+
 ## Round 146 — initials that outlive the student
 
 **⭐ When a student ages out, their leaderboard place stays** — initials, score, the
@@ -13444,4 +13455,28 @@ Moved verbatim. Nothing deleted.
 //           modified, not only a courtesy, so it is relabelled, never dropped.
 //           ⚠️ The adventure payload never carried `preparedBy` at all, so
 //           fixing adventure-renderer.js's label alone would have shown nothing.
+```
+
+### game.js v3.48.0 — archived by Round 147, 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v3.48.0 — ⚠️⚠️ ROADMAP 50: THE RECONCILER WAS WIRED ON ONE OF THE TWO STUDENT
+//           PAGES. Round 58 added logdays.js's reconcile() to learn.js's
+//           loadGateState() and nowhere else, so a student who spent the day in
+//           Library or Adventure never healed their mirror — while this page
+//           paints the same weekly figure, from the same readWeek(), off the
+//           same per-browser ledger. One call in noteActiveDay(), on the
+//           `_udata` it already holds for ensureSince(): zero extra reads.
+//           ⚠️ NOTHING WENT RED BECAUSE NOTHING POINTED AT THE WIRING.
+//           logdays-test.mjs drives reconcilePlan()/reconcile() as pure
+//           functions and never asked whether a page CALLS them — Round 59's
+//           finding in a different file. tests/mirror-heal-test.mjs asks the
+//           mirror question now, of BOTH controllers, and of index.html.
+//           ⚠️ THE CLEAN DAY OF 2026-09-03 DOES NOT COVER THIS. The _v2 rename
+//           left every mirror with `since` at 09-02/09-03, so every earlier day
+//           of the week falls BELOW it and is read blind — no undercount is
+//           currently possible on any surface. The week beginning Sat 2026-09-05
+//           is the first one `since` sits under in full. HANDOFF Round 60.
 ```

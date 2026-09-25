@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-25 by Round 146, for whoever is next
+> ## ▶ START HERE — written 2026-09-25 by Round 147, for whoever is next
 >
-> **ALL 115 HARNESSES PASS.**
+> **ALL 116 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **A STUDENT'S OWN BROWSER COULD UNDO A TEACHER'S DELETION — FIXED IN ROUND
 > 145, ONE HOLE LEFT (ROADMAP 145a).** `stats-wal.js` took the LARGER of the
@@ -1832,7 +1832,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **115 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **116 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11764,3 +11764,24 @@ stamps today on every score without a date, idempotently. Dates appear on board 
 the game paused, and pausing hides the keyboard. First run's facts still stand (one
 key, highlighted, translucent tint, z-index 5). A watcher that fires only while the
 keyboard is visible and a dash is due was sent to Jake instead.
+
+
+---
+
+## §47. Round 147 — the dash key's circle (145b), instrumented
+
+**What's known.** Live console, with the keyboard on screen and a dash due: the dash
+key is highlighted, its right-pinky finger group exists, and the finger is NOT
+active — its tip still sits on `;`. The key's tint is the right-pinky colour, which
+`colorKeyboardKeys()` paints from `fingerMap` — so the map knew the dash on the live
+page. Run here with the real LAYOUTS, `buildFingerMap()` and `getFingerInfo()`, the
+dash maps correctly. Nothing but `updateHandGuide()`'s own reset clears `hg-active`.
+⚠️ **The direct cause was not found from the code.** Two console runs were also
+contaminated: opening DevTools blurs the page, the game pauses, and pausing hides the
+keyboard (`keyCenter: [0,0]`).
+
+**What shipped.** `updateHandGuide()` records every decision in `_hg.last`
+(`ttbGuide.last()` in the console), warns once per kind of problem with the
+character's code point, and falls back to the lit key — either face — when it can't
+place a finger. **Next:** ask Jake to type up to a dash, then run `ttbGuide.last()`
+and read any `[hand guide]` warning. That names the failing exit.
