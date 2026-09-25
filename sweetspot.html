@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sweet Spot v2.4.1</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    
+    <style>
+        /* Sweet Spot - Game-specific styles */
+        /* Alias vars for backward compat */
+        :root {
+            --accent-primary: var(--primary);
+            --accent-light: var(--primary-light);
+            --accent-grey: #666666;
+            --accent-success: #6fbf73;
+            --bg-panel: var(--bg-card);
+            --border-color: var(--border);
+        }
+        
+        body { cursor: default; }
+        
+        .glow-primary { text-shadow: 0 0 15px var(--primary); color: var(--primary); }
+        .glow-grey { text-shadow: 0 0 20px var(--accent-grey); }
+        
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+        }
+        
+        /* Game buttons - extend base .btn from games.css */
+        .btn-cyan {
+            background: var(--primary);
+            color: var(--bg-dark);
+        }
+        .btn-cyan:hover {
+            box-shadow: 0 0 30px var(--primary);
+            transform: translateY(-2px);
+        }
+        
+        .btn-magenta {
+            background: var(--accent-grey);
+            color: white;
+        }
+        .btn-magenta:hover {
+            box-shadow: 0 0 20px var(--accent-grey);
+            transform: translateY(-2px);
+        }
+        
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--border);
+            color: var(--text-primary);
+        }
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-white {
+            background: white;
+            color: var(--bg-dark);
+            border: 2px solid white;
+        }
+        .btn-white:hover {
+            background: #e2e8f0;
+        }
+        
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 11px;
+        }
+        
+        .btn-dark {
+            background: #1a1a2e;
+            color: white;
+            border: 2px solid #333;
+        }
+        .btn-dark:hover {
+            background: #2a2a3e;
+        }
+        
+        /* Game container */
+        #gameContainer {
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #1a1a2e;
+            aspect-ratio: 4/3;
+            position: relative;
+        }
+        
+        #gameContainer.game-active {
+            cursor: none;
+        }
+        
+        #textOverlay {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            user-select: none;
+            font-family: inherit;
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            text-align: center;
+            transition: opacity 0.15s ease;
+            white-space: nowrap;
+        }
+        
+        .feedback-zone {
+            position: absolute;
+            background-color: rgba(76, 175, 80, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        
+        .perfect-zone-feedback {
+            position: absolute;
+            background-color: rgba(59, 130, 246, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        
+        .feedback-shadow {
+            position: absolute;
+            border: 2px dashed;
+            box-sizing: border-box;
+            pointer-events: none;
+        }
+        
+        .score-popup {
+            position: absolute;
+            font-size: 3rem;
+            font-weight: 800;
+            pointer-events: none;
+            animation: scoreFloat 1.5s ease-out forwards;
+        }
+        
+        @keyframes scoreFloat {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            20% { transform: translate(-50%, -70%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -150%) scale(1); opacity: 0; }
+        }
+        
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 24px;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-muted);
+        }
+        
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+        
+        /* Fullscreen overlays */
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .start-screen {
+            padding-top: 2.5rem;
+            position: fixed;
+            inset: 0;
+            background: var(--bg-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+        }
+        
+        .game-over-screen {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 90;
+        }
+        
+        .feedback-text {
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .feedback-good { color: var(--primary); }
+        .feedback-bad { color: #e74c3c; }
+        .feedback-meh { color: #f59e0b; }
+        .feedback-hint { color: var(--text-muted); font-style: italic; font-size: 0.9rem; }
+        
+        /* Confetti */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            top: 0;
+            z-index: 100;
+            pointer-events: none;
+            animation: confettiFall 3s ease-out forwards;
+        }
+        
+        @keyframes confettiFall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+        }
+        
+        /* Fireworks */
+        .firework-particle {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            z-index: 100;
+            pointer-events: none;
+            animation: fireworkBurst 1s ease-out forwards;
+            box-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
+        }
+        @keyframes fireworkBurst {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) scale(0.3); opacity: 0; }
+        }
+    </style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+<!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="spinner mb-6"></div>
+        <p class="text-gray-400">Loading levels...</p>
+    </div>
+    
+    <!-- Start Screen -->
+    <div id="startScreen" class="start-screen hidden">
+        <h1 class="game-title" style="font-size: clamp(2.5rem, 8vw, 4rem); text-shadow: 0 0 20px rgba(123,175,212,0.4);">Sweet Spot</h1>
+        <p class="game-subtitle">Find the perfect placement for text on images.</p>
+        
+        <!-- How to Play -->
+        <div class="how-to-play">
+            <h3>How to Play:</h3>
+            <ul>
+                <li>• Click to place text on each image</li>
+                <li>• Choose white or black text color</li>
+                <li>• Find zones with best readability</li>
+                <li>• Perfect placement = 100 points</li>
+            </ul>
+        </div>
+        
+        <!-- User status -->
+        <div id="userStatus" class="mb-6">
+            <button id="signInBtn" class="btn btn-google">
+                <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                Sign in with Google
+            </button>
+            <p class="loading-text mt-1">Sign in to save your score</p>
+        </div>
+        <div id="userSignedIn" class="mb-6 hidden">
+            <div class="user-badge">
+                <img id="userPhoto" src="" alt="">
+                <span id="userName">Player</span>
+                <span id="signOutBtn" class="sign-out">✕</span>
+            </div>
+        </div>
+        
+        <button id="startGameBtn" class="btn btn-primary">Start Game</button>
+    </div>
+    
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="game-over-screen hidden">
+        <h1 class="game-title" style="text-shadow: 0 0 20px rgba(102,102,102,0.4);">Game Over</h1>
+        <p class="final-score-label">Final Score</p>
+        <p id="finalScore" class="final-score">0</p>
+        
+        <!-- Initials Entry (shown if signed in) -->
+        <div id="initialsEntry" class="mb-6 hidden">
+            <p style="color: var(--text-secondary);" class="mb-2">Enter your initials:</p>
+            <div class="flex items-center gap-4 justify-center">
+                <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                <button id="submitScoreBtn" class="btn btn-primary">Submit</button>
+            </div>
+            <p id="initialsError" class="text-red-400 text-sm mt-2 hidden">Please choose different initials.</p>
+        </div>
+        
+        <!-- Score submitted confirmation -->
+        <div id="scoreSubmitted" class="mb-6 hidden">
+            <p class="text-green-400 mb-2">✓ Score saved!</p>
+            <p id="playerRank" class="text-gray-400 text-lg"></p>
+        </div>
+        
+        <!-- Not signed in message -->
+        <div id="notSignedInMsg" class="mb-6 hidden">
+            <p class="text-gray-500 text-sm">Sign in before playing to save your score!</p>
+        </div>
+        
+        <!-- Leaderboard -->
+        <div class="leaderboard mb-6">
+            <h3 class="leaderboard-title">🏆 Top 10 Scores</h3>
+            <div id="leaderboardList">
+                <p class="loading-text text-center">Loading...</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-4">
+            <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+        </div>
+    </div>
+    
+    <!-- Main Game -->
+    <div id="gameScreen" class="hidden">
+        <header class="border-b border-gray-800 py-4 px-6">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <h1 class="game-title" style="font-size: clamp(1.25rem, 4vw, 1.75rem); margin-bottom: 0;">Sweet Spot</h1>
+                <div class="flex items-center gap-6">
+                    <div class="stat-box py-2 px-4">
+                        <span class="stat-label">Level</span>
+                        <span class="stat-value text-lg ml-2"><span id="currentLevel">1</span>/<span id="totalLevels">10</span></span>
+                    </div>
+                    <div class="stat-box py-2 px-4">
+                        <span class="stat-label">Score</span>
+                        <span class="stat-value text-lg ml-2 text-[var(--primary)]" id="totalScore">0</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <main class="max-w-4xl mx-auto p-4">
+            <div class="flex flex-wrap items-center justify-center gap-4 mb-2">
+                <p id="instructionText" class="text-gray-400 text-sm">Change the text color if needed, then click to place the text.</p>
+                <div id="gameControls" class="flex gap-2">
+                    <button id="changeColorBtn" class="btn btn-sm btn-white">Change to Black</button>
+                    <button id="noGoodSpotBtn" class="btn btn-sm btn-magenta">No Good Spot</button>
+                </div>
+            </div>
+            
+            <div class="panel p-2 mb-2">
+                <div id="gameContainer" class="rounded-lg overflow-hidden">
+                    <p id="textOverlay">Read<br>This Text</p>
+                    <div id="feedbackZonesContainer" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+            </div>
+            
+            <div id="feedbackArea" class="feedback-text mb-2 text-center text-lg font-bold"></div>
+            
+            <div id="nextControls" class="hidden flex justify-center mt-2">
+                <button id="nextLevelBtn" class="btn btn-primary">Next Level →</button>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & STATE
+        // ============================================
+        
+        let app, db, auth;
+        let currentUser = null;
+        let allLevels = []; // All loaded levels from Firebase
+        let gameImages = []; // Levels for current game (shuffled subset)
+        
+        let score = 0;
+        let currentImageIndex = 0;
+        let gameActive = false;
+        let currentTextColor = 'white';
+        
+        const colors = {
+            white: { hex: '#FFFFFF', shadow: '2px 2px 6px rgba(0,0,0,0.8)' },
+            black: { hex: '#000000', shadow: '2px 2px 6px rgba(255,255,255,0.8)' }
+        };
+        
+        let textBoundingBox = {};
+        
+        // Profanity filter - common bad words and patterns
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        // ============================================
+        // DOM ELEMENTS
+        // ============================================
+        
+        const loadingScreen = document.getElementById('loadingScreen');
+        const startScreen = document.getElementById('startScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        
+        const gameContainer = document.getElementById('gameContainer');
+        const textOverlay = document.getElementById('textOverlay');
+        const instructionText = document.getElementById('instructionText');
+        const feedbackArea = document.getElementById('feedbackArea');
+        const feedbackZonesContainer = document.getElementById('feedbackZonesContainer');
+        
+        const currentLevelEl = document.getElementById('currentLevel');
+        const totalLevelsEl = document.getElementById('totalLevels');
+        const totalScoreEl = document.getElementById('totalScore');
+        const finalScoreEl = document.getElementById('finalScore');
+        
+        const gameControls = document.getElementById('gameControls');
+        const nextControls = document.getElementById('nextControls');
+        const changeColorBtn = document.getElementById('changeColorBtn');
+        const noGoodSpotBtn = document.getElementById('noGoodSpotBtn');
+        const nextLevelBtn = document.getElementById('nextLevelBtn');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+        
+        // Auth elements
+        const signInBtn = document.getElementById('signInBtn');
+        const signOutBtn = document.getElementById('signOutBtn');
+        const userStatus = document.getElementById('userStatus');
+        const userSignedIn = document.getElementById('userSignedIn');
+        const userPhoto = document.getElementById('userPhoto');
+        const userName = document.getElementById('userName');
+        
+        // Leaderboard elements
+        const initialsEntry = document.getElementById('initialsEntry');
+        const initialsInput = document.getElementById('initialsInput');
+        const initialsError = document.getElementById('initialsError');
+        const submitScoreBtn = document.getElementById('submitScoreBtn');
+        const scoreSubmitted = document.getElementById('scoreSubmitted');
+        const playerRank = document.getElementById('playerRank');
+        const notSignedInMsg = document.getElementById('notSignedInMsg');
+        const leaderboardList = document.getElementById('leaderboardList');
+        
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        
+        // Point-in-polygon test using ray casting algorithm
+        function pointInPolygon(px, py, polygon) {
+            if (!polygon.points) return false;
+            const points = polygon.points;
+            let inside = false;
+            
+            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+                const xi = points[i].x, yi = points[i].y;
+                const xj = points[j].x, yj = points[j].y;
+                
+                if (((yi > py) !== (yj > py)) &&
+                    (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            
+            return inside;
+        }
+        
+        // Check if a zone is in polygon format
+        function isPolygonZone(zone) {
+            return zone && zone.points && Array.isArray(zone.points);
+        }
+        
+        // Check if a point is inside a zone (polygon or rectangle)
+        function pointInZone(px, py, zone) {
+            if (isPolygonZone(zone)) {
+                return pointInPolygon(px, py, zone);
+            } else {
+                // Legacy rectangle format
+                return px >= zone.x && px <= zone.x + zone.width &&
+                       py >= zone.y && py <= zone.y + zone.height;
+            }
+        }
+        
+        // Check if the ENTIRE text rectangle is inside a zone
+        // For polygons: all 4 corners must be inside
+        // For rectangles: use overlap percentage (100% = fully inside)
+        function textFullyInsideZone(textRect, zone) {
+            if (isPolygonZone(zone)) {
+                // Check all 4 corners of the text rectangle
+                const corners = [
+                    { x: textRect.x, y: textRect.y },                                    // top-left
+                    { x: textRect.x + textRect.width, y: textRect.y },                   // top-right
+                    { x: textRect.x, y: textRect.y + textRect.height },                  // bottom-left
+                    { x: textRect.x + textRect.width, y: textRect.y + textRect.height }  // bottom-right
+                ];
+                return corners.every(corner => pointInPolygon(corner.x, corner.y, zone));
+            } else {
+                // For rectangles, check if text is fully contained
+                return textRect.x >= zone.x &&
+                       textRect.y >= zone.y &&
+                       textRect.x + textRect.width <= zone.x + zone.width &&
+                       textRect.y + textRect.height <= zone.y + zone.height;
+            }
+        }
+        
+        async function init() {
+            const statusText = document.querySelector('#loadingScreen p');
+            
+            try {
+                statusText.textContent = 'Connecting to Firebase...';
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                // Set up auth state listener
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+                
+                statusText.textContent = 'Loading levels...';
+                await loadLevels();
+                
+                loadingScreen.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+                
+            } catch (error) {
+                console.error("Init error:", error);
+                // v2.4.1: stop the spinner, so an error doesn't look like it's still loading.
+                const spinner = loadingScreen.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'none';
+                
+                // Show specific error message
+                if (error.message.includes("No levels found")) {
+                    statusText.innerHTML = 'No levels found.<br><br><a href="admin.html" style="color: #7BAFD4; text-decoration: underline;">Open the Admin Panel</a> and add levels in the Sweet Spot tab.';
+                } else if (error.code === 'permission-denied') {
+                    statusText.textContent = 'Permission denied. Check Firestore security rules.';
+                } else {
+                    statusText.textContent = `Error: ${error.message}`;
+                }
+            }
+        }
+        
+        // ============================================
+        // AUTHENTICATION
+        // ============================================
+        
+        function updateAuthUI() {
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    console.error('Sign in error:', error);
+                    alert('Sign in failed: ' + error.message);
+                }
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        // ============================================
+        // PROFANITY FILTER
+        // ============================================
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'sweet-spot'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="text-red-400 text-center py-4">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet. Be the first!</p>';
+                return;
+            }
+            
+            leaderboardList.innerHTML = scores.map((s, i) => `
+                <div class="leaderboard-row ${s.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">#${i + 1}</span>
+                    <span class="leaderboard-initials">${escapeHtml(s.initials)}</span>
+                    <span class="leaderboard-score">${s.score}</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getPlayerRank(playerScore) {
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'sweet-spot'),
+                    where('score', '>', playerScore)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.size + 1;
+            } catch (error) {
+                console.error('Get rank error:', error);
+                return null;
+            }
+        }
+        
+        async function submitScore(initials) {
+            if (!currentUser) return null;
+            
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'sweet-spot',
+                    initials: initials.toUpperCase(),
+                    score: score,
+                    levelCount: gameImages.length,
+                    flagged: containsProfanity(initials) // Auto-flag suspicious initials
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        async function loadLevels() {
+            try {
+                const snapshot = await getDocs(collection(db, 'levels'));
+                
+                if (snapshot.empty) {
+                    throw new Error("No levels found");
+                }
+                
+                allLevels = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        src: data.imageUrl,
+                        name: data.name,
+                        crop: data.crop || null, // Crop settings
+                        feedback: data.feedback,
+                        placementFeedback: data.placementFeedback,
+                        goodZones: data.goodZones || { white: [], black: [] },
+                        perfectZones: data.perfectZones || { white: [], black: [] }
+                    };
+                });
+                
+                console.log(`Loaded ${allLevels.length} levels`);
+            } catch (error) {
+                console.error("Load levels error:", error);
+                throw error;
+            }
+        }
+        
+        // ============================================
+        // GAME LOGIC
+        // ============================================
+        
+        function startGame() {
+            score = 0;
+            currentImageIndex = 0;
+            
+            // Copy all levels and shuffle
+            gameImages = [...allLevels];
+            for (let i = gameImages.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [gameImages[i], gameImages[j]] = [gameImages[j], gameImages[i]];
+            }
+            
+            // Pick only 10 random levels (or fewer if not enough)
+            const MAX_LEVELS = 10;
+            if (gameImages.length > MAX_LEVELS) {
+                gameImages = gameImages.slice(0, MAX_LEVELS);
+            }
+            
+            totalScoreEl.textContent = score;
+            totalLevelsEl.textContent = gameImages.length;
+            
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            
+            // Set text size based on container and measure bounding box
+            updateTextSize();
+            
+            loadRound();
+        }
+        
+        function loadRound() {
+            gameActive = true;
+            feedbackArea.innerHTML = '';
+            feedbackZonesContainer.innerHTML = '';
+            
+            gameControls.classList.remove('hidden');
+            nextControls.classList.add('hidden');
+            gameContainer.classList.add('game-active');
+            
+            textOverlay.style.display = 'block';
+            textOverlay.style.opacity = '0';
+            
+            instructionText.textContent = "Change the text color if needed, then click to place the text.";
+            currentLevelEl.textContent = currentImageIndex + 1;
+            
+            currentTextColor = 'white';
+            updateTextColorButton();
+            
+            const currentImage = gameImages[currentImageIndex];
+            
+            // Apply crop if specified
+            if (currentImage.crop) {
+                applyCroppedImage(currentImage.src, currentImage.crop);
+            } else {
+                // No crop - show full image
+                gameContainer.style.backgroundImage = `url('${currentImage.src}')`;
+            }
+        }
+        
+        function applyCroppedImage(imageUrl, crop) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Calculate crop in pixels
+                const srcX = (crop.x / 100) * img.width;
+                const srcY = (crop.y / 100) * img.height;
+                const srcW = (crop.width / 100) * img.width;
+                const srcH = (crop.height / 100) * img.height;
+                
+                canvas.width = srcW;
+                canvas.height = srcH;
+                ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
+                
+                gameContainer.style.backgroundImage = `url('${canvas.toDataURL()}')`;
+            };
+            img.onerror = () => {
+                // Fallback to uncropped
+                gameContainer.style.backgroundImage = `url('${imageUrl}')`;
+            };
+            img.src = imageUrl;
+        }
+        
+        function updateTextColorButton() {
+            const colorProps = colors[currentTextColor];
+            textOverlay.style.color = colorProps.hex;
+            textOverlay.style.textShadow = colorProps.shadow;
+            
+            if (currentTextColor === 'white') {
+                changeColorBtn.textContent = "Change to Black";
+                changeColorBtn.className = "btn btn-white";
+            } else {
+                changeColorBtn.textContent = "Change to White";
+                changeColorBtn.className = "btn btn-dark";
+            }
+        }
+        
+        function getClosestPerfectZone(clickPercent, zones) {
+            if (!zones || zones.length === 0) return { zone: null, distance: Infinity };
+            if (zones.length === 1) return { zone: zones[0], distance: 0 };
+            
+            let closestZone = null;
+            let minDistance = Infinity;
+            
+            zones.forEach(zone => {
+                const zoneCenterX = zone.x + zone.width / 2;
+                const zoneCenterY = zone.y + zone.height / 2;
+                const distance = Math.hypot(clickPercent.x - zoneCenterX, clickPercent.y - zoneCenterY);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestZone = zone;
+                }
+            });
+            return { zone: closestZone, distance: minDistance };
+        }
+        
+        function checkAnswer(clickPercent, isNoGoodSpotClick) {
+            if (!gameActive) return;
+            gameActive = false;
+            
+            textOverlay.style.opacity = '0';
+            gameControls.classList.add('hidden');
+            gameContainer.classList.remove('game-active');
+            
+            const currentImage = gameImages[currentImageIndex];
+            const goodZones = currentImage.goodZones[currentTextColor] || [];
+            const perfectZones = currentImage.perfectZones[currentTextColor] || [];
+            
+            let isCorrect = false;
+            let points = 0;
+            let message = '';
+            let feedbackColor = currentTextColor;
+            let directionalFeedback = { text: '', targetZone: null };
+            
+            if (isNoGoodSpotClick) {
+                // Check if there are good spots in ANY color, not just the current color
+                const allWhiteGood = currentImage.goodZones.white || [];
+                const allBlackGood = currentImage.goodZones.black || [];
+                const allWhitePerfect = currentImage.perfectZones.white || [];
+                const allBlackPerfect = currentImage.perfectZones.black || [];
+                
+                const hasAnyGoodSpot = allWhiteGood.length > 0 || allBlackGood.length > 0 || 
+                                       allWhitePerfect.length > 0 || allBlackPerfect.length > 0;
+                
+                if (!hasAnyGoodSpot) {
+                    isCorrect = true;
+                    points = 100;
+                    message = '<p class="feedback-good">✓ Correct! No good spots on this image.</p>';
+                } else {
+                    isCorrect = false;
+                    points = 0;
+                    // Tell them which color has a good spot
+                    const hasWhiteSpot = allWhiteGood.length > 0 || allWhitePerfect.length > 0;
+                    const hasBlackSpot = allBlackGood.length > 0 || allBlackPerfect.length > 0;
+                    let colorHint = '';
+                    if (hasWhiteSpot && hasBlackSpot) {
+                        colorHint = 'both white and black text';
+                    } else if (hasWhiteSpot) {
+                        colorHint = 'white text';
+                    } else {
+                        colorHint = 'black text';
+                    }
+                    message = `<p class="feedback-bad">✗ A good spot exists for ${colorHint}.</p>`;
+                }
+            } else {
+                const textRect = getTextBoundingBoxAsPercentage(clickPercent);
+                const isClickInGood = goodZones.some(z => textFullyInsideZone(textRect, z));
+                
+                const { zone: closestPerfectZone } = getClosestPerfectZone(clickPercent, perfectZones);
+                const isClickInPerfect = closestPerfectZone ? calculateOverlapPercentage(textRect, closestPerfectZone) > 0 : false;
+                
+                if (isClickInPerfect || isClickInGood) {
+                    isCorrect = true;
+                    
+                    // Calculate what percentage of text is inside good zones
+                    const insideGoodPercent = calculateTextInsideGoodZonesPercent(textRect, goodZones);
+                    const outsideGoodPercent = 100 - insideGoodPercent;
+                    
+                    if (isClickInPerfect) {
+                        const overlap = calculateOverlapPercentage(textRect, closestPerfectZone);
+                        const idealCenter = { x: closestPerfectZone.x + closestPerfectZone.width / 2, y: closestPerfectZone.y + closestPerfectZone.height / 2 };
+                        const distFromCenter = Math.hypot(clickPercent.x - idealCenter.x, clickPercent.y - idealCenter.y);
+                        
+                        // Calculate base score from perfect zone placement
+                        let baseScore;
+                        if (distFromCenter < 2) {
+                            baseScore = 100;
+                        } else if (overlap === 100) {
+                            baseScore = 95;
+                        } else if (overlap >= 75) {
+                            baseScore = 90;
+                        } else {
+                            baseScore = 80 + Math.floor((overlap / 74) * 9);
+                        }
+                        
+                        // Subtract penalty for text outside good zones
+                        points = Math.max(0, Math.round(baseScore - outsideGoodPercent));
+                        directionalFeedback.targetZone = closestPerfectZone;
+                    } else {
+                        // In good zone but not perfect - also apply penalty
+                        points = Math.max(0, Math.round(70 - outsideGoodPercent));
+                    }
+                    
+                    // If penalty dropped score to 0, treat as incorrect
+                    if (points === 0) {
+                        isCorrect = false;
+                        message = '<p class="feedback-bad">✗ Too much text outside the safe zone.</p>';
+                    } else {
+                        // Tiered feedback based on score
+                        let feedback;
+                        if (points >= 95) {
+                            feedback = '✓ Perfect!';
+                        } else if (points >= 90) {
+                            feedback = '✓ Excellent!';
+                        } else if (points >= 80) {
+                            feedback = '✓ Great placement!';
+                        } else if (points >= 70) {
+                            feedback = '✓ Good placement!';
+                        } else if (points >= 60) {
+                            feedback = '• Okay, but could be better.';
+                        } else {
+                            feedback = '• Needs improvement.';
+                        }
+                        message = `<p class="${points >= 70 ? 'feedback-good' : 'feedback-meh'}">${feedback} +${points}</p>`;
+                    }
+                    
+                } else {
+                    isCorrect = false;
+                    points = 0;
+                    
+                    // Check if click is in the OTHER color's zones
+                    const otherColor = currentTextColor === 'white' ? 'black' : 'white';
+                    const otherGood = currentImage.goodZones[otherColor] || [];
+                    const otherPerfect = currentImage.perfectZones[otherColor] || [];
+                    
+                    // Check if click point is in any of the other color's zones
+                    const isInOtherGood = otherGood.some(z => pointInZone(clickPercent.x, clickPercent.y, z));
+                    const isInOtherPerfect = otherPerfect.some(z => 
+                        clickPercent.x >= z.x && clickPercent.x <= z.x + z.width &&
+                        clickPercent.y >= z.y && clickPercent.y <= z.y + z.height
+                    );
+                    
+                    if (isInOtherGood || isInOtherPerfect) {
+                        message = '<p class="feedback-bad">✗ Good spot, wrong color!</p><p class="feedback-hint">Try ' + otherColor + ' text here.</p>';
+                        feedbackColor = otherColor;
+                    } else if (currentImage.feedback) {
+                        message = `<p class="feedback-bad">${currentImage.feedback}</p>`;
+                    } else {
+                        message = '<p class="feedback-bad">✗ Not a good spot for text.</p>';
+                    }
+                }
+            }
+            
+            score += points;
+            totalScoreEl.textContent = score;
+            feedbackArea.innerHTML = message;
+            
+            // Show score popup
+            if (points > 0 && clickPercent) {
+                showScorePopup(clickPercent, points);
+            }
+            
+            // Score celebration
+            if (points >= 90) {
+                spawnConfetti();
+            }
+            if (points === 100) {
+                spawnFireworks();
+            }
+            
+            showFeedback(isCorrect, clickPercent, points, feedbackColor, directionalFeedback, isNoGoodSpotClick);
+            
+            if (currentImageIndex < gameImages.length - 1) {
+                nextControls.classList.remove('hidden');
+            } else {
+                setTimeout(endGame, 1500);
+            }
+        }
+        
+        function showScorePopup(clickPercent, points) {
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.textContent = `+${points}`;
+            popup.style.left = `${clickPercent.x}%`;
+            popup.style.top = `${clickPercent.y}%`;
+            popup.style.color = points === 100 ? '#7BAFD4' : points >= 80 ? '#a8d1f0' : '#fbbf24';
+            gameContainer.appendChild(popup);
+            setTimeout(() => popup.remove(), 1500);
+        }
+        
+        function spawnConfetti() {
+            const colors = ['#7BAFD4', '#ffffff', '#a8d1f0', '#888888', '#666666'];
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 3500);
+            }
+        }
+        
+        function spawnFireworks() {
+            const colors = ['#7BAFD4', '#ffffff', '#a8d1f0', '#888888', '#666666'];
+            // Spawn 3-4 firework bursts at different positions
+            for (let burst = 0; burst < 4; burst++) {
+                setTimeout(() => {
+                    const centerX = 20 + Math.random() * 60; // 20-80% of screen width
+                    const centerY = 20 + Math.random() * 40; // 20-60% of screen height
+                    
+                    // Each burst has multiple particles
+                    for (let i = 0; i < 20; i++) {
+                        const particle = document.createElement('div');
+                        particle.className = 'firework-particle';
+                        particle.style.left = centerX + 'vw';
+                        particle.style.top = centerY + 'vh';
+                        particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                        
+                        // Random direction
+                        const angle = (Math.PI * 2 * i) / 20 + (Math.random() - 0.5) * 0.5;
+                        const distance = 80 + Math.random() * 60;
+                        particle.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+                        particle.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+                        
+                        document.body.appendChild(particle);
+                        setTimeout(() => particle.remove(), 1500);
+                    }
+                }, burst * 200);
+            }
+        }
+        
+        async function endGame() {
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            finalScoreEl.textContent = score;
+            
+            // Reset UI state
+            initialsEntry.classList.add('hidden');
+            scoreSubmitted.classList.add('hidden');
+            notSignedInMsg.classList.add('hidden');
+            initialsError.classList.add('hidden');
+            initialsInput.value = '';
+            
+            // Load leaderboard
+            await loadLeaderboard();
+            
+            // Show appropriate UI based on auth state
+            if (currentUser) {
+                initialsEntry.classList.remove('hidden');
+                initialsInput.focus();
+            } else {
+                notSignedInMsg.classList.remove('hidden');
+            }
+        }
+        
+        async function handleScoreSubmit() {
+            const initials = initialsInput.value.trim().toUpperCase();
+            
+            // Validate initials
+            if (initials.length < 1 || initials.length > 3) {
+                initialsError.textContent = 'Enter 1-3 characters.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            // Check for profanity (hard reject common ones)
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            // Submit score
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Saving...';
+            
+            const scoreId = await submitScore(initials);
+            
+            if (scoreId) {
+                initialsEntry.classList.add('hidden');
+                scoreSubmitted.classList.remove('hidden');
+                
+                // Get and display rank
+                const rank = await getPlayerRank(score);
+                if (rank) {
+                    playerRank.textContent = `Your rank: #${rank}`;
+                }
+                
+                // Reload leaderboard with highlight
+                await loadLeaderboard(scoreId);
+            } else {
+                initialsError.textContent = 'Failed to save score. Try again.';
+                initialsError.classList.remove('hidden');
+            }
+            
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit';
+        }
+        
+        function showFeedback(isCorrect, clickPercent, points, color, directionalFeedback, isNoGoodSpotClick) {
+            const currentImage = gameImages[currentImageIndex];
+            const goodZones = currentImage.goodZones[color] || [];
+            const perfectZones = currentImage.perfectZones[color] || [];
+            
+            // Draw good zones
+            goodZones.forEach(zone => {
+                if (isPolygonZone(zone)) {
+                    // Draw polygon using SVG
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svg.style.position = 'absolute';
+                    svg.style.left = '0';
+                    svg.style.top = '0';
+                    svg.style.width = '100%';
+                    svg.style.height = '100%';
+                    svg.style.pointerEvents = 'none';
+                    
+                    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                    const pointsStr = zone.points.map(p => `${p.x}%,${p.y}%`).join(' ');
+                    polygon.setAttribute('points', pointsStr);
+                    polygon.setAttribute('fill', 'rgba(76, 175, 80, 0.4)');
+                    polygon.setAttribute('stroke', 'rgba(255, 255, 255, 0.9)');
+                    polygon.setAttribute('stroke-width', '2');
+                    
+                    svg.appendChild(polygon);
+                    feedbackZonesContainer.appendChild(svg);
+                } else {
+                    // Rectangle
+                    const zoneEl = document.createElement('div');
+                    zoneEl.className = 'feedback-zone';
+                    zoneEl.style.left = `${zone.x}%`;
+                    zoneEl.style.top = `${zone.y}%`;
+                    zoneEl.style.width = `${zone.width}%`;
+                    zoneEl.style.height = `${zone.height}%`;
+                    feedbackZonesContainer.appendChild(zoneEl);
+                }
+            });
+            
+            // Draw perfect zones
+            perfectZones.forEach(zone => {
+                const zoneEl = document.createElement('div');
+                zoneEl.className = 'perfect-zone-feedback';
+                zoneEl.style.left = `${zone.x}%`;
+                zoneEl.style.top = `${zone.y}%`;
+                zoneEl.style.width = `${zone.width}%`;
+                zoneEl.style.height = `${zone.height}%`;
+                feedbackZonesContainer.appendChild(zoneEl);
+            });
+            
+            // Draw user placement
+            if (clickPercent && points < 100) {
+                const textRect = getTextBoundingBoxAsPercentage(clickPercent);
+                
+                const userShadow = document.createElement('div');
+                userShadow.className = 'feedback-shadow';
+                userShadow.style.borderColor = '#ef4444';
+                userShadow.style.left = `${textRect.x}%`;
+                userShadow.style.top = `${textRect.y}%`;
+                userShadow.style.width = `${textRect.width}%`;
+                userShadow.style.height = `${textRect.height}%`;
+                feedbackZonesContainer.appendChild(userShadow);
+                
+                // Draw ideal placement
+                if (directionalFeedback.targetZone) {
+                    const targetZone = directionalFeedback.targetZone;
+                    const idealCenter = { x: targetZone.x + targetZone.width / 2, y: targetZone.y + targetZone.height / 2 };
+                    const idealRect = getTextBoundingBoxAsPercentage(idealCenter);
+                    
+                    const idealShadow = document.createElement('div');
+                    idealShadow.className = 'feedback-shadow';
+                    idealShadow.style.borderColor = '#3b82f6';
+                    idealShadow.style.left = `${idealRect.x}%`;
+                    idealShadow.style.top = `${idealRect.y}%`;
+                    idealShadow.style.width = `${idealRect.width}%`;
+                    idealShadow.style.height = `${idealRect.height}%`;
+                    feedbackZonesContainer.appendChild(idealShadow);
+                    
+                    // Directional hint
+                    const dx = clickPercent.x - idealCenter.x;
+                    const dy = clickPercent.y - idealCenter.y;
+                    const threshold = textRect.width * 0.1;
+                    let feedbackText = [];
+                    if (dy > threshold) feedbackText.push("up");
+                    else if (dy < -threshold) feedbackText.push("down");
+                    if (dx > threshold) feedbackText.push("left");
+                    else if (dx < -threshold) feedbackText.push("right");
+                    
+                    if (feedbackText.length > 0) {
+                        const p = document.createElement('p');
+                        p.className = "feedback-hint";
+                        p.innerHTML = `Try moving <strong>${feedbackText.join(' & ')}</strong> for a better score.`;
+                        feedbackArea.appendChild(p);
+                    }
+                }
+            }
+            
+            // Show best placement marker
+            if (perfectZones.length > 0 && clickPercent && !isNoGoodSpotClick) {
+                const { zone: closestPerfectZone } = getClosestPerfectZone(clickPercent, perfectZones);
+                if (closestPerfectZone) {
+                    const idealCenter = { x: closestPerfectZone.x + closestPerfectZone.width / 2, y: closestPerfectZone.y + closestPerfectZone.height / 2 };
+                    const idealRect = getTextBoundingBoxAsPercentage(idealCenter);
+                    const idealShadow = document.createElement('div');
+                    idealShadow.className = 'feedback-shadow';
+                    idealShadow.style.borderColor = '#3b82f6';
+                    idealShadow.style.left = `${idealRect.x}%`;
+                    idealShadow.style.top = `${idealRect.y}%`;
+                    idealShadow.style.width = `${idealRect.width}%`;
+                    idealShadow.style.height = `${idealRect.height}%`;
+                    feedbackZonesContainer.appendChild(idealShadow);
+                }
+            }
+            
+            // Show hints
+            if (directionalFeedback.targetZone && directionalFeedback.targetZone.hint) {
+                const p = document.createElement('p');
+                p.className = "feedback-hint";
+                p.textContent = directionalFeedback.targetZone.hint;
+                feedbackArea.appendChild(p);
+            } else if (currentImage.placementFeedback) {
+                const p = document.createElement('p');
+                p.className = "feedback-hint";
+                p.textContent = currentImage.placementFeedback;
+                feedbackArea.appendChild(p);
+            }
+        }
+        
+        function getTextBoundingBoxAsPercentage(clickPercent) {
+            const rect = gameContainer.getBoundingClientRect();
+            const textWidthPercent = (textBoundingBox.width / rect.width) * 100;
+            const textHeightPercent = (textBoundingBox.height / rect.height) * 100;
+            return {
+                x: clickPercent.x - textWidthPercent / 2,
+                y: clickPercent.y - textHeightPercent / 2,
+                width: textWidthPercent,
+                height: textHeightPercent
+            };
+        }
+        
+        function calculateOverlapPercentage(boxA, boxB) {
+            const x_overlap = Math.max(0, Math.min(boxA.x + boxA.width, boxB.x + boxB.width) - Math.max(boxA.x, boxB.x));
+            const y_overlap = Math.max(0, Math.min(boxA.y + boxA.height, boxB.y + boxB.height) - Math.max(boxA.y, boxB.y));
+            const overlapArea = x_overlap * y_overlap;
+            const boxAArea = boxA.width * boxA.height;
+            return boxAArea > 0 ? (overlapArea / boxAArea) * 100 : 0;
+        }
+        
+        // Calculate what percentage of the text rectangle is inside the good zones
+        // Uses grid sampling for polygon support
+        function calculateTextInsideGoodZonesPercent(textRect, goodZones) {
+            if (goodZones.length === 0) return 0;
+            
+            // Sample a grid of points across the text rectangle
+            const gridSize = 10; // 10x10 = 100 sample points
+            let insideCount = 0;
+            const totalPoints = gridSize * gridSize;
+            
+            for (let i = 0; i < gridSize; i++) {
+                for (let j = 0; j < gridSize; j++) {
+                    // Sample point within the text rectangle
+                    const px = textRect.x + (textRect.width * (i + 0.5) / gridSize);
+                    const py = textRect.y + (textRect.height * (j + 0.5) / gridSize);
+                    
+                    // Check if this point is inside ANY good zone
+                    const isInside = goodZones.some(z => pointInZone(px, py, z));
+                    if (isInside) insideCount++;
+                }
+            }
+            
+            return (insideCount / totalPoints) * 100;
+        }
+        
+        // Update text size to match admin panel (9% of container height)
+        function updateTextSize() {
+            const rect = gameContainer.getBoundingClientRect();
+            const fontSize = rect.height * 0.09;
+            textOverlay.style.fontSize = fontSize + 'px';
+            
+            // Re-measure bounding box after size change
+            const wasVisible = textOverlay.style.display !== 'none';
+            const wasOpaque = textOverlay.style.opacity;
+            textOverlay.style.display = 'block';
+            textOverlay.style.opacity = '1';
+            textBoundingBox = textOverlay.getBoundingClientRect();
+            if (!wasVisible) textOverlay.style.display = 'none';
+            textOverlay.style.opacity = wasOpaque;
+        }
+        
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        // Auth listeners
+        signInBtn.addEventListener('click', signInWithGoogle);
+        signOutBtn.addEventListener('click', signOut);
+        
+        // Score submission
+        submitScoreBtn.addEventListener('click', handleScoreSubmit);
+        initialsInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleScoreSubmit();
+        });
+        initialsInput.addEventListener('input', () => {
+            // Force uppercase and clear error
+            initialsInput.value = initialsInput.value.toUpperCase();
+            initialsError.classList.add('hidden');
+        });
+        
+        // Game listeners
+        startGameBtn.addEventListener('click', startGame);
+        playAgainBtn.addEventListener('click', startGame);
+        
+        changeColorBtn.addEventListener('click', () => {
+            if (!gameActive) return;
+            currentTextColor = currentTextColor === 'white' ? 'black' : 'white';
+            updateTextColorButton();
+        });
+        
+        noGoodSpotBtn.addEventListener('click', () => checkAnswer(null, true));
+        
+        nextLevelBtn.addEventListener('click', () => {
+            currentImageIndex++;
+            loadRound();
+        });
+        
+        gameContainer.addEventListener('mousemove', (e) => {
+            if (!gameActive) return;
+            const rect = gameContainer.getBoundingClientRect();
+            textOverlay.style.left = `${e.clientX - rect.left}px`;
+            textOverlay.style.top = `${e.clientY - rect.top}px`;
+        });
+        
+        gameContainer.addEventListener('mouseenter', () => {
+            if (gameActive) textOverlay.style.opacity = '1';
+        });
+        
+        gameContainer.addEventListener('mouseleave', () => {
+            if (gameActive) textOverlay.style.opacity = '0';
+        });
+        
+        gameContainer.addEventListener('click', (e) => {
+            const rect = gameContainer.getBoundingClientRect();
+            const clickPercent = {
+                x: ((e.clientX - rect.left) / rect.width) * 100,
+                y: ((e.clientY - rect.top) / rect.height) * 100
+            };
+            checkAnswer(clickPercent, false);
+        });
+        
+        // Keyboard shortcuts
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !nextControls.classList.contains('hidden')) {
+                e.preventDefault();
+                currentImageIndex++;
+                loadRound();
+            }
+        });
+        
+        // Update text size on window resize
+        window.addEventListener('resize', () => {
+            if (gameActive) {
+                updateTextSize();
+            }
+        });
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>

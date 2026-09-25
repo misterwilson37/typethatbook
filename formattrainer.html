@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Format Trainer v0.11.1 - Spot On!</title>
+    <!-- v0.11.1: loads SpotOn's self-hosted fonts like every other game. It never loaded
+         a web font before, so it fell back to the system font instead of Inter. -->
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    <style>
+        /* ── Game-specific styles ── */
+        :root { --ft-blue: #7BAFD4; --ft-amber: #f59e0b; --ft-red: #ef4444; --ft-green: #22c55e; --ft-purple: #a855f7; }
+
+        .ft-wrap { max-width: 980px; margin: 0 auto; padding: 0 16px 40px; }
+        .ft-flex { display: flex; gap: 16px; align-items: flex-start; }
+        @media (max-width: 768px) { .ft-flex { flex-direction: column; } }
+
+        /* Level select */
+        .level-grid { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+        .level-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px;
+            padding: 18px 22px; cursor: pointer; text-align: left; width: 200px; color: #fff; transition: background 0.2s; }
+        .level-card:hover { background: rgba(255,255,255,0.12); }
+        .tier-label { font-size: 12px; font-weight: 700; font-family: 'Courier New',monospace; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; text-align: center; }
+
+        /* Instruction bar */
+        .ft-instr { background: var(--bg-card,#252525); border-radius: 10px; padding: 12px 18px; border: 1px solid var(--border,#333);
+            font-size: 13px; line-height: 1.6; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; color: var(--text,#e0e0e0); }
+
+        /* Toolbar */
+        .ft-toolbar { background: var(--bg-card,#252525); border: 1px solid var(--border,#333); border-bottom: none;
+            border-radius: 10px 10px 0 0; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+        .tb-sep { width: 1px; height: 24px; background: var(--border,#444); }
+        .tb-btn { height: 36px; min-width: 36px; display: flex; align-items: center; justify-content: center; gap: 4px;
+            padding: 0 8px; border-radius: 6px; border: 1px solid var(--border,#444); background: var(--bg-card,#252525);
+            color: var(--text,#e0e0e0); font-family: 'Courier New',monospace; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .tb-btn:hover { border-color: var(--ft-blue); }
+        .tb-btn.active { border: 2px solid var(--ft-blue); background: rgba(123,175,212,0.15); }
+        .tb-btn.danger { border: 2px solid var(--ft-red); color: var(--ft-red); }
+        .tb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tb-btn[data-align] svg { width: 16px; height: 16px; }
+
+        /* Key buttons (physical key look) */
+        .key-btn { height: 34px; padding: 0 10px; display: inline-flex; align-items: center; gap: 4px; border-radius: 5px;
+            border: 1px solid #666; border-bottom: 3px solid #444; background: var(--bg-card,#2a2a2a);
+            font-family: 'Courier New',monospace; font-size: 12px; font-weight: 700; color: var(--text,#ddd);
+            cursor: pointer; transition: all 0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        .key-btn.active { border-color: var(--ft-blue); border-bottom-color: var(--ft-blue); background: rgba(123,175,212,0.15); }
+        .key-btn.danger { border-color: var(--ft-red); color: var(--ft-red); }
+        .key-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Document surface */
+        .ft-doc { background: #fff; border: 1px solid var(--border,#333); border-radius: 0 0 10px 10px;
+            padding: 10px 16px; min-height: 360; font-family: 'Times New Roman',Times,serif; font-size: 15px; line-height: 1.4;
+            color: #1a1a2e; outline: none; }
+        .ft-doc.no-toolbar { border-radius: 10px; }
+        .ft-doc-inner { padding: 30px 32px; }
+
+        /* Phase 1: Line labeling */
+        .label-row { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 8px;
+            border: 1px solid #e5e7eb; margin-bottom: 6px; transition: all 0.2s; }
+        .label-row.header-bg { background: rgba(168,85,247,0.12); border-color: #a855f7; }
+        .label-row.title-bg { background: rgba(59,130,246,0.12); border-color: #3b82f6; }
+        .label-row.body-bg { background: rgba(34,197,94,0.12); border-color: #22c55e; }
+        .label-row.error { background: #fef2f2; border-color: #fca5a5; }
+        .label-select { border-radius: 6px; padding: 5px 8px; font-size: 13px; font-family: 'Courier New',monospace; font-weight: 600; cursor: pointer; }
+        .label-text { flex: 1; font-size: 14px; line-height: 1.5; color: #333; }
+        .label-emoji { font-size: 22px; }
+
+        /* Phase 2: Sections */
+        .doc-section { position: relative; padding: 10px 16px; border-radius: 8px; border: 2px solid transparent;
+            cursor: text; transition: border 0.15s, background 0.15s; margin-bottom: 2px; }
+        .doc-section.sel-blue { border-color: var(--ft-blue); background: rgba(123,175,212,0.06); }
+        .doc-section.sel-amber { border-color: var(--ft-amber); background: rgba(245,158,11,0.06); }
+        .doc-section.score-good { border-color: var(--ft-green); background: rgba(34,197,94,0.06); }
+        .doc-section.score-bad { border-color: var(--ft-red); background: rgba(239,68,68,0.06); }
+        .section-pill { position: absolute; top: -10px; left: 12px; color: #fff; font-size: 10px; padding: 2px 8px;
+            border-radius: 4px; font-family: 'Courier New',monospace; font-weight: 600; letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 4px; pointer-events: none; }
+        .blank-line-ind { position: absolute; left: 50%; transform: translateX(-50%); font-size: 9px;
+            font-family: 'Courier New',monospace; color: #888; pointer-events: none; }
+        .indent-ind { font-size: 9px; font-family: 'Courier New',monospace; pointer-events: none; opacity: 0.5; }
+
+        /* Cursor */
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        .cursor-bar { width: 2px; height: 18px; border-radius: 1px; animation: blink 1s step-end infinite; pointer-events: none; }
+        .cursor-bar.blue { background: var(--ft-blue); }
+        .cursor-bar.amber { background: var(--ft-amber); }
+
+        /* Sidebar checklist */
+        .ft-sidebar { width: 220px; flex-shrink: 0; background: var(--bg-card,#252525); border-radius: 10px;
+            border: 1px solid var(--border,#333); padding: 14px; position: sticky; top: 16px; }
+        @media (max-width: 768px) { .ft-sidebar { width: 100%; position: static; } }
+        .cl-group { margin-bottom: 10px; }
+        .cl-group-label { font-size: 11px; font-weight: 700; font-family: 'Courier New',monospace; margin-bottom: 3px;
+            display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text,#ddd); }
+        .cl-item { display: flex; align-items: center; gap: 6px; padding: 2px 0 2px 20px; font-size: 11px;
+            font-family: 'Courier New',monospace; color: #888; }
+        .cl-item.good { color: var(--ft-green); }
+        .cl-item.bad { color: var(--ft-red); }
+
+        /* Format card */
+        .fmt-card { background: var(--bg-card,#252525); border-radius: 8px; padding: 10px 14px;
+            border: 1px solid var(--border,#333); margin-bottom: 8px; }
+        .fmt-card-row { display: flex; gap: 6px; align-items: flex-start; margin-bottom: 5px; font-size: 12px;
+            font-family: 'Courier New',monospace; color: var(--text,#ddd); line-height: 1.5; }
+
+        /* Countdown */
+        .countdown-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex;
+            align-items: center; justify-content: center; z-index: 200; }
+        .countdown-num { font-size: 120px; font-weight: 900; font-family: 'Courier New',monospace; transition: all 0.3s; }
+
+        /* Timer in header */
+        .ft-timer { background: rgba(255,255,255,0.15); border-radius: 8px; padding: 6px 12px;
+            font-family: 'Courier New',monospace; font-size: 16px; font-weight: 700; }
+        .ft-timer.green { color: var(--ft-green); }
+        .ft-timer.amber { color: var(--ft-amber); }
+        .ft-timer.red { color: var(--ft-red); }
+
+        /* Status bar */
+        .ft-status { margin-top: 8px; text-align: center; font-size: 11px; color: #888; font-family: 'Courier New',monospace; }
+
+        /* Warning boxes */
+        .ft-warn { margin-top: 10px; padding: 8px 10px; border-radius: 8px; font-size: 10px;
+            font-family: 'Courier New',monospace; line-height: 1.5; }
+        .ft-warn.spaces { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #fca5a5; }
+        .ft-warn.full { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: #fcd34d; }
+
+        /* Top bar extras */
+        .ft-topbar { display: flex; gap: 8px; align-items: center; }
+        .ft-topbar-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2);
+            color: #fff; padding: 5px 12px; border-radius: 6px; font-size: 12px; font-family: 'Courier New',monospace; cursor: pointer; }
+
+        /* Leaderboard modal */
+        .lb-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex;
+            align-items: center; justify-content: center; z-index: 100; }
+        .lb-panel { background: var(--bg-card,#1e1e1e); border-radius: 14px; padding: 24px 28px; max-width: 600px;
+            width: 92%; max-height: 80vh; overflow: auto; border: 1px solid var(--border,#333); }
+        .lb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .lb-card { border: 1px solid var(--border,#333); border-radius: 10px; padding: 14px 16px; }
+        .lb-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0;
+            font-size: 12px; font-family: 'Courier New',monospace; color: var(--text,#ddd); }
+        .lb-row + .lb-row { border-top: 1px solid var(--border,#333); }
+        .lb-rank { font-weight: 700; width: 24px; }
+        .lb-rank.gold { color: #eab308; }
+        .lb-rank.silver { color: #9ca3af; }
+        .lb-rank.bronze { color: #cd7f32; }
+
+        /* Help modal */
+        .help-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex;
+            align-items: center; justify-content: center; z-index: 100; }
+        .help-panel { background: #fff; border-radius: 12px; padding: 28px 32px; max-width: 440px; width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3); color: #333; }
+
+        /* Screen animations */
+        .screen { opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .screen.active { opacity: 1; pointer-events: auto; }
+
+        /* Cursor position buttons */
+        .cur-btn { height: 24px; padding: 0 5px; border-radius: 4px; font-size: 10px; font-family: 'Courier New',monospace;
+            font-weight: 700; border: 1px solid var(--border,#444); background: var(--bg-card,#252525);
+            color: var(--text,#ddd); cursor: pointer; }
+        .cur-btn.active-blue { border: 2px solid var(--ft-blue); background: rgba(123,175,212,0.15); }
+        .cur-btn.active-amber { border: 2px solid var(--ft-amber); background: rgba(245,158,11,0.15); }
+    </style>
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <!-- All screens managed by JS -->
+    <div id="app"></div>
+
+    <script type="module">
+        // ════════════════════════════════════════
+        // FIREBASE
+        // ════════════════════════════════════════
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithPopup, signOut as fbSignOut, onAuthStateChanged, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore as writeScore } from "./score-save.js";  // aliased: this file has its own saveScore()
+
+        let fbApp, auth, db, currentUser = null;
+        try {
+            fbApp = initializeApp(firebaseConfig);
+            auth = getAuth(fbApp);
+            db = getFirestore(fbApp);
+            onAuthStateChanged(auth, user => { currentUser = user; });
+        } catch(e) { console.warn("Firebase init failed:", e); }
+
+        async function signIn() {
+            try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { if(e.code !== 'auth/popup-closed-by-user') console.error(e); }
+        }
+
+        // ════════════════════════════════════════
+        // LEADERBOARD (Firestore)
+        // ════════════════════════════════════════
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard unavailable (index building)';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'No permission to view scores';
+            }
+            return 'Error loading scores';
+        }
+
+        // Returns { data, error }. 'data: []' plus 'error: null' is a genuinely
+        // empty board; 'error' set means the query failed and the caller
+        // should say so rather than showing "No scores yet" for a database
+        // problem.
+        async function loadScores(gameId, sortDir='asc', max=10) {
+            if (!db) return { data: [], error: null };
+            try {
+                const q = query(collection(db,'scores'), where('gameId','==',gameId), orderBy('score',sortDir), limit(max));
+                const snap = await getDocs(q);
+                return { data: snap.docs.map(d => d.data()), error: null };
+            } catch(e) {
+                console.error('Load scores error:', e);
+                return { data: [], error: describeFirestoreError(e) };
+            }
+        }
+
+        async function saveScore(gameId, initials, score) {
+            if (!db || !currentUser) return false;
+            try {
+                // Written through score-save.js, the one place scores are saved.
+                await writeScore(db, currentUser, { gameId, initials: initials.toUpperCase(), score });
+                return true;
+            } catch(e) { console.error('Save score error:', e); return false; }
+        }
+
+        // ════════════════════════════════════════
+        // CONSTANTS
+        // ════════════════════════════════════════
+        const LINES = [
+            {id:"l1",text:"Jake Wilson",correct:"Header"},
+            {id:"l2",text:"August 20, 2021",correct:"Header"},
+            {id:"l3",text:"Period 5",correct:"Header"},
+            {id:"l4",text:"All About Me",correct:"Title"},
+            {id:"l5",text:"While I was born in New York, I only have one memory of the place. I distinctly remember playing with a transforming robot toy of some sort in a sandbox, looking up, and seeing the distinctive skyline. This may have happened, or it may be entirely imagined. I moved when I was 3, so it\u2019s impossible to know.",correct:"Body"},
+            {id:"l6",text:"Much of the rest of my life moved like a blur. I grew up in Louisville with my two brothers, and we all moved to Indianapolis in time for middle school. As with most middle and high school experiences, it was something of a roller coaster. Something must have gone right, because I ended up at Vanderbilt University, where I majored in English and Elementary Education. I also earned a Masters in Education and Technology.",correct:"Body"},
+            {id:"l7",text:"Since then, I\u2019ve been teaching in a variety of areas. I started at the University School of Nashville, where I taught a variety of computer skills to grades 5-8, as well as helped with a long list of administrative tasks. Wanting to take advantage of my undergraduate degree, I transitioned over to Ellis Middle School where I taught English to 8th graders for several years. COVID interrupted those plans, and I took a year to \u201Cteach\u201D my son. That brings us to this moment \u2013 this moment when I\u2019m back at Ellis teaching keyboarding and computer skills to grades 6-8.",correct:"Body"},
+        ];
+        const SECTIONS = [
+            {id:"header",lineIds:["l1","l2","l3"],label:"Header",multi:true},
+            {id:"title",lineIds:["l4"],label:"Title",multi:false},
+            {id:"body1",lineIds:["l5"],label:"Body 1",multi:false},
+            {id:"body2",lineIds:["l6"],label:"Body 2",multi:false},
+            {id:"body3",lineIds:["l7"],label:"Body 3",multi:false},
+        ];
+        const EMOJI = {Header:"\uD83D\uDDE3\uFE0F",Title:"\uD83E\uDEA7",Body:"\uD83E\uDDCD"};
+        const TAB_PX=48, SPACE_PX=7, MAX_TABS=8, MAX_SPACES=80;
+
+        const FMT_BASIC = {header:{align:"right",spacing:"single"},blankBeforeTitle:true,title:{align:"center",spacing:"single"},body:{align:"left",spacing:"double"}};
+        const FMT_MLA = {header:{align:"left",spacing:"double"},blankBeforeTitle:false,title:{align:"center",spacing:"double"},body:{align:"left",spacing:"double"}};
+
+        function randomFormat() {
+            const p = a => a[Math.floor(Math.random()*a.length)];
+            return {header:{align:p(["left","right"]),spacing:p(["single","double"])},blankBeforeTitle:p([true,false]),title:{align:p(["center","left"]),spacing:p(["single","double"])},body:{align:"left",spacing:p(["single","double"])}};
+        }
+
+        const LEVELS = {
+            1:{name:"Basic Formatting",desc:"Learn the basics.",icon:"\uD83D\uDCD6",hasLabeling:true,timed:false,streak:false,fmtKey:"basic",gameId:"ft-basic"},
+            2:{name:"MLA Format",desc:"The MLA standard.",icon:"\uD83C\uDFEB",hasLabeling:true,timed:false,streak:false,fmtKey:"mla",gameId:"ft-mla"},
+            3:{name:"Basic \u2014 Speed",desc:"Basic format, timed.",icon:"\u23F1\uFE0F",hasLabeling:false,timed:true,streak:false,fmtKey:"basic",gameId:"ft-basic-speed"},
+            4:{name:"MLA \u2014 Speed",desc:"MLA, timed.",icon:"\u26A1",hasLabeling:false,timed:true,streak:false,fmtKey:"mla",gameId:"ft-mla-speed"},
+            5:{name:"Random \u2014 Speed",desc:"Random format, timed.",icon:"\uD83C\uDFB2",hasLabeling:false,timed:true,streak:false,fmtKey:"random",gameId:"ft-random-speed"},
+            6:{name:"Streak Mode",desc:"Random, one shot each.",icon:"\uD83D\uDD25",hasLabeling:false,timed:false,streak:true,fmtKey:"random",gameId:"ft-streak"},
+        };
+
+        const HELP = {
+            alignment:{title:"Changing Alignment",body:"The alignment buttons look like groups of horizontal lines.\n\n\u2022 Left align: lines flush left\n\u2022 Center: lines centered\n\u2022 Right align: lines flush right\n\nDo NOT use spaces or tabs to align."},
+            spacing:{title:"Changing Line Spacing",body:"\u2022 Single (1.0): close together\n\u2022 Double (2.0): a full blank line between each line\n\nUse the spacing dropdown."},
+            indent:{title:"Indenting a Paragraph",body:"Click the TOP of the paragraph (blue cursor), then press Tab once.\n\nThis indents only the first line.\n\nTab in the MIDDLE (amber cursor) indents the whole thing \u2014 wrong!\n\nDo NOT use spaces."},
+            "blank lines":{title:"Adding a Blank Line",body:"Cursor at end of line above \u2192 Enter.\nOr cursor at start of line below \u2192 Enter."},
+        };
+
+        // This file is getting extremely long. Rather than inline ALL the game logic 
+        // (which would be 800+ more lines of vanilla JS DOM manipulation),
+        // the practical approach is documented below.
+        // See the integration guide that accompanies this file.
+
+        // ════════════════════════════════════════
+        // GAME STATE
+        // ════════════════════════════════════════
+        const S = {
+            level: null, phase: 1, activeFmt: null,
+            lineLabels: {}, lineErrors: {},
+            sel: null, curLine: null, curPos: "start",
+            secFmt: {}, lineSt: {},
+            scores: null, submitCount: 0,
+            elapsed: 0, timerRunning: false, timerInterval: null,
+            streak: 0, streakDead: false,
+            showCountdown: false, countdownVal: 0,
+        };
+
+        function initSecFmt() {
+            return {header:{align:"left",spacing:"single",blankBefore:false,blankAfter:false},title:{align:"left",spacing:"single",blankBefore:false,blankAfter:false},body1:{align:"left",spacing:"single",blankBefore:false,blankAfter:false},body2:{align:"left",spacing:"single",blankBefore:false,blankAfter:false},body3:{align:"left",spacing:"single",blankBefore:false,blankAfter:false}};
+        }
+        function initLineSt() {
+            const s = {};
+            LINES.forEach(l => { s[l.id] = {firstTabs:0,firstSpaces:0,fullTabs:0,fullSpaces:0}; });
+            return s;
+        }
+
+        function getFmt(lvl) {
+            const d = LEVELS[lvl];
+            if (d.fmtKey==="basic") return FMT_BASIC;
+            if (d.fmtKey==="mla") return FMT_MLA;
+            return randomFormat();
+        }
+
+        function buildChecklist() {
+            const fmt = S.activeFmt;
+            if (!fmt) return [];
+            const sf = S.secFmt;
+            const bodyOk = lid => {const ls=S.lineSt[lid];return ls.firstTabs>=1&&ls.firstSpaces===0&&ls.fullTabs===0&&ls.fullSpaces===0;};
+            const items = [];
+            const ha = fmt.header.align==="right"?"Right":"Left";
+            const hs = fmt.header.spacing==="double"?"Double":"Single";
+            items.push({group:"header",label:`${ha}-aligned`,done:sf.header.align===fmt.header.align});
+            items.push({group:"header",label:`${hs}-spaced`,done:sf.header.spacing===fmt.header.spacing});
+            if(fmt.blankBeforeTitle) items.push({group:"title",label:"Blank line above",done:sf.title.blankBefore||sf.header.blankAfter});
+            else items.push({group:"title",label:"No extra blank lines",done:!sf.title.blankBefore&&!sf.header.blankAfter});
+            items.push({group:"title",label:`${fmt.title.align==="center"?"Center":"Left"}-aligned`,done:sf.title.align===fmt.title.align});
+            items.push({group:"title",label:`${fmt.title.spacing==="double"?"Double":"Single"}-spaced`,done:sf.title.spacing===fmt.title.spacing});
+            [["body1","l5"],["body2","l6"],["body3","l7"]].forEach(([sid,lid])=>{
+                const bs = fmt.body.spacing;
+                items.push({group:sid,label:"Left-aligned",done:sf[sid].align==="left"});
+                items.push({group:sid,label:`${bs==="double"?"Double":"Single"}-spaced`,done:sf[sid].spacing===bs});
+                items.push({group:sid,label:"Indented with Tab",done:bodyOk(lid)});
+            });
+            return items;
+        }
+
+        // ════════════════════════════════════════
+        // TIMER
+        // ════════════════════════════════════════
+        function startTimer() { S.elapsed=0; S.timerRunning=true; S.timerInterval=setInterval(()=>{S.elapsed++;updateTimerDisplay();},1000); }
+        function stopTimer() { S.timerRunning=false; clearInterval(S.timerInterval); }
+        function fmtTime(s) { return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,"0")}`; }
+        function updateTimerDisplay() {
+            const el = document.getElementById('timer-display');
+            if(el) { el.textContent = fmtTime(S.elapsed); el.className = `ft-timer ${S.elapsed>120?'red':S.elapsed>60?'amber':'green'}`; }
+        }
+
+        // ════════════════════════════════════════
+        // RENDERING
+        // ════════════════════════════════════════
+        const $ = id => document.getElementById(id);
+        const app = $('app');
+
+        function showScreen(name) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const el = $(name);
+            if(el) requestAnimationFrame(() => el.classList.add('active'));
+        }
+
+        // ── Level Select ──
+        function renderLevelSelect() {
+            const tiers = [
+                {title:"Learn",levels:[1,2],color:"var(--ft-green)"},
+                {title:"Speed",levels:[3,4,5],color:"var(--ft-amber)"},
+                {title:"Challenge",levels:[6],color:"var(--ft-red)"},
+            ];
+            app.innerHTML = `
+            <div id="level-screen" class="screen active" style="min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;">
+                <div style="text-align:center;max-width:700px;width:100%;">
+                    <div style="font-size:48px;margin-bottom:12px;">\uD83D\uDCC4</div>
+                    <h1 class="game-title" style="margin-bottom:4px;">Format Trainer</h1>
+                    <p style="font-size:13px;opacity:0.6;font-family:'Courier New',monospace;margin-bottom:20px;">Spot On!</p>
+                    <div style="margin-bottom:24px;">
+                        <button class="ft-topbar-btn" id="btn-lb-main">\uD83C\uDFC6 Leaderboards</button>
+                        ${!currentUser ? `<button class="ft-topbar-btn" id="btn-signin-main" style="margin-left:8px;">Sign In</button>` : `<span style="font-size:12px;opacity:0.7;margin-left:8px;">${currentUser.displayName||currentUser.email.split('@')[0]}</span>`}
+                    </div>
+                    ${tiers.map(t => `
+                        <div class="tier-label" style="color:${t.color};">${t.title}</div>
+                        <div class="level-grid" style="margin-bottom:24px;">
+                            ${t.levels.map(k => {const lv=LEVELS[k]; return `
+                                <div class="level-card" data-level="${k}" style="border-left:3px solid ${t.color};">
+                                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                        <span style="font-size:12px;opacity:0.5;font-family:'Courier New',monospace;">Level ${k}</span>
+                                        <span style="font-size:18px;">${lv.icon}</span>
+                                    </div>
+                                    <div style="font-size:15px;font-weight:600;margin-bottom:6px;">${lv.name}</div>
+                                    <div style="font-size:11px;opacity:0.6;line-height:1.4;">${lv.desc}</div>
+                                </div>`;}).join('')}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>`;
+
+            document.querySelectorAll('.level-card').forEach(c => c.onclick = () => startLevel(+c.dataset.level));
+            const lbBtn = $('btn-lb-main'); if(lbBtn) lbBtn.onclick = showLeaderboardModal;
+            const siBtn = $('btn-signin-main'); if(siBtn) siBtn.onclick = async () => { await signIn(); renderLevelSelect(); };
+        }
+
+        // ── Start Level ──
+        function startLevel(lvl) {
+            const def = LEVELS[lvl];
+            S.level = lvl; S.activeFmt = getFmt(lvl);
+            S.phase = def.hasLabeling ? 1 : 2;
+            S.lineLabels = {}; S.lineErrors = {};
+            S.sel = null; S.curLine = null; S.curPos = "start";
+            S.secFmt = initSecFmt(); S.lineSt = initLineSt();
+            S.scores = null; S.submitCount = 0;
+            S.elapsed = 0; S.timerRunning = false; clearInterval(S.timerInterval);
+            S.streak = 0; S.streakDead = false;
+            renderGame();
+            if (!def.hasLabeling && (def.timed || def.streak)) runCountdown(() => { if(def.timed) startTimer(); });
+        }
+
+        // ── Countdown ──
+        function runCountdown(onDone) {
+            S.showCountdown = true;
+            S.countdownVal = 3;
+            const overlay = document.createElement('div');
+            overlay.className = 'countdown-overlay';
+            overlay.id = 'countdown';
+            overlay.innerHTML = `<div class="countdown-num" id="cd-num" style="color:var(--ft-red);">3</div>`;
+            document.body.appendChild(overlay);
+
+            const colors = ['var(--ft-red)','var(--ft-amber)','var(--ft-green)','#fff'];
+            const labels = ['3','2','1','GO!'];
+            let step = 0;
+            const tick = () => {
+                step++;
+                if (step >= 4) {
+                    overlay.remove(); S.showCountdown = false; onDone(); return;
+                }
+                const num = $('cd-num');
+                if(num) { num.textContent = labels[step]; num.style.color = colors[step]; }
+                setTimeout(tick, 700);
+            };
+            setTimeout(tick, 700);
+        }
+
+        // ── Format actions ──
+        function getIsFirstLine() {
+            if(!S.curLine) return true;
+            const sec = SECTIONS.find(s=>s.id===S.sel);
+            if(!sec) return true;
+            if(sec.multi) return true;
+            return S.curPos === "start";
+        }
+
+        function doAction(action) {
+            if(!S.sel||!S.curLine) return;
+            S.scores = null;
+            const ls = S.lineSt[S.curLine];
+            const first = getIsFirstLine();
+            switch(action) {
+                case "tab":
+                    if(first){if(ls.firstTabs<MAX_TABS)ls.firstTabs++;}
+                    else{if(ls.fullTabs<MAX_TABS)ls.fullTabs++;}break;
+                case "space":
+                    if(first){if(ls.firstSpaces<MAX_SPACES)ls.firstSpaces++;}
+                    else{if(ls.fullSpaces<MAX_SPACES)ls.fullSpaces++;}break;
+                case "enter-before": S.secFmt[S.sel].blankBefore=!S.secFmt[S.sel].blankBefore; break;
+                case "enter-after": S.secFmt[S.sel].blankAfter=!S.secFmt[S.sel].blankAfter; break;
+                case "backspace":
+                    if(S.curPos==="end"){S.secFmt[S.sel].blankAfter=false;}
+                    else if(S.curPos==="start"||first){
+                        if(ls.firstSpaces>0)ls.firstSpaces--;
+                        else if(ls.firstTabs>0)ls.firstTabs--;
+                        else if(ls.fullSpaces>0)ls.fullSpaces--;
+                        else if(ls.fullTabs>0)ls.fullTabs--;
+                        else S.secFmt[S.sel].blankBefore=false;
+                    }else{
+                        if(ls.fullSpaces>0)ls.fullSpaces--;
+                        else if(ls.fullTabs>0)ls.fullTabs--;
+                        else if(ls.firstSpaces>0)ls.firstSpaces--;
+                        else if(ls.firstTabs>0)ls.firstTabs--;
+                    }break;
+            }
+            renderGame();
+        }
+
+        function updateSec(sid,key,val) { S.scores=null; S.secFmt[sid][key]=val; renderGame(); }
+
+        // ── Section click handler ──
+        function handleSectionClick(sectionId, e) {
+            const sec = SECTIONS.find(s=>s.id===sectionId);
+            if(!sec) return;
+            S.sel = sectionId; S.scores = null;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const yContent = Math.max(0, (e.clientY - rect.top - 10) / (rect.height - 20));
+            if(sec.multi) {
+                const n = sec.lineIds.length;
+                const idx = Math.max(0,Math.min(n-1,Math.floor(yContent*n)));
+                S.curLine = sec.lineIds[idx];
+                S.curPos = ((e.clientX-rect.left)/rect.width > 0.85) ? "end" : "start";
+            } else {
+                S.curLine = sec.lineIds[0];
+                const lineH = S.secFmt[sectionId].spacing==="double" ? 33 : 20;
+                const contentH = rect.height - 20;
+                const firstFrac = Math.max(lineH/Math.max(contentH,1), 0.15);
+                const isBody = sectionId.startsWith("body");
+                if(yContent <= firstFrac) S.curPos = "start";
+                else if(yContent >= 0.9) S.curPos = "end";
+                else S.curPos = isBody ? "middle" : "start";
+            }
+            renderGame();
+            const docEl = $('ft-document');
+            if(docEl) docEl.focus();
+        }
+
+        // ── Submit ──
+        function handleSubmit() {
+            const def = LEVELS[S.level];
+            S.submitCount++;
+            S.scores = buildChecklist();
+            const perfect = S.scores.every(r=>r.done);
+            if(def.streak) {
+                if(perfect) {
+                    S.streak++;
+                    renderGame();
+                    setTimeout(() => {
+                        S.activeFmt = randomFormat();
+                        S.sel=null;S.curLine=null;S.curPos="start";
+                        S.secFmt=initSecFmt();S.lineSt=initLineSt();S.scores=null;S.submitCount=0;
+                        renderGame();
+                        runCountdown(() => {});
+                    }, 800);
+                } else {
+                    S.streakDead = true;
+                    renderStreakDead();
+                }
+            } else if(perfect) {
+                stopTimer();
+                setTimeout(() => renderComplete(), 700);
+            } else {
+                renderGame();
+            }
+        }
+
+        // ── Phase 1 check ──
+        function handleCheckPhase1() {
+            let ok = true;
+            S.lineErrors = {};
+            LINES.forEach(l => { if(S.lineLabels[l.id]!==l.correct){S.lineErrors[l.id]=true;ok=false;} });
+            if(ok) {
+                S.phase = 2;
+                renderGame();
+                const def = LEVELS[S.level];
+                if(def.timed) runCountdown(() => startTimer());
+            } else {
+                renderGame();
+            }
+        }
+
+        // ── Keyboard handler ──
+        function handleDocKeyDown(e) {
+            if(!S.sel||!S.curLine) return;
+            if(e.key==="Tab"){e.preventDefault();doAction("tab");}
+            else if(e.key===" "){e.preventDefault();doAction("space");}
+            else if(e.key==="Enter"){e.preventDefault();doAction(S.curPos==="end"?"enter-after":"enter-before");}
+            else if(e.key==="Backspace"||e.key==="Delete"){e.preventDefault();doAction("backspace");}
+            else if(e.key==="ArrowUp"||e.key==="ArrowDown"){
+                e.preventDefault();const sec=SECTIONS.find(s=>s.id===S.sel);
+                if(sec?.multi){const i=sec.lineIds.indexOf(S.curLine);
+                    if(e.key==="ArrowUp"&&i>0)S.curLine=sec.lineIds[i-1];
+                    if(e.key==="ArrowDown"&&i<sec.lineIds.length-1)S.curLine=sec.lineIds[i+1];
+                    renderGame();
+                }
+            }
+            else if(e.key==="ArrowLeft"){S.curPos="start";renderGame();}
+            else if(e.key==="ArrowRight"){S.curPos="end";renderGame();}
+        }
+
+        // ════════════════════════════════════════
+        // RENDER: Main Game
+        // ════════════════════════════════════════
+        function renderGame() {
+            const def = LEVELS[S.level];
+            const sf = S.sel ? S.secFmt[S.sel] : null;
+            const checklist = buildChecklist();
+            const anySpaces = Object.values(S.lineSt).some(ls=>ls.firstSpaces>0||ls.fullSpaces>0);
+            const anyFull = Object.values(S.lineSt).some(ls=>ls.fullTabs>0||ls.fullSpaces>0);
+            const cursorColor = S.curPos==="middle"?"amber":"blue";
+
+            const sStatus = (sid) => {
+                if(!S.scores) return "";
+                const si = S.scores.filter(s=>s.group===sid);
+                if(!si.length) return "";
+                return si.every(s=>s.done) ? "perfect" : "issue";
+            };
+
+            // Checklist HTML
+            const groups = [{id:"header",emoji:EMOJI.Header,label:"Header"},{id:"title",emoji:EMOJI.Title,label:"Title"},{id:"body1",emoji:EMOJI.Body,label:"Body 1"},{id:"body2",emoji:EMOJI.Body,label:"Body 2"},{id:"body3",emoji:EMOJI.Body,label:"Body 3"}];
+            const clHTML = groups.map(g => {
+                const items = checklist.filter(c=>c.group===g.id);
+                const gs = sStatus(g.id);
+                return `<div class="cl-group">
+                    <div class="cl-group-label" style="${gs==='perfect'?'color:var(--ft-green)':gs==='issue'?'color:var(--ft-red)':''}" data-select-section="${g.id}">
+                        <span style="font-size:13px">${g.emoji}</span>${g.label}${gs==='perfect'?' \u2713':gs==='issue'?' \u2717':''}
+                    </div>
+                    ${items.map(item => {
+                        const scored = S.scores!==null;
+                        return `<div class="cl-item ${scored?(item.done?'good':'bad'):''}">
+                            <span style="font-size:12px;width:14px;text-align:center;">${scored?(item.done?'\u2713':'\u2717'):'\u25CB'}</span>
+                            <span${scored&&item.done?' style="text-decoration:line-through;opacity:0.6"':''}>${item.label}</span>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }).join('');
+
+            // Document content
+            let docContent = '';
+            if (S.phase === 1) {
+                docContent = LINES.map(line => {
+                    const ch = S.lineLabels[line.id];
+                    const err = S.lineErrors[line.id];
+                    const bgClass = ch ? (ch==="Header"?"header-bg":ch==="Title"?"title-bg":"body-bg") : '';
+                    return `<div class="label-row ${bgClass} ${err?'error':''}" id="row-${line.id}">
+                        <div style="flex-shrink:0;display:flex;align-items:center;gap:6px;min-width:130px;">
+                            ${ch ? `<span class="label-emoji">${EMOJI[ch]}</span>` : ''}
+                            <select class="label-select" data-line="${line.id}" style="${err?'border:2px solid #dc2626;':''}${ch?`background:${CLR_BG[ch]};color:${CLR_TX[ch]};`:''}">
+                                <option value="">Select...</option>
+                                <option value="Header"${ch==="Header"?' selected':''}>Header</option>
+                                <option value="Title"${ch==="Title"?' selected':''}>Title</option>
+                                <option value="Body"${ch==="Body"?' selected':''}>Body</option>
+                            </select>
+                        </div>
+                        <div class="label-text">${line.text}</div>
+                        ${err?'<div style="flex-shrink:0;color:#dc2626;font-size:11px;font-family:Courier New,monospace;align-self:center;">\u2717 try again</div>':''}
+                    </div>`;
+                }).join('');
+            } else {
+                docContent = '<div class="ft-doc-inner">' + SECTIONS.map(section => {
+                    const isSel = S.sel===section.id;
+                    const sf2 = S.secFmt[section.id];
+                    const status = sStatus(section.id);
+                    let cls = 'doc-section';
+                    if(status==='perfect') cls += ' score-good';
+                    else if(status==='issue') cls += ' score-bad';
+                    else if(isSel) cls += (S.curPos==='middle'?' sel-amber':' sel-blue');
+                    if(isSel&&S.scores) cls += (status==='perfect'?' score-good':' score-bad');
+                    const pillBg = status==='perfect'?'var(--ft-green)':status==='issue'?'var(--ft-red)':'var(--ft-blue)';
+
+                    const linesHTML = section.lineIds.map(lid => {
+                        const line = LINES.find(l=>l.id===lid);
+                        const ls = S.lineSt[lid];
+                        const fullPx = ls.fullTabs*TAB_PX + ls.fullSpaces*SPACE_PX;
+                        const firstPx = ls.firstTabs*TAB_PX + ls.firstSpaces*SPACE_PX;
+                        const isCur = S.curLine===lid;
+                        const isWrap = !section.multi && section.id.startsWith("body");
+                        return `<div style="position:relative;padding-left:${fullPx}px;text-indent:${firstPx}px;line-height:${sf2.spacing==='double'?2.2:1.4};transition:padding-left 0.15s,text-indent 0.15s;min-height:22px;cursor:text;">
+                            ${isCur&&S.curPos==='start'?`<span class="cursor-bar blue" style="position:absolute;left:${fullPx+firstPx}px;top:2px;"></span>`:''}
+                            ${isCur&&S.curPos==='middle'&&isWrap?`<span class="cursor-bar amber" style="position:absolute;left:${fullPx}px;top:50%;transform:translateY(-50%);"></span>`:''}
+                            <span>${line.text}</span>
+                            ${isCur&&S.curPos==='end'?`<span class="cursor-bar blue" style="display:inline-block;vertical-align:text-bottom;margin-left:2px;"></span>`:''}
+                        </div>`;
+                    }).join('');
+
+                    return `<div class="${cls}" data-section="${section.id}" style="text-align:${sf2.align};${sf2.blankBefore?'margin-top:28px;':''}${sf2.blankAfter?'margin-bottom:28px;':''}${isSel&&S.scores?`box-shadow:0 0 0 2px var(--ft-${cursorColor});`:''}">
+                        ${(isSel||S.scores)?`<div class="section-pill" style="background:${pillBg};">${EMOJI[section.label.replace(/ \d/,'')]} ${section.label.toUpperCase()}${status==='perfect'?' \u2713':status==='issue'?' \u2717':''}</div>`:''}
+                        ${sf2.blankBefore?'<div class="blank-line-ind" style="top:-18px;">\u21B5 blank line</div>':''}
+                        ${linesHTML}
+                        ${sf2.blankAfter?'<div class="blank-line-ind" style="bottom:-18px;">\u21B5 blank line</div>':''}
+                    </div>`;
+                }).join('') + '</div>';
+            }
+
+            // Target format card for random levels
+            const fmtCard = (S.phase===2 && def.fmtKey==='random') ? `
+                <div style="margin-bottom:8px;">
+                    <div style="font-size:12px;font-weight:700;font-family:'Courier New',monospace;color:#888;margin-bottom:4px;">TARGET FORMAT:</div>
+                    <div class="fmt-card">
+                        <div class="fmt-card-row"><span style="font-size:15px">${EMOJI.Header}</span><div><strong>Header:</strong> ${S.activeFmt.header.align==='right'?'Right':'Left'}-aligned, ${S.activeFmt.header.spacing==='double'?'Double':'Single'}-spaced</div></div>
+                        <div class="fmt-card-row"><span style="font-size:15px">${EMOJI.Title}</span><div><strong>Title:</strong> ${S.activeFmt.title.align==='center'?'Centered':'Left'}-aligned, ${S.activeFmt.title.spacing==='double'?'Double':'Single'}-spaced, ${S.activeFmt.blankBeforeTitle?'Blank line above':'No blank line'}</div></div>
+                        <div class="fmt-card-row"><span style="font-size:15px">${EMOJI.Body}</span><div><strong>Body:</strong> Left-aligned, ${S.activeFmt.body.spacing==='double'?'Double':'Single'}-spaced, First-line indent (Tab)</div></div>
+                    </div>
+                </div>` : '';
+
+            // Toolbar HTML (phase 2 only)
+            const toolbarHTML = S.phase===2 ? `
+                <div class="ft-toolbar">
+                    <button class="tb-btn${sf?.align==='left'?' active':''}" ${!S.sel?'disabled':''} data-action="align-left" title="Left align"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 10h12M3 14h18M3 18h12"/></svg></button>
+                    <button class="tb-btn${sf?.align==='center'?' active':''}" ${!S.sel?'disabled':''} data-action="align-center" title="Center"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M6 10h12M3 14h18M6 18h12"/></svg></button>
+                    <button class="tb-btn${sf?.align==='right'?' active':''}" ${!S.sel?'disabled':''} data-action="align-right" title="Right align"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M9 10h12M3 14h18M9 18h12"/></svg></button>
+                    <div class="tb-sep"></div>
+                    <select class="tb-btn" id="spacing-select" ${!S.sel?'disabled':''} style="width:auto;padding:0 8px;">
+                        <option value="" disabled ${!sf?'selected':''}>Spacing</option>
+                        <option value="single" ${sf?.spacing==='single'?'selected':''}>Single (1.0)</option>
+                        <option value="double" ${sf?.spacing==='double'?'selected':''}>Double (2.0)</option>
+                    </select>
+                    <div class="tb-sep"></div>
+                    <button class="key-btn${S.curLine&&(getIsFirstLine()?S.lineSt[S.curLine]?.firstTabs>0:S.lineSt[S.curLine]?.fullTabs>0)?' active':''}" ${!S.curLine?'disabled':''} data-action="tab">\u21E5 Tab</button>
+                    <button class="key-btn${S.curLine&&(getIsFirstLine()?S.lineSt[S.curLine]?.firstSpaces>0:S.lineSt[S.curLine]?.fullSpaces>0)?' danger':''}" ${!S.curLine?'disabled':''} data-action="space">\u2423 Space</button>
+                    <button class="key-btn${sf?.blankBefore?' active':''}" ${!S.sel?'disabled':''} data-action="enter-before">\u21B5 Before</button>
+                    <button class="key-btn${sf?.blankAfter?' active':''}" ${!S.sel?'disabled':''} data-action="enter-after">\u21B5 After</button>
+                    <button class="key-btn" ${!S.curLine?'disabled':''} data-action="backspace">\u232B</button>
+                    <div class="tb-sep"></div>
+                    <span style="font-size:9px;color:#888;font-family:'Courier New',monospace;">Cursor:</span>
+                    <button class="cur-btn${S.curPos==='start'?' active-blue':''}" ${!S.curLine?'disabled':''} data-cursor="start">|First</button>
+                    ${S.sel&&!SECTIONS.find(s=>s.id===S.sel)?.multi&&S.sel.startsWith('body')?`<button class="cur-btn${S.curPos==='middle'?' active-amber':''}" ${!S.curLine?'disabled':''} data-cursor="middle">Mid</button>`:''}
+                    <button class="cur-btn${S.curPos==='end'?' active-blue':''}" ${!S.curLine?'disabled':''} data-cursor="end">End|</button>
+                    <div style="flex:1"></div>
+                    ${Object.keys(HELP).map(k=>`<button class="tb-btn" data-help="${k}" style="font-size:10px;padding:0 6px;">? ${k}</button>`).join('')}
+                </div>` : '';
+
+            // Full game HTML
+            app.innerHTML = `
+            <div id="game-screen" class="screen active" style="min-height:100dvh;">
+                <!-- Top bar -->
+                <div style="background:#1e3a5f;color:#fff;padding:12px 24px;display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:22px;">${def.icon}</span>
+                        <div>
+                            <div style="font-size:16px;font-weight:600;">${def.name}</div>
+                            <div style="font-size:11px;opacity:0.7;font-family:'Courier New',monospace;">Spot On! \u2014 Level ${S.level}</div>
+                        </div>
+                    </div>
+                    <div class="ft-topbar">
+                        ${def.timed?`<div class="ft-timer green" id="timer-display">${fmtTime(S.elapsed)}</div>`:''}
+                        ${def.streak?`<div class="ft-timer" style="color:var(--ft-amber);">\uD83D\uDD25 ${S.streak}</div>`:''}
+                        <button class="ft-topbar-btn" id="btn-lb">\uD83C\uDFC6</button>
+                        <button class="ft-topbar-btn" id="btn-restart">\u21BB</button>
+                        <button class="ft-topbar-btn" id="btn-levels">Levels</button>
+                        <div style="background:rgba(255,255,255,0.15);border-radius:20px;padding:5px 14px;font-size:12px;font-family:'Courier New',monospace;">${def.hasLabeling?`Phase ${S.phase}/2`:'Format'}</div>
+                    </div>
+                </div>
+
+                <!-- Instructions -->
+                <div class="ft-wrap" style="margin-top:12px;">
+                    <div class="ft-instr">
+                        <span style="font-size:18px;flex-shrink:0;">${S.phase===1?'\uD83C\uDFF7\uFE0F':'\uD83D\uDD27'}</span>
+                        <div>${S.phase===1 ?
+                            `<strong>Identify every line.</strong> <span style="background:rgba(168,85,247,0.2);padding:1px 5px;border-radius:4px;font-size:12px;">${EMOJI.Header} Header</span> = name, date, period. <span style="background:rgba(59,130,246,0.2);padding:1px 5px;border-radius:4px;font-size:12px;">${EMOJI.Title} Title</span> = name of work. <span style="background:rgba(34,197,94,0.2);padding:1px 5px;border-radius:4px;font-size:12px;">${EMOJI.Body} Body</span> = paragraphs.`
+                            : `Click <strong>top</strong> = <span style="color:var(--ft-blue);font-weight:600;">first line</span>, <strong>middle</strong> = <span style="color:var(--ft-amber);font-weight:600;">whole paragraph</span>, <strong>bottom</strong> = <span style="color:var(--ft-blue);font-weight:600;">end</span>. ${def.streak?'One shot \u2014 perfect or streak ends!':'Submit when ready.'}`
+                        }</div>
+                    </div>
+
+                    <div class="ft-flex">
+                        <div style="flex:1;min-width:0;">
+                            ${fmtCard}
+                            ${toolbarHTML}
+                            <div class="ft-doc ${S.phase===1?'no-toolbar':''}" id="ft-document" ${S.phase===2?'tabindex="0"':''}>
+                                ${docContent}
+                            </div>
+                            <div style="margin-top:14px;text-align:center;">
+                                ${S.phase===1 ?
+                                    `<button class="btn btn-primary" id="btn-check-labels" ${Object.keys(S.lineLabels).length<LINES.length?'disabled':''}>Check Labels \u2192</button>`
+                                    : `<button class="btn ${def.streak?'':'btn-primary'}" id="btn-submit" style="${def.streak?'background:var(--ft-amber);color:#000;':''}font-weight:600;">${def.streak?`\uD83D\uDD25 Submit (Streak: ${S.streak})`:`\uD83D\uDCCB Submit for Scoring`}</button>
+                                    ${!def.streak&&S.submitCount>0?`<div style="margin-top:6px;font-size:12px;color:#888;font-family:'Courier New',monospace;">Submissions: ${S.submitCount}</div>`:''}`
+                                }
+                            </div>
+                            ${S.phase===2&&S.curLine?`<div class="ft-status">Cursor: <strong style="color:var(--ft-${cursorColor});">${S.curPos==='start'?'first line':S.curPos==='middle'?'paragraph body':'end'}</strong> of <strong>${LINES.find(l=>l.id===S.curLine)?.text.slice(0,25)}...</strong></div>`:''}
+                        </div>
+                        ${S.phase===2 ? `<div class="ft-sidebar">
+                            <div style="font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:var(--ft-blue);margin-bottom:12px;letter-spacing:1px;text-transform:uppercase;">Checklist</div>
+                            ${clHTML}
+                            ${S.scores?`<div style="margin-top:6px;padding:8px 0 0;border-top:2px solid var(--border,#333);text-align:center;"><div style="font-family:'Courier New',monospace;font-size:20px;font-weight:700;color:${S.scores.every(s=>s.done)?'var(--ft-green)':'var(--ft-blue)'};">${S.scores.filter(s=>s.done).length}/${S.scores.length}</div></div>`:''}
+                            ${S.scores&&anySpaces?'<div class="ft-warn spaces">\u26A0\uFE0F <strong>Spacebar</strong> doesn\'t count. Use <strong>Tab</strong>.</div>':''}
+                            ${S.scores&&anyFull?'<div class="ft-warn full">\u26A0\uFE0F Whole-paragraph indent. Click <strong>top</strong>, then Tab.</div>':''}
+                        </div>` : ''}
+                    </div>
+                </div>
+            </div>`;
+
+            // Wire events
+            const btnCheck = $('btn-check-labels'); if(btnCheck) btnCheck.onclick = handleCheckPhase1;
+            const btnSubmit = $('btn-submit'); if(btnSubmit) btnSubmit.onclick = handleSubmit;
+            const btnRestart = $('btn-restart'); if(btnRestart) btnRestart.onclick = () => startLevel(S.level);
+            const btnLevels = $('btn-levels'); if(btnLevels) btnLevels.onclick = renderLevelSelect;
+            const btnLB = $('btn-lb'); if(btnLB) btnLB.onclick = showLeaderboardModal;
+
+            // Phase 1: label selects
+            document.querySelectorAll('.label-select').forEach(sel => {
+                sel.onchange = () => { S.lineLabels[sel.dataset.line] = sel.value; S.lineErrors[sel.dataset.line]=false; renderGame(); };
+            });
+
+            // Phase 2: section clicks
+            document.querySelectorAll('.doc-section').forEach(el => {
+                el.onclick = (e) => handleSectionClick(el.dataset.section, e);
+            });
+
+            // Toolbar actions
+            document.querySelectorAll('[data-action]').forEach(btn => {
+                btn.onclick = () => {
+                    const a = btn.dataset.action;
+                    if(a.startsWith('align-')) updateSec(S.sel,'align',a.replace('align-',''));
+                    else doAction(a);
+                };
+            });
+
+            // Spacing select
+            const spacingSel = $('spacing-select');
+            if(spacingSel) spacingSel.onchange = () => { if(S.sel) updateSec(S.sel,'spacing',spacingSel.value); };
+
+            // Cursor buttons
+            document.querySelectorAll('[data-cursor]').forEach(btn => {
+                btn.onclick = () => { S.curPos = btn.dataset.cursor; renderGame(); };
+            });
+
+            // Help buttons
+            document.querySelectorAll('[data-help]').forEach(btn => {
+                btn.onclick = () => showHelpModal(btn.dataset.help);
+            });
+
+            // Checklist section selection
+            document.querySelectorAll('[data-select-section]').forEach(el => {
+                el.onclick = () => { S.sel=el.dataset.selectSection; S.curLine=SECTIONS.find(s=>s.id===S.sel).lineIds[0]; S.curPos='start'; S.scores=null; renderGame(); };
+            });
+
+            // Keyboard on document
+            const docEl = $('ft-document');
+            if(docEl && S.phase===2) {
+                docEl.onkeydown = handleDocKeyDown;
+                if(S.sel) docEl.focus();
+            }
+        }
+
+        const CLR_BG = {Header:'rgba(168,85,247,0.15)',Title:'rgba(59,130,246,0.15)',Body:'rgba(34,197,94,0.15)'};
+        const CLR_TX = {Header:'#6b21a8',Title:'#1e40af',Body:'#166534'};
+
+        // ── Complete Screen ──
+        function renderComplete() {
+            const def = LEVELS[S.level];
+            app.innerHTML = `
+            <div id="complete-screen" class="screen active" style="min-height:100dvh;display:flex;align-items:center;justify-content:center;">
+                <div style="text-align:center;max-width:400px;padding:40px;">
+                    <div style="font-size:72px;margin-bottom:16px;">\uD83C\uDF93</div>
+                    <h1 class="game-title" style="margin-bottom:8px;">Document Formatted!</h1>
+                    <p style="font-size:14px;opacity:0.6;font-family:'Courier New',monospace;margin-bottom:4px;">Level ${S.level}: ${def.name}</p>
+                    ${def.timed?`<div style="font-size:48px;font-weight:700;font-family:'Courier New',monospace;margin:16px 0;color:var(--ft-green);">${fmtTime(S.elapsed)}</div>`:''}
+                    <p style="font-size:14px;opacity:0.5;margin-bottom:16px;font-family:'Courier New',monospace;">Submissions: ${S.submitCount}</p>
+                    ${def.timed&&currentUser ? `
+                        <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:12px;">
+                            <input id="initials-input" class="initials-input" maxlength="3" placeholder="ABC" style="background:rgba(255,255,255,0.1);border-color:var(--ft-blue);color:#fff;" />
+                            <button class="btn btn-primary" id="btn-save-score">Save</button>
+                        </div>
+                        <div id="save-status" style="font-size:12px;color:var(--ft-green);font-family:'Courier New',monospace;margin-bottom:12px;"></div>
+                    ` : ''}
+                    ${!currentUser&&def.timed ? '<p style="font-size:12px;opacity:0.5;margin-bottom:12px;"><a href="#" id="btn-signin-complete" style="color:var(--ft-blue);text-decoration:underline;cursor:pointer;">Sign in</a> to save scores!</p>' : ''}
+                    <div style="display:flex;gap:12px;justify-content:center;">
+                        <button class="btn btn-primary" id="btn-retry">Try Again</button>
+                        <button class="btn" id="btn-back-levels">All Levels</button>
+                    </div>
+                </div>
+            </div>`;
+            $('btn-retry').onclick = () => startLevel(S.level);
+            $('btn-back-levels').onclick = renderLevelSelect;
+            const siCompleteBtn = $('btn-signin-complete');
+            if(siCompleteBtn) siCompleteBtn.onclick = async (e) => { e.preventDefault(); await signIn(); renderComplete(); };
+            const saveBtn = $('btn-save-score');
+            if(saveBtn) saveBtn.onclick = async () => {
+                const ini = $('initials-input').value.trim();
+                if(ini.length < 1) return;
+                const ok = await saveScore(def.gameId, ini, S.elapsed);
+                $('save-status').textContent = ok ? '\u2713 Saved!' : 'Error saving';
+                saveBtn.disabled = true;
+            };
+        }
+
+        // ── Streak Dead Screen ──
+        function renderStreakDead() {
+            const def = LEVELS[S.level];
+            app.innerHTML = `
+            <div id="streak-screen" class="screen active" style="min-height:100dvh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a0000,#4a1010);">
+                <div style="text-align:center;padding:40px;max-width:400px;">
+                    <div style="font-size:72px;margin-bottom:16px;">\uD83D\uDD25</div>
+                    <h1 class="game-title" style="margin-bottom:8px;">Streak Ended!</h1>
+                    <div style="font-size:64px;font-weight:700;font-family:'Courier New',monospace;margin:16px 0;color:var(--ft-amber);">${S.streak}</div>
+                    <p style="font-size:16px;opacity:0.8;margin-bottom:16px;">document${S.streak!==1?'s':''} formatted perfectly</p>
+                    ${currentUser ? `
+                        <div style="display:flex;gap:8px;align-items:center;justify-content:center;margin-bottom:12px;">
+                            <input id="initials-input" class="initials-input" maxlength="3" placeholder="ABC" style="background:rgba(255,255,255,0.1);border-color:var(--ft-amber);color:#fff;" />
+                            <button class="btn" id="btn-save-streak" style="background:var(--ft-amber);color:#000;">Save</button>
+                        </div>
+                        <div id="save-status" style="font-size:12px;color:var(--ft-green);font-family:'Courier New',monospace;margin-bottom:12px;"></div>
+                    ` : '<p style="font-size:12px;opacity:0.5;margin-bottom:12px;"><a href="#" id="btn-signin-streak" style="color:var(--ft-amber);text-decoration:underline;cursor:pointer;">Sign in</a> to save scores!</p>'}
+                    <div style="display:flex;gap:12px;justify-content:center;">
+                        <button class="btn" id="btn-retry-streak" style="background:var(--ft-amber);color:#000;">Try Again</button>
+                        <button class="btn" id="btn-back-levels-streak">All Levels</button>
+                    </div>
+                </div>
+            </div>`;
+            $('btn-retry-streak').onclick = () => startLevel(6);
+            $('btn-back-levels-streak').onclick = renderLevelSelect;
+            const siStreakBtn = $('btn-signin-streak');
+            if(siStreakBtn) siStreakBtn.onclick = async (e) => { e.preventDefault(); await signIn(); renderStreakDead(); };
+            const saveBtn = $('btn-save-streak');
+            if(saveBtn) saveBtn.onclick = async () => {
+                const ini = $('initials-input').value.trim();
+                if(ini.length < 1) return;
+                const ok = await saveScore(def.gameId, ini, S.streak);
+                $('save-status').textContent = ok ? '\u2713 Saved!' : 'Error saving';
+                saveBtn.disabled = true;
+            };
+        }
+
+        // ── Help Modal ──
+        function showHelpModal(topic) {
+            const h = HELP[topic]; if(!h) return;
+            const overlay = document.createElement('div');
+            overlay.className = 'help-modal';
+            overlay.innerHTML = `<div class="help-panel">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <h3 style="margin:0;font-family:Georgia,serif;font-size:18px;color:#1a3a5c;">${h.title}</h3>
+                    <button id="close-help" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;">\u00D7</button>
+                </div>
+                <div style="font-family:'Courier New',monospace;font-size:14px;line-height:1.7;white-space:pre-line;">${h.body}</div>
+            </div>`;
+            overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+            document.body.appendChild(overlay);
+            overlay.querySelector('#close-help').onclick = () => overlay.remove();
+        }
+
+        // ── Leaderboard Modal ──
+        async function showLeaderboardModal() {
+            const gameIds = [{id:'ft-basic-speed',name:'Basic Speed',icon:'\u23F1\uFE0F',isStreak:false},{id:'ft-mla-speed',name:'MLA Speed',icon:'\u26A1',isStreak:false},{id:'ft-random-speed',name:'Random Speed',icon:'\uD83C\uDFB2',isStreak:false},{id:'ft-streak',name:'Streak',icon:'\uD83D\uDD25',isStreak:true}];
+
+            const overlay = document.createElement('div');
+            overlay.className = 'lb-modal';
+            overlay.innerHTML = `<div class="lb-panel"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;"><h2 style="margin:0;font-family:Georgia,serif;font-size:22px;color:var(--ft-blue);">\uD83C\uDFC6 Leaderboards</h2><button id="close-lb" style="background:none;border:none;font-size:22px;cursor:pointer;color:#888;">\u00D7</button></div><div class="lb-grid" id="lb-content"><p style="color:#888;font-family:'Courier New',monospace;font-size:12px;">Loading...</p></div></div>`;
+            overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+            document.body.appendChild(overlay);
+            overlay.querySelector('#close-lb').onclick = () => overlay.remove();
+
+            // Load all boards
+            const content = $('lb-content');
+            let html = '';
+            for (const g of gameIds) {
+                const { data, error } = await loadScores(g.id, g.isStreak?'desc':'asc', 10);
+                html += `<div class="lb-card"><div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;"><span style="font-size:18px">${g.icon}</span><div style="font-family:'Courier New',monospace;font-size:12px;font-weight:700;color:var(--ft-blue);">${g.name}</div></div>`;
+                if(error) { html += `<div style="font-size:12px;color:#f87171;font-family:'Courier New',monospace;padding:8px 0;">${error}</div>`; }
+                else if(!data.length) { html += `<div style="font-size:12px;color:#888;font-family:'Courier New',monospace;padding:8px 0;">No scores yet</div>`; }
+                else {
+                    data.forEach((entry,i) => {
+                        const rankCls = i===0?'gold':i===1?'silver':i===2?'bronze':'';
+                        html += `<div class="lb-row"><div style="display:flex;gap:6px;align-items:center;"><span class="lb-rank ${rankCls}">${i+1}.</span><span style="font-weight:${i<3?700:400};">${entry.initials||'???'}</span></div><span style="color:${i===0?'var(--ft-green)':'#888'};font-weight:${i===0?700:400};">${g.isStreak?entry.score+' \uD83D\uDD25':fmtTime(entry.score)}</span></div>`;
+                    });
+                }
+                html += '</div>';
+            }
+            content.innerHTML = html;
+        }
+
+        // ════════════════════════════════════════
+        // BOOT
+        // ════════════════════════════════════════
+        renderLevelSelect();
+    </script>
+</body>
+</html>

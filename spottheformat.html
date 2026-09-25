@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spot the Format v2.2.0</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    
+    <style>
+        
+        canvas {
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+        .btn-group {
+            background-color: #222;
+            border-radius: 0.5rem;
+            padding: 4px;
+        }
+        .btn-tool {
+            background-color: transparent;
+            border: 2px solid transparent;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            transition: background-color 0.2s, border-color 0.2s;
+            cursor: pointer;
+        }
+        .btn-tool:hover:not(:disabled) {
+            background-color: #e2e8f0;
+        }
+        .btn-tool.selected {
+            background-color: #cbd5e1;
+        }
+        .btn-tool.correct-answer-highlight {
+            border-color: #22c55e;
+            background-color: #dcfce7;
+        }
+        .btn-tool:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-tool svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            stroke: #334155;
+            stroke-width: 1.5;
+            fill: none;
+        }
+        .feedback-correct .btn-group { 
+            border: 2px solid #10B981;
+            animation: pulse-green 0.5s;
+        }
+        .feedback-incorrect .btn-group { 
+            border: 2px solid #EF4444;
+            animation: shake 0.5s;
+        }
+        @keyframes pulse-green {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .label-text {
+            min-height: 1.25rem;
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        /* Streak animation */
+        .streak-container {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        .streak-container.hidden-streak {
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        .streak-bump {
+            animation: bump 0.3s ease-out;
+        }
+        @keyframes bump {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+</style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <div class="game-wrapper">
+        <div class="game-container">
+<!-- Start Screen -->
+            <div id="startScreen" class="screen active">
+                
+                <h1 class="game-title">Spot the Format</h1>
+                <p class="game-subtitle">Identify the text formatting properties!</p>
+                
+                <div class="how-to-play">
+                    <h3>How to Play:</h3>
+                    <ul>
+                        <li>• 10 rounds of formatted text</li>
+                        <li>• Identify: alignment, spacing, and indentation</li>
+                        <li>• Select one option from each category</li>
+                        <li>• 25 points per correct property (100 max)</li>
+                    </ul>
+                </div>
+                
+                <!-- User status -->
+                <div id="userStatus" class="mb-6">
+                    <button id="signInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <p class="loading-text mt-1">Sign in to save your score</p>
+                </div>
+                <div id="userSignedIn" class="mb-6 hidden">
+                    <div class="user-badge inline-flex">
+                        <img id="userPhoto" src="" alt="">
+                        <span id="userName">Player</span>
+                        <span id="signOutBtn" class="sign-out">✕</span>
+                    </div>
+                </div>
+                
+                <button id="startGameBtn" class="btn btn-primary">
+                    Start Game
+                </button>
+            </div>
+            
+            <!-- Game Screen -->
+            <div id="gameScreen" class="screen">
+                <h1 class="game-title">Spot the Format</h1>
+                <p id="instructionText" class="text-gray-400 mt-2">Identify ALL formatting properties!</p>
+                
+                <!-- Game Canvas -->
+                <div class="relative w-full max-w-2xl mx-auto aspect-[4/3]  border-2 border-[var(--border)] rounded-lg overflow-hidden my-6">
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+
+                <!-- Controls -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 max-w-3xl mx-auto">
+                    <!-- Horizontal Align Group -->
+                    <div id="h-align-feedback-wrapper" class="flex flex-col items-center gap-1">
+                        <div id="h-align-group" class="btn-group flex flex-wrap justify-center">
+                            <button class="btn-tool" data-h-align="left" title="Left Align"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 10h12M3 14h18M3 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="center" title="Center Align"><svg viewBox="0 0 24 24"><path d="M3 6h18M6 10h12M3 14h18M6 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="right" title="Right Align"><svg viewBox="0 0 24 24"><path d="M3 6h18M9 10h12M3 14h18M9 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="justify" title="Justify"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/></svg></button>
+                        </div>
+                        <p id="h-align-label" class="text-xs text-gray-500 font-medium label-text">Horizontal</p>
+                    </div>
+                    
+                    <!-- Vertical Align Group -->
+                    <div id="v-align-feedback-wrapper" class="flex flex-col items-center gap-1">
+                        <div id="v-align-group" class="btn-group flex">
+                            <button class="btn-tool" data-v-align="top" title="Top Align"><svg viewBox="0 0 24 24"><path d="M4 4h16 M12 20v-12m-3 3l3-3 3 3"/></svg></button>
+                            <button class="btn-tool" data-v-align="center" title="Middle Align"><svg viewBox="0 0 24 24"><path d="M4 12h16 M12 2v6 M9 5l3 3 3-3 M12 22v-6 M9 19l3-3 3 3"/></svg></button>
+                            <button class="btn-tool" data-v-align="bottom" title="Bottom Align"><svg viewBox="0 0 24 24"><path d="M4 20h16 M12 2v12m-3-3l3 3 3-3"/></svg></button>
+                        </div>
+                        <p id="v-align-label" class="text-xs text-gray-500 font-medium label-text">Vertical</p>
+                    </div>
+                    
+                    <!-- Line Spacing Group -->
+                    <div id="spacing-feedback-wrapper" class="flex flex-col items-center gap-1">
+                        <div id="spacing-group" class="btn-group flex">
+                            <button class="btn-tool" data-spacing="1" title="Single Spacing"><svg viewBox="0 0 24 24"><path d="M10 8h10M10 12h10M10 16h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                            <button class="btn-tool" data-spacing="1.5" title="1.5 Spacing"><svg viewBox="0 0 24 24"><path d="M10 7h10M10 12h10M10 17h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                            <button class="btn-tool" data-spacing="2" title="Double Spacing"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 18h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                        </div>
+                        <p id="spacing-label" class="text-xs text-gray-500 font-medium label-text">Line Spacing</p>
+                    </div>
+                    
+                    <!-- Indentation Group -->
+                    <div id="indent-feedback-wrapper" class="flex flex-col items-center gap-1">
+                        <div id="indent-group" class="btn-group flex">
+                            <button class="btn-tool" data-indent="none" title="No Indent"><svg viewBox="0 0 24 24"><path d="M3 8h18M3 12h18M3 16h14"/></svg></button>
+                            <button class="btn-tool" data-indent="first" title="First Line Indent"><svg viewBox="0 0 24 24"><path d="M7 8h14M3 12h18M3 16h14"/></svg></button>
+                            <button class="btn-tool" data-indent="paragraph" title="Paragraph Indent"><svg viewBox="0 0 24 24"><path d="M7 8h14M7 12h14M7 16h10"/></svg></button>
+                        </div>
+                        <p id="indent-label" class="text-xs text-gray-500 font-medium label-text">Indentation</p>
+                    </div>
+                </div>
+
+                <!-- Scoring Display -->
+                <div class="flex justify-between items-center mb-2 px-2">
+                    <div class="text-left w-24">
+                        <p class="text-gray-400 font-medium text-sm">Round</p>
+                        <p class="text-2xl font-bold text-white"><span id="roundCounter">1</span> / 10</p>
+                    </div>
+                    <div class="text-center flex-1">
+                        <p id="feedbackText" class="text-xl font-bold text-gray-200">Select all four!</p>
+                        <div id="streakContainer" class="streak-container hidden-streak mt-1">
+                            <span class="text-amber-500 font-bold"><span id="streakCounter">0</span> 🔥</span>
+                        </div>
+                    </div>
+                    <div class="text-right w-24">
+                        <p class="text-gray-400 font-medium text-sm">Score</p>
+                        <p class="text-2xl font-bold text-white" id="totalScore">0</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-4 justify-center mt-4">
+                    <button id="submitButton" class="bg-[var(--primary)] hover:bg-[var(--primary-dark)] text-white font-semibold py-2 px-6 rounded-lg shadow transition-colors">Submit Answer</button>
+                    <button id="nextButton" class="btn btn-next hidden">Next Round</button>
+                </div>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div id="gameOverScreen" class="screen">
+                <h1 class="game-title">Game Over!</h1>
+                <p class="final-score-label">Final Score</p>
+                <p id="finalScore" class="final-score">0</p>
+                <p id="averageScore" class="text-lg mb-2" style="color: var(--text-secondary);"></p>
+                <p id="bestStreakDisplay" class="mb-3" style="color: var(--text-muted);"></p>
+                
+                <!-- Initials Entry -->
+                <div id="initialsEntry" class="mb-6 hidden">
+                    <p style="color: var(--text-secondary);" class="mb-2">Enter your initials:</p>
+                    <div class="flex items-center gap-3 justify-center">
+                        <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                        <button id="submitScoreBtn" class="btn btn-primary btn-sm">Submit</button>
+                    </div>
+                    <p id="initialsError" class="text-red-400 text-sm mt-2 hidden">Please choose different initials.</p>
+                </div>
+                
+                <!-- Score submitted confirmation -->
+                <div id="scoreSubmitted" class="mb-4 hidden">
+                    <p class="text-green-400 font-medium">✓ Score saved!</p>
+                    <p id="playerRank" class="text-gray-400"></p>
+                </div>
+                
+                <!-- Not signed in message -->
+                <div id="notSignedInMsg" class="mb-4 hidden">
+                    <p class="text-gray-500 text-sm">Sign in before playing to save your score!</p>
+                </div>
+                
+                <!-- Improvement tip -->
+                <p id="improvementTip" class="mb-3" style="color: var(--text-muted); font-size: 0.875rem;"></p>
+                
+                <!-- Advanced version link -->
+                <div class="mb-4">
+                    <a href="formatfrenzy.html" class="text-red-400 hover:text-red-400 text-sm font-medium">
+                        🔥 Try Format Frenzy — the timed challenge!
+                    </a>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div class="leaderboard">
+                    <h3 class="leaderboard-title">🏆 Top 10 Scores</h3>
+                    <div id="leaderboardList">
+                        <p class="loading-text text-center">Loading...</p>
+                    </div>
+                </div>
+                
+                <button id="playAgainButton" class="btn btn-primary">
+                    Play Again
+                </button>
+            </div>
+            
+        </div>
+        <footer class="game-footer">
+            <p>Originally by Gemini, enhanced by Claude</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & AUTH
+        // ============================================
+        let app, db, auth;
+        let currentUser = null;
+        
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        }
+        
+        function updateAuthUI() {
+            const userStatus = document.getElementById('userStatus');
+            const userSignedIn = document.getElementById('userSignedIn');
+            const userPhoto = document.getElementById('userPhoto');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    console.error('Sign in error:', error);
+                }
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'spot-the-format'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="text-red-400 text-center py-4">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet. Be the first!</p>';
+                return;
+            }
+            
+            leaderboardList.innerHTML = scores.map((s, i) => `
+                <div class="leaderboard-row ${s.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">#${i + 1}</span>
+                    <span class="leaderboard-initials">${escapeHtml(s.initials)}</span>
+                    <span class="leaderboard-score">${s.score}</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getPlayerRank(playerScore) {
+            if (!db) return null;
+            
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'spot-the-format'),
+                    where('score', '>', playerScore)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.size + 1;
+            } catch (error) {
+                console.error('Get rank error:', error);
+                return null;
+            }
+        }
+        
+        async function submitScore(initials) {
+            if (!currentUser || !db) return null;
+            
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'spot-the-format',
+                    initials: initials.toUpperCase(),
+                    score: totalScore,
+                    roundCount: MAX_ROUNDS,
+                    bestStreak: bestStreak,
+                    categoryScores: categoryScores,
+                    flagged: containsProfanity(initials)
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        async function handleScoreSubmit() {
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            const submitScoreBtn = document.getElementById('submitScoreBtn');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const playerRank = document.getElementById('playerRank');
+            
+            const initials = initialsInput.value.trim().toUpperCase();
+            
+            if (initials.length < 1 || initials.length > 3) {
+                initialsError.textContent = 'Enter 1-3 characters.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Saving...';
+            
+            const scoreId = await submitScore(initials);
+            
+            if (scoreId) {
+                initialsEntry.classList.add('hidden');
+                scoreSubmitted.classList.remove('hidden');
+                
+                const rank = await getPlayerRank(totalScore);
+                if (rank) {
+                    playerRank.textContent = `Your rank: #${rank}`;
+                }
+                
+                await loadLeaderboard(scoreId);
+            } else {
+                initialsError.textContent = 'Failed to save score. Try again.';
+                initialsError.classList.remove('hidden');
+            }
+            
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit';
+        }
+        
+        // ============================================
+        // GAME VARIABLES
+        // ============================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const TEXT_SAMPLES = ["Dorothy lived in the midst of the great Kansas prairies with Uncle Henry and Aunt Em. Their house was small, for the lumber had to be carried many miles by wagon.","The little girl gave a cry of amazement and looked about her. Her eyes grew bigger and bigger at the wonderful sights she saw. The cyclone had set the house down very gently.","These people were not as big as the grown folk she had always been used to. Neither were they very small or tiny. In fact, they seemed about as tall as Dorothy herself.","You must go to the City of Emeralds. Perhaps Oz will help you on your journey. It is a long journey through a country that is sometimes pleasant and sometimes dark and terrible.","The road to the City of Emeralds is paved with yellow brick. You cannot miss it if you follow the path carefully. When you get to Oz do not be afraid of him at all.","I will use all the magic arts I know of to keep you from harm. You must be brave and trust in the journey ahead. Good things await those who persevere through challenges.","There were lovely patches of green sward all about. Stately trees bearing rich and luscious fruits were everywhere. Banks of gorgeous flowers scented the air with their perfume.","The houses of the Munchkins were odd looking dwellings. Each was round with a big dome for a roof. All were painted blue, for that was the favorite color in this country.","She noticed coming down toward her a group of people. They were the strangest people she had ever seen. They were not as large as adults but larger than children.","Before them was a great stretch of country having a floor as smooth and shining as a mirror. It seemed to stretch to the edge of the sky in all directions.","When Dorothy stood in the doorway and looked around, the cyclone damage was clear everywhere she turned. The silver shoes upon her feet shone brightly in the strange new sunlight. Everything felt different and magical in this place.","The Scarecrow found a tree full of nuts and filled Dorothy's basket with them. This pleased the little girl very much indeed. She had not eaten anything except peaches since breakfast time and was quite hungry now."
+        ];
+
+        let roundNumber = 0, totalScore = 0, currentStreak = 0, bestStreak = 0;
+        let categoryScores = { h: 0, v: 0, s: 0, i: 0 };
+        const MAX_ROUNDS = 10;
+        let gameActive = false;
+        let selections = { v: null, h: null, s: null, i: null };
+        let correctAnswers = { v: null, h: null, s: null, i: null };
+        let preGeneratedRounds = [];
+        
+        // ============================================
+        // BALANCED ROUND GENERATION
+        // ============================================
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+        
+        function generateBalancedArray(options, count, minEach) {
+            // Start with minimum required of each option
+            let result = [];
+            options.forEach(opt => {
+                for (let i = 0; i < minEach; i++) {
+                    result.push(opt);
+                }
+            });
+            
+            // Fill remaining slots randomly
+            while (result.length < count) {
+                result.push(options[Math.floor(Math.random() * options.length)]);
+            }
+            
+            return shuffleArray(result);
+        }
+        
+        function preGenerateRounds() {
+            // Generate balanced arrays for each category
+            // At least 2 of each option must appear
+            const hAligns = generateBalancedArray(['left', 'center', 'right', 'justify'], MAX_ROUNDS, 2);
+            const vAligns = generateBalancedArray(['top', 'center', 'bottom'], MAX_ROUNDS, 2);
+            const spacings = generateBalancedArray([1, 1.5, 2], MAX_ROUNDS, 2);
+            const indents = generateBalancedArray(['none', 'first', 'paragraph'], MAX_ROUNDS, 2);
+            
+            preGeneratedRounds = [];
+            for (let i = 0; i < MAX_ROUNDS; i++) {
+                let round = {
+                    h: hAligns[i],
+                    v: vAligns[i],
+                    s: spacings[i],
+                    i: indents[i]
+                };
+                
+                // Indentation doesn't make sense with right alignment
+                if ((round.i === 'paragraph' || round.i === 'first') && round.h === 'right') {
+                    round.i = 'none';
+                }
+                
+                preGeneratedRounds.push(round);
+            }
+        }
+
+        // UI Elements
+        const vAlignGroup = document.getElementById('v-align-group');
+        const hAlignGroup = document.getElementById('h-align-group');
+        const spacingGroup = document.getElementById('spacing-group');
+        const indentGroup = document.getElementById('indent-group');
+        const hAlignFeedbackWrapper = document.getElementById('h-align-feedback-wrapper');
+        const vAlignFeedbackWrapper = document.getElementById('v-align-feedback-wrapper');
+        const spacingFeedbackWrapper = document.getElementById('spacing-feedback-wrapper');
+        const indentFeedbackWrapper = document.getElementById('indent-feedback-wrapper');
+        const hAlignLabel = document.getElementById('h-align-label');
+        const vAlignLabel = document.getElementById('v-align-label');
+        const spacingLabel = document.getElementById('spacing-label');
+        const indentLabel = document.getElementById('indent-label');
+        const submitButton = document.getElementById('submitButton');
+        const nextButton = document.getElementById('nextButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+        const roundCounterEl = document.getElementById('roundCounter');
+        const totalScoreEl = document.getElementById('totalScore');
+        const streakCounterEl = document.getElementById('streakCounter');
+        const streakContainer = document.getElementById('streakContainer');
+        const feedbackEl = document.getElementById('feedbackText');
+
+        // ============================================
+        // SCREENS
+        // ============================================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // ============================================
+        // GAME SETUP
+        // ============================================
+        function setupCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        function startGame() {
+            showScreen('gameScreen');
+            setupCanvas();
+            
+            roundNumber = 0; 
+            totalScore = 0;
+            currentStreak = 0;
+            bestStreak = 0;
+            categoryScores = { h: 0, v: 0, s: 0, i: 0 };
+            totalScoreEl.textContent = totalScore;
+            updateStreakDisplay();
+            
+            // Pre-generate balanced rounds
+            preGenerateRounds();
+            
+            newRound();
+        }
+
+        function newRound() {
+            roundNumber++;
+            if (roundNumber > MAX_ROUNDS) { 
+                endGame(); 
+                return; 
+            }
+            
+            gameActive = true;
+            roundCounterEl.textContent = roundNumber;
+            feedbackEl.textContent = 'Select all four!';
+            feedbackEl.className = 'text-xl font-bold text-gray-200';
+            
+            // Reset feedback wrappers
+            [hAlignFeedbackWrapper, vAlignFeedbackWrapper, spacingFeedbackWrapper, indentFeedbackWrapper].forEach(wrapper => {
+                wrapper.classList.remove('feedback-correct', 'feedback-incorrect');
+            });
+            
+            // Reset buttons
+            [hAlignGroup, vAlignGroup, spacingGroup, indentGroup].forEach(group => {
+                group.querySelectorAll('.btn-tool').forEach(btn => {
+                    btn.classList.remove('selected', 'correct-answer-highlight');
+                    btn.disabled = false;
+                });
+            });
+
+            // Reset labels
+            hAlignLabel.textContent = 'Horizontal';
+            vAlignLabel.textContent = 'Vertical';
+            spacingLabel.textContent = 'Line Spacing';
+            indentLabel.textContent = 'Indentation';
+
+            submitButton.classList.remove('hidden');
+            nextButton.classList.add('hidden');
+
+            selections = { v: null, h: null, s: null, i: null };
+            generateAndDrawText();
+        }
+        
+        async function endGame() {
+            gameActive = false;
+            showScreen('gameOverScreen');
+            
+            const finalScoreEl = document.getElementById('finalScore');
+            const averageScoreEl = document.getElementById('averageScore');
+            const bestStreakDisplay = document.getElementById('bestStreakDisplay');
+            const improvementTip = document.getElementById('improvementTip');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const notSignedInMsg = document.getElementById('notSignedInMsg');
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            
+            finalScoreEl.textContent = totalScore;
+            
+            const percentage = Math.round(totalScore / (MAX_ROUNDS * 100) * 100);
+            let gradeText = '';
+            if (percentage >= 90) {
+                gradeText = `${percentage}% — <span class="text-green-400">Excellent!</span>`;
+            } else if (percentage >= 80) {
+                gradeText = `${percentage}% — <span class="text-[var(--primary)]">Great Job!</span>`;
+            } else if (percentage >= 70) {
+                gradeText = `${percentage}% — <span class="text-amber-400">Good Effort!</span>`;
+            } else {
+                gradeText = `${percentage}% — Keep practicing!`;
+            }
+            averageScoreEl.innerHTML = gradeText;
+            
+            // Show best streak if it was 2+
+            if (bestStreak >= 2) {
+                bestStreakDisplay.textContent = `Best streak: ${bestStreak} 🔥`;
+            } else {
+                bestStreakDisplay.textContent = '';
+            }
+            
+            // Find weakest category
+            const minCategoryScore = Math.min(categoryScores.h, categoryScores.v, categoryScores.s, categoryScores.i);
+            let lowestCategories = [];
+            if (categoryScores.h === minCategoryScore) lowestCategories.push("Horizontal Alignment");
+            if (categoryScores.v === minCategoryScore) lowestCategories.push("Vertical Alignment");
+            if (categoryScores.s === minCategoryScore) lowestCategories.push("Line Spacing");
+            if (categoryScores.i === minCategoryScore) lowestCategories.push("Indentation");
+            
+            if (percentage < 95 && lowestCategories.length > 0 && lowestCategories.length < 4) {
+                improvementTip.textContent = `💡 Focus on: ${lowestCategories.join(', ')}`;
+            } else {
+                improvementTip.textContent = '';
+            }
+            
+            // Reset UI state
+            initialsEntry.classList.add('hidden');
+            scoreSubmitted.classList.add('hidden');
+            notSignedInMsg.classList.add('hidden');
+            initialsError.classList.add('hidden');
+            initialsInput.value = '';
+            
+            // Load leaderboard
+            await loadLeaderboard();
+            
+            // Show appropriate UI based on auth state
+            if (currentUser) {
+                initialsEntry.classList.remove('hidden');
+                initialsInput.focus();
+            } else {
+                notSignedInMsg.classList.remove('hidden');
+            }
+        }
+
+        function generateAndDrawText() {
+            const text = TEXT_SAMPLES[Math.floor(Math.random() * TEXT_SAMPLES.length)];
+            
+            // Use pre-generated formatting for this round (balanced distribution)
+            correctAnswers = { ...preGeneratedRounds[roundNumber - 1] };
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const padding = canvas.width * 0.10;
+            const maxWidth = canvas.width - padding * 2;
+            
+            // Target: text block should be at most 40% of canvas height
+            // This ensures vertical alignment is clearly distinguishable
+            const maxBlockHeight = canvas.height * 0.40;
+            
+            // Find optimal font size (start large, shrink until it fits)
+            let fontSize = Math.min(24, canvas.width / 25);
+            const minFontSize = 8;
+            let lines, blockHeight, lineHeight;
+            
+            while (fontSize >= minFontSize) {
+                lineHeight = fontSize * 1.4 * correctAnswers.s;
+                ctx.font = `${fontSize}px 'Inter', sans-serif`;
+                
+                // Calculate lines at this font size
+                lines = [];
+                let currentLine = '';
+                const words = text.split(' ');
+                
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    const testLine = currentLine ? currentLine + " " + word : word;
+                    
+                    let indentWidth = 0;
+                    if (correctAnswers.i === 'first' && lines.length === 0) {
+                        indentWidth = fontSize * 2;
+                    } else if (correctAnswers.i === 'paragraph') {
+                        indentWidth = fontSize * 2;
+                    }
+                    
+                    const width = ctx.measureText(testLine).width;
+                    
+                    if (width < maxWidth - indentWidth) {
+                        currentLine = testLine;
+                    } else {
+                        if (currentLine) lines.push(currentLine);
+                        currentLine = word;
+                    }
+                }
+                if (currentLine) lines.push(currentLine);
+                
+                // Calculate block height
+                blockHeight = (lines.length - 1) * lineHeight + fontSize;
+                
+                // Check if it fits
+                if (blockHeight <= maxBlockHeight) {
+                    break; // Good size found
+                }
+                
+                fontSize -= 1;
+            }
+            
+            // Ensure minimum font size
+            fontSize = Math.max(fontSize, minFontSize);
+            lineHeight = fontSize * 1.4 * correctAnswers.s;
+            ctx.font = `${fontSize}px 'Inter', sans-serif`;
+            ctx.fillStyle = '#1e293b';
+
+            // Calculate vertical position
+            let startY;
+            if (correctAnswers.v === 'top') {
+                startY = padding;
+            } else if (correctAnswers.v === 'center') {
+                startY = (canvas.height - blockHeight) / 2;
+            } else {
+                startY = canvas.height - padding - blockHeight;
+            }
+            
+            ctx.textBaseline = 'top';
+            
+            // Draw each line
+            lines.forEach((line, i) => {
+                const isFirstLine = i === 0;
+                const isLastLine = i === lines.length - 1;
+                
+                // Calculate indent for this line
+                let indent = 0;
+                if (correctAnswers.i === 'first' && isFirstLine) {
+                    indent = fontSize * 2;
+                } else if (correctAnswers.i === 'paragraph') {
+                    indent = fontSize * 2;
+                }
+                
+                let xPos;
+                ctx.textAlign = 'left';
+                
+                if (correctAnswers.h === 'left') {
+                    // Left align: indent pushes text right from left margin
+                    xPos = padding + indent;
+                } else if (correctAnswers.h === 'center') {
+                    // Center align: indent shifts the center point right
+                    // This makes indented centered text visibly off-center
+                    ctx.textAlign = 'center';
+                    xPos = canvas.width / 2 + (indent / 2);
+                } else if (correctAnswers.h === 'right') {
+                    // Right align: no indent applied
+                    ctx.textAlign = 'right';
+                    xPos = canvas.width - padding;
+                } else if (correctAnswers.h === 'justify' && !isLastLine) {
+                    ctx.textAlign = 'left';
+                    const lineWords = line.split(' ');
+                    if (lineWords.length > 1) {
+                        const totalTextWidth = lineWords.reduce((sum, word) => sum + ctx.measureText(word).width, 0);
+                        const availableWidth = maxWidth - indent;
+                        const totalSpace = availableWidth - totalTextWidth;
+                        const spaceWidth = totalSpace / (lineWords.length - 1);
+                        
+                        let currentX = padding + indent;
+                        lineWords.forEach((word, wi) => {
+                            ctx.fillText(word, currentX, startY + (i * lineHeight));
+                            currentX += ctx.measureText(word).width + spaceWidth;
+                        });
+                        return;
+                    } else {
+                        xPos = padding + indent;
+                    }
+                } else {
+                    xPos = padding + indent;
+                }
+                
+                ctx.fillText(line, xPos, startY + (i * lineHeight));
+            });
+        }
+
+        function handleSelection(key, groupElement, dataAttribute, value, labelElement, labelText) {
+            if (!gameActive) return;
+            groupElement.querySelectorAll('.btn-tool').forEach(btn => btn.classList.remove('selected'));
+            const selectedBtn = groupElement.querySelector(`[${dataAttribute}="${value}"]`);
+            selectedBtn.classList.add('selected');
+            selections[key] = value;
+            labelElement.textContent = labelText;
+        }
+
+        function updateStreakDisplay() {
+            if (currentStreak >= 2) {
+                streakContainer.classList.remove('hidden-streak');
+                streakCounterEl.textContent = currentStreak;
+                streakContainer.classList.add('streak-bump');
+                setTimeout(() => streakContainer.classList.remove('streak-bump'), 300);
+            } else {
+                streakContainer.classList.add('hidden-streak');
+            }
+        }
+
+        // Helper to get display names for values
+        const DISPLAY_NAMES = {
+            h: { left: 'Left', center: 'Center', right: 'Right', justify: 'Justify' },
+            v: { top: 'Top', center: 'Middle', bottom: 'Bottom' },
+            s: { '1': 'Single', '1.5': '1.5', '2': 'Double' },
+            i: { none: 'None', first: 'First Line', paragraph: 'Paragraph' }
+        };
+        
+        const CATEGORY_NAMES = { h: 'Horizontal', v: 'Vertical', s: 'Spacing', i: 'Indent' };
+        
+        function checkAnswers() {
+            let missingSelections = [];
+            if (selections.h === null) missingSelections.push("Horizontal");
+            if (selections.v === null) missingSelections.push("Vertical");
+            if (selections.s === null) missingSelections.push("Line Spacing");
+            if (selections.i === null) missingSelections.push("Indentation");
+
+            if (!gameActive || missingSelections.length > 0) {
+                feedbackEl.innerHTML = `<span class="text-red-400">⚠️ Select: ${missingSelections.join(', ')}</span>`;
+                return;
+            }
+            
+            gameActive = false;
+            let roundScore = 0;
+            let allCorrect = true;
+            let wrongItems = [];
+
+            // Disable all buttons
+            [hAlignGroup, vAlignGroup, spacingGroup, indentGroup].forEach(group => {
+                group.querySelectorAll('.btn-tool').forEach(btn => btn.disabled = true);
+            });
+
+            // Check each answer (25 points each)
+            const checks = [
+                { key: 'h', wrapper: hAlignFeedbackWrapper, group: hAlignGroup, attr: 'data-h-align', points: 25 },
+                { key: 'v', wrapper: vAlignFeedbackWrapper, group: vAlignGroup, attr: 'data-v-align', points: 25 },
+                { key: 's', wrapper: spacingFeedbackWrapper, group: spacingGroup, attr: 'data-spacing', points: 25 },
+                { key: 'i', wrapper: indentFeedbackWrapper, group: indentGroup, attr: 'data-indent', points: 25 }
+            ];
+
+            checks.forEach(check => {
+                if (selections[check.key] == correctAnswers[check.key]) {
+                    roundScore += check.points;
+                    categoryScores[check.key] += check.points;
+                    check.wrapper.classList.add('feedback-correct');
+                } else {
+                    allCorrect = false;
+                    check.wrapper.classList.add('feedback-incorrect');
+                    check.group.querySelector(`[${check.attr}="${correctAnswers[check.key]}"]`)
+                        .classList.add('correct-answer-highlight');
+                    // Track what was wrong
+                    wrongItems.push(`${CATEGORY_NAMES[check.key]}: ${DISPLAY_NAMES[check.key][correctAnswers[check.key]]}`);
+                }
+            });
+
+            // Update streak
+            if (allCorrect) {
+                currentStreak++;
+                bestStreak = Math.max(bestStreak, currentStreak);
+            } else {
+                currentStreak = 0;
+            }
+            updateStreakDisplay();
+
+            totalScore += roundScore;
+            totalScoreEl.textContent = totalScore;
+            
+            // Feedback text with explanation
+            if (roundScore === 100) {
+                feedbackEl.innerHTML = '<span class="text-green-500">🎉 Perfect! +100</span>';
+            } else {
+                let scoreText = roundScore >= 75 ? `<span class="text-blue-500">✅ +${roundScore}</span>` :
+                               roundScore >= 50 ? `<span class="text-amber-500">👍 +${roundScore}</span>` :
+                               `<span class="text-gray-500">+${roundScore}</span>`;
+                feedbackEl.innerHTML = `${scoreText} <span class="text-xs text-gray-500">Correct: ${wrongItems.join(', ')}</span>`;
+            }
+
+            submitButton.classList.add('hidden');
+            nextButton.classList.remove('hidden');
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('signInBtn').addEventListener('click', signInWithGoogle);
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('submitScoreBtn').addEventListener('click', handleScoreSubmit);
+        
+        document.getElementById('initialsInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleScoreSubmit();
+        });
+        document.getElementById('initialsInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            document.getElementById('initialsError').classList.add('hidden');
+        });
+
+        vAlignGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('v', vAlignGroup, 'data-v-align', btn.dataset.vAlign, vAlignLabel, btn.title);
+        });
+        
+        hAlignGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('h', hAlignGroup, 'data-h-align', btn.dataset.hAlign, hAlignLabel, btn.title);
+        });
+        
+        spacingGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('s', spacingGroup, 'data-spacing', btn.dataset.spacing, spacingLabel, btn.title);
+        });
+        
+        indentGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('i', indentGroup, 'data-indent', btn.dataset.indent, indentLabel, btn.title);
+        });
+        
+        submitButton.addEventListener('click', checkAnswers);
+        nextButton.addEventListener('click', newRound);
+        playAgainButton.addEventListener('click', startGame);
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('gameScreen').classList.contains('active')) {
+                setupCanvas();
+                if (correctAnswers.h) generateAndDrawText();
+            }
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameActive) {
+                    checkAnswers();
+                } else if (!nextButton.classList.contains('hidden')) {
+                    newRound();
+                } else if (document.getElementById('gameOverScreen').classList.contains('active')) {
+                    startGame();
+                } else if (document.getElementById('startScreen').classList.contains('active')) {
+                    startGame();
+                }
+            }
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        initFirebase();
+    </script>
+</body>
+</html>

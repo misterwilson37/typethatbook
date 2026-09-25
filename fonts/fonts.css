@@ -1,32 +1,33 @@
-/* fonts.css — Round 135 (Tory). SELF-HOSTED, SO NO THIRD PARTY SEES A VISITOR.
+/* fonts/fonts.css v1.0.0 — SELF-HOSTED, SO NO OUTSIDE COMPANY SEES A VISITOR.
+ * Figgins, Sept 2026 (privacy round). Every page used to load Inter (and admin.html
+ * Urbanist + Questrial) from fonts.googleapis.com, which hands Google each visitor's
+ * IP address on every page load. These are the same fonts, served from SpotOn itself.
  *
- * ⚠️⚠️ WHY THIS FILE EXISTS: every page used to load its fonts from
- * fonts.googleapis.com, which hands Google each visitor's IP address and browser
- * details on every page load. For a site used by children under 13 that is a
- * third-party disclosure a privacy notice has to name and justify. Serving the
- * same three families from this repo removes that disclosure entirely, for free.
- *
- * ⭐ ALL THREE ARE SIL OPEN FONT LICENSE 1.1, which explicitly permits
- * redistribution and self-hosting; the licence texts sit beside the files.
- * Sourced from the @fontsource npm packages (latin subset, woff2).
- *
- * ⚠️ ONLY THE WEIGHTS THE PAGES ACTUALLY REQUESTED. The old <link> tags asked for
- * Courier Prime 400/700, Bitter 400/600/700 and IM Fell English regular/italic —
- * exactly these seven files. Add a weight here before using it in CSS, or the
- * browser will synthesise a fake bold. tests/self-hosted-fonts-test.mjs checks
- * that every url() below names a file that exists.
+ * All three are SIL Open Font License 1.1 (licence texts beside the files), which
+ * permits self-hosting. Source: the @fontsource npm packages, latin subset, woff2.
+ * Only the weights the old <link> tags asked for — add a file here before using a new
+ * weight, or the browser fakes it. tests/self-hosted-assets-test.mjs checks that every
+ * url() below points at a file that exists.
  */
-@font-face { font-family: 'Courier Prime'; font-style: normal; font-weight: 400; font-display: swap;
-  src: url('courier-prime-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Courier Prime'; font-style: normal; font-weight: 700; font-display: swap;
-  src: url('courier-prime-latin-700-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Bitter'; font-style: normal; font-weight: 400; font-display: swap;
-  src: url('bitter-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Bitter'; font-style: normal; font-weight: 600; font-display: swap;
-  src: url('bitter-latin-600-normal.woff2') format('woff2'); }
-@font-face { font-family: 'Bitter'; font-style: normal; font-weight: 700; font-display: swap;
-  src: url('bitter-latin-700-normal.woff2') format('woff2'); }
-@font-face { font-family: 'IM Fell English'; font-style: normal; font-weight: 400; font-display: swap;
-  src: url('im-fell-english-latin-400-normal.woff2') format('woff2'); }
-@font-face { font-family: 'IM Fell English'; font-style: italic; font-weight: 400; font-display: swap;
-  src: url('im-fell-english-latin-400-italic.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('inter-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('inter-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('inter-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Inter'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url('inter-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('urbanist-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('urbanist-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('urbanist-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('urbanist-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Urbanist'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url('urbanist-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Questrial'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('questrial-latin-400-normal.woff2') format('woff2'); }

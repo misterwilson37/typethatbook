@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Format Frenzy v2.2.0</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --danger: #ef4444;
+            --danger-glow: #ff6b6b;
+            --warning: #f59e0b;
+            --success: #22c55e;
+            --text-primary: #ffffff;
+            --text-muted: #9ca3af;
+        }
+        
+        
+        
+        
+        
+        .canvas-container {
+            background: #111;
+            border: 3px solid #333;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .canvas-container.danger {
+            border-color: var(--danger);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        }
+        
+        .canvas-container.critical {
+            border-color: var(--danger);
+            box-shadow: 0 0 40px rgba(239, 68, 68, 0.5);
+        }
+        
+        /* Vibration animations */
+        @keyframes vibrate-light {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(1px, 1px); }
+            50% { transform: translate(-1px, -1px); }
+            75% { transform: translate(1px, -1px); }
+        }
+        
+        @keyframes vibrate-medium {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(2px, 2px); }
+            40% { transform: translate(-2px, -1px); }
+            60% { transform: translate(2px, -2px); }
+            80% { transform: translate(-1px, 2px); }
+        }
+        
+        @keyframes vibrate-heavy {
+            0%, 100% { transform: translate(0, 0); }
+            10% { transform: translate(3px, 2px); }
+            20% { transform: translate(-3px, -2px); }
+            30% { transform: translate(2px, -3px); }
+            40% { transform: translate(-2px, 3px); }
+            50% { transform: translate(3px, -2px); }
+            60% { transform: translate(-3px, 2px); }
+            70% { transform: translate(2px, 3px); }
+            80% { transform: translate(-2px, -3px); }
+            90% { transform: translate(3px, 2px); }
+        }
+        
+        @keyframes vibrate-critical {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            10% { transform: translate(4px, 3px) rotate(0.5deg); }
+            20% { transform: translate(-4px, -2px) rotate(-0.5deg); }
+            30% { transform: translate(3px, -4px) rotate(0.3deg); }
+            40% { transform: translate(-3px, 4px) rotate(-0.3deg); }
+            50% { transform: translate(4px, -3px) rotate(0.5deg); }
+            60% { transform: translate(-4px, 3px) rotate(-0.5deg); }
+            70% { transform: translate(3px, 4px) rotate(0.3deg); }
+            80% { transform: translate(-3px, -4px) rotate(-0.3deg); }
+            90% { transform: translate(4px, 3px) rotate(0.5deg); }
+        }
+        
+        .vibrate-light { animation: vibrate-light 0.15s infinite; }
+        .vibrate-medium { animation: vibrate-medium 0.1s infinite; }
+        .vibrate-heavy { animation: vibrate-heavy 0.08s infinite; }
+        .vibrate-critical { animation: vibrate-critical 0.05s infinite; }
+        
+        /* Explosion animation */
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; filter: brightness(1); }
+            20% { transform: scale(1.1); filter: brightness(2); }
+            40% { transform: scale(1.3); filter: brightness(3) saturate(2); }
+            60% { transform: scale(1.5); opacity: 0.8; filter: brightness(4) saturate(3); }
+            100% { transform: scale(2); opacity: 0; filter: brightness(5); }
+        }
+        
+        .exploding {
+            animation: explode 0.5s ease-out forwards;
+        }
+        
+        @keyframes flash-red {
+            0%, 100% { background-color: #0a0a0a; }
+            50% { background-color: #1a0000; }
+        }
+        
+        .flash-danger {
+            animation: flash-red 0.3s ease-in-out 3;
+        }
+        
+        /* Defused animation */
+        @keyframes defused-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(34, 197, 94, 0.6); }
+        }
+        
+        .defused {
+            border-color: var(--success) !important;
+            animation: defused-pulse 0.5s ease-in-out 2;
+        }
+        
+        /* Timer styling */
+        .timer {
+            font-family: 'Courier New', monospace;
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: 2px;
+        }
+        
+        .timer.warning { color: var(--warning); }
+        .timer.danger { color: var(--danger); text-shadow: 0 0 10px var(--danger); }
+        
+        /* Button groups */
+        .btn-group {
+            background-color: #222;
+            border-radius: 0.5rem;
+            padding: 4px;
+            border: 1px solid #333;
+        }
+        .btn-tool {
+            background-color: transparent;
+            border: 2px solid transparent;
+            border-radius: 0.375rem;
+            padding: 0.5rem;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+        .btn-tool:hover:not(:disabled) {
+            background-color: #333;
+        }
+        .btn-tool.selected {
+            background-color: #444;
+            border-color: var(--warning);
+        }
+        .btn-tool.correct {
+            border-color: var(--success);
+            background-color: rgba(34, 197, 94, 0.2);
+        }
+        .btn-tool.incorrect {
+            border-color: var(--danger);
+            background-color: rgba(239, 68, 68, 0.2);
+        }
+        .btn-tool.correct-answer {
+            border-color: var(--success);
+            background-color: rgba(34, 197, 94, 0.3);
+        }
+        .btn-tool:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-tool svg {
+            width: 1.5rem;
+            height: 1.5rem;
+            stroke: #ccc;
+            stroke-width: 1.5;
+            fill: none;
+        }
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        .glow-danger { text-shadow: 0 0 20px var(--danger); }
+        
+        .btn-defuse {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            border: 2px solid #ef4444;
+            padding: 12px 32px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.2s;
+        }
+        .btn-defuse:hover:not(:disabled) {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        }
+        .btn-defuse:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+</style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <div class="game-wrapper">
+        <div class="game-container">
+<!-- Start Screen -->
+            <div id="startScreen" class="screen active">
+                
+                <h1 class="game-title ff-title">Format Frenzy</h1>
+                <p class="game-subtitle">Defuse the bomb before it explodes!</p>
+                
+                <div class="how-to-play ff-how-to-play">
+                    <h3>⚠️ How to Play:</h3>
+                    <ul>
+                        <li>• Identify ALL 4 formatting properties before time runs out</li>
+                        <li>• Get all 4 correct to defuse the bomb</li>
+                        <li>• Score = seconds remaining (faster = more points)</li>
+                        <li>• Timer gets shorter each round!</li>
+                        <li>• One wrong answer = 💥 BOOM!</li>
+                    </ul>
+                </div>
+                
+                <!-- User status -->
+                <div id="userStatus" class="mb-6">
+                    <button id="signInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <p class="loading-text mt-1">Sign in to save your score</p>
+                </div>
+                <div id="userSignedIn" class="mb-6 hidden">
+                    <div class="user-badge inline-flex">
+                        <img id="userPhoto" src="" alt="">
+                        <span id="userName">Player</span>
+                        <span id="signOutBtn" class="sign-out">✕</span>
+                    </div>
+                </div>
+                
+                <button id="startGameBtn" class="btn btn-primary">
+                    🔥 Start Defusing
+                </button>
+            </div>
+            
+            <!-- Game Screen -->
+            <div id="gameScreen" class="screen">
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-left">
+                        <p class="text-gray-500 text-xs">ROUND</p>
+                        <p class="text-2xl font-bold"><span id="roundCounter">1</span>/10</p>
+                    </div>
+                    <div class="text-center">
+                        <p id="timerDisplay" class="timer">15.0</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-gray-500 text-xs">TOTAL TIME</p>
+                        <p class="text-2xl font-bold text-red-400"><span id="totalScore">0.0</span>s</p>
+                    </div>
+                </div>
+                
+                <!-- Game Canvas -->
+                <div id="canvasContainer" class="canvas-container w-full max-w-2xl mx-auto aspect-[4/3] mb-6">
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+
+                <!-- Controls -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 max-w-3xl mx-auto">
+                    <!-- Horizontal Align -->
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="h-align-group" class="btn-group flex flex-wrap justify-center">
+                            <button class="btn-tool" data-h-align="left" title="Left"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 10h12M3 14h18M3 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="center" title="Center"><svg viewBox="0 0 24 24"><path d="M3 6h18M6 10h12M3 14h18M6 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="right" title="Right"><svg viewBox="0 0 24 24"><path d="M3 6h18M9 10h12M3 14h18M9 18h12"/></svg></button>
+                            <button class="btn-tool" data-h-align="justify" title="Justify"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 10h18M3 14h18M3 18h18"/></svg></button>
+                        </div>
+                        <p id="h-align-label" class="text-xs text-gray-500">Horizontal</p>
+                    </div>
+                    
+                    <!-- Vertical Align -->
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="v-align-group" class="btn-group flex">
+                            <button class="btn-tool" data-v-align="top" title="Top"><svg viewBox="0 0 24 24"><path d="M4 4h16 M12 20v-12m-3 3l3-3 3 3"/></svg></button>
+                            <button class="btn-tool" data-v-align="center" title="Middle"><svg viewBox="0 0 24 24"><path d="M4 12h16 M12 2v6 M9 5l3 3 3-3 M12 22v-6 M9 19l3-3 3 3"/></svg></button>
+                            <button class="btn-tool" data-v-align="bottom" title="Bottom"><svg viewBox="0 0 24 24"><path d="M4 20h16 M12 2v12m-3-3l3 3 3-3"/></svg></button>
+                        </div>
+                        <p id="v-align-label" class="text-xs text-gray-500">Vertical</p>
+                    </div>
+                    
+                    <!-- Line Spacing -->
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="spacing-group" class="btn-group flex">
+                            <button class="btn-tool" data-spacing="1" title="Single"><svg viewBox="0 0 24 24"><path d="M10 8h10M10 12h10M10 16h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                            <button class="btn-tool" data-spacing="1.5" title="1.5"><svg viewBox="0 0 24 24"><path d="M10 7h10M10 12h10M10 17h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                            <button class="btn-tool" data-spacing="2" title="Double"><svg viewBox="0 0 24 24"><path d="M10 6h10M10 18h10M6 4v16M4 6l2-2 2 2M4 18l2 2 2-2"/></svg></button>
+                        </div>
+                        <p id="spacing-label" class="text-xs text-gray-500">Spacing</p>
+                    </div>
+                    
+                    <!-- Indentation -->
+                    <div class="flex flex-col items-center gap-1">
+                        <div id="indent-group" class="btn-group flex">
+                            <button class="btn-tool" data-indent="none" title="None"><svg viewBox="0 0 24 24"><path d="M3 8h18M3 12h18M3 16h14"/></svg></button>
+                            <button class="btn-tool" data-indent="first" title="First Line"><svg viewBox="0 0 24 24"><path d="M7 8h14M3 12h18M3 16h14"/></svg></button>
+                            <button class="btn-tool" data-indent="paragraph" title="Paragraph"><svg viewBox="0 0 24 24"><path d="M7 8h14M7 12h14M7 16h10"/></svg></button>
+                        </div>
+                        <p id="indent-label" class="text-xs text-gray-500">Indent</p>
+                    </div>
+                </div>
+
+                <p id="feedbackText" class="text-lg font-bold mb-4 h-7">Select all 4 to defuse!</p>
+
+                <button id="defuseButton" class="btn btn-primary">
+                    💣 DEFUSE
+                </button>
+                <button id="nextRoundButton" class="btn-defuse text-white rounded-lg shadow hidden" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); border-color: #22c55e;">
+                    ✓ NEXT ROUND
+                </button>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div id="gameOverScreen" class="screen">
+                <h1 id="gameOverTitle" class="game-title ff-title">GAME OVER</h1>
+                <p id="gameOverSubtitle" class="text-gray-400 mb-4"></p>
+                
+                <p class="final-score-label">Total Time Saved</p>
+                <p id="finalScore" class="final-score ff-score">0.0<span class="text-2xl">s</span></p>
+                <p id="roundsSurvived" class="mb-3" style="color: var(--text-secondary);"></p>
+                
+                <!-- Initials Entry -->
+                <div id="initialsEntry" class="mb-6 hidden">
+                    <p style="color: var(--text-secondary);" class="mb-2">Enter your initials:</p>
+                    <div class="flex items-center gap-3 justify-center">
+                        <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                        <button id="submitScoreBtn" class="btn btn-primary btn-sm">Submit</button>
+                    </div>
+                    <p id="initialsError" class="text-red-400 text-sm mt-2 hidden"></p>
+                </div>
+                
+                <div id="scoreSubmitted" class="mb-4 hidden">
+                    <p class="text-green-400 font-medium">✓ Score saved!</p>
+                    <p id="playerRank" class="text-gray-400"></p>
+                </div>
+                
+                <div id="notSignedInMsg" class="mb-4 hidden">
+                    <p class="text-gray-500 text-sm">Sign in before playing to save your score!</p>
+                </div>
+                
+                <!-- Links -->
+                <div class="flex gap-4 justify-center mb-4 flex-wrap">
+                    <a href="spottheformat.html" class="nav-link" style="pointer-events: auto;">Spot the Format (untimed)</a>
+                    <a href="leaderboard.html" class="text-gray-500 hover:text-red-400 text-sm">🏆 Leaderboard</a>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div class="leaderboard">
+                    <h3 class="leaderboard-title">🏆 Top 10 Times</h3>
+                    <div id="leaderboardList">
+                        <p class="loading-text text-center">Loading...</p>
+                    </div>
+                </div>
+                
+                <button id="playAgainButton" class="btn btn-primary">
+                    🔥 Try Again
+                </button>
+            </div>
+            
+        </div>
+        <footer class="game-footer">
+            <p>Originally by Gemini, enhanced by Claude</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & AUTH
+        // ============================================
+        let app, db, auth;
+        let currentUser = null;
+        
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        }
+        
+        function updateAuthUI() {
+            const userStatus = document.getElementById('userStatus');
+            const userSignedIn = document.getElementById('userSignedIn');
+            const userPhoto = document.getElementById('userPhoto');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') console.error('Sign in error:', error);
+            }
+        }
+        
+        async function signOut() {
+            try { await fbSignOut(auth); } catch (error) { console.error('Sign out error:', error); }
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'format-frenzy'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="text-red-400 text-center py-4">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet!</p>';
+                return;
+            }
+            leaderboardList.innerHTML = scores.map((s, i) => `
+                <div class="leaderboard-row ${s.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">#${i + 1}</span>
+                    <span class="leaderboard-initials">${escapeHtml(s.initials)}</span>
+                    <span class="leaderboard-score">${s.score.toFixed(1)}s</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getPlayerRank(playerScore) {
+            if (!db) return null;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'format-frenzy'),
+                    where('score', '>', playerScore)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.size + 1;
+            } catch (error) { return null; }
+        }
+        
+        async function submitScore(initials) {
+            if (!currentUser || !db) return null;
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'format-frenzy',
+                    initials: initials.toUpperCase(),
+                    score: parseFloat(totalScore.toFixed(1)),
+                    roundsCompleted: roundNumber - 1,
+                    flagged: containsProfanity(initials)
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        async function handleScoreSubmit() {
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            const submitScoreBtn = document.getElementById('submitScoreBtn');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const playerRank = document.getElementById('playerRank');
+            
+            const initials = initialsInput.value.trim().toUpperCase();
+            
+            if (initials.length < 1 || initials.length > 3) {
+                initialsError.textContent = 'Enter 1-3 characters.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Saving...';
+            
+            const scoreId = await submitScore(initials);
+            
+            if (scoreId) {
+                initialsEntry.classList.add('hidden');
+                scoreSubmitted.classList.remove('hidden');
+                const rank = await getPlayerRank(totalScore);
+                if (rank) playerRank.textContent = `Your rank: #${rank}`;
+                await loadLeaderboard(scoreId);
+            } else {
+                initialsError.textContent = 'Failed to save. Try again.';
+                initialsError.classList.remove('hidden');
+            }
+            
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit';
+        }
+        
+        // ============================================
+        // GAME VARIABLES
+        // ============================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvasContainer');
+        
+        const TEXT_SAMPLES = ["Dorothy lived in the midst of the great Kansas prairies with Uncle Henry and Aunt Em. Their house was small, for the lumber had to be carried many miles by wagon.","The little girl gave a cry of amazement and looked about her. Her eyes grew bigger and bigger at the wonderful sights she saw. The cyclone had set the house down very gently.","These people were not as big as the grown folk she had always been used to. Neither were they very small or tiny. In fact, they seemed about as tall as Dorothy herself.","You must go to the City of Emeralds. Perhaps Oz will help you on your journey. It is a long journey through a country that is sometimes pleasant and sometimes dark and terrible.","The road to the City of Emeralds is paved with yellow brick. You cannot miss it if you follow the path carefully. When you get to Oz do not be afraid of him at all.","I will use all the magic arts I know of to keep you from harm. You must be brave and trust in the journey ahead. Good things await those who persevere through challenges.","There were lovely patches of green sward all about. Stately trees bearing rich and luscious fruits were everywhere. Banks of gorgeous flowers scented the air with their perfume.","The houses of the Munchkins were odd looking dwellings. Each was round with a big dome for a roof. All were painted blue, for that was the favorite color in this country.","She noticed coming down toward her a group of people. They were the strangest people she had ever seen. They were not as large as adults but larger than children.","Before them was a great stretch of country having a floor as smooth and shining as a mirror. It seemed to stretch to the edge of the sky in all directions."
+        ];
+
+        let roundNumber = 0;
+        let totalScore = 0;
+        let currentTimer = 0;
+        let timerInterval = null;
+        let gameActive = false;
+        let selections = { v: null, h: null, s: null, i: null };
+        let correctAnswers = { v: null, h: null, s: null, i: null };
+        let survivorMode = false;
+        let preGeneratedRounds = [];
+        
+        const MAX_ROUNDS = 10;
+        const START_TIME = 20; // seconds for round 1
+        const MIN_TIME = 8;    // minimum seconds (reached and sustained in survivor mode)
+        
+        // ============================================
+        // BALANCED ROUND GENERATION
+        // ============================================
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+        
+        function generateBalancedArray(options, count, minEach) {
+            let result = [];
+            options.forEach(opt => {
+                for (let i = 0; i < minEach; i++) {
+                    result.push(opt);
+                }
+            });
+            while (result.length < count) {
+                result.push(options[Math.floor(Math.random() * options.length)]);
+            }
+            return shuffleArray(result);
+        }
+        
+        function preGenerateRounds(numRounds = MAX_ROUNDS) {
+            const hAligns = generateBalancedArray(['left', 'center', 'right', 'justify'], numRounds, 2);
+            const vAligns = generateBalancedArray(['top', 'center', 'bottom'], numRounds, 2);
+            const spacings = generateBalancedArray([1, 1.5, 2], numRounds, 2);
+            const indents = generateBalancedArray(['none', 'first', 'paragraph'], numRounds, 2);
+            
+            preGeneratedRounds = [];
+            for (let i = 0; i < numRounds; i++) {
+                let round = {
+                    h: hAligns[i],
+                    v: vAligns[i],
+                    s: spacings[i],
+                    i: indents[i]
+                };
+                
+                // Indentation doesn't work with right alignment
+                if ((round.i === 'paragraph' || round.i === 'first') && round.h === 'right') {
+                    round.i = 'none';
+                }
+                
+                preGeneratedRounds.push(round);
+            }
+        }
+        
+        function getNextRoundAnswers() {
+            // For survivor mode, generate on the fly after initial 10 rounds
+            if (roundNumber > preGeneratedRounds.length) {
+                let round = {
+                    h: ['left', 'center', 'right', 'justify'][Math.floor(Math.random() * 4)],
+                    v: ['top', 'center', 'bottom'][Math.floor(Math.random() * 3)],
+                    s: [1, 1.5, 2][Math.floor(Math.random() * 3)],
+                    i: ['none', 'first', 'paragraph'][Math.floor(Math.random() * 3)]
+                };
+                if ((round.i === 'paragraph' || round.i === 'first') && round.h === 'right') {
+                    round.i = 'none';
+                }
+                return round;
+            }
+            return { ...preGeneratedRounds[roundNumber - 1] };
+        }
+        
+        function getRoundTime(round) {
+            // Decrease from START_TIME, but never below MIN_TIME
+            const decrease = (START_TIME - MIN_TIME) * (round - 1) / 9; // 9 rounds to reach minimum
+            return Math.max(MIN_TIME, START_TIME - decrease);
+        }
+
+        // UI Elements
+        const timerDisplay = document.getElementById('timerDisplay');
+        const totalScoreEl = document.getElementById('totalScore');
+        const roundCounterEl = document.getElementById('roundCounter');
+        const feedbackEl = document.getElementById('feedbackText');
+        const defuseButton = document.getElementById('defuseButton');
+        
+        const vAlignGroup = document.getElementById('v-align-group');
+        const hAlignGroup = document.getElementById('h-align-group');
+        const spacingGroup = document.getElementById('spacing-group');
+        const indentGroup = document.getElementById('indent-group');
+
+        // ============================================
+        // SCREENS
+        // ============================================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // ============================================
+        // GAME SETUP
+        // ============================================
+        function setupCanvas() {
+            const container = canvasContainer;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        function startGame() {
+            showScreen('gameScreen');
+            setupCanvas();
+            
+            roundNumber = 0;
+            totalScore = 0;
+            survivorMode = false;
+            totalScoreEl.textContent = '0.0';
+            
+            // Pre-generate balanced rounds
+            preGenerateRounds();
+            
+            newRound();
+        }
+
+        function newRound() {
+            roundNumber++;
+            
+            // After 10 rounds, check if entering/continuing survivor mode
+            if (roundNumber > MAX_ROUNDS && !survivorMode) {
+                offerSurvivorMode();
+                return;
+            }
+            
+            gameActive = true;
+            roundCounterEl.textContent = survivorMode ? `${roundNumber} 🔥` : roundNumber;
+            feedbackEl.textContent = 'Select all 4 to defuse!';
+            feedbackEl.className = 'text-lg font-bold mb-4 h-7 text-gray-400';
+            
+            // Reset canvas container
+            canvasContainer.className = 'canvas-container w-full max-w-2xl mx-auto aspect-[4/3] mb-6';
+            
+            // Reset buttons
+            [hAlignGroup, vAlignGroup, spacingGroup, indentGroup].forEach(group => {
+                group.querySelectorAll('.btn-tool').forEach(btn => {
+                    btn.classList.remove('selected', 'correct', 'incorrect', 'correct-answer');
+                    btn.disabled = false;
+                });
+            });
+            
+            defuseButton.disabled = false;
+            defuseButton.textContent = '💣 DEFUSE';
+            defuseButton.classList.remove('hidden');
+            
+            // Hide next round button
+            document.getElementById('nextRoundButton').classList.add('hidden');
+            
+            selections = { v: null, h: null, s: null, i: null };
+            generateAndDrawText();
+            
+            // Start timer
+            currentTimer = getRoundTime(roundNumber);
+            updateTimerDisplay();
+            startTimer();
+        }
+        
+        function offerSurvivorMode() {
+            // Pause game and offer choice
+            gameActive = false;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            feedbackEl.innerHTML = `🎉 <span class="text-green-400">10 rounds complete!</span>`;
+            
+            // Show survivor mode prompt
+            canvasContainer.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-center p-6">
+                    <h2 class="text-2xl font-bold text-green-400 mb-4">🏆 You survived!</h2>
+                    <p class="text-gray-300 mb-6">Total time saved: <span class="text-red-400 font-bold">${totalScore.toFixed(1)}s</span></p>
+                    <p class="text-gray-400 mb-6">Ready for the <span class="text-red-400 font-bold">SURVIVOR MODE</span>?<br><span class="text-sm">Timer stays at ${MIN_TIME}s. Go until you explode!</span></p>
+                    <div class="flex gap-4">
+                        <button id="survivorYes" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg">🔥 Keep Going!</button>
+                        <button id="survivorNo" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg">Cash Out</button>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('survivorYes').addEventListener('click', () => {
+                survivorMode = true;
+                // Restore canvas
+                canvasContainer.innerHTML = '';
+                canvasContainer.appendChild(canvas);
+                setupCanvas();
+                newRound();
+            });
+            
+            document.getElementById('survivorNo').addEventListener('click', () => {
+                endGame(true);
+            });
+        }
+        
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            const tickRate = 50; // ms
+            timerInterval = setInterval(() => {
+                if (!gameActive) return;
+                
+                currentTimer -= tickRate / 1000;
+                
+                if (currentTimer <= 0) {
+                    currentTimer = 0;
+                    updateTimerDisplay();
+                    explode();
+                    return;
+                }
+                
+                updateTimerDisplay();
+                updateVibration();
+            }, tickRate);
+        }
+        
+        function updateTimerDisplay() {
+            timerDisplay.textContent = currentTimer.toFixed(1);
+            
+            const roundTime = getRoundTime(roundNumber);
+            const percentage = currentTimer / roundTime;
+            
+            if (percentage <= 0.25) {
+                timerDisplay.className = 'timer danger';
+            } else if (percentage <= 0.5) {
+                timerDisplay.className = 'timer warning';
+            } else {
+                timerDisplay.className = 'timer';
+            }
+        }
+        
+        function updateVibration() {
+            const roundTime = getRoundTime(roundNumber);
+            const percentage = currentTimer / roundTime;
+            
+            // Remove all vibration classes first
+            canvasContainer.classList.remove('vibrate-light', 'vibrate-medium', 'vibrate-heavy', 'vibrate-critical', 'danger', 'critical');
+            
+            if (percentage <= 0.15) {
+                canvasContainer.classList.add('vibrate-critical', 'critical');
+            } else if (percentage <= 0.3) {
+                canvasContainer.classList.add('vibrate-heavy', 'danger');
+            } else if (percentage <= 0.5) {
+                canvasContainer.classList.add('vibrate-medium', 'danger');
+            } else if (percentage <= 0.7) {
+                canvasContainer.classList.add('vibrate-light');
+            }
+        }
+        
+        // Helper to get display names for values
+        const DISPLAY_NAMES = {
+            h: { left: 'Left', center: 'Center', right: 'Right', justify: 'Justify' },
+            v: { top: 'Top', center: 'Middle', bottom: 'Bottom' },
+            s: { '1': 'Single', '1.5': '1.5', '2': 'Double' },
+            i: { none: 'None', first: 'First Line', paragraph: 'Paragraph' }
+        };
+        
+        const CATEGORY_NAMES = { h: 'Horiz', v: 'Vert', s: 'Space', i: 'Indent' };
+        
+        function explode() {
+            gameActive = false;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            // Disable all buttons
+            [hAlignGroup, vAlignGroup, spacingGroup, indentGroup].forEach(group => {
+                group.querySelectorAll('.btn-tool').forEach(btn => btn.disabled = true);
+            });
+            defuseButton.disabled = true;
+            
+            // Show correct answers and build explanation
+            const wrongItems = showCorrectAnswers();
+            
+            // Explosion animation
+            canvasContainer.classList.remove('vibrate-light', 'vibrate-medium', 'vibrate-heavy', 'vibrate-critical');
+            canvasContainer.classList.add('exploding');
+            document.body.classList.add('flash-danger');
+            
+            // Show what was wrong
+            if (wrongItems.length > 0) {
+                feedbackEl.innerHTML = `💥 Wrong: ${wrongItems.join(', ')}`;
+            } else {
+                feedbackEl.textContent = '💥 Time ran out!';
+            }
+            feedbackEl.className = 'text-lg font-bold mb-4 text-red-400';
+            
+            // Longer delay so they can see what was wrong
+            setTimeout(() => {
+                document.body.classList.remove('flash-danger');
+            }, 500);
+            
+            setTimeout(() => {
+                endGame(false);
+            }, 2500); // 2.5 seconds to review
+        }
+        
+        function defuseSuccess() {
+            gameActive = false;
+            if (timerInterval) clearInterval(timerInterval);
+            
+            // Add time to score
+            totalScore += currentTimer;
+            totalScoreEl.textContent = totalScore.toFixed(1);
+            
+            // Disable all buttons
+            [hAlignGroup, vAlignGroup, spacingGroup, indentGroup].forEach(group => {
+                group.querySelectorAll('.btn-tool').forEach(btn => btn.disabled = true);
+            });
+            defuseButton.disabled = true;
+            defuseButton.classList.add('hidden');
+            
+            // Show Next Round button
+            const nextRoundButton = document.getElementById('nextRoundButton');
+            nextRoundButton.classList.remove('hidden');
+            
+            // Success animation
+            canvasContainer.classList.remove('vibrate-light', 'vibrate-medium', 'vibrate-heavy', 'vibrate-critical', 'danger', 'critical');
+            canvasContainer.classList.add('defused');
+            
+            feedbackEl.innerHTML = `✅ Defused! +${currentTimer.toFixed(1)}s — Press SPACE or click Next`;
+            feedbackEl.className = 'text-lg font-bold mb-4 text-green-500';
+        }
+        
+        function showCorrectAnswers() {
+            // Show which were correct/incorrect and return list of wrong items
+            const checks = [
+                { key: 'h', group: hAlignGroup, attr: 'data-h-align' },
+                { key: 'v', group: vAlignGroup, attr: 'data-v-align' },
+                { key: 's', group: spacingGroup, attr: 'data-spacing' },
+                { key: 'i', group: indentGroup, attr: 'data-indent' }
+            ];
+            
+            const wrongItems = [];
+            
+            checks.forEach(check => {
+                if (selections[check.key] !== null) {
+                    const selectedBtn = check.group.querySelector(`[${check.attr}="${selections[check.key]}"]`);
+                    if (selections[check.key] == correctAnswers[check.key]) {
+                        selectedBtn.classList.add('correct');
+                    } else {
+                        selectedBtn.classList.add('incorrect');
+                        wrongItems.push(`${CATEGORY_NAMES[check.key]}=${DISPLAY_NAMES[check.key][correctAnswers[check.key]]}`);
+                    }
+                } else {
+                    // Not selected at all
+                    wrongItems.push(`${CATEGORY_NAMES[check.key]}=${DISPLAY_NAMES[check.key][correctAnswers[check.key]]}`);
+                }
+                // Always highlight correct answer
+                const correctBtn = check.group.querySelector(`[${check.attr}="${correctAnswers[check.key]}"]`);
+                if (correctBtn && selections[check.key] != correctAnswers[check.key]) {
+                    correctBtn.classList.add('correct-answer');
+                }
+            });
+            
+            return wrongItems;
+        }
+        
+        function endGame(completed) {
+            showScreen('gameOverScreen');
+            
+            const gameOverTitle = document.getElementById('gameOverTitle');
+            const gameOverSubtitle = document.getElementById('gameOverSubtitle');
+            const finalScoreEl = document.getElementById('finalScore');
+            const roundsSurvivedEl = document.getElementById('roundsSurvived');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const notSignedInMsg = document.getElementById('notSignedInMsg');
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            
+            if (completed) {
+                gameOverTitle.textContent = '🎉 ALL DEFUSED!';
+                gameOverTitle.className = 'text-4xl font-extrabold mb-2 text-green-500';
+                gameOverSubtitle.textContent = 'You cashed out!';
+            } else {
+                gameOverTitle.textContent = '💥 GAME OVER';
+                gameOverTitle.className = 'text-4xl font-extrabold mb-2 text-red-400 glow-danger';
+                gameOverSubtitle.textContent = survivorMode ? 'Survivor mode ended!' : 'The bomb exploded!';
+            }
+            
+            finalScoreEl.innerHTML = `${totalScore.toFixed(1)}<span class="text-2xl">s</span>`;
+            const roundsText = survivorMode ? 
+                `Rounds completed: ${roundNumber - 1} (Survivor Mode! 🔥)` : 
+                `Rounds completed: ${roundNumber - 1} / ${MAX_ROUNDS}`;
+            roundsSurvivedEl.textContent = roundsText;
+            
+            // Reset UI state
+            initialsEntry.classList.add('hidden');
+            scoreSubmitted.classList.add('hidden');
+            notSignedInMsg.classList.add('hidden');
+            initialsError.classList.add('hidden');
+            initialsInput.value = '';
+            
+            loadLeaderboard();
+            
+            // Only allow score submission if they completed at least 1 round
+            if (currentUser && (roundNumber - 1) > 0) {
+                initialsEntry.classList.remove('hidden');
+                initialsInput.focus();
+            } else if (!currentUser && (roundNumber - 1) > 0) {
+                notSignedInMsg.classList.remove('hidden');
+            }
+        }
+
+        function generateAndDrawText() {
+            const text = TEXT_SAMPLES[Math.floor(Math.random() * TEXT_SAMPLES.length)];
+            
+            // Use pre-generated or dynamically generated formatting (balanced distribution)
+            correctAnswers = getNextRoundAnswers();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const padding = canvas.width * 0.10;
+            const maxWidth = canvas.width - padding * 2;
+            
+            // Target: text block should be at most 40% of canvas height
+            // This ensures vertical alignment is clearly distinguishable
+            const maxBlockHeight = canvas.height * 0.40;
+            
+            // Find optimal font size (start large, shrink until it fits)
+            let fontSize = Math.min(24, canvas.width / 25);
+            const minFontSize = 8;
+            let lines, blockHeight, lineHeight;
+            
+            while (fontSize >= minFontSize) {
+                lineHeight = fontSize * 1.4 * correctAnswers.s;
+                ctx.font = `${fontSize}px 'Inter', sans-serif`;
+                
+                // Calculate lines at this font size
+                lines = [];
+                let currentLine = '';
+                const words = text.split(' ');
+                
+                for (let i = 0; i < words.length; i++) {
+                    const word = words[i];
+                    const testLine = currentLine ? currentLine + " " + word : word;
+                    
+                    let indentWidth = 0;
+                    if (correctAnswers.i === 'first' && lines.length === 0) {
+                        indentWidth = fontSize * 2;
+                    } else if (correctAnswers.i === 'paragraph') {
+                        indentWidth = fontSize * 2;
+                    }
+                    
+                    const width = ctx.measureText(testLine).width;
+                    
+                    if (width < maxWidth - indentWidth) {
+                        currentLine = testLine;
+                    } else {
+                        if (currentLine) lines.push(currentLine);
+                        currentLine = word;
+                    }
+                }
+                if (currentLine) lines.push(currentLine);
+                
+                // Calculate block height
+                blockHeight = (lines.length - 1) * lineHeight + fontSize;
+                
+                // Check if it fits
+                if (blockHeight <= maxBlockHeight) {
+                    break; // Good size found
+                }
+                
+                fontSize -= 1;
+            }
+            
+            // Ensure minimum font size
+            fontSize = Math.max(fontSize, minFontSize);
+            lineHeight = fontSize * 1.4 * correctAnswers.s;
+            ctx.font = `${fontSize}px 'Inter', sans-serif`;
+            ctx.fillStyle = '#e5e5e5';
+
+            // Calculate vertical position
+            let startY;
+            if (correctAnswers.v === 'top') {
+                startY = padding;
+            } else if (correctAnswers.v === 'center') {
+                startY = (canvas.height - blockHeight) / 2;
+            } else {
+                startY = canvas.height - padding - blockHeight;
+            }
+            
+            ctx.textBaseline = 'top';
+            
+            lines.forEach((line, i) => {
+                const isFirstLine = i === 0;
+                const isLastLine = i === lines.length - 1;
+                
+                // Calculate indent for this line
+                let indent = 0;
+                if (correctAnswers.i === 'first' && isFirstLine) indent = fontSize * 2;
+                else if (correctAnswers.i === 'paragraph') indent = fontSize * 2;
+                
+                let xPos;
+                ctx.textAlign = 'left';
+                
+                if (correctAnswers.h === 'left') {
+                    // Left align: indent pushes text right from left margin
+                    xPos = padding + indent;
+                } else if (correctAnswers.h === 'center') {
+                    // Center align: indent shifts the center point right
+                    ctx.textAlign = 'center';
+                    xPos = canvas.width / 2 + (indent / 2);
+                } else if (correctAnswers.h === 'right') {
+                    // Right align: no indent applied
+                    ctx.textAlign = 'right';
+                    xPos = canvas.width - padding;
+                } else if (correctAnswers.h === 'justify' && !isLastLine) {
+                    ctx.textAlign = 'left';
+                    const lineWords = line.split(' ');
+                    if (lineWords.length > 1) {
+                        const totalTextWidth = lineWords.reduce((sum, word) => sum + ctx.measureText(word).width, 0);
+                        const availableWidth = maxWidth - indent;
+                        const totalSpace = availableWidth - totalTextWidth;
+                        const spaceWidth = totalSpace / (lineWords.length - 1);
+                        
+                        let currentX = padding + indent;
+                        lineWords.forEach((word) => {
+                            ctx.fillText(word, currentX, startY + (i * lineHeight));
+                            currentX += ctx.measureText(word).width + spaceWidth;
+                        });
+                        return;
+                    } else {
+                        xPos = padding + indent;
+                    }
+                } else {
+                    xPos = padding + indent;
+                }
+                
+                ctx.fillText(line, xPos, startY + (i * lineHeight));
+            });
+        }
+
+        function handleSelection(key, groupElement, dataAttribute, value) {
+            if (!gameActive) return;
+            groupElement.querySelectorAll('.btn-tool').forEach(btn => btn.classList.remove('selected'));
+            const selectedBtn = groupElement.querySelector(`[${dataAttribute}="${value}"]`);
+            selectedBtn.classList.add('selected');
+            selections[key] = value;
+        }
+
+        function attemptDefuse() {
+            if (!gameActive) return;
+            
+            // Check if all selected
+            if (selections.h === null || selections.v === null || 
+                selections.s === null || selections.i === null) {
+                feedbackEl.textContent = '⚠️ Select ALL 4 properties!';
+                feedbackEl.className = 'text-lg font-bold mb-4 h-7 text-yellow-500';
+                return;
+            }
+            
+            // Check if all correct
+            const allCorrect = 
+                selections.h == correctAnswers.h &&
+                selections.v == correctAnswers.v &&
+                selections.s == correctAnswers.s &&
+                selections.i == correctAnswers.i;
+            
+            if (allCorrect) {
+                defuseSuccess();
+            } else {
+                explode();
+            }
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('signInBtn').addEventListener('click', signInWithGoogle);
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('playAgainButton').addEventListener('click', startGame);
+        document.getElementById('submitScoreBtn').addEventListener('click', handleScoreSubmit);
+        defuseButton.addEventListener('click', attemptDefuse);
+        document.getElementById('nextRoundButton').addEventListener('click', newRound);
+        
+        document.getElementById('initialsInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleScoreSubmit();
+        });
+        document.getElementById('initialsInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            document.getElementById('initialsError').classList.add('hidden');
+        });
+
+        vAlignGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('v', vAlignGroup, 'data-v-align', btn.dataset.vAlign);
+        });
+        
+        hAlignGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('h', hAlignGroup, 'data-h-align', btn.dataset.hAlign);
+        });
+        
+        spacingGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('s', spacingGroup, 'data-spacing', btn.dataset.spacing);
+        });
+        
+        indentGroup.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-tool');
+            if (btn && !btn.disabled) handleSelection('i', indentGroup, 'data-indent', btn.dataset.indent);
+        });
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('gameScreen').classList.contains('active')) {
+                setupCanvas();
+                if (correctAnswers.h) generateAndDrawText();
+            }
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                const nextRoundBtn = document.getElementById('nextRoundButton');
+                if (gameActive) {
+                    attemptDefuse();
+                } else if (!nextRoundBtn.classList.contains('hidden')) {
+                    // Next round button is visible - advance to next round
+                    newRound();
+                } else if (document.getElementById('gameOverScreen').classList.contains('active')) {
+                    startGame();
+                } else if (document.getElementById('startScreen').classList.contains('active')) {
+                    startGame();
+                }
+            }
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        initFirebase();
+    </script>
+</body>
+</html>

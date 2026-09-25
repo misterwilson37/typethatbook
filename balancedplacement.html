@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balanced Placement v2.2.0</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    
+    <style>
+        canvas { cursor: default; }
+        canvas.grabbing { cursor: grabbing; }
+        canvas.draggable-cursor { cursor: grab; }
+        .btn-submit { background: var(--primary); color: var(--bg-dark); font-weight: 600; }
+        .btn-submit:hover { box-shadow: 0 0 15px var(--primary); }
+        /* Override screen display for this game's layout */
+</style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <div class="game-wrapper">
+        <div class="game-container">
+<!-- Start Screen -->
+            <div id="startScreen" class="screen active">
+                <h1 class="game-title">Balanced Placement</h1>
+                <p class="game-subtitle">Place shapes with equal spacing in a container.</p>
+                
+                <div class="how-to-play">
+                    <h3>How to Play:</h3>
+                    <ul>
+                        <li>• 10 rounds with different containers</li>
+                        <li>• Drag both shapes into the rectangle</li>
+                        <li>• Space them equally along the long side</li>
+                        <li>• Center them on the short side</li>
+                    </ul>
+                </div>
+                
+                <!-- User status -->
+                <div id="userStatus" class="mb-6">
+                    <button id="signInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <p class="loading-text mt-1">Sign in to save your score</p>
+                </div>
+                <div id="userSignedIn" class="mb-6 hidden">
+                    <div class="user-badge inline-flex">
+                        <img id="userPhoto" src="" alt="">
+                        <span id="userName">Player</span>
+                        <span id="signOutBtn" class="sign-out">✕</span>
+                    </div>
+                </div>
+                
+                <button id="startGameBtn" class="btn btn-primary">
+                    Start Game
+                </button>
+            </div>
+            
+            <!-- Game Screen -->
+            <div id="gameScreen" class="screen">
+                <h1 class="game-title">Balanced Placement</h1>
+                <p id="instructionText" class="text-gray-500 mt-2">Place both shapes with equal spacing along the long side, centered on the short side.</p>
+                
+                <!-- Game Canvas -->
+                <div class="relative w-full max-w-xl mx-auto aspect-[4/3] bg-[var(--bg-input)] border-2 border-[var(--border)] rounded-lg overflow-hidden my-6">
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+
+                <!-- Scoring Display with Feedback in Center -->
+                <div class="flex justify-between items-center mb-2 px-2">
+                    <div class="text-left w-24">
+                        <p class="text-gray-400 font-medium text-sm">Round</p>
+                        <p class="text-2xl font-bold text-white"><span id="roundCounter">1</span> / 10</p>
+                    </div>
+                    <div class="text-center flex-1">
+                        <p id="feedbackText" class="text-xl font-bold text-gray-200">Place shapes and submit!</p>
+                        <p id="directionalFeedbackText" class="text-xs text-gray-500"></p>
+                    </div>
+                    <div class="text-right w-24">
+                        <p class="text-gray-400 font-medium text-sm">Total</p>
+                        <p class="text-2xl font-bold text-white" id="totalScore">0</p>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="flex justify-center gap-4 mt-2">
+                    <button id="submitButton" class="btn-submit text-white font-semibold py-2 px-6 rounded-lg shadow transition-colors">Submit Placement</button>
+                    <button id="nextButton" class="btn btn-next hidden">Next Round</button>
+                </div>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div id="gameOverScreen" class="screen">
+                <h1 class="game-title">Game Over!</h1>
+                <p class="final-score-label">Final Score</p>
+                <p id="finalScore" class="final-score">0</p>
+                <p id="averageScore" class="text-lg mb-3" style="color: var(--text-secondary);"></p>
+                
+                <!-- Initials Entry -->
+                <div id="initialsEntry" class="mb-6 hidden">
+                    <p style="color: var(--text-secondary);" class="mb-2">Enter your initials:</p>
+                    <div class="flex items-center gap-3 justify-center">
+                        <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                        <button id="submitScoreBtn" class="btn btn-primary btn-sm">Submit</button>
+                    </div>
+                    <p id="initialsError" class="text-red-400 text-sm mt-2 hidden">Please choose different initials.</p>
+                </div>
+                
+                <!-- Score submitted confirmation -->
+                <div id="scoreSubmitted" class="mb-4 hidden">
+                    <p class="text-green-400 font-medium">✓ Score saved!</p>
+                    <p id="playerRank" class="text-gray-400"></p>
+                </div>
+                
+                <!-- Not signed in message -->
+                <div id="notSignedInMsg" class="mb-4 hidden">
+                    <p class="text-gray-500 text-sm">Sign in before playing to save your score!</p>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div class="leaderboard">
+                    <h3 class="leaderboard-title">🏆 Top 10 Scores</h3>
+                    <div id="leaderboardList">
+                        <p class="loading-text text-center">Loading...</p>
+                    </div>
+                </div>
+                
+                <button id="playAgainButton" class="btn btn-primary">
+                    Play Again
+                </button>
+            </div>
+            
+        </div>
+        <footer class="game-footer">
+            <p>The third in the series | Originally by Gemini, leaderboard by Claude</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & AUTH
+        // ============================================
+        let app, db, auth;
+        let currentUser = null;
+        
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        }
+        
+        function updateAuthUI() {
+            const userStatus = document.getElementById('userStatus');
+            const userSignedIn = document.getElementById('userSignedIn');
+            const userPhoto = document.getElementById('userPhoto');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    console.error('Sign in error:', error);
+                }
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'balanced-placement'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="text-red-400 text-center py-4">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet. Be the first!</p>';
+                return;
+            }
+            
+            leaderboardList.innerHTML = scores.map((s, i) => `
+                <div class="leaderboard-row ${s.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">#${i + 1}</span>
+                    <span class="leaderboard-initials">${escapeHtml(s.initials)}</span>
+                    <span class="leaderboard-score">${s.score}</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getPlayerRank(playerScore) {
+            if (!db) return null;
+            
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'balanced-placement'),
+                    where('score', '>', playerScore)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.size + 1;
+            } catch (error) {
+                console.error('Get rank error:', error);
+                return null;
+            }
+        }
+        
+        async function submitScore(initials) {
+            if (!currentUser || !db) return null;
+            
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'balanced-placement',
+                    initials: initials.toUpperCase(),
+                    score: totalScore,
+                    roundCount: MAX_ROUNDS,
+                    averageScore: Math.round(totalScore / MAX_ROUNDS),
+                    flagged: containsProfanity(initials)
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        async function handleScoreSubmit() {
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            const submitScoreBtn = document.getElementById('submitScoreBtn');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const playerRank = document.getElementById('playerRank');
+            
+            const initials = initialsInput.value.trim().toUpperCase();
+            
+            if (initials.length < 1 || initials.length > 3) {
+                initialsError.textContent = 'Enter 1-3 characters.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Saving...';
+            
+            const scoreId = await submitScore(initials);
+            
+            if (scoreId) {
+                initialsEntry.classList.add('hidden');
+                scoreSubmitted.classList.remove('hidden');
+                
+                const rank = await getPlayerRank(totalScore);
+                if (rank) {
+                    playerRank.textContent = `Your rank: #${rank}`;
+                }
+                
+                await loadLeaderboard(scoreId);
+            } else {
+                initialsError.textContent = 'Failed to save score. Try again.';
+                initialsError.classList.remove('hidden');
+            }
+            
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit';
+        }
+        
+        // ============================================
+        // GAME VARIABLES
+        // ============================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const submitButton = document.getElementById('submitButton');
+        const nextButton = document.getElementById('nextButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+        const feedbackEl = document.getElementById('feedbackText');
+        const directionalFeedbackEl = document.getElementById('directionalFeedbackText');
+        const roundCounterEl = document.getElementById('roundCounter');
+        const totalScoreEl = document.getElementById('totalScore');
+        
+        let containerRect = {};
+        let draggableShapes = [];
+        let targetPositions = [];
+        let activeShape = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+
+        let gameActive = false;
+        let roundNumber = 0;
+        let totalScore = 0;
+        const MAX_ROUNDS = 10;
+
+        // ============================================
+        // SCREENS
+        // ============================================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // ============================================
+        // GAME SETUP
+        // ============================================
+        function setupCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        function startGame() {
+            showScreen('gameScreen');
+            setupCanvas();
+            
+            totalScore = 0;
+            roundNumber = 0;
+            totalScoreEl.textContent = totalScore;
+            submitButton.classList.remove('hidden');
+            newRound();
+        }
+        
+        function newRound() {
+            roundNumber++;
+            if (roundNumber > MAX_ROUNDS) {
+                endGame();
+                return;
+            }
+            
+            gameActive = true;
+            activeShape = null;
+            roundCounterEl.textContent = roundNumber;
+            feedbackEl.textContent = "Place shapes and submit!";
+            feedbackEl.className = 'text-xl font-bold text-gray-200';
+            directionalFeedbackEl.textContent = "";
+            nextButton.classList.add('hidden');
+            submitButton.classList.remove('hidden');
+            
+            generateElements();
+            draw();
+        }
+
+        async function endGame() {
+            gameActive = false;
+            showScreen('gameOverScreen');
+            
+            const finalScoreEl = document.getElementById('finalScore');
+            const averageScoreEl = document.getElementById('averageScore');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const notSignedInMsg = document.getElementById('notSignedInMsg');
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            
+            finalScoreEl.textContent = totalScore;
+            
+            const averageScore = Math.round(totalScore / MAX_ROUNDS);
+            let gradeText = '';
+            if (averageScore >= 90) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-green-400">Excellent!</span>`;
+            } else if (averageScore >= 80) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-[var(--primary)]">Great Job!</span>`;
+            } else if (averageScore >= 70) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-amber-400">Good Effort!</span>`;
+            } else {
+                gradeText = `Average: ${averageScore}/100 — Keep practicing!`;
+            }
+            averageScoreEl.innerHTML = gradeText;
+            
+            // Reset UI state
+            initialsEntry.classList.add('hidden');
+            scoreSubmitted.classList.add('hidden');
+            notSignedInMsg.classList.add('hidden');
+            initialsError.classList.add('hidden');
+            initialsInput.value = '';
+            
+            // Load leaderboard
+            await loadLeaderboard();
+            
+            // Show appropriate UI based on auth state
+            if (currentUser) {
+                initialsEntry.classList.remove('hidden');
+                initialsInput.focus();
+            } else {
+                notSignedInMsg.classList.remove('hidden');
+            }
+        }
+
+        function generateElements() {
+            const isWide = Math.random() > 0.5;
+
+            if (isWide) {
+                containerRect.w = canvas.width * (0.8 + Math.random() * 0.15);
+                containerRect.h = canvas.height * (0.3 + Math.random() * 0.2); 
+            } else {
+                containerRect.w = canvas.width * (0.3 + Math.random() * 0.2); 
+                containerRect.h = canvas.height * (0.8 + Math.random() * 0.15);
+            }
+            
+            containerRect.x = (canvas.width - containerRect.w) / 2;
+            containerRect.y = (canvas.height - containerRect.h) / 2;
+
+            const shapeRadius = Math.min(containerRect.w, containerRect.h) * 0.20; 
+            draggableShapes = [
+                { id: 0, name: 'Blue', x: shapeRadius * 1.5, y: canvas.height / 2 - shapeRadius * 1.5, radius: shapeRadius, color: '#3b82f6' },
+                { id: 1, name: 'Orange', x: canvas.width - shapeRadius * 1.5, y: canvas.height / 2 + shapeRadius * 1.5, radius: shapeRadius, color: '#f59e0b' }
+            ];
+
+            targetPositions = [];
+            const shapeDiameter = shapeRadius * 2;
+
+            if (isWide) {
+                const emptySpace = (containerRect.w - (2 * shapeDiameter)) / 3;
+                const targetY = containerRect.y + containerRect.h / 2;
+                targetPositions.push({ x: containerRect.x + emptySpace + shapeRadius, y: targetY });
+                targetPositions.push({ x: containerRect.x + emptySpace * 2 + shapeDiameter + shapeRadius, y: targetY });
+            } else {
+                const emptySpace = (containerRect.h - (2 * shapeDiameter)) / 3;
+                const targetX = containerRect.x + containerRect.w / 2;
+                targetPositions.push({ x: targetX, y: containerRect.y + emptySpace + shapeRadius });
+                targetPositions.push({ x: targetX, y: containerRect.y + emptySpace * 2 + shapeDiameter + shapeRadius });
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(containerRect.x, containerRect.y, containerRect.w, containerRect.h);
+
+            draggableShapes.forEach(shape => {
+                ctx.fillStyle = shape.color;
+                ctx.beginPath();
+                ctx.arc(shape.x, shape.y, shape.radius, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+        
+        function handleSubmit() {
+            if (!gameActive) return;
+            gameActive = false;
+
+            const shapeA = draggableShapes.find(s => s.name === 'Blue');
+            const shapeB = draggableShapes.find(s => s.name === 'Orange');
+            const target1 = targetPositions[0];
+            const target2 = targetPositions[1];
+
+            const distA1 = Math.hypot(shapeA.x - target1.x, shapeA.y - target1.y);
+            const distA2 = Math.hypot(shapeA.x - target2.x, shapeA.y - target2.y);
+            const distB1 = Math.hypot(shapeB.x - target1.x, shapeB.y - target1.y);
+            const distB2 = Math.hypot(shapeB.x - target2.x, shapeB.y - target2.y);
+
+            let totalDistance;
+            let feedbackText1 = '', feedbackText2 = '';
+            
+            if (distA1 + distB2 < distA2 + distB1) {
+                totalDistance = distA1 + distB2;
+                feedbackText1 = getDirectionalFeedback(shapeA, target1);
+                feedbackText2 = getDirectionalFeedback(shapeB, target2);
+            } else {
+                totalDistance = distA2 + distB1;
+                feedbackText1 = getDirectionalFeedback(shapeA, target2);
+                feedbackText2 = getDirectionalFeedback(shapeB, target1);
+            }
+            
+            const score = Math.max(0, Math.round(100 - totalDistance * 0.5));
+            totalScore += score;
+            
+            // Tiered feedback
+            let feedbackText, feedbackClass;
+            if (score >= 95) {
+                feedbackText = `Perfect! +${score}`;
+                feedbackClass = 'text-xl font-bold text-green-500';
+            } else if (score >= 90) {
+                feedbackText = `Excellent! +${score}`;
+                feedbackClass = 'text-xl font-bold text-green-500';
+            } else if (score >= 80) {
+                feedbackText = `Great! +${score}`;
+                feedbackClass = 'text-xl font-bold text-[var(--primary)]';
+            } else if (score >= 70) {
+                feedbackText = `Good! +${score}`;
+                feedbackClass = 'text-xl font-bold text-[var(--primary)]';
+            } else if (score >= 60) {
+                feedbackText = `Okay. +${score}`;
+                feedbackClass = 'text-xl font-bold text-amber-500';
+            } else {
+                feedbackText = `+${score}`;
+                feedbackClass = 'text-xl font-bold text-gray-400';
+            }
+            
+            feedbackEl.textContent = feedbackText;
+            feedbackEl.className = feedbackClass;
+            directionalFeedbackEl.textContent = [feedbackText1, feedbackText2].filter(Boolean).join(' | ');
+            totalScoreEl.textContent = totalScore;
+            
+            drawFeedback();
+            submitButton.classList.add('hidden');
+            nextButton.classList.remove('hidden');
+        }
+
+        function getDirectionalFeedback(shape, target) {
+            const dx = shape.x - target.x;
+            const dy = shape.y - target.y;
+            const threshold = 5;
+            let comments = [];
+            if (Math.abs(dx) > threshold) comments.push(dx > 0 ? 'right' : 'left');
+            if (Math.abs(dy) > threshold) comments.push(dy > 0 ? 'low' : 'high');
+            return comments.length > 0 ? `${shape.name}: ${comments.join(' & ')}` : '';
+        }
+
+        function drawFeedback() {
+            draw(); 
+            
+            targetPositions.forEach(pos => {
+                ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, draggableShapes[0].radius, 0, 2 * Math.PI);
+                ctx.stroke();
+            });
+
+            draggableShapes.forEach(shape => {
+                ctx.fillStyle = shape.color;
+                ctx.beginPath();
+                ctx.arc(shape.x, shape.y, shape.radius, 0, 2 * Math.PI);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+        
+        function getMousePos(event) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = event.clientX ?? event.touches[0].clientX;
+            const clientY = event.clientY ?? event.touches[0].clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function handleMouseDown(event) {
+            if (!gameActive) return;
+            const pos = getMousePos(event);
+            for (let i = draggableShapes.length - 1; i >= 0; i--) {
+                const shape = draggableShapes[i];
+                if (Math.hypot(pos.x - shape.x, pos.y - shape.y) < shape.radius) {
+                    activeShape = shape;
+                    dragOffsetX = pos.x - shape.x;
+                    dragOffsetY = pos.y - shape.y;
+                    canvas.classList.add('grabbing');
+                    return;
+                }
+            }
+        }
+
+        function handleMouseMove(event) {
+            if (activeShape) {
+                event.preventDefault();
+                const pos = getMousePos(event);
+                activeShape.x = pos.x - dragOffsetX;
+                activeShape.y = pos.y - dragOffsetY;
+                draw();
+            } else if (gameActive) {
+                const pos = getMousePos(event);
+                const isOverDraggable = draggableShapes.some(s => Math.hypot(pos.x - s.x, pos.y - s.y) < s.radius);
+                canvas.classList.toggle('draggable-cursor', isOverDraggable);
+            }
+        }
+
+        function handleMouseUp() {
+            if (!activeShape) return;
+            activeShape = null;
+            canvas.classList.remove('grabbing');
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('signInBtn').addEventListener('click', signInWithGoogle);
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('submitScoreBtn').addEventListener('click', handleScoreSubmit);
+        
+        document.getElementById('initialsInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleScoreSubmit();
+        });
+        document.getElementById('initialsInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            document.getElementById('initialsError').classList.add('hidden');
+        });
+
+        submitButton.addEventListener('click', handleSubmit);
+        nextButton.addEventListener('click', newRound);
+        playAgainButton.addEventListener('click', startGame);
+        
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
+        canvas.addEventListener('touchstart', handleMouseDown, { passive: false });
+        canvas.addEventListener('touchmove', handleMouseMove, { passive: false });
+        canvas.addEventListener('touchend', handleMouseUp);
+        
+        window.addEventListener('resize', () => {
+            if (document.getElementById('gameScreen').classList.contains('active')) {
+                setupCanvas();
+                if (containerRect.w) draw();
+            }
+        });
+        
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                if (!submitButton.classList.contains('hidden')) {
+                    handleSubmit();
+                } else if (!nextButton.classList.contains('hidden')) {
+                    newRound();
+                } else if (document.getElementById('gameOverScreen').classList.contains('active')) {
+                    startGame();
+                } else if (document.getElementById('startScreen').classList.contains('active')) {
+                    startGame();
+                }
+            }
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        initFirebase();
+    </script>
+</body>
+</html>

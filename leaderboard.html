@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spot On! Leaderboard v1.5.0</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    <style>
+        :root {
+            --carolina-blue: #7BAFD4;
+            --carolina-light: #a8d1f0;
+            --bg-dark: #1a1a1a;
+            --bg-card: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-muted: #9ca3af;
+            --border-color: #444444;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        .glow { text-shadow: 0 0 15px var(--carolina-blue); }
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+        }
+        /* .mode-btn (Format Trainer's modes, v1.5.0) shares every rule with .filter-btn,
+           so the two rows of buttons are exactly the same size. */
+        .filter-btn, .mode-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+        }
+        .filter-btn:hover, .mode-btn:hover {
+            border-color: var(--carolina-blue);
+            color: var(--text-primary);
+        }
+        .filter-btn.active, .mode-btn.active {
+            background: var(--carolina-blue);
+            border-color: var(--carolina-blue);
+            color: var(--bg-dark);
+            font-weight: 600;
+        }
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .leaderboard-table th {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .leaderboard-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .leaderboard-table tr:hover {
+            background: rgba(123, 175, 212, 0.05);
+        }
+        .rank-1 { color: #fbbf24; font-weight: 700; }
+        .rank-2 { color: #9ca3af; font-weight: 700; }
+        .rank-3 { color: #cd7f32; font-weight: 700; }
+        .score-value {
+            font-weight: 700;
+            color: var(--carolina-blue);
+            font-size: 18px;
+        }
+        .game-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .game-sweet-spot          { background: rgba(123, 175, 212, 0.2); color: var(--carolina-blue); }
+        .game-find-the-center     { background: rgba(251, 191, 36, 0.2);  color: #fbbf24; }
+        .game-perfect-alignment   { background: rgba(52, 211, 153, 0.2);  color: #34d399; }
+        .game-balanced-placement  { background: rgba(167, 139, 250, 0.2); color: #a78bfa; }
+        .game-balanced-placement-ii { background: rgba(196, 181, 253, 0.2); color: #c4b5fd; }
+        .game-picture-perfect     { background: rgba(251, 113, 133, 0.2); color: #fb7185; }
+        .game-spot-the-format     { background: rgba(34, 211, 238, 0.2);  color: #22d3ee; }
+        .game-format-frenzy       { background: rgba(239, 68, 68, 0.2);   color: #ef4444; }
+        .game-format-trainer      { background: rgba(232, 121, 249, 0.2); color: #e879f9; }
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--carolina-blue); }
+    </style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <div class="min-h-screen">
+        <header class="border-b border-gray-800 py-4 px-6">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <a href="index.html" class="nav-link">← All Games</a>
+                <h1 class="text-xl font-bold glow" style="color: var(--carolina-blue);">SPOT ON!</h1>
+                <div style="width: 80px;"></div>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto p-6">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-bold mb-2">🏆 Leaderboard</h2>
+                <p class="text-gray-400">Top scores across all games</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 justify-center mb-6">
+                <button class="filter-btn active" data-game="all">All Games</button>
+                <button class="filter-btn" data-game="sweet-spot">Sweet Spot</button>
+                <button class="filter-btn" data-game="find-the-center">Find the Center</button>
+                <button class="filter-btn" data-game="perfect-alignment">Perfect Alignment</button>
+                <button class="filter-btn" data-game="balanced-placement">Balanced Placement</button>
+                <button class="filter-btn" data-game="balanced-placement-ii">Balanced Placement II</button>
+                <button class="filter-btn" data-game="picture-perfect">Picture Perfect</button>
+                <button class="filter-btn" data-game="spot-the-format">Spot the Format</button>
+                <button class="filter-btn" data-game="format-frenzy">Format Frenzy</button>
+                <button class="filter-btn" data-game="format-trainer">Format Trainer</button>
+            </div>
+
+            <!-- v1.5.0: Format Trainer keeps a separate board per mode; shown only when it's picked. -->
+            <div id="ftModes" class="hidden flex flex-wrap gap-2 justify-center items-center mb-6">
+                <span class="text-sm text-gray-400 mr-1">Mode:</span>
+                <button class="mode-btn active" data-mode="ft-basic-speed">Basic — Speed</button>
+                <button class="mode-btn" data-mode="ft-mla-speed">MLA — Speed</button>
+                <button class="mode-btn" data-mode="ft-random-speed">Random — Speed</button>
+                <button class="mode-btn" data-mode="ft-streak">Streak</button>
+            </div>
+
+            <div class="panel overflow-hidden">
+                <table class="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">Rank</th>
+                            <th>Player</th>
+                            <th>Game</th>
+                            <th id="scoreHeader" style="text-align: right;">Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <tr>
+                            <td colspan="4" class="text-center py-8 text-gray-500">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <p id="scoreCount" class="text-center text-gray-500 text-sm mt-4"></p>
+        </main>
+
+        <footer class="text-center py-6 text-gray-600 text-sm">
+            <p>Spot On! Perception Games</p>
+            <p class="mt-2"><a href="privacy.html" class="text-gray-400 hover:text-gray-200 underline">Privacy &amp; Data Policy</a></p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+
+        // Games shown in the unified leaderboard (all higher-is-better by design).
+        // Format Trainer uses time-based scores in the same `scores` collection and
+        // should not be mixed into the "All Games" view; it's excluded here.
+        const GAME_NAMES = {
+            'sweet-spot': 'Sweet Spot',
+            'find-the-center': 'Find the Center',
+            'perfect-alignment': 'Perfect Alignment',
+            'balanced-placement': 'Balanced Placement',
+            'balanced-placement-ii': 'Balanced Placement II',
+            'picture-perfect': 'Picture Perfect',
+            'spot-the-format': 'Spot the Format',
+            'format-frenzy': 'Format Frenzy'
+        };
+
+        const GAME_CLASSES = {
+            'sweet-spot': 'game-sweet-spot',
+            'find-the-center': 'game-find-the-center',
+            'perfect-alignment': 'game-perfect-alignment',
+            'balanced-placement': 'game-balanced-placement',
+            'balanced-placement-ii': 'game-balanced-placement-ii',
+            'picture-perfect': 'game-picture-perfect',
+            'spot-the-format': 'game-spot-the-format',
+            'format-frenzy': 'game-format-frenzy'
+        };
+
+        const KNOWN_GAME_IDS = new Set(Object.keys(GAME_NAMES));
+
+        // v1.5.0: Format Trainer — one board per mode. Still kept OUT of "All Games":
+        // three of its modes score in seconds (lower is better), which can't be ranked
+        // against points.
+        const FT_MODES = {
+            'ft-basic-speed':  { name: 'Format Trainer — Basic Speed',  lowerIsBetter: true },
+            'ft-mla-speed':    { name: 'Format Trainer — MLA Speed',    lowerIsBetter: true },
+            'ft-random-speed': { name: 'Format Trainer — Random Speed', lowerIsBetter: true },
+            'ft-streak':       { name: 'Format Trainer — Streak',       lowerIsBetter: false }
+        };
+        let currentFtMode = 'ft-basic-speed';
+        let loadSeq = 0;   // quick clicks between boards: only the newest may draw
+
+        function gameNameOf(id) { return GAME_NAMES[id] || (FT_MODES[id] && FT_MODES[id].name) || id; }
+        function gameClassOf(id) { return GAME_CLASSES[id] || (FT_MODES[id] ? 'game-format-trainer' : 'game-sweet-spot'); }
+        function formatScore(s) {
+            if (FT_MODES[s.gameId] && FT_MODES[s.gameId].lowerIsBetter && typeof s.score === 'number') {
+                return `${Math.floor(s.score / 60)}:${String(s.score % 60).padStart(2, '0')}`;
+            }
+            return String(s.score);
+        }
+
+        let db;
+        let allScores = [];              // top-200 global slice, backs the "All Games" view only
+        const perGameCache = {};         // gameId -> that game's own top scores, fetched on demand
+        let currentFilter = 'all';
+
+        async function initFirebase() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                await loadAllScores();
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                showError('Failed to connect to database');
+            }
+        }
+
+        // "All Games" view: the top 200 scores across every game, since that's
+        // what "top scores across all games" means when games use different
+        // scoring scales. This intentionally does NOT guarantee every game
+        // appears here — a game whose typical scores run lower than others
+        // (or that's simply been played less) can be crowded out of a raw
+        // cross-game top-200, and that's expected here, not a bug. Individual
+        // game filters below never suffer from that, because they query that
+        // game's own scores directly instead of filtering this slice.
+        async function loadAllScores() {
+            const tbody = document.getElementById('leaderboardBody');
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">Loading...</td></tr>';
+
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    orderBy('score', 'desc'),
+                    limit(200)
+                );
+                const snapshot = await getDocs(q);
+                allScores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderAllGamesView();
+            } catch (error) {
+                console.error('Load scores error:', error);
+                showError('Failed to load scores');
+            }
+        }
+
+        function renderAllGamesView() {
+            // Unified view: only higher-is-better games we know about, capped
+            // at 100 to match previous display behavior.
+            const filtered = allScores.filter(s => KNOWN_GAME_IDS.has(s.gameId)).slice(0, 100);
+            renderScores(filtered);
+        }
+
+        // Single-game view: queries that game's own top scores directly,
+        // using the same composite index (gameId ASC, score DESC) every
+        // in-game leaderboard already relies on. This is what the "All Games"
+        // slice above can't guarantee — a game never disappears from its own
+        // filtered leaderboard just because other games' scores happen to run
+        // higher.
+        async function loadGameScores(gameId) {
+            const tbody = document.getElementById('leaderboardBody');
+            const seq = ++loadSeq;
+            const lower = !!(FT_MODES[gameId] && FT_MODES[gameId].lowerIsBetter);
+            document.getElementById('scoreHeader').textContent = lower ? 'Time' : 'Score';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">Loading...</td></tr>';
+
+            if (perGameCache[gameId]) {
+                renderScores(perGameCache[gameId]);
+                return;
+            }
+
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', gameId),
+                    orderBy('score', lower ? 'asc' : 'desc'),   // speed modes: fastest first
+                    limit(100)
+                );
+                const snapshot = await getDocs(q);
+                const scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                perGameCache[gameId] = scores;
+                if (seq === loadSeq) renderScores(scores);
+            } catch (error) {
+                console.error('Load scores error:', error);
+                if (seq === loadSeq) showError('Failed to load scores');
+            }
+        }
+
+        function renderScores(filtered) {
+            const tbody = document.getElementById('leaderboardBody');
+            const countEl = document.getElementById('scoreCount');
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">No scores yet. Be the first!</td></tr>';
+                countEl.textContent = '';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((score, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : '';
+                const gameName = gameNameOf(score.gameId);
+                const gameClass = gameClassOf(score.gameId);
+
+                return `
+                    <tr>
+                        <td class="${rankClass}">#${rank}</td>
+                        <td class="font-semibold">${escapeHtml(score.initials || '???')}</td>
+                        <td><span class="game-badge ${gameClass}">${escapeHtml(gameName)}</span></td>
+                        <td class="text-right score-value">${escapeHtml(formatScore(score))}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            countEl.textContent = `Showing ${filtered.length} score${filtered.length === 1 ? '' : 's'}`;
+        }
+
+        function showError(message) {
+            const tbody = document.getElementById('leaderboardBody');
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-400">${escapeHtml(message)}</td></tr>`;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.game;
+                document.getElementById('ftModes').classList.toggle('hidden', currentFilter !== 'format-trainer');
+                if (currentFilter === 'all') {
+                    loadSeq++;   // cancel any board still loading
+                    document.getElementById('scoreHeader').textContent = 'Score';
+                    renderAllGamesView();
+                } else if (currentFilter === 'format-trainer') {
+                    loadGameScores(currentFtMode);
+                } else {
+                    loadGameScores(currentFilter);
+                }
+            });
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFtMode = btn.dataset.mode;
+                loadGameScores(currentFtMode);
+            });
+        });
+
+        initFirebase();
+    </script>
+</body>
+</html>
