@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-25 by Round 147, for whoever is next
+> ## ▶ START HERE — written 2026-09-25 by Round 148, for whoever is next
 >
-> **ALL 116 HARNESSES PASS.**
+> **ALL 117 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **A STUDENT'S OWN BROWSER COULD UNDO A TEACHER'S DELETION — FIXED IN ROUND
 > 145, ONE HOLE LEFT (ROADMAP 145a).** `stats-wal.js` took the LARGER of the
@@ -1832,7 +1832,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **116 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **117 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11785,3 +11785,38 @@ keyboard (`keyCenter: [0,0]`).
 character's code point, and falls back to the lit key — either face — when it can't
 place a finger. **Next:** ask Jake to type up to a dash, then run `ttbGuide.last()`
 and read any `[hand guide]` warning. That names the failing exit.
+
+
+---
+
+## §48. Round 148 — names on accounts (a deliberate second copy)
+
+**2026-09-25.** The student picker read 178 accounts and all 178 were nameless: names
+lived only on typing records, and the page's name cache lived only in memory.
+
+### A. ⚠️⚠️⚠️ RULE 9 WAS EXPLICITLY OVERRULED — DO NOT UNDO EITHER COPY
+Jake asked whether a second copy could make anything cheaper. It does: the picker
+becomes usable without a full report (~1,600 reads → ~178, then a handful), and the
+Retention panel gets names free. Removing names from typing records would save NOTHING
+— reads and writes are per document, not per field. Jake: *"Here is your explicit
+okay."* The record's name = who typed that record; the account's = who the student is.
+
+### B. WHAT SHIPPED
+* `lesson-gate.js identityPlan()` — name and email, only what's missing or changed; one
+  write per student, ever. Called by game.js, learn.js and learn2.js in `noteActiveDay`,
+  in its OWN write before the day stamp, so a rejection can't block the stamp.
+* Rules v2.17.0: an owner may save `displayName`/`email` only if they equal
+  `request.auth.token.name`/`.email` — no renaming yourself as a classmate. Checked only
+  when the field changes. ⚠️ Not compiled here (no emulator); brackets balance, and the
+  console refuses to publish invalid rules.
+* Reports: ⟳ saves the day's list in the teacher's browser (per school+class, expires at
+  midnight); an empty picker fills from it on open — no reads.
+* **Privacy policy: no change needed** — name and email were already disclosed; the
+  policy never promises where inside the site they're stored, and browser copies are
+  already covered. SECURITY.md gained a paragraph. `account-names-test.mjs` part E pins it.
+
+### C. §47 FOLLOW-UP — THE DASH KEY
+Jake ran `ttbGuide.last()` at a dash after Round 147: `reason: "ok"`, right-pinky,
+normal path — the fallback never fired. Nothing in 147 changed how a dash is placed, so
+the earlier failure was most likely a stale cached game.js. The instrumentation stays.
+145b is closed unless a `[hand guide]` warning ever appears.

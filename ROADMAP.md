@@ -10,7 +10,7 @@ write day deltas instead of absolutes (touches the flush that §0.0 reverted —
 careful), or check the stamp at the moment a lower server value would be
 overwritten.
 
-### 145b — THE DASH KEY'S CIRCLE IN STANDARD MODE — instrumented in Round 147. Waiting on `ttbGuide.last()` at a dash. See HANDOFF §47.
+### ~~145b — THE DASH KEY'S CIRCLE~~ — ✅ working after Round 147 (`ttbGuide.last()` reason "ok"); likely a stale cached game.js. Instrumentation kept. HANDOFF §48C.
 
 ### 145c — ✅ BUILT (Round 146). Kept records by initials; a deletion request keeps nothing.
 

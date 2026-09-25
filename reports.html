@@ -1,5 +1,9 @@
 <!DOCTYPE html>
-<!-- reports.html v1.20.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Retention writes an
+<!-- reports.html v1.21.0 — Round 148: ⭐ the student picker remembers the day's list (no
+     reads when reopened), and names now come from students' accounts (saved once by
+     game.js / learn.js / learn2.js via lesson-gate.js identityPlan()).
+
+     reports.html v1.20.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Retention writes an
      anonymous kept record — initials, scores, their dates, school; a fresh id, never the
      account id — for any aging-out student on a board, and removes kept records that
      have fallen off every board. "Delete student…" keeps nothing. How-to gains a
@@ -2471,6 +2475,38 @@
         return rows.filter(r => r.label.startsWith('(no name)')).length;
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // ⭐ ROUND 148 — THE STUDENT LIST, REMEMBERED FOR THE DAY.
+    // ═════════════════════════════════════════════════════════════════════
+    // ⟳ costs one read per student (~178). Now that names live on accounts, that
+    // list is worth keeping: it is saved in THIS browser, keyed to the school and
+    // class selected, and used the next time the Student dropdown is opened empty —
+    // no reads. It expires at midnight, and ⟳ always reads fresh. ⚠️ Staff-side only:
+    // it holds the same names and emails this page already shows.
+    const ROSTER_CACHE_KEY = 'ttb_roster_v1';
+    const rosterScopeKey = () => (document.getElementById('scope-school')?.value || '')
+        + '|' + (document.getElementById('scope-class')?.value || '');
+    function rosterCacheSave(roster) {
+        try {
+            localStorage.setItem(ROSTER_CACHE_KEY, JSON.stringify({
+                date: toDateStr(new Date()), scope: rosterScopeKey(),
+                rows: [...roster].map(([uid, info]) => [uid, { name: info.name || '', email: info.email || '' }]) }));
+        } catch (_) { /* quota or no storage — the next ⟳ simply reads again */ }
+    }
+    function rosterCacheLoad() {
+        try {
+            const c = JSON.parse(localStorage.getItem(ROSTER_CACHE_KEY) || 'null');
+            if (!c || c.date !== toDateStr(new Date()) || c.scope !== rosterScopeKey()) return null;
+            return new Map(c.rows);
+        } catch (_) { return null; }
+    }
+    function rosterRestoreIfEmpty() {
+        const sel = document.getElementById('scope-student');
+        if (!sel || sel.options.length > 1) return;
+        const roster = rosterCacheLoad();
+        if (roster && roster.size) rememberStudents(roster);
+    }
+
     async function loadStudents() {
         const btn = document.getElementById('scope-student-load');
         const sel = document.getElementById('scope-student');
@@ -2489,14 +2525,11 @@
                 return;
             }
             const nameless = rememberStudents(roster);
-            // ⚠️⚠️ SAY IT PLAINLY RATHER THAN HAND BACK A WALL OF PLACEHOLDERS. The
-            // names live on the log documents, so one report fills them in for the
-            // rest of this page load — which is an instruction the teacher can act
-            // on, not an apology.
+            rosterCacheSave(roster);
             if (nameless) {
-                ttbNotice(`Loaded ${roster.size} students, but ${nameless} have no name on `
-                    + `their account. Names are stored with their typing records \u2014 run a `
-                    + `report once for this class and they will fill in.`, { bad: true });
+                ttbNotice(`Loaded ${roster.size} students; ${nameless} don\u2019t have a name on their `
+                    + `account yet. Each student\u2019s name is saved the next time they type \u2014 `
+                    + `until then, running a report fills them in.`, { bad: true });
             } else {
                 ttbNotice(`Loaded ${roster.size} student${roster.size === 1 ? '' : 's'}.`);
             }
@@ -3210,6 +3243,9 @@
     document.getElementById('scope-student-delete')?.addEventListener('click', () =>
         openPurgeDialog(document.getElementById('scope-student').value));
     document.getElementById('scope-student')?.addEventListener('change', updatePurgeButton);
+    // ⭐ Round 148: an empty picker fills from today's remembered list the moment it's opened.
+    for (const ev of ['focus', 'mousedown'])
+        document.getElementById('scope-student')?.addEventListener(ev, rosterRestoreIfEmpty);
 
     document.getElementById('scope-student-load')?.addEventListener('click', loadStudents);
     // ⚠️ CHANGING SCHOOL OR CLASS INVALIDATES THE LIST. Leaving a stale child

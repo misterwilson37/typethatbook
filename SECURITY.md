@@ -68,6 +68,13 @@ browser. The rules are kept in this repository at `firebase/firestore.rules`.
 | **The site administrator** (Jake Wilson) | Everything, in order to maintain the site |
 | **Anyone else** | Nothing |
 
+A student's name and school email are saved on their own account the first time they
+type, so teachers can find them in the reports page's student list. The security rules
+only accept the name and email of the Google account actually signed in, so no student
+can put someone else's name on their record. The reports page keeps the day's student
+list in the teacher's own browser so it doesn't have to be re-read; it is replaced the
+next day.
+
 Staff accounts work only if they have been set up by the site administrator,
 are marked active, and are assigned a specific role. A student account cannot
 grant itself staff access.

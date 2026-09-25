@@ -1,4 +1,8 @@
-// game.js v3.56.0
+// game.js v3.57.0
+//
+// v3.57.0 — Round 148: ⭐ each student's name and email are saved on their account, once
+//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
+//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
 //
 // v3.56.0 — Round 147: ⚠️ THE HAND GUIDE REPORTS ON ITSELF. In standard mode the dash key
 //           lit up but its finger circle never appeared; the live cause could not be
@@ -79,21 +83,7 @@
 //           rare enough not to guard; said here so it isn't rediscovered as a
 //           bug.
 //
-// v3.49.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
-//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
-//           them had ALREADY drifted once, and the symptom was that Saturday's
-//           typing sat inside the number on a child's screen and outside the
-//           teacher's report — every evening, which is when a teacher grades.
-//           This file's week function is a SHAPE ADAPTER now: daylog.js's
-//           weekStartOf() owns the rule, and this converts the argument type its
-//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
-//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
-//           that collapses AND configures cannot tell a collapse bug from an
-//           anchor bug. Making it per-class is ROADMAP 58 step two.
-//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
-//           the repo and fails if any but daylog.js contains that expression.
-//
-// (Older entries — v3.48.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.49.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -102,7 +92,7 @@ import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // spends the period in Library is having an active day, and a School lesson must
 // know about it. ⚠️ THIS FILE IMPORTS THE MODULE ONLY TO COUNT DAYS; it renders
 // no lesson gate and must not start.
-import { activeDayPlan } from "./lesson-gate.js";
+import { activeDayPlan, identityPlan } from "./lesson-gate.js";
 // The day/week counters' WAL, shared with learn.js. Extracted BECAUSE this
 // file's WAL was the bug: one key held reading position (book-scoped) and the
 // time counters (not book-scoped), and walRecover()'s correct bookId guard
@@ -169,7 +159,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.56.0";
+const VERSION = "3.57.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -387,6 +377,13 @@ async function noteActiveDay() {
         try { reconcile(currentUser.uid, _udata); }
         catch (_) { /* best effort — a failure here costs reads, never minutes */ }
 
+        // ⚠️ ROUND 148 — THE NAME ON THE ACCOUNT, in its own write: if the rules ever
+        // reject it, the day stamp below must still land. One write per student, ever.
+        const _idp = identityPlan(_udata, currentUser);
+        if (_idp) {
+            try { await setDoc(doc(db, 'users', currentUser.uid), _idp, { merge: true }); }
+            catch (e) { console.warn('[account] name not saved on the account:', e && e.message); }
+        }
         const plan = activeDayPlan(_udata, getLocalDateStr());
         if (!plan) return;                                 // already counted today — the common case
         await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });

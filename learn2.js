@@ -1,4 +1,6 @@
-// learn2.js v0.9.0-staging
+// learn2.js v0.10.0-staging
+//
+// v0.10.0 — Round 148: the name and email saved once on the account, as in game.js v3.57.0.
 //
 // v0.9.0 — Round 145: the same gated WAL recovery as game.js v3.54.0.
 //
@@ -251,24 +253,9 @@
 //           ⚠️ v2.34.0 ARCHIVED THIS ROUND (8-entry budget).
 //           tests/progress-cache-test.mjs.
 //
-// v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
-//           idle-resume skip in handleDrillKey() advanced drillPos past a space
-//           and never repainted, so the keyboard kept showing the space target
-//           — thumb circles and #space-hint — while the game already expected
-//           the first letter of the next word. Kids reported it and photographed
-//           it; it only fires after a LEARN_IDLE_THRESHOLD (3s) pause landing on
-//           a space, which is why it reads as intermittent and never reproduces
-//           for a teacher on demand. One advanceHandGuide() call, guarded on
-//           drillPos having actually moved. ⚠️ NOTHING ELSE CHANGED — no
-//           threshold, no timing, no scoring. tests/drill-paint-test.mjs asserts
-//           the INVARIANT (every drillPos mutation is followed by a paint), not
-//           this call site, because guarding the line leaves the next one open.
-//           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
-//           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
+// (Older entries — v2.41.0 and before — are archived verbatim in CHANGELOG.md
+//  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
-// ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
-// inline at the midnight-rollover block, the dateOverride comment, and both
-// `= 0` resets below; those citations stand alone and needed no pointer.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 import { typedRunCount, maxReachableRunIdx, openingRunIdx } from './run-picker.js';
@@ -278,7 +265,7 @@ import { panelOptionsFor } from './game-names.js';
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
 // design is covered by lesson-gate-test.mjs without driving a browser.
-import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
+import { activeDayPlan, identityPlan, activeDayCountOf, fireCountOf, isMastered,
          lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
          lastLockDayOf, furthestIndexOf, reachBackFor,
          MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS,
@@ -394,7 +381,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.9.0-staging";
+const LEARN_VERSION = "0.10.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1876,6 +1863,13 @@ async function noteActiveDay() {
     _activeDayDone = true;
     try {
         const snap = await getDoc(doc(db, 'users', currentUser.uid));
+        // ⚠️ ROUND 148 — THE NAME ON THE ACCOUNT, in its own write: if the rules ever
+        // reject it, the day stamp below must still land. One write per student, ever.
+        const _idp = identityPlan(snap.exists() ? snap.data() : {}, currentUser);
+        if (_idp) {
+            try { await setDoc(doc(db, 'users', currentUser.uid), _idp, { merge: true }); }
+            catch (e) { console.warn('[account] name not saved on the account:', e && e.message); }
+        }
         const plan = activeDayPlan(snap.exists() ? snap.data() : {}, getLocalDateStr());
         if (!plan) return;                                 // already counted today — the common case
         await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });

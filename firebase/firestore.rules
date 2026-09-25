@@ -1,6 +1,9 @@
 rules_version = '2';
 
-// firestore.rules v2.16.0 — TypeThatBook
+// firestore.rules v2.17.0 — TypeThatBook
+//
+// v2.17.0 — ⚠️ ROUND 148: a name or email a student saves on their own account must
+//           equal their sign-in token's — no renaming yourself as a classmate.
 //
 // v2.16.0 — ⚠️⚠️ ROUND 145: staff may set `users/{uid}.logsChangedAt` (server time
 //           only, own school or class only) — the teacher-change stamp that stops
@@ -475,7 +478,16 @@ service cloud.firestore {
       //
       // update and create are split deliberately: diff() needs an existing
       // `resource`, so using `allow write` here would error on create.
-      allow update: if request.auth.uid == uid
+      // ⚠️⚠️ v2.17.0 — ROUND 148: A STUDENT MAY SAVE A NAME AND EMAIL ON THEIR OWN
+      // ACCOUNT, BUT ONLY THEIR REAL ONES. The reports page's student picker now shows
+      // these; without this check a student could rename themselves as a classmate.
+      // Each field is checked only when it CHANGES, so the daily stamp and every other
+      // owner write are exactly as before.
+      allow update: if (request.auth.uid == uid
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['displayName'])
+                || request.resource.data.displayName == request.auth.token.name)
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email'])
+                || request.resource.data.email == request.auth.token.email))
         // Staff assign a student to a class (CSV import, Add One Student). THIS
         // WAS MISSING and would have denied both outright — the audit's main find.
         // Restricted to two fields; a teacher has no business rewriting anything
@@ -523,7 +535,11 @@ service cloud.firestore {
                 || teachesClass(resource.data.classId)));
 
       // Assigning a student who exists in Auth but has never had a user document.
-      allow create: if request.auth.uid == uid
+      allow create: if (request.auth.uid == uid
+            && (!('displayName' in request.resource.data)
+                || request.resource.data.displayName == request.auth.token.name)
+            && (!('email' in request.resource.data)
+                || request.resource.data.email == request.auth.token.email))
         || (isStaff()
             && request.resource.data.keys().hasOnly(['classId', 'schoolId'])
             && inMySchool(request.resource.data.schoolId));

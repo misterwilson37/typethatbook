@@ -1,5 +1,17 @@
 # CHANGELOG — TypeThatBook
 
+## Round 148 — names on accounts
+
+**⭐ Each student's name and email are saved on their account**, once, the next time
+they type — so the student picker shows names without running a report first, and
+Retention lists them too. The rules only accept the signed-in account's own name and
+email. The picker also remembers the day's list in your browser. ⚠️ A deliberate second
+copy of the name: Rule 9 explicitly overruled by Jake. Privacy policy unchanged (checked).
+Rules v2.17.0, game.js v3.57.0, learn.js v2.50.0, learn2.js v0.10.0, lesson-gate.js v1.3.0,
+reports.html v1.21.0.
+
+**ALL 117 HARNESSES PASS.**
+
 ## Round 147 — the hand guide reports on itself
 
 **The dash key's missing circle, in standard mode.** The live console showed the dash
@@ -13479,4 +13491,73 @@ Moved verbatim. Nothing deleted.
 //           of the week falls BELOW it and is read blind — no undercount is
 //           currently possible on any surface. The week beginning Sat 2026-09-05
 //           is the first one `since` sits under in full. HANDOFF Round 60.
+```
+
+### game.js v3.49.0 — archived by Round 148, 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v3.49.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
+//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
+//           them had ALREADY drifted once, and the symptom was that Saturday's
+//           typing sat inside the number on a child's screen and outside the
+//           teacher's report — every evening, which is when a teacher grades.
+//           This file's week function is a SHAPE ADAPTER now: daylog.js's
+//           weekStartOf() owns the rule, and this converts the argument type its
+//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
+//           that collapses AND configures cannot tell a collapse bug from an
+//           anchor bug. Making it per-class is ROADMAP 58 step two.
+//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
+//           the repo and fails if any but daylog.js contains that expression.
+```
+
+### learn.js v2.42.0 — archived by Round 148, 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v2.42.0 — ⚠️⚠️⚠️ ROADMAP 43 — AN EMPTY PROGRESS CACHE WAS LOCKING
+//           STUDENTS OUT OF THE WHOLE CURRICULUM. `refreshProgressCache()` wrote
+//           whatever `userProgress` held with no check that it had been read,
+//           and `loadUserProgress()` sets it to `{}` then AWAITS a network round
+//           trip. A flush inside that window — an ordinary tab switch —
+//           persisted the empty map; `{}` then passed the `typeof === 'object'`
+//           cache-hit test on the next load, Firestore was never consulted, and
+//           isUnlocked() offered lesson one and nothing else for up to eight
+//           hours, re-stamping its own TTL while the student worked. ⚠️ THE
+//           SERVER RECORD WAS NEVER TOUCHED and neither was their time, which is
+//           why it presented as lost lesson progression with intact minutes.
+//           Two halves: a uid-keyed load-state guard on the write side, and
+//           empty-is-a-MISS on the read side, which SELF-HEALS every already
+//           poisoned cache on the student's next page load — no console needed,
+//           which matters because students do not have one.
+//           ⚠️ v2.34.0 ARCHIVED THIS ROUND (8-entry budget).
+//           tests/progress-cache-test.mjs.
+```
+
+### learn2.js v2.41.0 — archived by Round 148, 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
+//           idle-resume skip in handleDrillKey() advanced drillPos past a space
+//           and never repainted, so the keyboard kept showing the space target
+//           — thumb circles and #space-hint — while the game already expected
+//           the first letter of the next word. Kids reported it and photographed
+//           it; it only fires after a LEARN_IDLE_THRESHOLD (3s) pause landing on
+//           a space, which is why it reads as intermittent and never reproduces
+//           for a teacher on demand. One advanceHandGuide() call, guarded on
+//           drillPos having actually moved. ⚠️ NOTHING ELSE CHANGED — no
+//           threshold, no timing, no scoring. tests/drill-paint-test.mjs asserts
+//           the INVARIANT (every drillPos mutation is followed by a paint), not
+//           this call site, because guarding the line leaves the next one open.
+//           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
+//           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
+//
+// ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
+// inline at the midnight-rollover block, the dateOverride comment, and both
+// `= 0` resets below; those citations stand alone and needed no pointer.
 ```

@@ -1,22 +1,25 @@
-# Round 147 — includes Round 146
+# Round 148 — names on accounts
 
-⚠️ **Assumes Round 145 is deployed.** Everything from 146 is in here too, so if you
-hadn't uploaded 146 yet, this covers it. No rules change.
+⚠️ **Assumes Round 147 is deployed.**
 
-## After uploading
+## ⚠️⚠️ Order
 
-1. **If you haven't already:** Reports → 📋 How-to → The leaderboard → **Date the
-   current leaderboard**, once. (That's from 146.)
-2. **The dash key:** open a book in standard mode and type until a dash is next.
-   Then open the console (⌘ Option J in Chrome) and type:
+1. **Rules first:** `firebase/firestore.rules` is **v2.17.0** → Firebase console →
+   Firestore → Rules → paste → **Publish**. If the console shows an error instead of
+   publishing, don't force it — send me the message. (It checks syntax before it
+   publishes, so a mistake can't break the site.)
+2. **Everything else.**
 
-       ttbGuide.last()
+## What changes
 
-   It shows what the finger guide decided at that moment, and why. If there's a
-   yellow line starting **[hand guide]** in the console, that's the guide reporting
-   a problem on its own — send me both.
+* **Each student's name and email are saved on their account** the next time they
+  type. As students trickle in over the next few days, the Student dropdown fills
+  with real names — no report needed.
+* **No student can rename themselves:** the rules only accept the name and email of
+  the Google account that's actually signed in.
+* **The dropdown remembers today's list** in your browser. After one ⟳, opening an
+  empty dropdown again costs no reads. ⟳ always reads fresh.
+* **Privacy policy:** checked — no change needed. Names and emails were already
+  disclosed; SECURITY.md got a paragraph describing the new detail.
 
-   The circle may simply appear now — the guide falls back to the lit key when it
-   can't place a finger itself. Either way, the console will say what happened.
-
-Expect **ALL 116 HARNESSES PASS**.
+Expect **ALL 117 HARNESSES PASS**.

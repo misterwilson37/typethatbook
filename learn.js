@@ -1,4 +1,8 @@
-// learn.js v2.49.0
+// learn.js v2.50.0
+//
+// v2.50.0 — Round 148: ⭐ each student's name and email are saved on their account, once
+//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
+//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
 //
 // v2.49.0 — Round 145: the same gated WAL recovery as game.js v3.54.0 — a teacher's
 //           correction is no longer undone by this browser's write-ahead log.
@@ -110,25 +114,7 @@
 //           that BOTH files have more than one caller, so a fix applied to one
 //           file and forgotten in the other goes red.
 //
-// v2.42.0 — ⚠️⚠️⚠️ ROADMAP 43 — AN EMPTY PROGRESS CACHE WAS LOCKING
-//           STUDENTS OUT OF THE WHOLE CURRICULUM. `refreshProgressCache()` wrote
-//           whatever `userProgress` held with no check that it had been read,
-//           and `loadUserProgress()` sets it to `{}` then AWAITS a network round
-//           trip. A flush inside that window — an ordinary tab switch —
-//           persisted the empty map; `{}` then passed the `typeof === 'object'`
-//           cache-hit test on the next load, Firestore was never consulted, and
-//           isUnlocked() offered lesson one and nothing else for up to eight
-//           hours, re-stamping its own TTL while the student worked. ⚠️ THE
-//           SERVER RECORD WAS NEVER TOUCHED and neither was their time, which is
-//           why it presented as lost lesson progression with intact minutes.
-//           Two halves: a uid-keyed load-state guard on the write side, and
-//           empty-is-a-MISS on the read side, which SELF-HEALS every already
-//           poisoned cache on the student's next page load — no console needed,
-//           which matters because students do not have one.
-//           ⚠️ v2.34.0 ARCHIVED THIS ROUND (8-entry budget).
-//           tests/progress-cache-test.mjs.
-//
-// (Older entries — v2.41.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v2.42.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 //
@@ -136,7 +122,7 @@ import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
 // rule in it is a function of numbers this file passes in, which is why the whole
 // design is covered by lesson-gate-test.mjs without driving a browser.
-import { activeDayPlan, activeDayCountOf, fireCountOf, isMastered,
+import { activeDayPlan, identityPlan, activeDayCountOf, fireCountOf, isMastered,
          lessonModeFor, runModeFor, runScoreOf, runMastered, pointsForGrade,
          lastLockDayOf, furthestIndexOf, reachBackFor,
          MASTERY_POINTS, MASTERY_FIRE_COUNT, REACH_BACK_DAYS,
@@ -237,7 +223,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.49.0";
+const LEARN_VERSION = "2.50.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1713,6 +1699,13 @@ async function noteActiveDay() {
     _activeDayDone = true;
     try {
         const snap = await getDoc(doc(db, 'users', currentUser.uid));
+        // ⚠️ ROUND 148 — THE NAME ON THE ACCOUNT, in its own write: if the rules ever
+        // reject it, the day stamp below must still land. One write per student, ever.
+        const _idp = identityPlan(snap.exists() ? snap.data() : {}, currentUser);
+        if (_idp) {
+            try { await setDoc(doc(db, 'users', currentUser.uid), _idp, { merge: true }); }
+            catch (e) { console.warn('[account] name not saved on the account:', e && e.message); }
+        }
         const plan = activeDayPlan(snap.exists() ? snap.data() : {}, getLocalDateStr());
         if (!plan) return;                                 // already counted today — the common case
         await setDoc(doc(db, 'users', currentUser.uid), plan, { merge: true });

@@ -1,3 +1,6 @@
+// lesson-gate.js v1.3.0 — Round 148: identityPlan(), the name and email saved once on the
+//   account. ⚠️ A deliberate second copy of the name — see the block above activeDayPlan().
+//
 // lesson-gate.js v1.2.0 — ROADMAP items 10, 14 and 35, the farming gate.
 //
 // ⚠️⚠️ v1.2.0 — ROADMAP 35, JAKE'S RULING 2026-09-06. The mistake thresholds
@@ -67,7 +70,7 @@
 // lesson-gate-test.mjs rather than reachable only by driving a browser, and it
 // is the same discipline daylog.js and drill-filter.js are built on.
 
-export const LESSON_GATE_VERSION = '1.2.0';
+export const LESSON_GATE_VERSION = '1.3.0';
 
 // Three A🔥 closes a lesson. Jake's number.
 export const MASTERY_FIRE_COUNT = 3;
@@ -234,6 +237,31 @@ export function isMastered(record, fireGrade) {
 // Returns null when nothing needs writing — the common case, since a student
 // types on a day they have already been counted for. The caller writes only on
 // a non-null result, so this costs ONE Firestore write per student per day.
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE NAME ON THE ACCOUNT — Round 148. ⚠️ A DELIBERATE SECOND COPY.
+// ═════════════════════════════════════════════════════════════════════════════
+// Names were saved only on each daily typing record, so the reports page's student
+// picker — which reads accounts, one read each — showed 178 of 178 students as
+// "(no name)", and the only way to see names was a full report (~1,600 reads).
+// Saving the name and email on the account ONCE makes the cheap path usable.
+// ⚠️⚠️ RULE 9 WAS EXPLICITLY OVERRULED BY JAKE FOR THIS, 2026-09-25 ("Here is your
+// explicit okay"), after being told: the copy on the account SAVES reads (the
+// picker, the Retention panel), while removing the copies on typing records would
+// save none — reads and writes are counted per document, not per field. The
+// record's copy says who typed THAT record; the account's says who the student is
+// now. Do not "fix" either copy away without asking him.
+// Returns only what is missing or changed, so a student costs one write, ever.
+// ⚠️ Written as-is — NOT lower-cased — because firestore.rules requires the saved
+// values to equal the sign-in token's own name and email.
+export function identityPlan(userDoc, user) {
+    if (!user || user.isAnonymous) return null;
+    const d = userDoc || {};
+    const plan = {};
+    if (user.displayName && d.displayName !== user.displayName) plan.displayName = user.displayName;
+    if (user.email && d.email !== user.email) plan.email = user.email;
+    return Object.keys(plan).length ? plan : null;
+}
+
 export function activeDayPlan(userDoc, todayStr) {
     const stored = (userDoc && userDoc.activeDayLast) || '';
     if (stored === todayStr) return null;

@@ -207,7 +207,9 @@ console.log('\nF — ⚠️⚠️⚠️ THE PICKER NEVER RENDERS A WALL OF IDENT
     const loadBody = code.slice(iLoad, code.indexOf('\n    }', iLoad));
     ok(iLoad > 0 && !/readLogById/.test(loadBody),
        '⭐ F5 loadStudents() still issues the roster query ONLY — no per-day reads');
-    ok(/run a /.test(code) && /report once for this class/.test(code),
+    // ⚠️ ROUND 148: the notice's wording changed — names are now saved on accounts as
+    // students type — but it must still say what to do meanwhile.
+    ok(/name is saved the next time they type/.test(code) && /running a report fills them in/.test(code),
        '⚠️ F6 and when names are missing it says what to do about it');
 
     // The label ladder, exercised directly.
