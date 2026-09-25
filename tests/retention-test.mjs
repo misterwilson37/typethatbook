@@ -80,6 +80,10 @@ console.log('\nC — ⚠️⚠️⚠️ THE REAL SCAN, AGAINST EVERY KIND OF ACC
     put('users/teacher1',  { displayName: 'Teacher', email: 't@x.org', activeDayLast: '2022-01-01' });
     put('staff/teacher1',  { role: 'teacher', active: true });
     put('users/jake',      { displayName: 'Jake', email: 'j@x.org', activeDayLast: '2020-01-01' });
+    // ⭐ ROUND 146 — the long-gone child holds a board place; a kept record from an
+    // earlier student has fallen off every board.
+    put('leaderboard/kidStale', { initials: 'STL', bestWPM: 44 });
+    put('leaderboard/kept_old', { archived: true, initials: 'OLD', bestWPM: 0, bestStreak: 0 });
     let reads = 0;
     const api = {
         documentId: () => DOCID,
@@ -105,6 +109,7 @@ console.log('\nC — ⚠️⚠️⚠️ THE REAL SCAN, AGAINST EVERY KIND OF ACC
         const { documentId, collection, where, limit, query, getDocs } = api; const db = {};
         ${constLine('RETENTION_MONTHS')}
         ${extractFn(reports, 'retentionCutoff')} ${extractFn(reports, 'retentionVerdict')}
+        ${constLine('LB_BOARDS')} ${constLine('LB_TOP_N')} ${extractFn(reports, 'lbOnBoardIds')}
         ${extractFn(reports, 'logExistsFrom')} ${extractFn(reports, 'retentionDueFrom')} ${extractFn(reports, 'retentionScan')}
         return retentionScan;`)(api, { uid: 'jake' }, new Map());
     const r = await scan(() => {});
@@ -123,6 +128,9 @@ console.log('\nC — ⚠️⚠️⚠️ THE REAL SCAN, AGAINST EVERY KIND OF ACC
     // recent log) is left out, because its real date isn't known from the stamp.
     ok(r.nextDue && r.nextDue.date === '2028-09-23' && r.nextDue.name === 'Active',
        `⭐ C8 the panel names the next student who could come due (${r.nextDue && r.nextDue.date})`);
+    ok(r.stale.find(x => x.name === 'Stale')?.lbEntry?.initials === 'STL',
+       '⭐ C9 a long-gone child on a board is marked for keeping by initials');
+    ok(JSON.stringify(r.lbPrune) === '["kept_old"]', 'C10 and a kept record off every board is marked for removal');
     ok(reads < 20, `⭐ C7 the whole scan cost ${reads} reads for 7 accounts — recently stamped children cost none`);
 }
 

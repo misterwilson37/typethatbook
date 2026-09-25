@@ -12,7 +12,9 @@ overwritten.
 
 ### 145b — THE DASH KEY'S CIRCLE IN STANDARD MODE — waiting on one console value. See HANDOFF §45E.
 
-### 145c — RECORDS THAT OUTLIVE STUDENTS — Jake's ruling. SpotOn keeps initials; TypeThatBook's policy promises scores are deleted. A lasting record would hold initials, score, date and school only, plus a policy line.
+### 145c — ✅ BUILT (Round 146). Kept records by initials; a deletion request keeps nothing.
+
+### ~~145c — RECORDS THAT OUTLIVE STUDENTS~~ — Jake's ruling. SpotOn keeps initials; TypeThatBook's policy promises scores are deleted. A lasting record would hold initials, score, date and school only, plus a policy line.
 
 ## ⭐ PRIVACY AND COMPLIANCE TRACK (Round 135 onward)
 

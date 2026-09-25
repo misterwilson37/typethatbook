@@ -105,7 +105,11 @@ removed.
 A school or parent may also ask for a student's information to be deleted at any
 time; see section 7.
 
-The site administrator runs a retention check every quarter. It looks
+The site administrator runs a retention check every quarter. If a student removed
+this way still holds a place on a leaderboard, that place is kept — only their chosen
+initials, the score, the date it was set and their school, under a new identifier with
+no link to their account — until it is pushed off every board. Students who hid
+themselves from the leaderboard are not kept, and a deletion request keeps nothing. It looks
 at every student account — skipping staff accounts — and finds those with no
 typing of any kind in the last 24 months, counting practice, lessons and games
 alike. Accounts with no typing ever recorded are never removed automatically,

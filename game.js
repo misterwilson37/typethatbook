@@ -1,4 +1,10 @@
-// game.js v3.54.0
+// game.js v3.55.0
+//
+// v3.55.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Chapters now records the date
+//           its best was set, like Speed and Streak; a date is NEVER written blank, so an
+//           open tab cannot erase one stamped by reports' one-time backfill; and each
+//           board row shows the admin alone when its score was set, and whether it is a
+//           kept record from a student who has left. See tests/leaderboard-keep-test.mjs.
 //
 // v3.54.0 — Round 145: ⚠️⚠️⚠️ A TEACHER'S CORRECTION NOW SURVIVES THE STUDENT'S NEXT LOAD. The
 //           stats-wal recovery took the LARGER of the browser's log and the server for
@@ -98,40 +104,7 @@
 //           currently possible on any surface. The week beginning Sat 2026-09-05
 //           is the first one `since` sits under in full. HANDOFF Round 60.
 //
-// v3.47.0 — TWO FIXES, BOTH ABOUT SOMETHING BEING READ FROM THE WRONG PLACE.
-//
-//           (a) ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. It
-//           fired only on a COUNTED SECOND, so a tab that woke on a new day and
-//           flushed — without the student typing — worked from yesterday's day
-//           counters, while _flushAllInner() stamps its daily-log document with
-//           getLocalDateStr(), i.e. TODAY. Yesterday's whole day onto today's
-//           ledger line. That is the shape measured on two real students on
-//           2026-08-21; Round 26 closed the MERGE path that produced those rows
-//           and left the FLUSH path open, where it sat for thirty rounds. The
-//           block is now rollDayIfNeeded(), moved VERBATIM, with the tick
-//           calling it at exactly the point the block used to occupy — so every
-//           ordering constraint is preserved by construction. Two new callers:
-//           the visible half of visibilitychange, and _flushAllInner()'s top.
-//           ⚠️ THE MERGE PATH IS DELIBERATELY NOT A CALLER. loadUserStats()
-//           already refuses a stale contribution via its own `liveDay` guard,
-//           which live-period-test.mjs drives with those students' real figures.
-//           One guard per path, and that one is tested.
-//           ⚠️ midnight-test.mjs v1.1.0 FOLLOWED THE CODE RATHER THAN BEING
-//           RELAXED — and found its own B4 had been passing VACUOUSLY, because
-//           `indexOf` returns -1 when the close is absent and -1 < anything.
-//
-//           (b) ⚠️ ROADMAP 48: "Text prepared by" NAMED THE WRONG PERSON. Both
-//           credit surfaces in this file read `cleanedBy` under that label, and
-//           cleanedBy is "Claude" on essentially every book — so the credits
-//           told every student Claude prepared the text, whoever actually had.
-//           Jake: "You're awesome, but not that awesome." The row reads
-//           `preparedBy` now, and the cleaner keeps a row of its own labelled
-//           "Cleaned up by": that credit is a DISCLOSURE that the text was
-//           modified, not only a courtesy, so it is relabelled, never dropped.
-//           ⚠️ The adventure payload never carried `preparedBy` at all, so
-//           fixing adventure-renderer.js's label alone would have shown nothing.
-//
-// (Older entries — v3.46.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.47.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -207,7 +180,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.54.0";
+const VERSION = "3.55.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -8359,6 +8332,7 @@ async function updateLeaderboard() {
         const bestWPMAt      = newBestWPM    > (existing.bestWPM || 0)      ? _lbToday : (existing.bestWPMAt || '');
         const bestAccuracyAt = newBestAcc    > (existing.bestAccuracy || 0) ? _lbToday : (existing.bestAccuracyAt || '');
         const bestStreakAt   = newBestStreak > (existing.bestStreak || 0)   ? _lbToday : (existing.bestStreakAt || '');
+        const chaptersAt     = newChapters   > (existing.chaptersCompleted || 0) ? _lbToday : (existing.chaptersAt || '');
         const newChapters    = Math.max(existing.chaptersCompleted || 0, completedChapters.size);
 
         const gotNewBest =
@@ -8388,7 +8362,12 @@ async function updateLeaderboard() {
             bestWPM: newBestWPM,
             bestAccuracy: newBestAcc,
             bestStreak: newBestStreak,
-            bestWPMAt, bestAccuracyAt, bestStreakAt,
+            // ⚠️⚠️ ROUND 146: A DATE IS NEVER WRITTEN BLANK. This entry is held in memory
+            // for the whole session and saved with merge, so a blank written here
+            // would ERASE a date stamped while the page was open — including the
+            // one-time backfill Jake runs from reports. Absent keys are left alone.
+            ...(bestWPMAt ? { bestWPMAt } : {}), ...(bestAccuracyAt ? { bestAccuracyAt } : {}),
+            ...(bestStreakAt ? { bestStreakAt } : {}), ...(chaptersAt ? { chaptersAt } : {}),
             chaptersCompleted: newChapters,
             totalSecondsWeek: lbServerWins ? Math.max(0, Math.round(statsData.secondsWeek || 0)) : existingTimeWeek,
             weekStart: weekStart,
@@ -8435,6 +8414,10 @@ const LB_CATEGORIES = [
     { key: 'chaptersCompleted', label: '📚 Chapters', unit: '' },
     { key: 'totalSecondsWeek', label: '⏱️ Weekly', unit: '', format: 'time' }
 ];
+// ⭐ ROUND 146 — WHICH FIELD HOLDS EACH ALL-TIME BOARD'S DATE. The weekly board has
+// none: a week's time means nothing once the week is over. ⚠️ MIRRORED BY LB_BOARDS in
+// reports.html — tests/leaderboard-keep-test.mjs checks they list the same boards.
+const LB_DATE_OF = { bestWPM: 'bestWPMAt', bestStreak: 'bestStreakAt', chaptersCompleted: 'chaptersAt' };
 
 function lbRowsFromSnap(snap) {
     const rows = [];
@@ -8550,7 +8533,14 @@ async function openLeaderboard(activeTab) {
             const adminBtn = isAdmin
                 ? ` <button class="lb-admin-reset" data-uid="${escapeHtml(entry.uid)}" title="Admin: reset this entry to 0" style="background:none; border:1px solid #a33; color:#a33; border-radius:3px; font-size:0.7em; padding:0 5px; cursor:pointer; margin-left:6px; vertical-align:middle;">✕</button>`
                 : '';
-            return `<div class="lb-entry ${isMe ? 'lb-me' : ''}">${medal} <span class="lb-initials">${escapeHtml(entry.initials || '???')}</span> <span class="lb-val">${val}</span>${adminBtn}</div>`;
+            // ⭐ ROUND 146 — FOR THE ADMIN ONLY: when this record was set, and whether it
+            // is a kept record from a student who has since left. Jake: "for context
+            // when the user itself is gone (even if only for the admin)."
+            const setAt = entry[LB_DATE_OF[activeCat]];
+            const dateTag = isAdmin && (setAt || entry.archived)
+                ? ` <span class="lb-date" style="color:#999; font-size:.75em">${escapeHtml(setAt || '')}${entry.archived ? ' \u00b7 kept' : ''}</span>`
+                : '';
+            return `<div class="lb-entry ${isMe ? 'lb-me' : ''}">${medal} <span class="lb-initials">${escapeHtml(entry.initials || '???')}</span>${dateTag} <span class="lb-val">${val}</span>${adminBtn}</div>`;
         }).join('');
     }
 

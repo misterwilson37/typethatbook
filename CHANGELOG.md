@@ -1,5 +1,17 @@
 # CHANGELOG — TypeThatBook
 
+## Round 146 — initials that outlive the student
+
+**⭐ When a student ages out, their leaderboard place stays** — initials, score, the
+date it was set and school only, under a fresh id with no link to their account —
+until it's pushed off every board. Hidden students aren't kept, and **a deletion
+request keeps nothing.** Chapters now records a set-date; dates are never written
+blank; admins see each score's date on the board. How-to gains a one-time **Date the
+current leaderboard**. Policy and SECURITY.md updated. game.js v3.55.0, reports.html
+v1.20.0, privacy.html v2.4.0.
+
+**ALL 115 HARNESSES PASS.**
+
 ## Round 145 — the log that undid corrections, and sign-in account cleanup
 
 **⚠️⚠️⚠️ A student's browser could undo a teacher's deletion.** `stats-wal.js` took
@@ -13393,4 +13405,43 @@ oldest live entry moves here verbatim. Nothing deleted.
 // getWeekStart() in game.js and learn.js and weekStartOf() in reports.html;
 // tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
 // mismatch here does not throw — it silently reads the wrong seven days.
+```
+
+### game.js v3.47.0 — archived by Round 146, 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v3.47.0 — TWO FIXES, BOTH ABOUT SOMETHING BEING READ FROM THE WRONG PLACE.
+//
+//           (a) ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. It
+//           fired only on a COUNTED SECOND, so a tab that woke on a new day and
+//           flushed — without the student typing — worked from yesterday's day
+//           counters, while _flushAllInner() stamps its daily-log document with
+//           getLocalDateStr(), i.e. TODAY. Yesterday's whole day onto today's
+//           ledger line. That is the shape measured on two real students on
+//           2026-08-21; Round 26 closed the MERGE path that produced those rows
+//           and left the FLUSH path open, where it sat for thirty rounds. The
+//           block is now rollDayIfNeeded(), moved VERBATIM, with the tick
+//           calling it at exactly the point the block used to occupy — so every
+//           ordering constraint is preserved by construction. Two new callers:
+//           the visible half of visibilitychange, and _flushAllInner()'s top.
+//           ⚠️ THE MERGE PATH IS DELIBERATELY NOT A CALLER. loadUserStats()
+//           already refuses a stale contribution via its own `liveDay` guard,
+//           which live-period-test.mjs drives with those students' real figures.
+//           One guard per path, and that one is tested.
+//           ⚠️ midnight-test.mjs v1.1.0 FOLLOWED THE CODE RATHER THAN BEING
+//           RELAXED — and found its own B4 had been passing VACUOUSLY, because
+//           `indexOf` returns -1 when the close is absent and -1 < anything.
+//
+//           (b) ⚠️ ROADMAP 48: "Text prepared by" NAMED THE WRONG PERSON. Both
+//           credit surfaces in this file read `cleanedBy` under that label, and
+//           cleanedBy is "Claude" on essentially every book — so the credits
+//           told every student Claude prepared the text, whoever actually had.
+//           Jake: "You're awesome, but not that awesome." The row reads
+//           `preparedBy` now, and the cleaner keeps a row of its own labelled
+//           "Cleaned up by": that credit is a DISCLOSURE that the text was
+//           modified, not only a courtesy, so it is relabelled, never dropped.
+//           ⚠️ The adventure payload never carried `preparedBy` at all, so
+//           fixing adventure-renderer.js's label alone would have shown nothing.
 ```

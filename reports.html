@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<!-- reports.html v1.19.0 — Round 145: ⚠️⚠️ SAVE and every recalculation now stamp
+<!-- reports.html v1.20.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Retention writes an
+     anonymous kept record — initials, scores, their dates, school; a fresh id, never the
+     account id — for any aging-out student on a board, and removes kept records that
+     have fallen off every board. "Delete student…" keeps nothing. How-to gains a
+     one-time "Date the current leaderboard". See tests/leaderboard-keep-test.mjs.
+
+     reports.html v1.19.0 — Round 145: ⚠️⚠️ SAVE and every recalculation now stamp
      users/{uid}.logsChangedAt (rules v2.16.0), so the student's own write-ahead log
      can no longer put back minutes a teacher deleted. Student picker: named students
      first, nameless ones grouped at the bottom.
@@ -783,6 +789,14 @@
             <h3 style="font-size:.95em;margin:10px 0 4px">A parent asks you to stop collecting</h3>
             <p style="margin:0 0 10px">Disable the sign-in account (below). The student can no longer sign in,
                so nothing new is saved; they can still type as a guest.</p>
+            <h3 style="font-size:.95em;margin:10px 0 4px">The leaderboard</h3>
+            <p style="margin:0 0 6px">When a student ages out through <b>Retention…</b>, their place on a board
+               stays — just their chosen initials, the score, the date it was set and their school — until it's
+               pushed off every board. A <b>deletion request</b> removes it along with everything else. Dates are
+               shown to you alone, beside each score on the board.</p>
+            <p style="margin:0 0 10px"><b>Once, now:</b> scores set before dates were recorded have none.
+               <button type="button" id="lb-backfill-btn">Date the current leaderboard</button>
+               stamps today on each of those, so none are lost. Safe to press twice.</p>
             <h3 style="font-size:.95em;margin:10px 0 4px">Commands</h3>
             <p style="margin:0 0 4px">First time only:</p>
             <div class="howto-cmd"><code data-cmd>pip install --user --quiet firebase-admin</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
@@ -2634,7 +2648,8 @@
             <div style="margin-bottom:6px">This removes <b>${plan.total}</b> record${plan.total === 1 ? '' : 's'}:</div>
             <ul style="margin:0 0 12px 18px;padding:0">${rows || '<li>No records found.</li>'}</ul>
             <div style="margin-bottom:12px;padding:8px 10px;border-left:3px solid var(--bad);background:var(--bad-fill)">
-              <b>This cannot be undone.</b> Every minute, lesson and book position is gone for good.
+              <b>This cannot be undone.</b> Every minute, lesson and book position is gone for good \u2014
+              and so are their initials on the leaderboard, since this is how a deletion request is handled.
               If the student comes back, they start from the beginning.</div>
             <label for="ttb-purge-type" style="display:block;margin-bottom:4px">
               Type <b style="font-family:monospace">${escapeHtml(phrase)}</b> to confirm:</label>
@@ -2774,6 +2789,90 @@
         return 'review';
     }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ INITIALS THAT OUTLIVE THE STUDENT — Round 146.
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Jake: *"I'd like the student chosen initials to live on the leaderboards for
+    // as long as they survive. I'd like to keep a date with when it hit the
+    // leaderboards, too, for context when the user itself is gone."*
+    //
+    // ⭐ WHAT IS KEPT, when a student AGES OUT through Retention and is on a board:
+    // their chosen initials, each all-time score, the date it was set, and their
+    // school. ⚠️⚠️ UNDER A FRESH, UNRELATED DOCUMENT ID. The live entry is filed
+    // under the student's account id, which is itself identifying information; a
+    // kept record that still carried it would not be anonymous at all.
+    // ⚠️ NOT KEPT: account id, class, weekly time (meaningless once gone), and anyone
+    // who chose "Hide me from leaderboards" — that choice outlasts them too.
+    // ⚠️⚠️ A DELETION REQUEST KEEPS NOTHING. "Delete student…" never calls this: a
+    // parent who asks for deletion gets all of it, initials included.
+    // ⭐ HOW LONG: while it is still on a board. Retention removes kept records that
+    // have been pushed off every one.
+    // ⚠️ MIRRORS LB_DATE_OF in game.js — tests/leaderboard-keep-test.mjs checks it.
+    const LB_BOARDS = [['bestWPM', 'bestWPMAt'], ['bestStreak', 'bestStreakAt'], ['chaptersCompleted', 'chaptersAt']];
+    const LB_TOP_N = 10;
+
+    /** Pure. Every document id that is in the top LB_TOP_N of any all-time board. */
+    function lbOnBoardIds(entries) {
+        const on = new Set();
+        for (const [k] of LB_BOARDS) {
+            entries.filter(e => (Number(e.data[k]) || 0) > 0 && !e.data.leaderboardOptOut)
+                .sort((a, b) => (b.data[k] - a.data[k]) || (a.id < b.id ? -1 : 1))
+                .slice(0, LB_TOP_N).forEach(e => on.add(e.id));
+        }
+        return on;
+    }
+
+    /** Pure. The anonymous record kept for a student who ages out, or null. */
+    function keptRecordFrom(entry, today) {
+        if (!entry || entry.leaderboardOptOut) return null;
+        const initials = String(entry.initials || '').trim().slice(0, 3);
+        if (!initials) return null;
+        const kept = { archived: true, initials, schoolId: entry.schoolId || '', archivedOn: today };
+        let any = false;
+        for (const [k, at] of LB_BOARDS) {
+            const v = Number(entry[k]) || 0;
+            if (v > 0) { kept[k] = v; kept[at] = entry[at] || today; any = true; }
+        }
+        return any ? kept : null;
+    }
+
+    function keptRecordId() {
+        const raw = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now());
+        return 'kept_' + raw.replace(/[^a-z0-9]/gi, '').slice(0, 20);
+    }
+
+    /**
+     * ⭐ THE ONE-TIME BACKFILL. Jake: "We'll need to assign a date — today even — to
+     * all the current leaderboard members, or else we'll just lose them all when we
+     * delete users." Dates only began being recorded in Round 145. This stamps TODAY
+     * on every best that has a score and no date. ⚠️ Only missing dates: a date
+     * already there is never overwritten, so running it twice changes nothing.
+     */
+    async function backfillLeaderboardDates() {
+        if (!isSuper()) return;
+        const ok = await ttbConfirm('Stamp today\u2019s date on every leaderboard score that doesn\u2019t have one yet? '
+            + 'Scores that already have a date are left alone. This reads the whole leaderboard once.',
+            { title: 'Date the current leaderboard', ok: 'Stamp dates' });
+        if (!ok) return;
+        const today = toDateStr(new Date());
+        let docs = 0, fields = 0;
+        try {
+            const snap = await getDocs(collection(db, 'leaderboard'));
+            for (const d of snap.docs) {
+                const e = d.data() || {};
+                if (e.archived) continue;
+                const upd = {};
+                for (const [k, at] of LB_BOARDS) if ((Number(e[k]) || 0) > 0 && !e[at]) upd[at] = today;
+                if (Object.keys(upd).length) { await updateDoc(d.ref, upd); docs++; fields += Object.keys(upd).length; }
+            }
+            ttbNotice(docs ? `Dated ${fields} score${fields === 1 ? '' : 's'} on ${docs} leaderboard entr${docs === 1 ? 'y' : 'ies'} (${today}).`
+                           : 'Every score on the leaderboard already has a date. Nothing changed.');
+        } catch (e) {
+            ttbNotice('Could not date the leaderboard: ' + (e.message || e), { bad: true });
+        }
+    }
+
     async function logExistsFrom(uid, fromDate) {
         const lo = fromDate ? `${uid}_${fromDate}` : `${uid}_`;
         const snap = await getDocs(query(collection(db, 'typing_logs'),
@@ -2785,8 +2884,15 @@
         const cutoff = retentionCutoff(new Date());
         const [usersSnap, staffSnap] = await Promise.all([
             getDocs(collection(db, 'users')), getDocs(collection(db, 'staff'))]);
+        // ⭐ ROUND 146 — the leaderboard, read once: which students are on a board
+        // (and so get a kept record), and which kept records have fallen off every one.
+        const lbSnap = await getDocs(collection(db, 'leaderboard'));
+        const lbAll = lbSnap.docs.map(d => ({ id: d.id, data: d.data() || {} }));
+        const lbOn = lbOnBoardIds(lbAll);
+        const lbById = new Map(lbAll.map(e => [e.id, e.data]));
         const staff = new Set(staffSnap.docs.map(d => d.id));
-        const out = { cutoff, active: 0, stale: [], review: [], skipped: 0, nextDue: null };
+        const out = { cutoff, active: 0, stale: [], review: [], skipped: 0, nextDue: null,
+                      lbPrune: lbAll.filter(e => e.data.archived && !lbOn.has(e.id)).map(e => e.id) };
         const people = usersSnap.docs.filter(d => {
             if (staff.has(d.id) || d.id === me.uid) { out.skipped++; return false; }
             return true;
@@ -2810,7 +2916,10 @@
                 const due = ev && ev >= cutoff ? retentionDueFrom(ev) : '';
                 if (due && (!out.nextDue || due < out.nextDue.date)) out.nextDue = { date: due, name: row.name || row.email };
             }
-            else if (v === 'stale') out.stale.push(row);
+            else if (v === 'stale') {
+                if (lbOn.has(d.id)) row.lbEntry = lbById.get(d.id);   // on a board: keep their initials
+                out.stale.push(row);
+            }
             else out.review.push(row);
             if (++i % 20 === 0) onProgress(i, people.length);
         }
@@ -2911,15 +3020,22 @@
                     + '<div style="margin-top:8px;opacity:.7">Keep this tab open until it finishes.</div>';
                 const prog = box.querySelector('#ttb-ret-prog');
                 const done = [];
+                let keptCount = 0, pruned = 0;
                 try {
                     for (const row of r.stale) {
                         prog.textContent = `Student ${done.length + 1} of ${n}\u2026`;
                         // ⭐ THE SAME MACHINERY AS "Delete student…" — one purge, proven by
                         // student-purge-test, not a second implementation of it.
+                        // ⭐ ROUND 146 — AGING OUT KEEPS THE LEADERBOARD PLACE: the anonymous
+                        // record is written BEFORE the purge deletes the live entry.
+                        const kept = row.lbEntry ? keptRecordFrom(row.lbEntry, toDateStr(new Date())) : null;
+                        if (kept) { await setDoc(doc(db, 'leaderboard', keptRecordId()), kept); keptCount++; }
                         await purgeExecute(await purgePlan(row.uid), () => {});
                         done.push(row);
                         _studentNames.delete(row.uid);
                     }
+                    // ⭐ Kept records pushed off every board are removed — "as long as they survive".
+                    for (const id of r.lbPrune) { await deleteDoc(doc(db, 'leaderboard', id)); pruned++; }
                 } catch (e) {
                     busy = false;
                     box.innerHTML = `<b style="color:var(--bad)">Stopped after ${done.length} of ${n}.</b><br>`
@@ -2932,6 +3048,8 @@
                 const authUrl = `https://console.firebase.google.com/project/${FIREBASE_PROJECT}/authentication/users`;
                 box.innerHTML = `
                     <div style="font-size:1.15em;font-weight:700;margin-bottom:8px">\u2713 ${n} students removed.</div>
+                    ${keptCount || pruned ? `<div style="margin-bottom:8px">Leaderboard: ${keptCount} kept by initials
+                      ${pruned ? `\u00b7 ${pruned} old kept record${pruned === 1 ? '' : 's'} removed (off every board)` : ''}</div>` : ''}
                     <div style="margin-bottom:8px">Last step, in the Firebase console: <b>delete their sign-in accounts</b>.
                       <a href="${authUrl}" target="_blank" rel="noopener">Open Authentication</a> \u2014 you can tick several
                       and delete them together \u2014 or use the Cloud Shell script in <b>\ud83d\udccb How-to</b>
@@ -3078,6 +3196,7 @@
     }
 
     document.getElementById('retention-open')?.addEventListener('click', openRetentionDialog);
+    document.getElementById('lb-backfill-btn')?.addEventListener('click', backfillLeaderboardDates);
     // ⭐ Copy buttons in the How-to. Copies the command text exactly as shown.
     document.getElementById('privacy-howto')?.addEventListener('click', async (e) => {
         const btn = e.target.closest('.howto-copy');

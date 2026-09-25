@@ -1,8 +1,8 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-25 by Round 145 (Figgins' echo), for whoever is next
+> ## ▶ START HERE — written 2026-09-25 by Round 146, for whoever is next
 >
-> **ALL 114 HARNESSES PASS.**
+> **ALL 115 HARNESSES PASS.**
 >
 > ⚠️⚠️⚠️ **A STUDENT'S OWN BROWSER COULD UNDO A TEACHER'S DELETION — FIXED IN ROUND
 > 145, ONE HOLE LEFT (ROADMAP 145a).** `stats-wal.js` took the LARGER of the
@@ -1832,7 +1832,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **114 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **115 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11726,3 +11726,41 @@ All four 312.4(d)(1) elements are now in both documents.
   `getComputedStyle(document.getElementById('key--')).backgroundColor`.
 * **145c — records that outlive students.** Purge deletes `leaderboard/{uid}`,
   matching the policy. SpotOn keeps initials. Jake's ruling.
+
+
+---
+
+## §46. Round 146 — initials that outlive the student
+
+**2026-09-25.** Jake: *"I'd like the student chosen initials to live on the
+leaderboards for as long as they survive. I'd like to keep a date with when it hit
+the leaderboards, too, for context when the user itself is gone."* And: *"We'll need
+to assign a date — today even — to all the current leaderboard members."*
+
+### A. THE RULE
+* **Aging out (Retention…) keeps a board place** — a *kept record*: initials, each
+  all-time score (Speed, Streak, Chapters), its date, school, `archived: true`,
+  `archivedOn`. ⚠️⚠️ **Under a fresh `kept_…` id, never the account id** — the live
+  entry is keyed by uid, which is identifying.
+* **Not kept:** account id, class, email, name, weekly time, and anyone who chose
+  "Hide me from leaderboards".
+* ⚠️⚠️ **A deletion request keeps nothing.** `Delete student…` and the shared
+  `purgePlan()` never archive. The harness's first check looked only at the dialog;
+  a mutation planted in `purgePlan()` — which Retention also uses — slipped past, so
+  C5 now covers all three functions.
+* **"As long as they survive":** kept records compete on the boards like anyone
+  (top 10 each). Retention removes any kept record off every board.
+
+### B. DATES
+Speed and Streak recorded set-dates from Round 145; Chapters now does too
+(`chaptersAt`). ⚠️ **A date is never written blank** — the student's entry lives in
+memory all session and saves with merge, so a blank would erase a date stamped while
+the page was open. **One-time backfill:** How-to → *Date the current leaderboard*
+stamps today on every score without a date, idempotently. Dates appear on board rows
+**for the admin only**, with "· kept" on kept records.
+
+### C. ⚠️ THE DASH KEY — the second console run was contaminated
+`keyCenter: [0,0]` meant the keyboard was hidden: opening DevTools blurred the page,
+the game paused, and pausing hides the keyboard. First run's facts still stand (one
+key, highlighted, translucent tint, z-index 5). A watcher that fires only while the
+keyboard is visible and a dash is due was sent to Jake instead.
