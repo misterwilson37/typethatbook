@@ -1,4 +1,11 @@
-// game.js v3.55.0
+// game.js v3.56.0
+//
+// v3.56.0 — Round 147: ⚠️ THE HAND GUIDE REPORTS ON ITSELF. In standard mode the dash key
+//           lit up but its finger circle never appeared; the live cause could not be
+//           found from the code. updateHandGuide() now falls back to the lit key when it
+//           can't place a finger, records every decision (ttbGuide.last() in the console),
+//           and warns once per kind of problem with the exact character's code point.
+//           See tests/hand-guide-test.mjs.
 //
 // v3.55.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Chapters now records the date
 //           its best was set, like Speed and Streak; a date is NEVER written blank, so an
@@ -86,25 +93,7 @@
 //           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
 //           the repo and fails if any but daylog.js contains that expression.
 //
-// v3.48.0 — ⚠️⚠️ ROADMAP 50: THE RECONCILER WAS WIRED ON ONE OF THE TWO STUDENT
-//           PAGES. Round 58 added logdays.js's reconcile() to learn.js's
-//           loadGateState() and nowhere else, so a student who spent the day in
-//           Library or Adventure never healed their mirror — while this page
-//           paints the same weekly figure, from the same readWeek(), off the
-//           same per-browser ledger. One call in noteActiveDay(), on the
-//           `_udata` it already holds for ensureSince(): zero extra reads.
-//           ⚠️ NOTHING WENT RED BECAUSE NOTHING POINTED AT THE WIRING.
-//           logdays-test.mjs drives reconcilePlan()/reconcile() as pure
-//           functions and never asked whether a page CALLS them — Round 59's
-//           finding in a different file. tests/mirror-heal-test.mjs asks the
-//           mirror question now, of BOTH controllers, and of index.html.
-//           ⚠️ THE CLEAN DAY OF 2026-09-03 DOES NOT COVER THIS. The _v2 rename
-//           left every mirror with `since` at 09-02/09-03, so every earlier day
-//           of the week falls BELOW it and is read blind — no undercount is
-//           currently possible on any surface. The week beginning Sat 2026-09-05
-//           is the first one `since` sits under in full. HANDOFF Round 60.
-//
-// (Older entries — v3.47.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.48.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -180,7 +169,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.55.0";
+const VERSION = "3.56.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -7417,13 +7406,55 @@ function buildFingerSVG() {
     updateHandGuide();
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ ROUND 147 — THE HAND GUIDE SAYS WHAT IT DECIDED, AND WHY.
+// ═════════════════════════════════════════════════════════════════════════════
+// Jake, 2026-09-25: in standard mode the dash key lights up but its finger circle
+// never appears. From a live console: the dash key IS highlighted, its right-pinky
+// finger exists — and the finger was never activated. Run here, the same finger map
+// knows the dash perfectly well, so something about the live page differs and could
+// not be seen from the code. ⭐ So this function now (1) FALLS BACK to the key that
+// is already lit when it can't place a finger itself, and (2) RECORDS every decision:
+// `ttbGuide.last()` in the console shows the latest, and any fallback or early exit
+// prints ONE warning per kind of problem, naming the exact character and its code
+// point — the thing a screenshot can't show.
+const _hg = { last: null, warned: new Set() };
+function hgNote(rec) {
+    _hg.last = rec;
+    if (rec.reason === 'ok') return;
+    const k = rec.reason + '|' + (rec.code || '');
+    if (_hg.warned.has(k)) return;
+    _hg.warned.add(k);
+    console.warn('[hand guide] ' + rec.reason, JSON.stringify(rec));
+}
+// ⚠️ THE LIT KEY'S CHARACTERS, BEST FIRST: the one that matches, then its unshifted
+// and shifted faces. A character variant the finger map doesn't recognise still
+// reaches the right finger through whichever face of the lit key the map does know.
+function hgLitKeyChars(nextChar) {
+    const lit = document.querySelector('#virtual-keyboard .key.target');
+    if (!lit) return [];
+    const c = lit.dataset.char, sh = lit.dataset.shift;
+    return [...new Set([sh === nextChar ? sh : c, c, sh].filter(Boolean))];
+}
+function hgFromLitKey(nextChar) {
+    for (const ch of hgLitKeyChars(nextChar)) {
+        const info = getFingerInfo(ch);
+        if (info) return { info, via: ch };
+    }
+    return { info: null, via: hgLitKeyChars(nextChar)[0] || null };
+}
+window.ttbGuide = { last: () => _hg.last, warnings: () => [..._hg.warned] };
+
 function updateHandGuide() {
-    if (!handGuideEnabled) return;
+    if (!handGuideEnabled) { _hg.last = { reason: 'hand guide is off' }; return; }
     const svg = document.getElementById('hg-svg');
     if (!svg || !fullText || currentCharIndex >= fullText.length) return;
 
     const nextChar = fullText[currentCharIndex];
-    const info = getFingerInfo(nextChar);
+    const rec = { index: currentCharIndex, char: nextChar,
+                  code: 'U+' + (nextChar.codePointAt(0) || 0).toString(16).toUpperCase().padStart(4, '0'),
+                  reason: 'ok' };
+    let info = getFingerInfo(nextChar);
     const homeKeys = getHomeKeys();
 
     // Clear space bar highlight
@@ -7448,7 +7479,15 @@ function updateHandGuide() {
         if (tip) { tip.setAttribute('cx', homePos.x); tip.setAttribute('cy', homePos.y); }
     });
 
-    if (!info) return;
+    if (!info) {
+        // ⚠️ FALLBACK: the lit key knows which key this is even when the finger map
+        // doesn't recognise the character.
+        const fb = hgFromLitKey(nextChar);
+        info = fb.info;
+        rec.litKey = fb.via;
+        if (!info) { rec.reason = 'no finger for this character, and no lit key to fall back on'; hgNote(rec); return; }
+        rec.reason = 'no finger for this character \u2014 used the lit key instead';
+    }
 
     // Space: just highlight the bar (CSS handles thumb circles via ::before/::after)
     if (info.finger === 'thumb') {
@@ -7459,14 +7498,25 @@ function updateHandGuide() {
 
     const fingerName = info.finger;
     const fingerG = document.getElementById(`hg-finger-${fingerName}`);
-    if (!fingerG) return;
+    if (!fingerG) { rec.reason = 'no finger drawing for ' + fingerName; hgNote(rec); return; }
 
     // Find home and target positions
     const homeChar = homeKeys[fingerName];
     const homePos = homeChar ? getKeyCenterInKB(homeChar) : null;
-    const targetPos = getKeyCenterInKB(info.keyChar);
-
-    if (!homePos || !targetPos) return;
+    let targetPos = getKeyCenterInKB(info.keyChar);
+    if (!targetPos) {
+        const lit = document.querySelector('#virtual-keyboard .key.target');
+        if (lit) targetPos = getKeyCenterInKB(lit.id.slice(4));
+        rec.reason = targetPos ? 'target key not found \u2014 used the lit key instead'
+                               : 'target key not found, and no lit key to fall back on';
+    }
+    if (!homePos || !targetPos) {
+        if (!homePos) rec.reason = 'no home key for ' + fingerName + ' (' + homeChar + ')';
+        hgNote(rec);
+        return;
+    }
+    rec.finger = fingerName; rec.keyChar = info.keyChar;
+    rec.target = [Math.round(targetPos.x), Math.round(targetPos.y)];
 
     // Stretch the finger from home to target
     const body = fingerG.querySelector('.hg-body');
@@ -7477,6 +7527,7 @@ function updateHandGuide() {
     }
     if (tip) { tip.setAttribute('cx', targetPos.x); tip.setAttribute('cy', targetPos.y); }
     fingerG.classList.add('hg-active');
+    hgNote(rec);
 
     // Shift: stretch opposite pinky to correct shift key
     if (info.shift) {
