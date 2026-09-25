@@ -1,5 +1,19 @@
 # TYPETHATBOOK — ROADMAP
 
+### 145a — ⚠️⚠️ AN OPEN TAB CAN STILL OVERWRITE A SAME-DAY CORRECTION
+
+`flushAll` writes `statsData.secondsToday` into today's record as an absolute
+number. A student with the page OPEN while a teacher deletes today's minutes still
+holds the old number in memory, and their next save writes it back. Round 145's
+stamp is checked only at load. **Workaround: delete runs the day after.** Options:
+write day deltas instead of absolutes (touches the flush that §0.0 reverted —
+careful), or check the stamp at the moment a lower server value would be
+overwritten.
+
+### 145b — THE DASH KEY'S CIRCLE IN STANDARD MODE — waiting on one console value. See HANDOFF §45E.
+
+### 145c — RECORDS THAT OUTLIVE STUDENTS — Jake's ruling. SpotOn keeps initials; TypeThatBook's policy promises scores are deleted. A lasting record would hold initials, score, date and school only, plus a policy line.
+
 ## ⭐ PRIVACY AND COMPLIANCE TRACK (Round 135 onward)
 
 Jake, 2026-09-24: *"I'd just like to get the page up to snuff, have the privacy

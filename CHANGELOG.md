@@ -1,5 +1,27 @@
 # CHANGELOG — TypeThatBook
 
+## Round 145 — the log that undid corrections, and sign-in account cleanup
+
+**⚠️⚠️⚠️ A student's browser could undo a teacher's deletion.** `stats-wal.js` took
+the larger of its log and the server for a whole week — and on the same day, the
+flush wrote today's inflated counter back into the record. Reports now stamps
+`users/{uid}.logsChangedAt` on every SAVE and recalculation (rules v2.16.0), and the
+recovery reads that stamp only when it would raise a number. Identical in Library,
+School and the Lessons beta. The leaderboard's weekly floor yields too, and bests
+now carry the date they were set. Reproduced on the real module with the real
+student's numbers. ⚠️ Open: a tab left open during a same-day deletion (145a).
+
+**⭐ Sign-in account cleanup**, adapted from SpotOn: `scripts/auth-cleanup.py` for
+Google Cloud Shell, a **📋 How-to** on reports with copy buttons, and a "next due"
+date in the Retention panel. Records gone AND unused 24 months; staff never
+touched; fails closed. Not yet run live.
+
+**Contact complete:** mailing address added to the policy and SECURITY.md.
+Student picker: named students first. Headers of game.js, learn.js and daylog.js
+archived to budget.
+
+**ALL 114 HARNESSES PASS.**
+
 ## Round 144 (Caslon VI) — the operator is named
 
 `privacy.html` v2.2.0 names Jake Wilson as operator. Only a mailing address remains
@@ -13263,4 +13285,112 @@ its budget; the oldest live entry moves here verbatim. Nothing deleted.
 //     splash, and reconciliation against the student's Firestore profile.
 //   * applyViewMode() must replay textLoaded + positionSet. A renderer
 //     mounted mid-session missed those events and will draw nothing.
+```
+
+### game.js v3.46.0 — archived by Round 145, 8-entry budget
+
+Round 145 added a new entry to game.js's header and put it one over its budget; the
+oldest live entry moves here verbatim. Nothing deleted.
+
+```
+// v3.46.0 — ROADMAP item 24, the writer half — TWIN OF learn.js v2.38.0.
+//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
+//           imported from read-meter.js for other writes) alongside the
+//           existing four dependencies, so session-log.js v1.7.0's
+//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
+//           LAND IN THE SAME ROUND AS learn.js's call — session-log.js's own
+//           header says the two must agree, and session-merge-test.mjs Part C
+//           checks it. Nothing else in this file changed; the fix lives
+//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
+//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
+//           — do not deploy this without it.
+```
+
+### learn.js v2.41.0 — archived by Round 145, 8-entry budget
+
+Round 145 added a new entry to learn.js's header and put it one over its budget; the
+oldest live entry moves here verbatim. Nothing deleted.
+
+```
+// v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
+//           idle-resume skip in handleDrillKey() advanced drillPos past a space
+//           and never repainted, so the keyboard kept showing the space target
+//           — thumb circles and #space-hint — while the game already expected
+//           the first letter of the next word. Kids reported it and photographed
+//           it; it only fires after a LEARN_IDLE_THRESHOLD (3s) pause landing on
+//           a space, which is why it reads as intermittent and never reproduces
+//           for a teacher on demand. One advanceHandGuide() call, guarded on
+//           drillPos having actually moved. ⚠️ NOTHING ELSE CHANGED — no
+//           threshold, no timing, no scoring. tests/drill-paint-test.mjs asserts
+//           the INVARIANT (every drillPos mutation is followed by a paint), not
+//           this call site, because guarding the line leaves the next one open.
+//           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
+//           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
+//
+// ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
+// inline at the midnight-rollover block, the dateOverride comment, and both
+// `= 0` resets below; those citations stand alone and needed no pointer.
+```
+
+### daylog.js v1.3.0 — archived by Round 145, 8-entry budget
+
+Round 145 added a new entry to daylog.js's header and put it one over its budget; the
+oldest live entry moves here verbatim. Nothing deleted.
+
+```
+// v1.3.0 — ⚠️ ROADMAP ITEM 1, THE WRITER HALF. Adds SOURCE_FIELDS and
+//          sourceTotalsOf(), and readWeek() now returns `todaySources`.
+//          totalsOf() IS UNTOUCHED — daylog-cutover-test.mjs Part F drives it
+//          against reports.html's twin and any edit here breaks that pair.
+//
+//          ⚠️ WHY A WRITER NEEDS ITS OWN READ. game.js and learn.js each keep a
+//          per-source counter now, and ROADMAP item 1 is explicit about the one
+//          way to get it wrong: **the counter seeds from its own field, never
+//          from the day total.** Seeding from the total folds the other mode's
+//          time into your own bucket and the post-cutover reader then adds it
+//          twice — that is the v3.29.0 bug, and tab-lifetime-test.mjs Part E
+//          drives it deliberately. totalsOf() returns the DAY, which is the
+//          right number for a HUD and the wrong number for a seed, so a second
+//          accessor is not duplication: the two answer different questions.
+//
+//          It rides on readWeek()'s existing seven reads. No extra round trip.
+//
+// ⚠️ v1.2.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry budget,
+// Round 92). It is the reader half of the §3.1 source-split fix.
+//
+// v1.1.0 adds the Stage 2 half: sessionSignature(), sumDaySessions() and
+// projectDayTotal(). v1.0.0's readWeek() is unchanged.
+//
+// HANDOFF.md §0.0. This module exists so that the number on a student's screen
+// and the number in Jake's report are THE SAME DOCUMENT, not two documents that
+// somebody has to keep reconciling.
+//
+// ⚠️ WHAT THIS REPLACES, AND WHY IT COULD NOT HAVE EXISTED BEFORE NOW.
+//
+// Until `firestore.rules` v2.5.0 the read rule on `typing_logs` was
+// `canReadActivity(resource.data)` — STAFF ONLY. A student's browser could write
+// its daily log and could never read it back. So the HUD had nowhere to get a
+// number and kept a private second copy in `users/{uid}/stats/time_tracking`,
+// accumulated separately in memory and flushed on its own schedule. Two records
+// of one quantity, updated on different paths. That is the sentence behind every
+// counting incident this project has had, and it was a RULES CONSTRAINT, not
+// carelessness. v2.5.0 added owner-read. This module is what that unlocks.
+//
+// ⚠️ SEVEN getDoc() CALLS BY ID — NOT A QUERY, AND THAT IS DELIBERATE.
+// The document id is `uid + '_' + date`, so a week is seven direct reads. No
+// composite index, and no change to firestore.indexes.json — which matters,
+// because that file EXEMPTS `uid` from indexing, so `where('uid','==',…)` is not
+// available and adding it would mean re-indexing the fastest-growing collection
+// in the database. Seven reads per page load against the one it used to do.
+//
+// ⚠️ THE WEEK IS DERIVED, NEVER STORED. `secondsWeek` used to be a counter that
+// was carried, merged and repaired — and doubled, twice, in production. Here it
+// is the sum of seven documents, recomputed on every load. A derived quantity
+// cannot drift from its inputs, cannot be double-merged, and has no repair path
+// because it has no stored value to be wrong.
+//
+// ⚠️ SATURDAY-ANCHORED. The school week is Sat–Fri. This must agree with
+// getWeekStart() in game.js and learn.js and weekStartOf() in reports.html;
+// tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
+// mismatch here does not throw — it silently reads the wrong seven days.
 ```

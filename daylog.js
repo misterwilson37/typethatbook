@@ -1,4 +1,7 @@
-// daylog.js v1.10.0 —
+// daylog.js v1.11.0 —
+//
+// v1.11.0 — Round 145: teacherChangedSince() and ackTeacherChange() — the student side of
+//           the teacher-change stamp (users/{uid}.logsChangedAt).
 //
 // v1.10.0 — ⭐ A THIRD SOURCE: `arcade`. Jake's ruling, 2026-09-08. SOURCE_FIELDS
 //           gains its own triple (secondsArcade/charsArcade/mistakesArcade) and
@@ -92,63 +95,11 @@
 //          SOURCE_SPLIT_CUTOVER. See the block at the foot of this file, which
 //          is the argument and not just the code.
 //
-// v1.3.0 — ⚠️ ROADMAP ITEM 1, THE WRITER HALF. Adds SOURCE_FIELDS and
-//          sourceTotalsOf(), and readWeek() now returns `todaySources`.
-//          totalsOf() IS UNTOUCHED — daylog-cutover-test.mjs Part F drives it
-//          against reports.html's twin and any edit here breaks that pair.
+// (Older entries — v1.3.0 and before — are archived verbatim in CHANGELOG.md
+//  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
-//          ⚠️ WHY A WRITER NEEDS ITS OWN READ. game.js and learn.js each keep a
-//          per-source counter now, and ROADMAP item 1 is explicit about the one
-//          way to get it wrong: **the counter seeds from its own field, never
-//          from the day total.** Seeding from the total folds the other mode's
-//          time into your own bucket and the post-cutover reader then adds it
-//          twice — that is the v3.29.0 bug, and tab-lifetime-test.mjs Part E
-//          drives it deliberately. totalsOf() returns the DAY, which is the
-//          right number for a HUD and the wrong number for a seed, so a second
-//          accessor is not duplication: the two answer different questions.
-//
-//          It rides on readWeek()'s existing seven reads. No extra round trip.
-//
-// ⚠️ v1.2.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry budget,
-// Round 92). It is the reader half of the §3.1 source-split fix.
-//
-// v1.1.0 adds the Stage 2 half: sessionSignature(), sumDaySessions() and
-// projectDayTotal(). v1.0.0's readWeek() is unchanged.
-//
-// HANDOFF.md §0.0. This module exists so that the number on a student's screen
-// and the number in Jake's report are THE SAME DOCUMENT, not two documents that
-// somebody has to keep reconciling.
-//
-// ⚠️ WHAT THIS REPLACES, AND WHY IT COULD NOT HAVE EXISTED BEFORE NOW.
-//
-// Until `firestore.rules` v2.5.0 the read rule on `typing_logs` was
-// `canReadActivity(resource.data)` — STAFF ONLY. A student's browser could write
-// its daily log and could never read it back. So the HUD had nowhere to get a
-// number and kept a private second copy in `users/{uid}/stats/time_tracking`,
-// accumulated separately in memory and flushed on its own schedule. Two records
-// of one quantity, updated on different paths. That is the sentence behind every
-// counting incident this project has had, and it was a RULES CONSTRAINT, not
-// carelessness. v2.5.0 added owner-read. This module is what that unlocks.
-//
-// ⚠️ SEVEN getDoc() CALLS BY ID — NOT A QUERY, AND THAT IS DELIBERATE.
-// The document id is `uid + '_' + date`, so a week is seven direct reads. No
-// composite index, and no change to firestore.indexes.json — which matters,
-// because that file EXEMPTS `uid` from indexing, so `where('uid','==',…)` is not
-// available and adding it would mean re-indexing the fastest-growing collection
-// in the database. Seven reads per page load against the one it used to do.
-//
-// ⚠️ THE WEEK IS DERIVED, NEVER STORED. `secondsWeek` used to be a counter that
-// was carried, merged and repaired — and doubled, twice, in production. Here it
-// is the sum of seven documents, recomputed on every load. A derived quantity
-// cannot drift from its inputs, cannot be double-merged, and has no repair path
-// because it has no stored value to be wrong.
-//
-// ⚠️ SATURDAY-ANCHORED. The school week is Sat–Fri. This must agree with
-// getWeekStart() in game.js and learn.js and weekStartOf() in reports.html;
-// tests/week-anchor-test.mjs and tests/daylog-test.mjs both hold that line. A
-// mismatch here does not throw — it silently reads the wrong seven days.
 
-export const DAYLOG_VERSION = "1.10.0";
+export const DAYLOG_VERSION = "1.11.0";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE PER-SOURCE CUTOVER
@@ -548,6 +499,50 @@ function _writeDayCache(uid, days, nowMs) {
             v: DAY_CACHE_SHAPE, uid, exp: _endOfLocalDay(nowMs), days: trimmed,
         }));
     } catch (_) { /* quota or no storage — the next load simply reads again */ }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️ THE TEACHER-CHANGE STAMP — Round 145.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// When a teacher SAVEs or recalculates a student's day in reports.html, it sets
+// `users/{uid}.logsChangedAt` to the server time (rules v2.16.0). A student's
+// browser remembers the last stamp it has honoured. A stamp newer than that means
+// "your saved copies are older than a correction" — see stats-wal.js.
+//
+// ⚠️ READ ONLY WHEN NEEDED. Startup never reads users/{uid}, and adding a read to
+// every page load would be a standing cost. statsWalRecoverChecked() calls this
+// only when the local log is about to RAISE a number, which is exactly when a
+// correction could be hiding.
+// ⚠️ A FAILED READ IS "NO CHANGE", so the old behaviour holds rather than a
+// student's unflushed time being thrown away on a network blip.
+export const LOGS_CHANGED_FIELD = 'logsChangedAt';
+const LOGS_ACK_PREFIX = 'ttbLogsAck:';
+
+function _stampMs(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v === 'number') return v;
+    if (v instanceof Date) return v.getTime();
+    return 0;
+}
+
+export async function teacherChangedSince({ db, doc, getDoc, uid }) {
+    if (!uid) return { changed: false, stamp: 0 };
+    let stamp = 0;
+    try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        stamp = snap.exists() ? _stampMs(snap.data()[LOGS_CHANGED_FIELD]) : 0;
+    } catch (_) { return { changed: false, stamp: 0 }; }
+    let ack = 0;
+    try { ack = Number(localStorage.getItem(LOGS_ACK_PREFIX + uid)) || 0; } catch (_) {}
+    return { changed: stamp > ack, stamp };
+}
+
+/** Remember that this browser has honoured the stamp. */
+export function ackTeacherChange(uid, stamp) {
+    if (!uid || !stamp) return;
+    try { localStorage.setItem(LOGS_ACK_PREFIX + uid, String(stamp)); } catch (_) {}
 }
 
 /** Drop a student's closed-day cache. Exported for the harness and for admin tools. */

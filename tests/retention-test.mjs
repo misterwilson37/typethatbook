@@ -105,7 +105,7 @@ console.log('\nC — ⚠️⚠️⚠️ THE REAL SCAN, AGAINST EVERY KIND OF ACC
         const { documentId, collection, where, limit, query, getDocs } = api; const db = {};
         ${constLine('RETENTION_MONTHS')}
         ${extractFn(reports, 'retentionCutoff')} ${extractFn(reports, 'retentionVerdict')}
-        ${extractFn(reports, 'logExistsFrom')} ${extractFn(reports, 'retentionScan')}
+        ${extractFn(reports, 'logExistsFrom')} ${extractFn(reports, 'retentionDueFrom')} ${extractFn(reports, 'retentionScan')}
         return retentionScan;`)(api, { uid: 'jake' }, new Map());
     const r = await scan(() => {});
     const names = (rows) => rows.map(x => x.name).sort().join(',');
@@ -118,6 +118,11 @@ console.log('\nC — ⚠️⚠️⚠️ THE REAL SCAN, AGAINST EVERY KIND OF ACC
        '⚠️⚠️ C4 a TEACHER with a two-year-old stamp is never listed — staff are excluded first');
     ok(!r.stale.concat(r.review).some(x => x.name === 'Jake'), 'C5 and neither is the person running it');
     ok(r.active === 3 && r.skipped === 2, `C6 three active kept, two skipped (${r.active}, ${r.skipped})`);
+    // ⭐ ROUND 145 — the next student who could come due: kidActive, stamped 2026-09-22,
+    // is due the day AFTER its 24-month anniversary. The arcade-only child (old stamp,
+    // recent log) is left out, because its real date isn't known from the stamp.
+    ok(r.nextDue && r.nextDue.date === '2028-09-23' && r.nextDue.name === 'Active',
+       `⭐ C8 the panel names the next student who could come due (${r.nextDue && r.nextDue.date})`);
     ok(reads < 20, `⭐ C7 the whole scan cost ${reads} reads for 7 accounts — recently stamped children cost none`);
 }
 

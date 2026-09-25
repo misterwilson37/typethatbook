@@ -1,3 +1,6 @@
+// stats-wal.js v1.2.0 — Round 145: statsWalWouldMove() and statsWalRecoverChecked(). The
+//   recovery no longer beats a teacher's correction: see the block above statsWalSave().
+//
 // stats-wal.js v1.1.0 — the day/week counters' write-ahead log, shared by
 // game.js and learn.js.
 //
@@ -110,7 +113,7 @@
 // write the other's minutes, which IS §3.1. The tail is bounded by one flush
 // interval and reappears the next time that mode is opened. §3.1 was unbounded
 // and permanent.
-export const STATS_WAL_VERSION = '1.1.0';
+export const STATS_WAL_VERSION = '1.2.0';
 
 const KEY = 'ttb_statswal_v1';
 
@@ -165,6 +168,62 @@ function _mergeInto(dst, src) {
 //
 // Guests are skipped: there is no account for the numbers to belong to, and
 // learn.js keeps a separate guest accumulator for exactly that case.
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ A TEACHER'S CORRECTION MUST BEAT THIS LOG — Round 145.
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-09-24: he deleted two students' farmed minutes on 9/23; reports
+// showed the corrected 8:27 for the week, and on 9/24 one student's own screen
+// still read "Weekly ~28/50".
+//
+// ⭐⭐ THIS LOG WAS WHY. `_mergeInto()` takes the LARGER of the log and the fresh
+// server read, and `statsWalSave()` merges every save with the one before — so for
+// a whole week the log is a high-water mark. A teacher LOWERS a number; the next
+// load reads the lower number and this log puts the old one straight back.
+// hud.js's HUD_CACHE_KEY comment predicted it in so many words: "IF THE FAULT
+// RETURNS AFTER THIS, IT IS A WRITE BUG AND NOT A STALE ENTRY."
+//
+// ⚠️⚠️ AND IT IS WORSE THAN A DISPLAY BUG ON THE SAME DAY. For a same-day log the
+// DAY counters are merged too, and the recovery flush writes
+// `statsData.secondsToday` into today's typing_logs document as an absolute
+// number (game.js flushAll, v3.34.0). A same-day deletion would be undone on the
+// student's next load. It had not happened only because neither student opened
+// the site again on the day Jake deleted.
+//
+// ⭐ THE FIX KEEPS THE PROTECTION AND ADDS ONE QUESTION. Unflushed time from
+// another session is still recovered — that is what this log is for. But when the
+// recovery would RAISE a number, the caller is first asked whether a teacher has
+// changed this student's records since this browser last looked. Only then is
+// there a read; the common case costs nothing.
+
+/** Would statsWalRecover() raise any counter? A dry run on a copy. */
+export function statsWalWouldMove(uid, stats) {
+    if (!uid || !stats) return false;
+    const w = _read();
+    if (!w || w.uid !== uid) return false;
+    return _mergeInto({ ...stats }, w.stats);
+}
+
+/**
+ * statsWalRecover(), gated. `checkTeacherChange` is an async function returning
+ * { changed, stamp } — daylog.js's teacherChangedSince(), injected so this module
+ * stays free of Firestore. If a teacher changed the records, the log is DISCARDED
+ * rather than merged: its numbers predate the correction.
+ * ⚠️ THE COST OF THAT: unflushed time from another session in the same week is
+ * lost once, in the rare case where it coincides with a teacher's correction.
+ * Server authority is the right side to fail toward (Rule 11).
+ */
+export async function statsWalRecoverChecked(uid, stats, checkTeacherChange) {
+    if (!statsWalWouldMove(uid, stats)) return { moved: false, teacherChanged: false };
+    let tc = null;
+    try { tc = await checkTeacherChange(); } catch (_) { tc = null; }
+    if (tc && tc.changed) {
+        statsWalClear(uid);
+        return { moved: false, teacherChanged: true, stamp: tc.stamp };
+    }
+    return { moved: statsWalRecover(uid, stats), teacherChanged: false };
+}
+
 export function statsWalSave(uid, stats) {
     if (!uid || !stats) return;
     const merged = { ...stats };

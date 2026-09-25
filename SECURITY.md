@@ -3,7 +3,8 @@
 **Operator:** Jake Wilson, Computer Science, Sumner County Schools
 **Site:** https://typethatbook.misterwilson.org
 **Last reviewed:** September 2026
-**Contact for security or privacy concerns:** through the student's school
+**Contact for security or privacy concerns:** privacy@misterwilson.org · (615) 379-7226
+**Mail:** 4501 Charlotte Ave, PO Box 90096, Nashville, TN 37209
 
 This document describes how TypeThatBook protects the information it collects
 from students. It is written to meet the written information-security program
@@ -111,6 +112,15 @@ alike. Accounts with no typing ever recorded are never removed automatically,
 since they may belong to a new student who has not started yet; those are
 reviewed individually. Nothing is deleted until the administrator confirms.
 
+Sign-in accounts are held by Google's sign-in service rather than the database,
+and a web page cannot delete someone else's. They are removed with a small script
+the site administrator runs in Google Cloud Shell, which acts as his own Google
+account — no key file is ever downloaded. A sign-in account is deleted once the
+student's records have been removed and the account hasn't been used for 24
+months. Staff accounts are never included, and the script lists everything it
+would delete before asking for confirmation. The step-by-step directions are on
+the reports page.
+
 ## 7. Deleting a student's information
 
 When the school, or a parent or guardian through the school, asks for a student's
@@ -159,4 +169,4 @@ collecting a new kind of information or starts using a new outside service.
 ---
 
 *Questions about this document, or requests to see or delete a student's
-information, should go to the contact at the top of this page.*
+information, should go to privacy@misterwilson.org or (615) 379-7226.*

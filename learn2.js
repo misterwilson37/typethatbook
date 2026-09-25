@@ -1,4 +1,6 @@
-// learn2.js v0.8.0-staging
+// learn2.js v0.9.0-staging
+//
+// v0.9.0 — Round 145: the same gated WAL recovery as game.js v3.54.0.
 //
 // v0.8.0 — ⚠️⚠️ A DEFENDED CITY MOVES YOU FORWARD, AND FORWARD IS THE ONLY BUTTON.
 //   Round 115 (Tower). Students reported saving the city, playing survival,
@@ -298,7 +300,8 @@ import { calculateGrade, gradeAdvances, gatesForRun, betterGrade,
 // scoped to something narrower than that. See stats-wal.js for the bug.
 import {
     statsWalSave, statsWalRecover,
-    guestAccumSave, guestAccumLoad, guestAccumClear
+    guestAccumSave, guestAccumLoad, guestAccumClear,
+    statsWalRecoverChecked,
 } from "./stats-wal.js";
 // The sprint/run history queue, shared with game.js. ⚠️ THIS FILE HAD NO SESSION
 // LOGGING OF ANY KIND BEFORE v2.6.0 — see the header. A run is the lesson-mode
@@ -330,7 +333,8 @@ import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
 import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
-         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf } from "./daylog.js";
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf,
+         teacherChangedSince, ackTeacherChange, clearDayCache } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
 // Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
@@ -390,7 +394,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.8.0-staging";
+const LEARN_VERSION = "0.9.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -5765,7 +5769,32 @@ async function loadUserStats() {
         //
         // Must run after the read above, not before: it compares against what
         // the server already has.
-        if (statsWalRecover(currentUser.uid, statsData)) {
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ ROUND 145 — THE LOG MAY NOT UNDO A TEACHER'S CORRECTION.
+        // ═══════════════════════════════════════════════════════════════════
+        // The recovery below takes the LARGER of this browser's log and the
+        // server, for the whole week — so a teacher's deletion was put straight
+        // back on the next load (and, on the same day, written back into
+        // today's record). See stats-wal.js statsWalRecoverChecked(). ⚠️ SAME
+        // BLOCK IN game.js, learn.js AND learn2.js: CHANGE ONE, CHANGE ALL
+        // THREE — tests/teacher-change-stamp-test.mjs part D checks they match.
+        const _wal = await statsWalRecoverChecked(currentUser.uid, statsData,
+            () => teacherChangedSince({ db, doc, getDoc, uid: currentUser.uid }));
+        if (_wal.teacherChanged) {
+            // The closed-day cache may also predate the correction, so the week
+            // is read again from scratch before the server's numbers are applied.
+            clearDayCache(currentUser.uid);
+            const _fresh = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
+            if (_fresh.ok) {
+                applyWeekToStats(statsData, _fresh, dateStr);
+                captureStatsBaseline();
+                hudCacheSave({ todaySeconds: statsData.secondsToday,
+                               weekSeconds:  statsData.secondsWeek,
+                               date: dateStr, weekStart });
+                ackTeacherChange(currentUser.uid, _wal.stamp);
+            }
+        }
+        if (_wal.moved) {
             console.log('[TTB] Recovered unflushed time from another session.');
             learnDirty = true; learnStatsDocDirty = true;
             flushStats('stats-wal-recovery', true);

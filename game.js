@@ -1,4 +1,13 @@
-// game.js v3.53.0
+// game.js v3.54.0
+//
+// v3.54.0 — Round 145: ⚠️⚠️⚠️ A TEACHER'S CORRECTION NOW SURVIVES THE STUDENT'S NEXT LOAD. The
+//           stats-wal recovery took the LARGER of the browser's log and the server for
+//           the whole week, so deleted minutes came back on every load — and on the same
+//           day, flushAll wrote them back into today's record. loadUserStats() now calls
+//           statsWalRecoverChecked(), which reads users/{uid}.logsChangedAt only when the
+//           log would raise a number; on a teacher change the log is discarded and the
+//           week re-read. The leaderboard's weekly floor yields too, and each best now
+//           records the date it was set. See tests/teacher-change-stamp-test.mjs.
 //
 // v3.53.0 — Round 134 (Bodoni II): ⭐⭐ THE LIBRARY LESSON GATE — ROADMAP 131a, as
 // Jake ruled it. Every minute of active Library typing is judged; under 15 WPM OR
@@ -122,19 +131,7 @@
 //           ⚠️ The adventure payload never carried `preparedBy` at all, so
 //           fixing adventure-renderer.js's label alone would have shown nothing.
 //
-// v3.46.0 — ROADMAP item 24, the writer half — TWIN OF learn.js v2.38.0.
-//           `sessionLogInit()` now passes `doc` and `setDoc` (both already
-//           imported from read-meter.js for other writes) alongside the
-//           existing four dependencies, so session-log.js v1.7.0's
-//           idempotent flush has what it needs on this page. ⚠️ THIS MUST
-//           LAND IN THE SAME ROUND AS learn.js's call — session-log.js's own
-//           header says the two must agree, and session-merge-test.mjs Part C
-//           checks it. Nothing else in this file changed; the fix lives
-//           entirely in session-log.js. See its v1.7.0 entry and HANDOFF
-//           §0.-36 for the full trace. ⚠️⚠️ SHIPS WITH firestore.rules v2.8.0
-//           — do not deploy this without it.
-//
-// (Older entries — v3.45.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.46.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -148,7 +145,7 @@ import { activeDayPlan } from "./lesson-gate.js";
 // file's WAL was the bug: one key held reading position (book-scoped) and the
 // time counters (not book-scoped), and walRecover()'s correct bookId guard
 // meant the counters were declined on a book switch and then overwritten.
-import { statsWalSave, statsWalRecover } from "./stats-wal.js";
+import { statsWalSave, statsWalRecover, statsWalRecoverChecked } from "./stats-wal.js";
 // The sprint/run history queue, shared with learn.js. Extracted BECAUSE the
 // rollup writer lived here and nowhere else: lesson mode wrote no sprint detail
 // at all, and this file dated every rollup at flush time rather than at typing
@@ -178,7 +175,8 @@ import { showReceipt } from "./receipt.js";
 // import in would make it one keystroke to re-enable a grade computed from
 // records known to overlap. See HANDOFF §0.0 before touching this line.
 import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
-         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf } from "./daylog.js";
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf,
+         teacherChangedSince, ackTeacherChange, clearDayCache } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // The version footer's three primary reads (this html file, this js file's own
 // VERSION, style.css) plus the lazy full-build panel on hover. See
@@ -209,7 +207,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.53.0";
+const VERSION = "3.54.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1312,6 +1310,10 @@ let lbOwnEntry = null;        // null = not yet read this session
 // writing the underlying doc more often than the flush cadence buys nothing.
 const LB_WRITE_MIN_GAP_MS = 300000;   // 5 minutes
 let lbPendingSeconds = 0;
+// ⚠️ ROUND 145 — set when a teacher's correction has been detected at load (see
+// loadUserStats). The next write takes the student's true weekly total instead of
+// the board's own floor, which can only ever go up. Cleared once that write lands.
+let lbServerWins = false;
 let lbLastWriteTime = 0;
 let lbDirty = false;
 
@@ -1730,7 +1732,33 @@ async function loadUserStats() {
         // counters belong to the student and the day, not to a book or a page,
         // so a tail left behind by a different book, or by learn.js, lands here.
         // Must run AFTER the read above: it compares against what the server has.
-        if (statsWalRecover(currentUser.uid, statsData)) {
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ ROUND 145 — THE LOG MAY NOT UNDO A TEACHER'S CORRECTION.
+        // ═══════════════════════════════════════════════════════════════════
+        // The recovery below takes the LARGER of this browser's log and the
+        // server, for the whole week — so a teacher's deletion was put straight
+        // back on the next load (and, on the same day, written back into
+        // today's record). See stats-wal.js statsWalRecoverChecked(). ⚠️ SAME
+        // BLOCK IN game.js, learn.js AND learn2.js: CHANGE ONE, CHANGE ALL
+        // THREE — tests/teacher-change-stamp-test.mjs part D checks they match.
+        const _wal = await statsWalRecoverChecked(currentUser.uid, statsData,
+            () => teacherChangedSince({ db, doc, getDoc, uid: currentUser.uid }));
+        if (_wal.teacherChanged) {
+            // The closed-day cache may also predate the correction, so the week
+            // is read again from scratch before the server's numbers are applied.
+            clearDayCache(currentUser.uid);
+            const _fresh = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
+            if (_fresh.ok) {
+                applyWeekToStats(statsData, _fresh, dateStr);
+                captureStatsBaseline();
+                hudCacheSave({ todaySeconds: statsData.secondsToday,
+                               weekSeconds:  statsData.secondsWeek,
+                               date: dateStr, weekStart });
+                ackTeacherChange(currentUser.uid, _wal.stamp);
+                lbServerWins = true;   // the board's weekly floor yields too
+            }
+        }
+        if (_wal.moved) {
             console.log("Recovered unflushed time from another session.");
             statsDocDirty = true;
             // ⚠️ walDirty is deliberately NOT set. An earlier draft set it, on
@@ -8248,10 +8276,16 @@ async function flushLeaderboard() {
         // student's own observed number, which is the same discipline
         // mergeGuestStats() uses and for the same reason.
         const derivedWeek = Math.max(0, Math.round(statsData.secondsWeek || 0));
-        lbOwnEntry.totalSecondsWeek = Math.max(derivedWeek, priorSeconds + secondsToAdd);
+        // ⚠️⚠️ ROUND 145: THE FLOOR YIELDS TO A TEACHER'S CORRECTION. Without this,
+        // farmed minutes a teacher deleted stayed on the board all week, visible to
+        // other students by initials, because the floor can only rise.
+        lbOwnEntry.totalSecondsWeek = lbServerWins
+            ? derivedWeek
+            : Math.max(derivedWeek, priorSeconds + secondsToAdd);
         lbOwnEntry.lastUpdated = new Date();
         await setDoc(doc(db, "leaderboard", currentUser.uid), lbOwnEntry, { merge: true });
         lbLastWriteTime = Date.now();
+        lbServerWins = false;   // the corrected total has landed
     } catch (e) {
         // Roll the entry back AND return the seconds to the pending bucket.
         // Rolling back only one of the two would double-count them on retry.
@@ -8317,6 +8351,14 @@ async function updateLeaderboard() {
         const newBestWPM     = Math.max(existing.bestWPM || 0, sanitizeSprintWPM(lastSprintWPM, 1));
         const newBestAcc     = Math.max(existing.bestAccuracy || 0, lastSprintAcc);
         const newBestStreak  = Math.max(existing.bestStreak || 0, bestStreak);
+        // ⭐ ROUND 145 — THE DATE EACH BEST WAS SET. Jake: "we probably need the
+        // ability to save the date of their record setting, too, so there's some
+        // context there (even if only for the admin)." Kept when a best stands;
+        // replaced only when it is actually beaten.
+        const _lbToday = getLocalDateStr();
+        const bestWPMAt      = newBestWPM    > (existing.bestWPM || 0)      ? _lbToday : (existing.bestWPMAt || '');
+        const bestAccuracyAt = newBestAcc    > (existing.bestAccuracy || 0) ? _lbToday : (existing.bestAccuracyAt || '');
+        const bestStreakAt   = newBestStreak > (existing.bestStreak || 0)   ? _lbToday : (existing.bestStreakAt || '');
         const newChapters    = Math.max(existing.chaptersCompleted || 0, completedChapters.size);
 
         const gotNewBest =
@@ -8346,8 +8388,9 @@ async function updateLeaderboard() {
             bestWPM: newBestWPM,
             bestAccuracy: newBestAcc,
             bestStreak: newBestStreak,
+            bestWPMAt, bestAccuracyAt, bestStreakAt,
             chaptersCompleted: newChapters,
-            totalSecondsWeek: existingTimeWeek,
+            totalSecondsWeek: lbServerWins ? Math.max(0, Math.round(statsData.secondsWeek || 0)) : existingTimeWeek,
             weekStart: weekStart,
             lastUpdated: existing.lastUpdated || new Date()
         };

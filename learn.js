@@ -1,4 +1,7 @@
-// learn.js v2.48.0
+// learn.js v2.49.0
+//
+// v2.49.0 — Round 145: the same gated WAL recovery as game.js v3.54.0 — a teacher's
+//           correction is no longer undone by this browser's write-ahead log.
 //
 // v2.48.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. Mirrors
 //           game.js v3.50.0 exactly. `goals.weekStartDay` (0=Sun…6=Sat,
@@ -125,24 +128,9 @@
 //           ⚠️ v2.34.0 ARCHIVED THIS ROUND (8-entry budget).
 //           tests/progress-cache-test.mjs.
 //
-// v2.41.0 — ⚠️ ROADMAP 31 — THE IDLE SPACE-SKIP LEFT THE SPACE BAR LIT. The
-//           idle-resume skip in handleDrillKey() advanced drillPos past a space
-//           and never repainted, so the keyboard kept showing the space target
-//           — thumb circles and #space-hint — while the game already expected
-//           the first letter of the next word. Kids reported it and photographed
-//           it; it only fires after a LEARN_IDLE_THRESHOLD (3s) pause landing on
-//           a space, which is why it reads as intermittent and never reproduces
-//           for a teacher on demand. One advanceHandGuide() call, guarded on
-//           drillPos having actually moved. ⚠️ NOTHING ELSE CHANGED — no
-//           threshold, no timing, no scoring. tests/drill-paint-test.mjs asserts
-//           the INVARIANT (every drillPos mutation is followed by a paint), not
-//           this call site, because guarding the line leaves the next one open.
-//           ⚠️ v2.33.1 ARCHIVED THIS ROUND (8-entry budget) — its two citations
-//           in this file resolve to CHANGELOG.md § ARCHIVED FILE HEADERS now.
+// (Older entries — v2.41.0 and before — are archived verbatim in CHANGELOG.md
+//  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
-// ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
-// inline at the midnight-rollover block, the dateOverride comment, and both
-// `= 0` resets below; those citations stand alone and needed no pointer.
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
@@ -170,7 +158,8 @@ import { calculateGrade, gradeAdvances, gatesForRun, betterGrade,
 // scoped to something narrower than that. See stats-wal.js for the bug.
 import {
     statsWalSave, statsWalRecover,
-    guestAccumSave, guestAccumLoad, guestAccumClear
+    guestAccumSave, guestAccumLoad, guestAccumClear,
+    statsWalRecoverChecked,
 } from "./stats-wal.js";
 // The sprint/run history queue, shared with game.js. ⚠️ THIS FILE HAD NO SESSION
 // LOGGING OF ANY KIND BEFORE v2.6.0 — see the header. A run is the lesson-mode
@@ -202,7 +191,8 @@ import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
 import { readWeek, invalidateWeek, applyWeekToStats, dayLogPayloadFor, SOURCE_SPLIT_CUTOVER, DAYLOG_VERSION,
-         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf } from "./daylog.js";
+         carryOverPlan, carryOverPayloadFor, sourceTotalsOf, weekStartOf,
+         teacherChangedSince, ackTeacherChange, clearDayCache } from "./daylog.js";
 import { qualifyingChars, VARIETY_FLOOR_VERSION } from "./variety-floor.js";
 // ⚠️ v2.23.0 — THE DRILL TEXT FILTER. A student reported "ass" in a lesson.
 // Whole-group matching on Jake's ruling: `lass`, `mass` and `asse` are FINE.
@@ -247,7 +237,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.48.0";
+const LEARN_VERSION = "2.49.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -4768,7 +4758,32 @@ async function loadUserStats() {
         //
         // Must run after the read above, not before: it compares against what
         // the server already has.
-        if (statsWalRecover(currentUser.uid, statsData)) {
+        // ═══════════════════════════════════════════════════════════════════
+        // ⚠️⚠️⚠️ ROUND 145 — THE LOG MAY NOT UNDO A TEACHER'S CORRECTION.
+        // ═══════════════════════════════════════════════════════════════════
+        // The recovery below takes the LARGER of this browser's log and the
+        // server, for the whole week — so a teacher's deletion was put straight
+        // back on the next load (and, on the same day, written back into
+        // today's record). See stats-wal.js statsWalRecoverChecked(). ⚠️ SAME
+        // BLOCK IN game.js, learn.js AND learn2.js: CHANGE ONE, CHANGE ALL
+        // THREE — tests/teacher-change-stamp-test.mjs part D checks they match.
+        const _wal = await statsWalRecoverChecked(currentUser.uid, statsData,
+            () => teacherChangedSince({ db, doc, getDoc, uid: currentUser.uid }));
+        if (_wal.teacherChanged) {
+            // The closed-day cache may also predate the correction, so the week
+            // is read again from scratch before the server's numbers are applied.
+            clearDayCache(currentUser.uid);
+            const _fresh = await readWeek({ db, doc, getDoc, uid: currentUser.uid, dateStr, weekStartDay: goals.weekStartDay });
+            if (_fresh.ok) {
+                applyWeekToStats(statsData, _fresh, dateStr);
+                captureStatsBaseline();
+                hudCacheSave({ todaySeconds: statsData.secondsToday,
+                               weekSeconds:  statsData.secondsWeek,
+                               date: dateStr, weekStart });
+                ackTeacherChange(currentUser.uid, _wal.stamp);
+            }
+        }
+        if (_wal.moved) {
             console.log('[TTB] Recovered unflushed time from another session.');
             learnDirty = true; learnStatsDocDirty = true;
             flushStats('stats-wal-recovery', true);

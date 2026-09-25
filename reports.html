@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<!-- reports.html v1.18.0 — Round 142: ⚠️⚠️ THE SCHOOL-CONSENT ATTESTATION. Every staff
+<!-- reports.html v1.19.0 — Round 145: ⚠️⚠️ SAVE and every recalculation now stamp
+     users/{uid}.logsChangedAt (rules v2.16.0), so the student's own write-ahead log
+     can no longer put back minutes a teacher deleted. Student picker: named students
+     first, nameless ones grouped at the bottom.
+
+     reports.html v1.18.0 — Round 142: ⚠️⚠️ THE SCHOOL-CONSENT ATTESTATION. Every staff
      member is asked once to confirm their school has approved TypeThatBook and consents
      on parents' behalf; the exact wording is saved, write-once, in coppaAttestations
      (rules v2.15.0). "Not yet" writes nothing and asks again next visit. See
@@ -243,6 +248,12 @@
         .status-bar { padding: 15px; margin-bottom: 20px; background: var(--surface-2); border-left: 4px solid var(--ink-ghost); font-size: 0.9rem; }
 
         .hidden { display: none !important; }
+        /* Round 145 — the How-to's command rows. */
+        .howto-cmd { display:flex; gap:8px; align-items:center; margin:3px 0; }
+        .howto-cmd code { flex:1; font-family:"Courier Prime",monospace; font-size:.9em; padding:5px 8px;
+                          background:var(--surface-2, var(--surface)); border:1px solid var(--rule-strong);
+                          border-radius:4px; overflow-x:auto; white-space:nowrap; }
+        .howto-copy { padding:4px 10px; font-size:.8em; }
 
         /* ── ROADMAP 40 — KEYBOARD USABILITY ────────────────────────────────
            This page had TWO :focus rules in 3,700 lines and SIX <label>
@@ -738,6 +749,60 @@
              saw this button would get a permission-denied on click, since
              settings/popularity write is isSuper()-only in firestore.rules,
              same tier as settings/goals. -->
+        <!-- ═══════════════════════════════════════════════════════════════════
+             ⚠️⚠️ 📋 HOW-TO: THE PRIVACY ROUTINES — Round 145. SUPER-ADMIN ONLY.
+             ═══════════════════════════════════════════════════════════════════
+             Jake: "I'd very much love an expandable set of directions here in TTB
+             too, as it'll be more than a minute before I have to delete my first
+             set of students." Adapted from SpotOn's (Figgins, Sept 2026).
+             ⚠️ EVERY <code data-cmd> HERE MUST APPEAR VERBATIM IN THE DOCSTRING OF
+             scripts/auth-cleanup.py — tests/auth-cleanup-sync-test.mjs checks it,
+             so the page and the script cannot drift apart over the 18 months
+             before anyone needs them. -->
+        <details class="goals-panel hidden" id="privacy-howto">
+            <summary style="cursor:pointer;font-weight:700;color:var(--accent);letter-spacing:1px">
+              📋 HOW-TO: PRIVACY ROUTINES — quarterly retention, deletion requests, sign-in accounts</summary>
+            <div style="font-size:.9em;line-height:1.55;margin-top:12px">
+            <h3 style="font-size:.95em;margin:10px 0 4px">Every quarter (the privacy policy promises this)</h3>
+            <ol style="margin:0 0 10px 20px;padding:0">
+              <li><b>Retention…</b> (next to the Student picker) → <b>Scan</b>. It removes the records of
+                  students with no typing of any kind in 24 months, and shows when the next student could come due.</li>
+              <li>Then open <b>Google Cloud Shell</b> — <a href="https://console.cloud.google.com/?cloudshell=true&amp;project=typethatbook"
+                  target="_blank" rel="noopener">console.cloud.google.com</a>, the <b>&gt;_</b> button at the top right —
+                  and run the sign-in account check below. A web page can't delete someone else's sign-in
+                  account, so this step always happens there.</li>
+              <li>If it lists accounts, run it again with <code>--delete</code> and type what it asks.</li>
+            </ol>
+            <h3 style="font-size:.95em;margin:10px 0 4px">A parent asks for their child's information to be deleted</h3>
+            <ol style="margin:0 0 10px 20px;padding:0">
+              <li>Confirm through the school that it's really the child's parent or guardian.</li>
+              <li>Pick the student → <b>Delete student…</b> → type their email.</li>
+              <li>In Cloud Shell, delete their sign-in account (the one-student command below).</li>
+              <li>Reply within 30 days — the policy promises it.</li>
+            </ol>
+            <h3 style="font-size:.95em;margin:10px 0 4px">A parent asks you to stop collecting</h3>
+            <p style="margin:0 0 10px">Disable the sign-in account (below). The student can no longer sign in,
+               so nothing new is saved; they can still type as a guest.</p>
+            <h3 style="font-size:.95em;margin:10px 0 4px">Commands</h3>
+            <p style="margin:0 0 4px">First time only:</p>
+            <div class="howto-cmd"><code data-cmd>pip install --user --quiet firebase-admin</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <div class="howto-cmd"><code data-cmd>gcloud auth application-default login --no-launch-browser</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <div class="howto-cmd"><code data-cmd>gcloud auth application-default set-quota-project typethatbook</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <p style="margin:8px 0 4px">Every time (lists only — changes nothing):</p>
+            <div class="howto-cmd"><code data-cmd>curl -sO https://typethatbook.misterwilson.org/scripts/auth-cleanup.py</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <div class="howto-cmd"><code data-cmd>python3 auth-cleanup.py</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <p style="margin:8px 0 4px">To delete what it lists:</p>
+            <div class="howto-cmd"><code data-cmd>python3 auth-cleanup.py --delete</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <p style="margin:8px 0 4px">One student — replace STUDENT_EMAIL with their email:</p>
+            <div class="howto-cmd"><code data-cmd>python3 auth-cleanup.py --email STUDENT_EMAIL</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <div class="howto-cmd"><code data-cmd>python3 auth-cleanup.py --email STUDENT_EMAIL --delete</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <div class="howto-cmd"><code data-cmd>python3 auth-cleanup.py --email STUDENT_EMAIL --disable</code><button type="button" class="howto-copy" title="Copy this command">Copy</button></div>
+            <p style="margin:10px 0 0;color:var(--ink-dimmer)">The script only deletes a sign-in account once its
+               TypeThatBook records are gone <i>and</i> it hasn't been used for 24 months. Staff accounts are never
+               touched. It lists everything before it deletes anything.</p>
+            </div>
+        </details>
+
         <div class="goals-panel hidden" id="popularity-panel">
             <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">LIBRARY POPULARITY</h2>
             <p style="font-size:.85em; color:var(--ink-dimmer); margin:0 0 12px;">
@@ -2371,8 +2436,22 @@
         const rows = [...uids.entries()]
             .map(([uid, info]) => ({ uid, label: labelFor(uid, info) }))
             .sort((a, b) => a.label.localeCompare(b.label));
+        // ⚠️ ROUND 145: NAMED STUDENTS FIRST, NAMELESS ONES GROUPED AT THE BOTTOM.
+        // Sorting alone put every "(no name)" row at the TOP — "(" sorts before
+        // every letter — so Jake's screenshot showed nothing but placeholders and
+        // looked like no names had loaded at all. ⚠️ NOT REMOVED, although Jake
+        // asked whether they could be: each is a real account, and "Delete
+        // student…" needs to be able to reach it. A name appears once a report
+        // covering a day that student typed has run.
+        const opt = (r) => `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.label)}</option>`;
+        const named = rows.filter(r => !r.label.startsWith('(no name)'));
+        const nameless = rows.filter(r => r.label.startsWith('(no name)'));
         sel.innerHTML = '<option value="__all__">All students</option>'
-            + rows.map(r => `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.label)}</option>`).join('');
+            + named.map(opt).join('')
+            + (nameless.length
+                ? `<optgroup label="No name on record (${nameless.length}) \u2014 run a report covering a day they typed">`
+                  + nameless.map(opt).join('') + '</optgroup>'
+                : '');
         sel.value = [...uids.keys()].includes(prev) ? prev : '__all__';
         updatePurgeButton();
         return rows.filter(r => r.label.startsWith('(no name)')).length;
@@ -2457,6 +2536,7 @@
 
     function updatePurgeButton() {
         updateRetentionButton();
+        document.getElementById('privacy-howto')?.classList.toggle('hidden', !isSuper());
         const btn = document.getElementById('scope-student-delete');
         const sel = document.getElementById('scope-student');
         if (!btn || !sel) return;
@@ -2622,6 +2702,8 @@
                   <li><b>Delete the practice-limit record</b>, if there is one.
                     <a href="${limitUrl}" target="_blank" rel="noopener">Open it</a> and delete the document.</li>
                 </ol>
+                <div style="margin-bottom:10px;opacity:.85">Or, instead of step 1: the one-student command in
+                  <b>\ud83d\udccb How-to</b> below deletes the sign-in account from Cloud Shell.</div>
                 <div style="margin-bottom:12px;opacity:.8">Student ID (uid):
                   <code style="user-select:all">${escapeHtml(uid)}</code></div>
                 <div style="text-align:right"><button type="button" id="ttb-purge-x">Done</button></div>`;
@@ -2666,6 +2748,21 @@
         return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
     }
 
+    // ⭐ ROUND 145 — WHEN THE NEXT STUDENT COULD COME DUE. The day AFTER the
+    // 24-month anniversary of their latest stamp: on the anniversary itself they are
+    // still exactly 24 months, which retentionVerdict() keeps (`stamp >= cutoff`).
+    // ⚠️ "COULD": the stamp is set by Library and School but not the arcade, so an
+    // arcade-only child's real date may be later. It is never earlier.
+    function retentionDueFrom(ymd) {
+        const [y, m, d] = String(ymd).split('-').map(Number);
+        if (!y || !m || !d) return '';
+        const tm = new Date(y, m - 1 + RETENTION_MONTHS, 1);
+        const last = new Date(tm.getFullYear(), tm.getMonth() + 1, 0).getDate();
+        const due = new Date(tm.getFullYear(), tm.getMonth(), Math.min(d, last) + 1);
+        const p = (n) => String(n).padStart(2, '0');
+        return `${due.getFullYear()}-${p(due.getMonth() + 1)}-${p(due.getDate())}`;
+    }
+
     // Pure. `recent`/`any` are undefined when the read was not needed.
     function retentionVerdict(u, cutoff, recent, any) {
         const stamp = (u && u.activeDayLast) || '';
@@ -2689,7 +2786,7 @@
         const [usersSnap, staffSnap] = await Promise.all([
             getDocs(collection(db, 'users')), getDocs(collection(db, 'staff'))]);
         const staff = new Set(staffSnap.docs.map(d => d.id));
-        const out = { cutoff, active: 0, stale: [], review: [], skipped: 0 };
+        const out = { cutoff, active: 0, stale: [], review: [], skipped: 0, nextDue: null };
         const people = usersSnap.docs.filter(d => {
             if (staff.has(d.id) || d.id === me.uid) { out.skipped++; return false; }
             return true;
@@ -2707,7 +2804,12 @@
             const row = { uid: d.id, name: u.displayName || _studentNames.get(d.id) || '',
                           email: String(u.email || '').toLowerCase(),
                           last: u.activeDayLast || u.ttbLogDaysSince || '' };
-            if (v === 'active') out.active++;
+            if (v === 'active') {
+                out.active++;
+                const ev = [u.activeDayLast || '', u.ttbLogDaysSince || ''].sort().pop();
+                const due = ev && ev >= cutoff ? retentionDueFrom(ev) : '';
+                if (due && (!out.nextDue || due < out.nextDue.date)) out.nextDue = { date: due, name: row.name || row.email };
+            }
             else if (v === 'stale') out.stale.push(row);
             else out.review.push(row);
             if (++i % 20 === 0) onProgress(i, people.length);
@@ -2774,6 +2876,9 @@
                   <li><b>${n}</b> inactive for ${RETENTION_MONTHS}+ months \u2014 <b>will be deleted</b>.</li>
                   <li><b>${r.review.length}</b> with no typing ever recorded \u2014 <b>not deleted</b>; listed for you to review.</li>
                 </ul>
+                ${r.nextDue ? `<div style="margin-bottom:10px">Next student could come due:
+                    <b>${escapeHtml(r.nextDue.date)}</b>${r.nextDue.name ? ' (' + escapeHtml(r.nextDue.name) + ')' : ''}
+                    <span style="opacity:.75">\u2014 no earlier than that; arcade play can push it later.</span></div>` : ''}
                 ${n ? `<details open style="margin-bottom:10px"><summary><b>To be deleted (${n})</b></summary>
                        <ul style="margin:6px 0 0 18px;padding:0">${list(r.stale)}</ul></details>` : ''}
                 ${r.review.length ? `<details style="margin-bottom:10px"><summary>No typing ever recorded (${r.review.length})</summary>
@@ -2829,7 +2934,8 @@
                     <div style="font-size:1.15em;font-weight:700;margin-bottom:8px">\u2713 ${n} students removed.</div>
                     <div style="margin-bottom:8px">Last step, in the Firebase console: <b>delete their sign-in accounts</b>.
                       <a href="${authUrl}" target="_blank" rel="noopener">Open Authentication</a> \u2014 you can tick several
-                      and delete them together.</div>
+                      and delete them together \u2014 or use the Cloud Shell script in <b>\ud83d\udccb How-to</b>
+                      below, which finds them for you.</div>
                     <textarea readonly style="width:100%;box-sizing:border-box;height:120px;font-family:monospace;margin-bottom:12px">${
                       escapeHtml(done.map(x => x.email || x.uid).join('\n'))}</textarea>
                     <div style="text-align:right"><button type="button" id="ttb-ret-x">Done</button></div>`;
@@ -2972,6 +3078,15 @@
     }
 
     document.getElementById('retention-open')?.addEventListener('click', openRetentionDialog);
+    // ⭐ Copy buttons in the How-to. Copies the command text exactly as shown.
+    document.getElementById('privacy-howto')?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.howto-copy');
+        if (!btn) return;
+        const code = btn.parentElement.querySelector('code');
+        try { await navigator.clipboard.writeText(code.textContent); btn.textContent = 'Copied'; }
+        catch (_) { btn.textContent = 'Select it'; }
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    });
 
     document.getElementById('scope-student-delete')?.addEventListener('click', () =>
         openPurgeDialog(document.getElementById('scope-student').value));
@@ -4447,6 +4562,10 @@
                 // agree with the correction. The HUD reads THIS document now, so
                 // the correction reaches the student by being written, full stop.
                 // That is what one number buys.
+                // ⚠️⚠️ ROUND 145: NOT QUITE "FULL STOP". The server was right; the
+                // student's own write-ahead log then put the old number back. The
+                // stamp lets their browser know to trust this correction.
+                await stampLogsChanged(uidOfLogDoc(log.docId));
 
                 const oldSeconds = log.seconds;
                 log.seconds = newSeconds;
@@ -5384,6 +5503,8 @@
 
             // ⚠️ v2.16.0 — NO MIRROR WRITE, same as the manual save above. A
             // rebuild lands on the document the student's HUD reads.
+            // ⚠️⚠️ ROUND 145: and stamps it, for the same reason as the SAVE above.
+            await stampLogsChanged(uid);
 
             const oldSeconds = log.seconds;
             log.seconds = totalSec;
@@ -5584,6 +5705,31 @@
     // ⚠️⚠️ IT FLAGS, IT DOES NOT DEDUCT. Adjusting the stored minutes here would
     // give the student one number and the teacher another (Rule 11). A teacher
     // who agrees can delete the run, which Round 128 made work.
+    // ═════════════════════════════════════════════════════════════════════
+    // ⚠️⚠️⚠️ THE TEACHER-CHANGE STAMP — Round 145.
+    // ═════════════════════════════════════════════════════════════════════
+    // Called after every write that changes a student's day totals: the SAVE
+    // button and recalcDailyLog() (which run-delete, session-delete and ⟳ all go
+    // through). It tells the student's browser that its saved copies are older
+    // than a correction — see stats-wal.js statsWalRecoverChecked().
+    // ⭐ WHY IT EXISTS: the comments below at both writes said the correction
+    // "reaches the student by being written, full stop". That was true of the
+    // server and false of the student's screen, whose write-ahead log took the
+    // larger of its own copy and the server's for the whole week.
+    // ⚠️ A FAILED STAMP DOES NOT UNDO THE SAVE. The day is corrected either way;
+    // the notice says the student's own screen may lag until they next load.
+    async function stampLogsChanged(uid) {
+        if (!uid) return;
+        try {
+            await updateDoc(doc(db, 'users', uid), { logsChangedAt: serverTimestamp() });
+        } catch (e) {
+            console.warn('[stamp] could not mark the change for the student\u2019s screen', e);
+            ttbNotice('Saved. The student\u2019s own screen may keep showing the old total until '
+                + 'tomorrow \u2014 the change marker could not be set.', { bad: true });
+        }
+    }
+    const uidOfLogDoc = (docId) => String(docId || '').slice(0, String(docId || '').lastIndexOf('_'));
+
     const IDLE_FARM_CPM = 15;
     const IDLE_FARM_MIN_SECONDS = 60;
     function idleTimeSuspect(seconds, chars) {

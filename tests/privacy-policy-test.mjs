@@ -60,8 +60,11 @@ ok(/confirm the request through the school/.test(text),
 // ⚠️ THE TWO FIELDS STILL MISSING. 312.4(d)(1) lists name, address, phone and email;
 // phone and email are in. Notes, not failures — Jake has decided to add them later.
 if (!/Jake Wilson/.test(text)) notes.push('the policy does not name the operator \u2014 COPPA 312.4(d)(1) lists a name');
-if (!/P\.?\s?O\.? Box|\d+ [A-Z][a-z]+ (Street|St|Road|Rd|Ave|Avenue|Drive|Dr|Pike|Blvd)/.test(text))
-    notes.push('the policy has no mailing address yet \u2014 COPPA 312.4(d)(1) lists one');
+// ⭐ ROUND 145 — THE ADDRESS IS IN, so the last 312.4(d)(1) element is a check, not a note.
+const ADDRESS = '4501 Charlotte Ave, PO Box 90096, Nashville, TN 37209';
+ok(text.includes(ADDRESS) && sec.includes(ADDRESS), 'B2e both documents give the same mailing address');
+ok(/sign-in account is deleted once their records have\s+been removed and the account hasn't been used for 24 months/.test(text.replace(/\s+/g,' ').replace(/ /g,' ')) || /sign-in account is deleted once their records have been removed and the account hasn't been used for 24 months/.test(text),
+   '\u26a0\ufe0f B2f the policy says exactly which clock deletes a sign-in account \u2014 records gone AND unused 24 months');
 
 console.log('\nC — ⚠️⚠️⚠️ EACH PROMISE MATCHES THE CODE THAT KEEPS IT');
 const months = (/const RETENTION_MONTHS = (\d+);/.exec(reports) || [])[1];

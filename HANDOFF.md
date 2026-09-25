@@ -1,8 +1,17 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-24 by Round 144 (Caslon VI), for whoever is next
+> ## ▶ START HERE — written 2026-09-25 by Round 145 (Figgins' echo), for whoever is next
 >
-> **ALL 112 HARNESSES PASS.**
+> **ALL 114 HARNESSES PASS.**
+>
+> ⚠️⚠️⚠️ **A STUDENT'S OWN BROWSER COULD UNDO A TEACHER'S DELETION — FIXED IN ROUND
+> 145, ONE HOLE LEFT (ROADMAP 145a).** `stats-wal.js` took the LARGER of the
+> browser's log and the server for a whole week. Deleted minutes came back on
+> every load, and on the SAME day `flushAll` wrote them into today's record. The
+> recovery is now gated on `users/{uid}.logsChangedAt`, stamped by reports on
+> every SAVE and recalculation. ⚠️ **Still open:** a student with the page OPEN
+> during a same-day deletion overwrites it on their next save — the stamp is only
+> checked at load. Tell Jake to delete runs the day after, until 145a lands.
 >
 > ⚠️⚠️⚠️ **`privacy.html` IS WRITTEN AS FINAL, AND ITS COPPA SECTION IS TRUE ONLY
 > ONCE JAKE'S PRINCIPAL APPROVES** — read §39–40. Jake: *"I'll get explicit approval
@@ -1823,7 +1832,7 @@
 >
 > ## VERSION STAMPS AND THE SUITE
 >
-> * **112 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
+> * **114 harnesses pass** after `npm install` — ⚠️ see rule 1 below; without it
 >   FIFTEEN fail on a missing package and look like defects (the README said
 >   thirteen and had already drifted; recounted, do not carry it forward).
 >   ⚠️ **THE PHRASE `**N harnesses pass**` IS LOAD-BEARING, NOT PROSE.**
@@ -11648,3 +11657,72 @@ Jake: *"Jake Wilson as my name is fine."* `privacy.html` v2.2.0 names him in the
 introduction and the contact block. ⚠️ **The ONLY 312.4(d)(1) element still missing
 is a mailing address.** A SpotOn compliance kit was also produced this round, for a
 future instance — it lives outside this repo (see the reply that shipped it).
+
+
+---
+
+## §45. Round 145 — the log that undid corrections, and sign-in account cleanup
+
+**2026-09-24/25.** Jake deleted two students' farmed minutes on 9/23; reports read
+8:27 for one student's week, but that student's own screen still showed ~28 on 9/24.
+
+### A. ⚠️⚠️⚠️ THE ROOT CAUSE: A WEEK-LONG HIGH-WATER MARK
+
+It was not the HUD cache — hud.js's HUD_CACHE_KEY comment had predicted that if the
+fault returned "IT IS A WRITE BUG AND NOT A STALE ENTRY", and it was. `stats-wal.js`
+`_mergeInto()` takes the LARGER of log and server, and `statsWalSave()` merges each
+save with the last, so for a whole week the log only rises. A teacher LOWERS a
+number; the next load puts the old one back. ⚠️⚠️ On the SAME day the day counters
+merge too, and `flushAll` writes `statsData.secondsToday` into today's
+`typing_logs` document as an absolute number — so a same-day deletion would have
+been written back into the record. It had not happened only because neither
+student opened the site again that day.
+
+### B. THE FIX — A STAMP, READ ONLY WHEN IT MATTERS
+
+* reports.html `stampLogsChanged()` after SAVE and `recalcDailyLog()` (which
+  run-delete, session-delete and ⟳ go through). Rules v2.16.0: staff may set
+  `users/{uid}.logsChangedAt` only, server time only, own school or class only.
+* `statsWalRecoverChecked()` reads the stamp **only** when the log would RAISE a
+  number (`daylog.js teacherChangedSince()`, ack in localStorage per uid). On a
+  change: the log is discarded, the day cache dropped, the week re-read, the server
+  wins. Otherwise recovery is unchanged. ⚠️ A failed stamp read is "no change".
+* **Identical block** in game.js, learn.js and learn2.js — harness part D compares
+  them byte for byte.
+* The leaderboard's weekly floor yields after a detected change (`lbServerWins`).
+  Each best now also records the date it was set.
+* ⭐ Rule 10: `teacher-change-stamp-test.mjs` reproduces the bug with the real
+  student's numbers on the real `stats-wal.js`.
+
+### C. SIGN-IN ACCOUNT CLEANUP — adapted from Figgins' SpotOn notes
+
+`scripts/auth-cleanup.py`, run in **Google Cloud Shell** as Jake's own account (no
+key file). Due = **records already removed AND unused 24 months** (latest of
+creation, sign-in, token refresh). Staff from the `staff` collection plus
+`ADMIN_EMAILS` are never touched; an unreadable staff list, or a failed "records
+still there?" check, **fails closed**. Lists by default; `--delete` needs `delete N`;
+one-student `--email`, `--email --delete` (refused while records remain) and
+`--email --disable`. Prints the next account due — **the day after** the
+anniversary; the first draft printed the anniversary itself, caught by the test.
+⚠️ **NOT YET RUN AGAINST THE LIVE PROJECT.** The first real run is the first test
+of the Cloud Shell credential steps.
+
+The **📋 How-to** on reports (super-admin only) has the quarterly routine, the
+deletion-request and stop-collecting steps, and all nine commands with Copy buttons.
+`auth-cleanup-sync-test.mjs` checks every command appears verbatim in the script's
+docstring, and that the script's retention months, project id and admin list match
+the site's. The Retention panel now also shows when the next student could come due.
+
+### D. CONTACT COMPLETE
+Mailing address added: **4501 Charlotte Ave, PO Box 90096, Nashville, TN 37209**.
+All four 312.4(d)(1) elements are now in both documents.
+
+### E. ⚠️ OPEN
+* **145a — the open-tab overwrite.** See START HERE.
+* **145b — the dash key's circle** in standard mode. Diagnosis stalled after two
+  files (Jake's rule). The screenshot shows the `.target` class IS applied (the key
+  sits 2 px lower); the circle overlay is z-index 3 and a targeted key z-index 5, and
+  the dash key renders untinted, so it may be covering its own circle. Asked Jake for
+  `getComputedStyle(document.getElementById('key--')).backgroundColor`.
+* **145c — records that outlive students.** Purge deletes `leaderboard/{uid}`,
+  matching the policy. SpotOn keeps initials. Jake's ruling.

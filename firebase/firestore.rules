@@ -1,6 +1,10 @@
 rules_version = '2';
 
-// firestore.rules v2.15.0 — TypeThatBook
+// firestore.rules v2.16.0 — TypeThatBook
+//
+// v2.16.0 — ⚠️⚠️ ROUND 145: staff may set `users/{uid}.logsChangedAt` (server time
+//           only, own school or class only) — the teacher-change stamp that stops
+//           a student's browser undoing a teacher's correction.
 //
 // v2.15.0 — ⚠️⚠️ ROUND 142: `coppaAttestations/{uid}_{version}` — a teacher's
 //           write-once confirmation that their school has approved TypeThatBook and
@@ -501,6 +505,20 @@ service cloud.firestore {
             && request.resource.data.lastLockDay is number
             && request.resource.data.lastLockDay >= 0
             && request.resource.data.lastLockDay <= 20000
+            && (inMySchool(resource.data.schoolId)
+                || teachesClass(resource.data.classId)))
+        // ⚠️⚠️ v2.16.0 — ROUND 145: THE TEACHER-CHANGE STAMP. When a teacher
+        // SAVEs or recalculates a student's day, reports.html sets this one field
+        // so the student's browser knows its saved copies predate a correction —
+        // without it, the student's own write-ahead log undid the correction on
+        // the next load. Same shape as the lastLockDay clause above: staff, ONE
+        // field, and only for a student in their school or class. The value must
+        // be the server's own clock, so it cannot be set into the future to
+        // defeat later stamps.
+        || (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['logsChangedAt'])
+            && request.resource.data.logsChangedAt == request.time
             && (inMySchool(resource.data.schoolId)
                 || teachesClass(resource.data.classId)));
 
