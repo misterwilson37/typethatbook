@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfect Alignment v2.2.0</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    
+    <style>
+        canvas { cursor: grab; }
+        canvas.grabbing { cursor: grabbing; }
+        /* Override screen display for this game's layout */
+</style>
+    <!-- Built Tailwind (replaces the Tailwind CDN script). LAST in <head> on purpose:
+         the CDN script injected its styles at the end of <head>, so this keeps the same
+         cascade order. Rebuild it when adding Tailwind classes — see README. -->
+    <link rel="stylesheet" href="tailwind.css">
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <div class="game-wrapper">
+        <div class="game-container">
+<!-- Start Screen -->
+            <div id="startScreen" class="screen active">
+                <h1 class="game-title">Perfect Alignment</h1>
+                <p class="game-subtitle">Drag shapes to align their centers perfectly.</p>
+                
+                <div class="how-to-play">
+                    <h3>How to Play:</h3>
+                    <ul>
+                        <li>• 10 rounds of increasing difficulty</li>
+                        <li>• Drag the blue shape to the gray target</li>
+                        <li>• Align their centers perfectly</li>
+                        <li>• Closer = more points (max 100)</li>
+                    </ul>
+                </div>
+                
+                <!-- User status -->
+                <div id="userStatus" class="mb-6">
+                    <button id="signInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <p class="loading-text mt-1">Sign in to save your score</p>
+                </div>
+                <div id="userSignedIn" class="mb-6 hidden">
+                    <div class="user-badge inline-flex">
+                        <img id="userPhoto" src="" alt="">
+                        <span id="userName">Player</span>
+                        <span id="signOutBtn" class="sign-out">✕</span>
+                    </div>
+                </div>
+                
+                <button id="startGameBtn" class="btn btn-primary">
+                    Start Game
+                </button>
+            </div>
+            
+            <!-- Game Screen -->
+            <div id="gameScreen" class="screen">
+                <h1 class="game-title">Perfect Alignment</h1>
+                <p id="instructionText" class="text-gray-500 mt-2">Drag the blue shape to align its center with the gray target.</p>
+                
+                <!-- Game Canvas -->
+                <div class="relative w-full max-w-xl mx-auto aspect-square bg-[var(--bg-input)] border-2 border-[var(--border)] rounded-lg overflow-hidden my-6">
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+
+                <!-- Scoring Display with Feedback in Center -->
+                <div class="flex justify-between items-center mb-2 px-2">
+                    <div class="text-left w-24">
+                        <p class="text-gray-400 font-medium text-sm">Round</p>
+                        <p class="text-2xl font-bold text-white"><span id="roundCounter">1</span> / 10</p>
+                    </div>
+                    <div class="text-center flex-1">
+                        <p id="feedbackText" class="text-xl font-bold text-gray-200">Drag the blue shape...</p>
+                        <p id="directionalFeedbackText" class="text-sm text-gray-500"></p>
+                    </div>
+                    <div class="text-right w-24">
+                        <p class="text-gray-400 font-medium text-sm">Total</p>
+                        <p class="text-2xl font-bold text-white" id="totalScore">0</p>
+                    </div>
+                </div>
+
+                <!-- Next Button -->
+                <div class="flex justify-center mt-2">
+                    <button id="nextButton" class="btn btn-next hidden">
+                        Next Round
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div id="gameOverScreen" class="screen">
+                <h1 class="game-title">Game Over!</h1>
+                <p class="final-score-label">Final Score</p>
+                <p id="finalScore" class="final-score">0</p>
+                <p id="averageScore" class="text-lg mb-3" style="color: var(--text-secondary);"></p>
+                
+                <!-- Initials Entry -->
+                <div id="initialsEntry" class="mb-6 hidden">
+                    <p style="color: var(--text-secondary);" class="mb-2">Enter your initials:</p>
+                    <div class="flex items-center gap-3 justify-center">
+                        <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                        <button id="submitScoreBtn" class="btn btn-primary btn-sm">Submit</button>
+                    </div>
+                    <p id="initialsError" class="text-red-400 text-sm mt-2 hidden">Please choose different initials.</p>
+                </div>
+                
+                <!-- Score submitted confirmation -->
+                <div id="scoreSubmitted" class="mb-4 hidden">
+                    <p class="text-green-400 font-medium">✓ Score saved!</p>
+                    <p id="playerRank" class="text-gray-400"></p>
+                </div>
+                
+                <!-- Not signed in message -->
+                <div id="notSignedInMsg" class="mb-4 hidden">
+                    <p class="text-gray-500 text-sm">Sign in before playing to save your score!</p>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div class="leaderboard">
+                    <h3 class="leaderboard-title">🏆 Top 10 Scores</h3>
+                    <div id="leaderboardList">
+                        <p class="loading-text text-center">Loading...</p>
+                    </div>
+                </div>
+                
+                <button id="playAgainButton" class="btn btn-primary">
+                    Play Again
+                </button>
+            </div>
+            
+        </div>
+        <footer class="game-footer">
+            <p>A sequel to "Find the Center" | Originally by Gemini, leaderboard by Claude</p>
+        </footer>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & AUTH
+        // ============================================
+        let app, db, auth;
+        let currentUser = null;
+        
+        // Profanity filter
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        }
+        
+        function updateAuthUI() {
+            const userStatus = document.getElementById('userStatus');
+            const userSignedIn = document.getElementById('userSignedIn');
+            const userPhoto = document.getElementById('userPhoto');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    console.error('Sign in error:', error);
+                }
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'perfect-alignment'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="text-red-400 text-center py-4">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet. Be the first!</p>';
+                return;
+            }
+            
+            leaderboardList.innerHTML = scores.map((s, i) => `
+                <div class="leaderboard-row ${s.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">#${i + 1}</span>
+                    <span class="leaderboard-initials">${escapeHtml(s.initials)}</span>
+                    <span class="leaderboard-score">${s.score}</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        async function getPlayerRank(playerScore) {
+            if (!db) return null;
+            
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'perfect-alignment'),
+                    where('score', '>', playerScore)
+                );
+                const snapshot = await getDocs(q);
+                return snapshot.size + 1;
+            } catch (error) {
+                console.error('Get rank error:', error);
+                return null;
+            }
+        }
+        
+        async function submitScore(initials) {
+            if (!currentUser || !db) return null;
+            
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'perfect-alignment',
+                    initials: initials.toUpperCase(),
+                    score: totalScore,
+                    roundCount: MAX_ROUNDS,
+                    averageScore: Math.round(totalScore / MAX_ROUNDS),
+                    flagged: containsProfanity(initials)
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        async function handleScoreSubmit() {
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            const submitScoreBtn = document.getElementById('submitScoreBtn');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const playerRank = document.getElementById('playerRank');
+            
+            const initials = initialsInput.value.trim().toUpperCase();
+            
+            if (initials.length < 1 || initials.length > 3) {
+                initialsError.textContent = 'Enter 1-3 characters.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            submitScoreBtn.disabled = true;
+            submitScoreBtn.textContent = 'Saving...';
+            
+            const scoreId = await submitScore(initials);
+            
+            if (scoreId) {
+                initialsEntry.classList.add('hidden');
+                scoreSubmitted.classList.remove('hidden');
+                
+                const rank = await getPlayerRank(totalScore);
+                if (rank) {
+                    playerRank.textContent = `Your rank: #${rank}`;
+                }
+                
+                await loadLeaderboard(scoreId);
+            } else {
+                initialsError.textContent = 'Failed to save score. Try again.';
+                initialsError.classList.remove('hidden');
+            }
+            
+            submitScoreBtn.disabled = false;
+            submitScoreBtn.textContent = 'Submit';
+        }
+        
+        // ============================================
+        // GAME VARIABLES
+        // ============================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const nextButton = document.getElementById('nextButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+        const feedbackEl = document.getElementById('feedbackText');
+        const directionalFeedbackEl = document.getElementById('directionalFeedbackText');
+        const roundCounterEl = document.getElementById('roundCounter');
+        const totalScoreEl = document.getElementById('totalScore');
+        
+        let targetShape = {};
+        let draggableShape = {};
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        let gameActive = false;
+        let roundNumber = 0;
+        let totalScore = 0;
+        const MAX_ROUNDS = 10;
+        const SHAPE_TYPES = ['circle', 'square', 'rectangle'];
+
+        // ============================================
+        // SCREENS
+        // ============================================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // ============================================
+        // GAME SETUP
+        // ============================================
+        function setupCanvas() {
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        function startGame() {
+            showScreen('gameScreen');
+            setupCanvas();
+            
+            totalScore = 0;
+            roundNumber = 0;
+            totalScoreEl.textContent = totalScore;
+            newRound();
+        }
+        
+        function newRound() {
+            roundNumber++;
+            if (roundNumber > MAX_ROUNDS) {
+                endGame();
+                return;
+            }
+            
+            gameActive = true;
+            isDragging = false;
+            roundCounterEl.textContent = roundNumber;
+            feedbackEl.textContent = "Drag the blue shape...";
+            feedbackEl.className = 'text-xl font-bold text-gray-200';
+            directionalFeedbackEl.textContent = "";
+            nextButton.classList.add('hidden');
+            
+            generateShapes();
+            draw();
+        }
+        
+        async function endGame() {
+            gameActive = false;
+            showScreen('gameOverScreen');
+            
+            const finalScoreEl = document.getElementById('finalScore');
+            const averageScoreEl = document.getElementById('averageScore');
+            const initialsEntry = document.getElementById('initialsEntry');
+            const scoreSubmitted = document.getElementById('scoreSubmitted');
+            const notSignedInMsg = document.getElementById('notSignedInMsg');
+            const initialsInput = document.getElementById('initialsInput');
+            const initialsError = document.getElementById('initialsError');
+            
+            finalScoreEl.textContent = totalScore;
+            
+            const averageScore = Math.round(totalScore / MAX_ROUNDS);
+            let gradeText = '';
+            if (averageScore >= 90) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-green-400">Excellent!</span>`;
+            } else if (averageScore >= 80) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-[var(--primary)]">Great Job!</span>`;
+            } else if (averageScore >= 70) {
+                gradeText = `Average: ${averageScore}/100 — <span class="text-amber-400">Good Effort!</span>`;
+            } else {
+                gradeText = `Average: ${averageScore}/100 — Keep practicing!`;
+            }
+            averageScoreEl.innerHTML = gradeText;
+            
+            // Reset UI state
+            initialsEntry.classList.add('hidden');
+            scoreSubmitted.classList.add('hidden');
+            notSignedInMsg.classList.add('hidden');
+            initialsError.classList.add('hidden');
+            initialsInput.value = '';
+            
+            // Load leaderboard
+            await loadLeaderboard();
+            
+            // Show appropriate UI based on auth state
+            if (currentUser) {
+                initialsEntry.classList.remove('hidden');
+                initialsInput.focus();
+            } else {
+                notSignedInMsg.classList.remove('hidden');
+            }
+        }
+
+        function generateShapes() {
+            let targetType, draggableType;
+            let difficultyScale = 1.0; 
+            let targetSizeScale = 1.0; 
+
+            if (roundNumber <= 3) {
+                targetType = SHAPE_TYPES[roundNumber - 1];
+                draggableType = targetType;
+            } else if (roundNumber <= 6) {
+                targetType = SHAPE_TYPES[(roundNumber - 4) % 3];
+                draggableType = targetType;
+                difficultyScale = 1.0 - (roundNumber - 3) * 0.15; 
+                targetSizeScale = 1.0 + (roundNumber - 3) * 0.05; 
+            } else {
+                targetType = SHAPE_TYPES[Math.floor(Math.random() * SHAPE_TYPES.length)];
+                draggableType = SHAPE_TYPES[Math.floor(Math.random() * SHAPE_TYPES.length)];
+                if (targetType === draggableType) {
+                    draggableType = SHAPE_TYPES[(SHAPE_TYPES.indexOf(draggableType) + 1) % SHAPE_TYPES.length];
+                }
+                difficultyScale = 0.55;
+                targetSizeScale = 1.0 + (roundNumber - 3) * 0.05; 
+            }
+
+            const baseSize = canvas.width * 0.2;
+            
+            const padding = canvas.width * 0.3;
+            const targetX = padding + Math.random() * (canvas.width - padding * 2);
+            const targetY = padding + Math.random() * (canvas.height - padding * 2);
+            targetShape = createShape(targetType, targetX, targetY, (baseSize * 1.5) * targetSizeScale, '#94a3b8');
+            
+            let draggableX, draggableY;
+            const margin = canvas.width * 0.15;
+            if (targetShape.x < canvas.width / 2) {
+                draggableX = canvas.width - margin;
+            } else {
+                draggableX = margin;
+            }
+            if (targetShape.y < canvas.height / 2) {
+                draggableY = canvas.height - margin;
+            } else {
+                draggableY = margin;
+            }
+            draggableX += (Math.random() - 0.5) * margin;
+            draggableY += (Math.random() - 0.5) * margin;
+
+            draggableShape = createShape(draggableType, draggableX, draggableY, baseSize * difficultyScale, '#3b82f6');
+        }
+
+        function createShape(type, x, y, size, color) {
+            const shape = { type, x, y, color };
+            if (type === 'circle') {
+                shape.radius = size / 2;
+            } else if (type === 'square') {
+                shape.width = size;
+                shape.height = size;
+            } else { // rectangle
+                shape.width = size * 1.5;
+                shape.height = size * 0.75;
+            }
+            return shape;
+        }
+
+        function drawShape(shape) {
+            ctx.fillStyle = shape.color;
+            ctx.beginPath();
+            if (shape.type === 'circle') {
+                ctx.arc(shape.x, shape.y, shape.radius, 0, 2 * Math.PI);
+            } else {
+                ctx.rect(shape.x - shape.width / 2, shape.y - shape.height / 2, shape.width, shape.height);
+            }
+            ctx.fill();
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawShape(targetShape);
+            drawShape(draggableShape);
+        }
+        
+        function drawFeedback() {
+            draw();
+            const feedbackShape = { ...draggableShape, x: targetShape.x, y: targetShape.y };
+            ctx.strokeStyle = 'rgba(16, 185, 129, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            if (feedbackShape.type === 'circle') {
+                ctx.arc(feedbackShape.x, feedbackShape.y, feedbackShape.radius, 0, 2 * Math.PI);
+            } else {
+                ctx.rect(feedbackShape.x - feedbackShape.width / 2, feedbackShape.y - feedbackShape.height / 2, feedbackShape.width, feedbackShape.height);
+            }
+            ctx.stroke();
+
+            drawShape(draggableShape);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            if (draggableShape.type === 'circle') {
+                ctx.arc(draggableShape.x, draggableShape.y, draggableShape.radius, 0, 2 * Math.PI);
+            } else {
+                ctx.rect(draggableShape.x - draggableShape.width / 2, draggableShape.y - draggableShape.height / 2, draggableShape.width, draggableShape.height);
+            }
+            ctx.stroke();
+        }
+
+        function isPointInShape(point, shape) {
+            if (shape.type === 'circle') {
+                return Math.hypot(point.x - shape.x, point.y - shape.y) < shape.radius;
+            } else {
+                return (
+                    point.x > shape.x - shape.width / 2 &&
+                    point.x < shape.x + shape.width / 2 &&
+                    point.y > shape.y - shape.height / 2 &&
+                    point.y < shape.y + shape.height / 2
+                );
+            }
+        }
+
+        function getMousePos(event) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = event.clientX ?? event.touches[0].clientX;
+            const clientY = event.clientY ?? event.touches[0].clientY;
+            return { x: clientX - rect.left, y: clientY - rect.top };
+        }
+
+        function handleMouseDown(event) {
+            if (!gameActive) return;
+            const pos = getMousePos(event);
+            if (isPointInShape(pos, draggableShape)) {
+                isDragging = true;
+                dragOffsetX = pos.x - draggableShape.x;
+                dragOffsetY = pos.y - draggableShape.y;
+                canvas.classList.add('grabbing');
+            }
+        }
+
+        function handleMouseMove(event) {
+            if (isDragging) {
+                event.preventDefault();
+                const pos = getMousePos(event);
+                draggableShape.x = pos.x - dragOffsetX;
+                draggableShape.y = pos.y - dragOffsetY;
+                draw();
+            }
+        }
+
+        function handleMouseUp() {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            gameActive = false;
+            canvas.classList.remove('grabbing');
+
+            const distance = Math.hypot(draggableShape.x - targetShape.x, draggableShape.y - targetShape.y);
+            const score = Math.max(0, Math.round(100 - distance * 0.75));
+            totalScore += score;
+
+            // Tiered feedback
+            let feedbackText, feedbackClass;
+            if (score >= 98) {
+                feedbackText = `Perfect! +${score}`;
+                feedbackClass = 'text-xl font-bold text-green-500';
+            } else if (score >= 90) {
+                feedbackText = `Excellent! +${score}`;
+                feedbackClass = 'text-xl font-bold text-green-500';
+            } else if (score >= 80) {
+                feedbackText = `Great! +${score}`;
+                feedbackClass = 'text-xl font-bold text-[var(--primary)]';
+            } else if (score >= 70) {
+                feedbackText = `Good! +${score}`;
+                feedbackClass = 'text-xl font-bold text-[var(--primary)]';
+            } else if (score >= 60) {
+                feedbackText = `Okay. +${score}`;
+                feedbackClass = 'text-xl font-bold text-amber-500';
+            } else {
+                feedbackText = `+${score}`;
+                feedbackClass = 'text-xl font-bold text-gray-400';
+            }
+            
+            feedbackEl.textContent = feedbackText;
+            feedbackEl.className = feedbackClass;
+            totalScoreEl.textContent = totalScore;
+            
+            // Directional Feedback Logic
+            const dx = draggableShape.x - targetShape.x;
+            const dy = draggableShape.y - targetShape.y;
+            const threshold = 2;
+            let directionalComments = [];
+
+            if (score < 98) {
+                if (score < 85) {
+                    if (Math.abs(dx) > threshold) {
+                        directionalComments.push(dx > 0 ? 'to the right' : 'to the left');
+                    }
+                    if (Math.abs(dy) > threshold) {
+                        directionalComments.push(dy > 0 ? 'too low' : 'too high');
+                    }
+                } else {
+                    if (Math.abs(dx) > threshold) {
+                        directionalComments.push(dx > 0 ? 'a little to the right' : 'a little to the left');
+                    }
+                    if (Math.abs(dy) > threshold) {
+                        directionalComments.push(dy > 0 ? 'a bit too low' : 'a bit too high');
+                    }
+                }
+            }
+            
+            if (directionalComments.length > 0) {
+                directionalFeedbackEl.textContent = `You're ${directionalComments.join(' and ')}.`;
+            } else if (score >= 98) {
+                directionalFeedbackEl.textContent = "Perfect alignment!";
+            } else {
+                directionalFeedbackEl.textContent = "";
+            }
+
+            drawFeedback();
+            nextButton.classList.remove('hidden');
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('signInBtn').addEventListener('click', signInWithGoogle);
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('submitScoreBtn').addEventListener('click', handleScoreSubmit);
+        
+        document.getElementById('initialsInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleScoreSubmit();
+        });
+        document.getElementById('initialsInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            document.getElementById('initialsError').classList.add('hidden');
+        });
+
+        nextButton.addEventListener('click', newRound);
+        playAgainButton.addEventListener('click', startGame);
+        
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
+
+        canvas.addEventListener('touchstart', handleMouseDown, { passive: false });
+        canvas.addEventListener('touchmove', handleMouseMove, { passive: false });
+        canvas.addEventListener('touchend', handleMouseUp);
+
+        window.addEventListener('resize', () => {
+            if (document.getElementById('gameScreen').classList.contains('active')) {
+                setupCanvas();
+                if (targetShape.type) draw();
+            }
+        });
+        
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space') {
+                event.preventDefault();
+                if (!nextButton.classList.contains('hidden')) {
+                    newRound();
+                } else if (document.getElementById('gameOverScreen').classList.contains('active')) {
+                    startGame();
+                } else if (document.getElementById('startScreen').classList.contains('active')) {
+                    startGame();
+                }
+            }
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        initFirebase();
+    </script>
+</body>
+</html>

@@ -1,336 +1,175 @@
 #!/usr/bin/env python3
+"""auth-cleanup.py v1.0.1 — delete SpotOn sign-in accounts nobody has used in 24 months.
+
+Written by Figgins, Sept 2026. Web pages aren't allowed to delete other people's
+sign-in accounts, so this runs with your Google account's own permission instead.
+It only touches Firebase AUTHENTICATION (the sign-in accounts). Scores and email
+records are handled by admin.html → Privacy — run that tab's retention check first.
+
+RUN IT IN GOOGLE CLOUD SHELL (a terminal in your browser — nothing to install,
+no key file to keep safe):
+  1. Go to console.cloud.google.com, pick the spot-on-games project at the top,
+     then click the  >_  button (Activate Cloud Shell) at the top right.
+  2. Paste these, one at a time. The first two are only needed the first time.
+       pip install --user --quiet firebase-admin
+       gcloud auth application-default login --no-launch-browser
+         (open the link it prints, sign in as yourself, paste the code back)
+       gcloud auth application-default set-quota-project spot-on-games
+       curl -sO https://spoton.misterwilson.org/scripts/auth-cleanup.py
+       python3 auth-cleanup.py
+  3. That last line only LISTS. Nothing changes until you add --delete and type the
+     confirmation it asks for.
+
+COMMANDS  (STUDENT_EMAIL = the student's school email)
+  python3 auth-cleanup.py                                accounts unused 24+ months, and who's next
+  python3 auth-cleanup.py --delete                       delete those accounts (asks you to confirm)
+  python3 auth-cleanup.py --email STUDENT_EMAIL          show one account
+  python3 auth-cleanup.py --email STUDENT_EMAIL --delete   delete one account (a deletion request)
+  python3 auth-cleanup.py --email STUDENT_EMAIL --disable  switch one account off (stop collection:
+                                                         they can still play, nothing is saved)
+
+⚠️ admin.html → Privacy → "How-to" shows these same commands with copy buttons.
+tests/privacy-promises-test.mjs checks every command there appears in this docstring,
+so change them in both places or the test fails.
+
+"Last used" = the latest of: signing in, the browser silently renewing a sign-in
+(students on the same MacBook stay signed in for months without "signing in"), and
+account creation. The admin accounts below are never deleted.
 """
-auth-cleanup.py v1.0.0 — TypeThatBook: delete old sign-in accounts.
-
-WHAT IT DOES
-  Lists TypeThatBook sign-in accounts that are due for deletion, and — only when
-  you ask, and only after you confirm — deletes them. A sign-in account is due
-  when BOTH of these are true:
-    1. its TypeThatBook records are already gone (run Retention... on the reports
-       page first — until then this script finds nothing to delete), and
-    2. it hasn't been used for 24 months. "Used" is the latest of when the account
-       was created, last signed in, and last refreshed its sign-in. Students stay
-       signed in on one machine for months without signing in again, so sign-in
-       alone would make an active student look gone.
-  Staff accounts are never listed or deleted.
-
-RUN IT IN GOOGLE CLOUD SHELL
-  console.cloud.google.com -> the >_ button at the top right. Nothing is installed
-  on your own computer, and no key file is ever downloaded: it runs as your own
-  Google account.
-
-  First time only:
-    pip install --user --quiet firebase-admin
-    gcloud auth application-default login --no-launch-browser
-    gcloud auth application-default set-quota-project typethatbook
-
-  Every time:
-    curl -sO https://typethatbook.misterwilson.org/scripts/auth-cleanup.py
-    python3 auth-cleanup.py
-
-  To delete what it lists:
-    python3 auth-cleanup.py --delete
-
-  One student (a deletion request, or a request to stop collecting):
-    python3 auth-cleanup.py --email STUDENT_EMAIL
-    python3 auth-cleanup.py --email STUDENT_EMAIL --delete
-    python3 auth-cleanup.py --email STUDENT_EMAIL --disable
-
-  The same commands, with Copy buttons, are in the How-to on the reports page.
-"""
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Adapted for TypeThatBook in Round 145 from SpotOn's scripts/auth-cleanup.py,
-# following Figgins' notes. What is DIFFERENT here, deliberately:
-#   • "Records gone" is part of the rule. TypeThatBook's retention clock is its own
-#     typing activity (the Retention panel), so a sign-in account waits until that
-#     panel has removed the records — which also makes running this script first
-#     harmless: it simply finds nothing.
-#   • Staff come from the `staff` collection, and the check FAILS CLOSED: if the
-#     staff list can't be read, nothing is deleted.
-#   • A failed "do records still exist?" check counts as YES — never delete an
-#     account whose records might still be there.
-# ⚠️ NOT YET RUN AGAINST THE LIVE PROJECT. tests/auth-cleanup-test.py drives the
-# real functions against fakes; the first real run in Cloud Shell is the first test
-# of the credential steps. Watch it.
-# ═══════════════════════════════════════════════════════════════════════════════
-
 import argparse
-import datetime
+import os
 import sys
+from datetime import datetime, timezone
 
-VERSION = '1.0.0'
-PROJECT_ID = 'typethatbook'
-# ⚠️ PINNED by tests/auth-cleanup-sync-test.mjs to RETENTION_MONTHS in reports.html,
-# SECURITY.md and the privacy policy. Change one, change all.
-RETENTION_MONTHS = 24
-# ⚠️ MIRRORS ADMIN_EMAILS in firebase-config.js — checked by the same test.
-PROTECTED_EMAILS = ['jacob.wilson@sumnerk12.net', 'jacob.v.wilson@gmail.com']
-DELETE_BATCH = 1000
+import firebase_admin
+from firebase_admin import auth, credentials
 
-
-def norm(email):
-    return (email or '').strip().lower()
+PROJECT = 'spot-on-games'
+RETENTION_MONTHS = 24          # ⚠️ must match privacy-tools.js, privacy.html, SECURITY.md
+ADMIN_EMAILS = {               # ⚠️ must match isAdmin() in firestore.rules
+    'jacob.wilson@sumnerk12.net',
+    'jacob.v.wilson@gmail.com',
+}
 
 
-def add_months(d, months):
-    """A date `months` later (or earlier, if negative), clamped to the month's end."""
-    y, m = divmod(d.month - 1 + months, 12)
-    y, m = d.year + y, m + 1
-    for day in (d.day, 30, 29, 28):
-        try:
-            return datetime.date(y, m, day)
-        except ValueError:
-            continue
-
-
-def _ms_date(ms):
-    if not ms:
-        return None
-    return datetime.datetime.fromtimestamp(int(ms) / 1000, tz=datetime.timezone.utc).date()
+def add_months(dt, months):
+    """Calendar months, same rule as privacy-tools.js (Jan 31 + 1 month → Mar 3 there;
+    here clamped to the month's last day — a day's difference at most, on 5 dates a year)."""
+    y, m = divmod(dt.month - 1 + months, 12)
+    y, m = dt.year + y, m + 1
+    days = [31, 29 if (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0)) else 28,
+            31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]
+    return dt.replace(year=y, month=m, day=min(dt.day, days))
 
 
 def last_used(user):
-    """The latest of creation, last sign-in and last token refresh — see the docstring."""
-    md = getattr(user, 'user_metadata', None)
-    if md is None:
-        return None
-    dates = [_ms_date(getattr(md, k, None)) for k in
-             ('creation_timestamp', 'last_sign_in_timestamp', 'last_refresh_timestamp')]
-    dates = [d for d in dates if d]
-    return max(dates) if dates else None
+    meta = user.user_metadata
+    stamps = [meta.last_sign_in_timestamp, getattr(meta, 'last_refresh_timestamp', None),
+              meta.creation_timestamp]
+    ms = max(s for s in stamps if s)
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
 
 
-def is_protected(user, staff):
-    return user.uid in staff['uids'] or norm(user.email) in staff['emails'] \
-        or norm(user.email) in {norm(e) for e in PROTECTED_EMAILS}
+def day(dt):
+    return dt.astimezone().strftime('%b %d, %Y')
 
 
-def classify(users, staff, records_exist, today):
-    """Sort every account. `records_exist(uid)` is asked ONLY about accounts the
-    sign-in clock has already expired, so a sweep costs a few reads, not hundreds."""
-    cut = add_months(today, -RETENTION_MONTHS)
-    out = {'cutoff': cut, 'protected': [], 'recent': [], 'has_records': [], 'due': [],
-           'unknown': [], 'next_due': None}
-    for u in users:
-        if is_protected(u, staff):
-            out['protected'].append(u)
-            continue
-        lu = last_used(u)
-        if lu is None:
-            out['unknown'].append(u)          # no dates at all: never delete on a guess
-            continue
-        if lu >= cut:
-            out['recent'].append(u)
-            # ⚠️ THE DAY AFTER the anniversary: on the anniversary itself it is still
-            # exactly 24 months, which `lu >= cut` keeps. The first draft printed the
-            # anniversary, a day early — caught by the test's edge-of-cutoff account.
-            due_on = add_months(lu, RETENTION_MONTHS) + datetime.timedelta(days=1)
-            if out['next_due'] is None or due_on < out['next_due'][0]:
-                out['next_due'] = (due_on, u)
-            continue
-        try:
-            has = records_exist(u.uid)
-        except Exception:
-            has = True                         # fail closed
-        (out['has_records'] if has else out['due']).append(u)
-    return out
+def all_users():
+    page = auth.list_users()
+    while page:
+        for u in page.users:
+            yield u
+        page = page.get_next_page()
 
 
-def label(u):
-    return norm(u.email) or f'(no email) {u.uid}'
+def confirm(word):
+    typed = input(f'\nType  {word}  to go ahead (anything else cancels): ').strip()
+    if typed != word:
+        print('Cancelled. Nothing was changed.')
+        sys.exit(0)
 
 
-def ask(prompt, expected, stdin, out):
-    out.write(prompt)
-    out.flush()
-    line = stdin.readline()
-    return line.strip().lower() == expected.strip().lower()
-
-
-class RealDeps:
-    """Every call to Google lives here, so the rest of the script can be tested."""
-
-    def __init__(self):
-        import firebase_admin
-        from firebase_admin import auth, credentials, firestore
-        self.auth = auth
-        firebase_admin.initialize_app(credentials.ApplicationDefault(), {'projectId': PROJECT_ID})
-        self.db = firestore.client()
-
-    def list_users(self):
-        page = self.auth.list_users()
-        while page:
-            for u in page.users:
-                yield u
-            page = page.get_next_page()
-
-    def get_user_by_email(self, email):
-        try:
-            return self.auth.get_user_by_email(email)
-        except self.auth.UserNotFoundError:
-            return None
-
-    def delete_users(self, uids):
-        r = self.auth.delete_users(uids)
-        return r.success_count, [(e.index, str(e.reason)) for e in r.errors]
-
-    def disable(self, uid):
-        self.auth.update_user(uid, disabled=True)
-
-    def staff(self):
-        uids, emails = set(), set()
-        for d in self.db.collection('staff').stream():   # raises if unreadable: fail closed
-            uids.add(d.id)
-            e = (d.to_dict() or {}).get('email')
-            if e:
-                emails.add(norm(e))
-        return {'uids': uids, 'emails': emails}
-
-    def records_exist(self, uid):
-        ref = self.db.collection('users').document(uid)
-        if ref.get().exists:
-            return True
-        if any(True for _ in ref.collections()):        # subcollections outlive a missing parent
-            return True
-        for coll in ('typing_logs', 'typing_sessions'):
-            if list(self.db.collection(coll).where('uid', '==', uid).limit(1).stream()):
-                return True
-        return False
-
-
-def explain_error(e, out):
-    msg = str(e)
-    if 'quota project' in msg.lower():
-        out.write('\nGoogle needs to know which project to bill this against. Run:\n'
-                  f'    gcloud auth application-default set-quota-project {PROJECT_ID}\n'
-                  'then try again.\n')
-    elif 'default credentials' in msg.lower() or 'could not automatically determine' in msg.lower():
-        out.write('\nCloud Shell isn\'t signed in for this yet. Run:\n'
-                  '    gcloud auth application-default login --no-launch-browser\n'
-                  'open the link it prints, paste the code back, then try again.\n')
-    else:
-        out.write(f'\nSomething went wrong: {msg}\nNothing was deleted.\n')
-
-
-def run_sweep(args, deps, today, stdin, out):
+def one_account(args):
     try:
-        staff = deps.staff()
-    except Exception as e:
-        out.write('Could not read the staff list, so nothing will be deleted — '
-                  'staff accounts must never be at risk.\n')
-        explain_error(e, out)
-        return 2
-    users = list(deps.list_users())
-    r = classify(users, staff, deps.records_exist, today)
-    out.write(f'TypeThatBook sign-in account cleanup — v{VERSION} — {today.isoformat()}\n')
-    out.write(f'Due when: records already removed AND not used since {r["cutoff"].isoformat()} '
-              f'({RETENTION_MONTHS} months).\n\n')
-    out.write(f'  Accounts checked:                 {len(users)}\n')
-    out.write(f'  Staff and admin (never touched):  {len(r["protected"])}\n')
-    out.write(f'  Used within {RETENTION_MONTHS} months:          {len(r["recent"])}\n')
-    out.write(f'  Unused, but records still there:  {len(r["has_records"])}'
-              + ('   <- run Retention... on the reports page first' if r['has_records'] else '') + '\n')
-    if r['unknown']:
-        out.write(f'  No dates at all (left alone):     {len(r["unknown"])}\n')
-    out.write(f'  Due for deletion:                 {len(r["due"])}\n')
-    for u in r['due']:
-        out.write(f'      {label(u)}   last used {last_used(u).isoformat()}\n')
-    if r['next_due']:
-        d, u = r['next_due']
-        out.write(f'\nNext account comes due: {d.isoformat()} ({label(u)})\n')
-    if not args.delete:
-        if r['due']:
-            out.write(f'\nNothing was changed. To delete these {len(r["due"])}, run:\n'
-                      '    python3 auth-cleanup.py --delete\n')
-        else:
-            out.write('\nNothing is due. Nothing was changed.\n')
-        return 0
-    n = len(r['due'])
-    if not n:
-        out.write('\nNothing is due. Nothing was deleted.\n')
-        return 0
-    if not ask(f'\nType  delete {n}  to delete these {n} sign-in accounts: ', f'delete {n}', stdin, out):
-        out.write('Cancelled. Nothing was deleted.\n')
-        return 1
-    uids = [u.uid for u in r['due']]
-    done, errors = 0, []
-    for i in range(0, len(uids), DELETE_BATCH):
-        ok_count, errs = deps.delete_users(uids[i:i + DELETE_BATCH])
-        done += ok_count
-        errors += [(i + idx, reason) for idx, reason in errs]
-    out.write(f'Deleted {done} of {n}.\n')
-    for idx, reason in errors:
-        out.write(f'  could not delete {uids[idx]}: {reason}\n')
-    return 0 if not errors else 3
-
-
-def run_one(args, deps, today, stdin, out):
-    email = norm(args.email)
-    try:
-        staff = deps.staff()
-    except Exception as e:
-        out.write('Could not read the staff list, so nothing will be changed.\n')
-        explain_error(e, out)
-        return 2
-    u = deps.get_user_by_email(email)
-    if u is None:
-        out.write(f'No sign-in account for {email}.\n')
-        return 1
-    try:
-        has = deps.records_exist(u.uid)
-    except Exception:
-        has = True
-    lu = last_used(u)
-    out.write(f'{email}\n  uid:          {u.uid}\n'
-              f'  last used:    {lu.isoformat() if lu else "unknown"}\n'
-              f'  records:      {"still in TypeThatBook" if has else "already removed"}\n'
-              f'  disabled:     {"yes" if getattr(u, "disabled", False) else "no"}\n')
-    if is_protected(u, staff):
-        out.write('  This is a staff account. It is never deleted or disabled by this script.\n')
-        return 1 if (args.delete or args.disable) else 0
+        u = auth.get_user_by_email(args.email.strip().lower())
+    except auth.UserNotFoundError:
+        print(f'No sign-in account for {args.email}.')
+        return
+    print(f'{u.email}  last used {day(last_used(u))}  {"(DISABLED)" if u.disabled else ""}')
+    if u.email in ADMIN_EMAILS and (args.delete or args.disable):
+        print('That is an admin account. Not touching it.')
+        return
     if args.delete:
-        if has:
-            out.write('\nTheir TypeThatBook records still exist. Delete those first with\n'
-                      'Delete student... on the reports page, then run this again.\n')
-            return 1
-        if not ask(f'\nType their email to delete this sign-in account: ', email, stdin, out):
-            out.write('Cancelled. Nothing was deleted.\n')
-            return 1
-        _, errs = deps.delete_users([u.uid])
-        out.write('Deleted.\n' if not errs else f'Could not delete: {errs[0][1]}\n')
-        return 0 if not errs else 3
-    if args.disable:
-        if not ask(f'\nType their email to stop this account signing in: ', email, stdin, out):
-            out.write('Cancelled. Nothing was changed.\n')
-            return 1
-        deps.disable(u.uid)
-        out.write('Disabled. They can no longer sign in, so nothing new is saved;\n'
-                  'they can still type as a guest, which saves nothing to the server.\n')
-        return 0
-    return 0
+        print('\nDo this AFTER admin.html → Privacy → Delete a student, so their scores and')
+        print('email record are gone too.')
+        confirm('delete')
+        auth.delete_user(u.uid)
+        print(f'✓ Deleted the sign-in account for {u.email}.')
+    elif args.disable:
+        confirm('disable')
+        auth.update_user(u.uid, disabled=True)
+        print(f'✓ {u.email} can no longer sign in. They can still play; nothing is saved.')
 
 
-def main(argv=None, deps=None, stdin=None, out=None):
-    stdin = stdin or sys.stdin
-    out = out or sys.stdout
-    p = argparse.ArgumentParser(description='Delete old TypeThatBook sign-in accounts.')
-    p.add_argument('--delete', action='store_true')
-    p.add_argument('--disable', action='store_true')
-    p.add_argument('--email')
-    p.add_argument('--now', help=argparse.SUPPRESS)      # tests pin "today"
-    args = p.parse_args(argv)
+def sweep(args, now):
+    cutoff = add_months(now, -RETENTION_MONTHS)
+    users = [u for u in all_users() if (u.email or '') not in ADMIN_EMAILS]
+    expired = sorted((u for u in users if last_used(u) < cutoff), key=last_used)
+    active = [u for u in users if last_used(u) >= cutoff]
+
+    print(f'{len(users)} student sign-in accounts. Unused since before {day(cutoff)}: {len(expired)}')
+    for u in expired:
+        print(f'  {u.email or u.uid:40}  last used {day(last_used(u))}')
+    if active:
+        nxt = min(active, key=last_used)
+        print(f'\nNext to expire: {nxt.email or nxt.uid} — last used {day(last_used(nxt))}, '
+              f'due {day(add_months(last_used(nxt), RETENTION_MONTHS))}. Nothing new can expire before then.')
+
+    if not args.delete:
+        if expired:
+            print('\nNothing was changed. To delete these, run:  python3 auth-cleanup.py --delete')
+        return
+    if not expired:
+        print('\nNothing to delete.')
+        return
+    confirm(f'delete {len(expired)}')
+    uids = [u.uid for u in expired]
+    deleted = 0
+    for i in range(0, len(uids), 1000):          # the API takes 1000 at a time
+        result = auth.delete_users(uids[i:i + 1000])
+        deleted += result.success_count
+        for err in result.errors:
+            print(f'  could not delete {uids[i + err.index]}: {err.reason}')
+    print(f'✓ Deleted {deleted} sign-in accounts.')
+
+
+def main():
+    ap = argparse.ArgumentParser(description='Delete SpotOn sign-in accounts unused for 24 months.')
+    ap.add_argument('--delete', action='store_true', help='actually delete (asks to confirm)')
+    ap.add_argument('--disable', action='store_true', help='with --email: switch the account off')
+    ap.add_argument('--email', help='act on one account')
+    ap.add_argument('--now', help=argparse.SUPPRESS)   # tests only: pretend "today" is this ISO date
+    args = ap.parse_args()
     if args.disable and not args.email:
-        out.write('--disable needs --email.\n')
-        return 1
-    today = datetime.date.fromisoformat(args.now) if args.now else datetime.date.today()
+        ap.error('--disable needs --email')
+
+    if os.environ.get('FIREBASE_AUTH_EMULATOR_HOST'):
+        firebase_admin.initialize_app(options={'projectId': os.environ.get('SPOTON_PROJECT', PROJECT)})
+    else:
+        firebase_admin.initialize_app(credentials.ApplicationDefault(), {'projectId': PROJECT})
+
+    now = datetime.fromisoformat(args.now).replace(tzinfo=timezone.utc) if args.now else datetime.now(timezone.utc)
     try:
-        deps = deps or RealDeps()
-        return run_one(args, deps, today, stdin, out) if args.email else run_sweep(args, deps, today, stdin, out)
-    except Exception as e:
-        explain_error(e, out)
-        return 2
+        one_account(args) if args.email else sweep(args, now)
+    except Exception as e:  # the usual Cloud Shell problem gets a plain-English hint
+        msg = str(e)
+        print(f'\nError: {msg}')
+        if 'quota project' in msg.lower() or 'x-goog-user-project' in msg.lower():
+            print('Run:  gcloud auth application-default set-quota-project spot-on-games   then try again.')
+        elif 'credentials' in msg.lower():
+            print('Run:  gcloud auth application-default login --no-launch-browser   then try again.')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

@@ -1,0 +1,18 @@
+{
+  "name": "spoton-tests",
+  "private": true,
+  "type": "module",
+  "description": "SpotOn privacy/security test harnesses. Not deployed; run by a Claude session with a shell. See README.md in this folder.",
+  "scripts": {
+    "test:static": "node privacy-promises-test.mjs && node self-hosted-assets-test.mjs",
+    "test:emulator": "node -e \"const f=require('fs');f.mkdirSync('.rules-copy',{recursive:true});for(const r of ['firestore.rules','storage.rules'])f.copyFileSync('../'+r,'.rules-copy/'+r)\" && firebase emulators:exec --only firestore,storage,auth --project demo-spoton \"node --import ./register.mjs rules-test.mjs && node --import ./register.mjs purge-retention-test.mjs && python3 auth-cleanup-test.py\"",
+    "test": "npm run test:static && npm run test:emulator",
+    "build:css": "node build-css.mjs",
+    "test:browser": "firebase emulators:exec --only firestore,storage --project demo-spoton \"python3 browser-smoke-test.py\""
+  },
+  "devDependencies": {
+    "firebase": "11.6.1",
+    "firebase-tools": "^13.0.0",
+    "tailwindcss": "3.4.17"
+  }
+}

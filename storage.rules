@@ -1,0 +1,30 @@
+// storage.rules v2.0.0 — SpotOn (project spot-on-games)
+//
+// ⚠️ NOT DEPLOYED FROM THIS FILE. Copy it into Firebase console → spot-on-games →
+// Storage → Rules → Publish.
+//
+// v2.0.0 (Figgins, Sept 2026): uploads were allowed for ANY signed-in Google account;
+// now only the site administrators. Game images stay publicly readable (the games
+// load them with no sign-in).
+// ⚠️ The admin list below MUST MATCH isAdmin() in firestore.rules — Storage rules
+// can't call a Firestore rules function. tests/privacy-promises-test.mjs checks it.
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'jacob.wilson@sumnerk12.net',
+          'jacob.v.wilson@gmail.com'
+        ];
+    }
+
+    match /game-images/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

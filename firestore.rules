@@ -1,0 +1,95 @@
+// firestore.rules v2.0.0 — SpotOn (project spot-on-games)
+//
+// ⚠️ NOT DEPLOYED FROM THIS FILE. There is no CLI here: copy this whole file into
+// Firebase console → spot-on-games → Firestore Database → Rules → Publish.
+// This file is the record of what should be live. tests/rules-test.mjs runs it.
+//
+// v2.0.0 (Figgins, Sept 2026 privacy round):
+//   • scores: a student may only create a score under their OWN account ID, with a
+//     fixed list of fields — so no email, name or photo can ever land on a public
+//     score again, even from an old cached page or a hand-built request.
+//   • players (new): the private email link. Only the admin can read it. A student
+//     can write only their own, only their own sign-in email, only "now".
+//   • isAdmin() now also requires a verified email.
+// v1 (before Sept 2026): admin allowlist on content; any signed-in user could
+//   create a score with any fields.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // The site administrators. Also the ONLY admin check in SpotOn: admin.html
+    // asks the database whether you can read /players rather than keeping its own list.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          'jacob.wilson@sumnerk12.net',
+          'jacob.v.wilson@gmail.com'
+        ];
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // ⚠️ MUST MATCH SCORE_FIELDS in score-save.js (tests/privacy-promises-test.mjs).
+    function validNewScore() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['gameId', 'initials', 'score', 'uid', 'timestamp', 'flagged',
+                               'roundCount', 'averageScore', 'roundsCompleted', 'bestStreak',
+                               'categoryScores', 'levelCount'])
+        && d.keys().hasAll(['gameId', 'initials', 'score', 'uid', 'timestamp'])
+        && d.uid == request.auth.uid
+        && d.gameId is string && d.gameId.size() > 0 && d.gameId.size() <= 40
+        && d.initials is string && d.initials.size() >= 1 && d.initials.size() <= 3
+        && d.score is number
+        && d.timestamp == request.time;
+    }
+
+    function validOwnPlayer(uid) {
+      let d = request.resource.data;
+      return signedIn()
+        && request.auth.uid == uid
+        && d.keys().hasOnly(['email', 'lastPlayed'])
+        && d.keys().hasAll(['email', 'lastPlayed'])
+        && d.email == request.auth.token.email
+        && d.lastPlayed == request.time;
+    }
+
+    match /levels/{levelId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /picture-perfect-images/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /site-config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /bp2-content/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // PUBLIC: the leaderboard page reads this with no sign-in.
+    // Holds initials, scores and an account ID — never an email, name or photo.
+    match /scores/{scoreId} {
+      allow read: if true;
+      allow create: if signedIn() && validNewScore();
+      allow update, delete: if isAdmin();
+    }
+
+    // PRIVATE: the only place a student's email is kept. Admin-only to read.
+    match /players/{uid} {
+      allow read: if isAdmin();
+      allow create, update: if isAdmin() || validOwnPlayer(uid);
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Picture Perfect v2.4.2</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <link rel="stylesheet" href="games.css">
+    <style>
+        /* =============================================
+           PICTURE PERFECT - page-scoped additions
+           Kept here rather than in games.css so the
+           shared stylesheet stays untouched for the
+           other games.
+           ============================================= */
+        .compare-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            text-align: left;
+            margin: -0.5rem 0 0.5rem;
+        }
+
+        .compare-status {
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
+        .compare-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: color 0.2s;
+        }
+
+        .compare-label.is-corrected {
+            color: var(--primary-light);
+        }
+
+        .compare-hint {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .btn-compare {
+            background: transparent;
+            color: var(--primary-light);
+            border: 1px solid var(--border-light);
+            padding: 0.35rem 0.8rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+        }
+
+        .btn-compare:hover:not(:disabled) {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px rgba(123, 175, 212, 0.25);
+        }
+
+        .pool-warning {
+            color: var(--warning);
+            font-size: 0.85rem;
+            margin: 0.5rem 0 0;
+        }
+
+        @media (max-width: 420px) {
+            .compare-bar {
+                justify-content: center;
+                text-align: center;
+            }
+            .compare-status {
+                align-items: center;
+            }
+        }
+        /* v2.4.0 stopwatch: runs only while a picture is up and unanswered */
+        .stopwatch {
+            position: absolute; top: 0.5rem; right: 0.5rem; z-index: 2;
+            padding: 0.25rem 0.6rem; border-radius: 6px;
+            background: rgba(0, 0, 0, 0.65); color: #fff;
+            font-weight: 600; font-size: 0.95rem; line-height: 1.2;
+            font-variant-numeric: tabular-nums; pointer-events: none;
+        }
+        .stopwatch.paused { color: #9ca3af; }
+    </style>
+</head>
+<body>
+    <!-- Persistent Navigation -->
+    <div class="nav-links">
+        <a href="index.html" class="nav-link">← All Games</a>
+        <div class="nav-group">
+            <a href="leaderboard.html" class="nav-link">🏆 Leaderboard</a>
+            <a href="privacy.html" class="nav-link">🔒 Privacy</a>
+        </div>
+    </div>
+    <div class="game-wrapper">
+        <div class="game-container">
+<!-- Start Screen -->
+            <div id="startScreen" class="screen active">
+                
+                <h1 class="game-title">Picture Perfect</h1>
+                <p class="game-subtitle">Can you spot what's wrong with each image?</p>
+                
+                <div class="how-to-play">
+                    <h3>How to Play:</h3>
+                    <ul>
+                        <li>• 10 rounds of image inspection</li>
+                        <li>• Each image may be correct, stretched, or pixelated</li>
+                        <li>• Identify the issue (or confirm it's correct)</li>
+                        <li>• 100 points per correct answer, plus a speed bonus: up to 50 more for answering fast</li>
+                        <li>• After you answer, compare your view to the fixed version</li>
+                    </ul>
+                </div>
+                
+                <!-- User status -->
+                <div id="userStatus" class="mb-2">
+                    <button id="signInBtn" class="btn btn-google">
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                    </button>
+                    <p class="loading-text mt-1">Sign in to save your score</p>
+                </div>
+                <div id="userSignedIn" class="mb-2 hidden">
+                    <div class="user-badge">
+                        <img id="userPhoto" src="" alt="">
+                        <span id="userName">Player</span>
+                        <span id="signOutBtn" class="sign-out">✕</span>
+                    </div>
+                </div>
+                
+                <button id="startGameBtn" class="btn btn-primary">Start Game</button>
+                
+                <p id="imageCountInfo" class="image-count"></p>
+                <p id="poolWarning" class="pool-warning hidden">No images are available right now, so the game can't start. Check the picture-perfect-images collection.</p>
+            </div>
+            
+            <!-- Game Screen -->
+            <div id="gameScreen" class="screen">
+                <h1 class="game-title">Picture Perfect</h1>
+                <p id="instructionText" class="game-subtitle">Is this image correct, stretched, or pixelated?</p>
+                
+                <!-- Game Canvas -->
+                <div id="canvasContainer" class="canvas-container">
+                    <div id="stopwatch" class="stopwatch paused">⏱ 0:00.0</div>
+                    <canvas id="gameCanvas"></canvas>
+                </div>
+
+                <!-- Compare control (shown after answering a round that had a defect) -->
+                <div id="compareBar" class="compare-bar hidden">
+                    <span class="compare-status">
+                        <span id="compareLabel" class="compare-label">Showing: the image as you saw it</span>
+                        <span class="compare-hint">Press C to flip between the two</span>
+                    </span>
+                    <button id="compareBtn" class="btn btn-compare">Show the fixed version</button>
+                </div>
+
+                <!-- Choice Buttons -->
+                <div id="choice-container" class="choice-grid cols-4">
+                    <button class="btn btn-choice" data-choice="correct">✓ Correct</button>
+                    <button class="btn btn-choice" data-choice="pixelated">▓ Pixelated</button>
+                    <button class="btn btn-choice" data-choice="horizontal">↔ Stretched</button>
+                    <button class="btn btn-choice" data-choice="vertical">↕ Stretched</button>
+                </div>
+
+                <!-- Scoring Display -->
+                <div class="game-stats">
+                    <div>
+                        <p class="stat-label">Round</p>
+                        <p class="stat-value"><span id="roundCounter">1</span> / 10</p>
+                    </div>
+                    <div class="text-center">
+                        <p id="feedbackText" class="feedback-text">Pick your answer!</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p class="stat-label">Score</p>
+                        <p class="stat-value highlight" id="totalScore">0</p>
+                    </div>
+                </div>
+
+                <!-- Next Button -->
+                <button id="nextButton" class="btn btn-next hidden">Next Round</button>
+            </div>
+            
+            <!-- Game Over Screen -->
+            <div id="gameOverScreen" class="screen">
+                <h1 class="game-title">Game Over!</h1>
+                <p class="final-score-label">Final Score</p>
+                <p id="finalScore" class="final-score">0</p>
+                <p id="averageScore" class="game-subtitle"></p>
+                
+                <!-- Initials Entry -->
+                <div id="initialsEntry" class="hidden mb-2">
+                    <p class="game-subtitle mb-1">Enter your initials:</p>
+                    <div class="score-submit">
+                        <input type="text" id="initialsInput" class="initials-input" maxlength="3" placeholder="AAA" autocomplete="off">
+                        <button id="submitScoreBtn" class="btn btn-primary">Submit</button>
+                    </div>
+                    <p id="initialsError" class="feedback-text incorrect hidden">Please choose different initials.</p>
+                </div>
+                
+                <!-- Score submitted confirmation -->
+                <div id="scoreSubmitted" class="hidden mb-2">
+                    <p class="feedback-text correct">✓ Score saved!</p>
+                    <p id="playerRank" class="game-subtitle"></p>
+                </div>
+                
+                <!-- Not signed in message -->
+                <div id="notSignedInMsg" class="hidden mb-2">
+                    <p class="loading-text">Sign in before playing to save your score!</p>
+                </div>
+                
+                <!-- Leaderboard -->
+                <div class="leaderboard">
+                    <h3 class="leaderboard-title">🏆 Top 10 Scores</h3>
+                    <div id="leaderboardList">
+                        <p class="loading-text text-center">Loading...</p>
+                    </div>
+                </div>
+                
+                <button id="playAgainButton" class="btn btn-primary">Play Again</button>
+            </div>
+            
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, where, orderBy, limit, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { firebaseConfig } from "./firebase-config.js";
+        import { saveScore } from "./score-save.js";
+
+        // ============================================
+        // FIREBASE & AUTH
+        // ============================================
+        let app, db, auth;
+        let currentUser = null;
+        
+        const PROFANITY_LIST = [
+            'ass', 'cum', 'fag', 'fuk', 'fuc', 'fck', 'dik', 'dic', 'cok', 'kok',
+            'tit', 'nig', 'ngg', 'cnt', 'pis', 'sht', 'shi', 'dam', 'wtf', 'stf',
+            'sex', 'xxx', 'gay', 'lez', 'jew', 'joo', 'kik', 'kkk', 'naz', 'poo',
+            'cra', 'bit', 'hor', 'slu', 'who', 'whr', 'ped', 'rap', 'rac', 'hat'
+        ];
+        
+        function containsProfanity(text) {
+            const lower = text.toLowerCase();
+            return PROFANITY_LIST.some(word => lower.includes(word));
+        }
+        
+        async function initFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    updateAuthUI();
+                });
+
+                await loadImages();
+                return true;
+            } catch (error) {
+                console.error('Firebase init error:', error);
+                return false;
+            }
+        }
+        
+        function updateAuthUI() {
+            const userStatus = document.getElementById('userStatus');
+            const userSignedIn = document.getElementById('userSignedIn');
+            const userPhoto = document.getElementById('userPhoto');
+            const userName = document.getElementById('userName');
+            
+            if (currentUser) {
+                userStatus.classList.add('hidden');
+                userSignedIn.classList.remove('hidden');
+                userPhoto.src = currentUser.photoURL || '';
+                userName.textContent = currentUser.displayName || currentUser.email.split('@')[0];
+            } else {
+                userStatus.classList.remove('hidden');
+                userSignedIn.classList.add('hidden');
+            }
+        }
+        
+        async function signInWithGoogle() {
+            try {
+                const provider = new GoogleAuthProvider();
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                if (error.code !== 'auth/popup-closed-by-user') {
+                    console.error('Sign in error:', error);
+                }
+            }
+        }
+        
+        async function signOut() {
+            try {
+                await fbSignOut(auth);
+            } catch (error) {
+                console.error('Sign out error:', error);
+            }
+        }
+        
+        // ============================================
+        // LEADERBOARD
+        // ============================================
+        // Turns a Firestore error into something a teacher reading the page
+        // (not the console) can actually act on. 'failed-precondition' is what
+        // a missing/still-building composite index throws.
+        function describeFirestoreError(error) {
+            if (error && error.code === 'failed-precondition') {
+                return 'Leaderboard is temporarily unavailable (index building). Try again shortly.';
+            }
+            if (error && error.code === 'permission-denied') {
+                return 'You do not have permission to view scores right now.';
+            }
+            return 'Error loading leaderboard.';
+        }
+
+        async function loadLeaderboard(highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (!db) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">Leaderboard unavailable</p>';
+                return [];
+            }
+            
+            let scores;
+            try {
+                const q = query(
+                    collection(db, 'scores'),
+                    where('gameId', '==', 'picture-perfect'),
+                    orderBy('score', 'desc'),
+                    limit(10)
+                );
+                const snapshot = await getDocs(q);
+                scores = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            } catch (error) {
+                console.error('Load leaderboard error:', error);
+                leaderboardList.innerHTML = `<p class="feedback-text incorrect text-center">${describeFirestoreError(error)}</p>`;
+                return [];
+            }
+            
+            // Rendering happens outside the try/catch above: a bug in
+            // renderLeaderboard should never be reported to a student as a
+            // database problem, and a query failure should never get
+            // silently overwritten by "No scores yet" a moment later.
+            renderLeaderboard(scores, highlightId);
+            return scores;
+        }
+        
+        function renderLeaderboard(scores, highlightId = null) {
+            const leaderboardList = document.getElementById('leaderboardList');
+            
+            if (scores.length === 0) {
+                leaderboardList.innerHTML = '<p class="loading-text text-center">No scores yet!</p>';
+                return;
+            }
+            
+            leaderboardList.innerHTML = scores.map((entry, index) => `
+                <div class="leaderboard-row ${entry.id === highlightId ? 'highlight' : ''}">
+                    <span class="leaderboard-rank">${index + 1}</span>
+                    <span class="leaderboard-name">${entry.initials || '???'}</span>
+                    <span class="leaderboard-score">${entry.score}</span>
+                </div>
+            `).join('');
+        }
+        
+        async function submitScore(initials, score) {
+            if (!db || !currentUser) return null;
+            
+            try {
+                // Email, name and photo are NOT written here any more — see score-save.js.
+                return await saveScore(db, currentUser, {
+                    gameId: 'picture-perfect',
+                    initials: initials.toUpperCase(),
+                    score: score
+                });
+            } catch (error) {
+                console.error('Submit score error:', error);
+                return null;
+            }
+        }
+        
+        // ============================================
+        // GAME STATE
+        // ============================================
+        const TOTAL_ROUNDS = 10;
+
+        // --- Distortion tuning -------------------------------------------------
+        // The stretch factor is rolled fresh each round inside this range so
+        // students can't calibrate their eye to one fixed amount. Set MIN and MAX
+        // to the same number to go back to a single fixed factor.
+        const DISTORTION_MIN = 1.26;
+        const DISTORTION_MAX = 1.38;
+
+        // FIT_FRACTION is the share of the canvas the LARGEST possible render may
+        // occupy. The undistorted fit box is deliberately computed as
+        // FIT_FRACTION / DISTORTION_MAX so that:
+        //   1. a stretched image can never overflow the canvas and get clipped, and
+        //   2. the axis that is NOT stretched is always the same size, so overall
+        //      footprint never hints at the answer.
+        // Raise FIT_FRACTION toward 1.0 (or lower DISTORTION_MAX) for bigger images.
+        const FIT_FRACTION = 0.98;
+
+        // Block size for the pixelated mode, in CSS pixels. v2.4.2: 6 → 5 (Jake: "too
+        // pixelated"). Smaller = subtler = harder. One line to tune.
+        const PIXEL_SIZE = 5;
+
+        // Give up on a URL after this many consecutive failures.
+        const MAX_LOAD_ATTEMPTS = 4;
+
+        // --- Speed bonus (v2.4.0) ---------------------------------------------
+        // Once students learn the three defects, most runs were a perfect 1000 and the
+        // board was a tie. Now each CORRECT answer also earns up to SPEED_BONUS_MAX,
+        // counted from the moment the picture appears (never while it's loading):
+        // full bonus within SPEED_FULL_SECS, sliding to zero at SPEED_ZERO_SECS.
+        // A perfect, fast run scores up to 1500, so the old perfect 1000s are beatable.
+        // Wrong answers earn nothing and lose nothing.
+        const SPEED_BONUS_MAX = 50;
+        const SPEED_FULL_SECS = 2;
+        const SPEED_ZERO_SECS = 10;
+        function speedBonus(seconds) {
+            const f = (SPEED_ZERO_SECS - seconds) / (SPEED_ZERO_SECS - SPEED_FULL_SECS);
+            return Math.round(SPEED_BONUS_MAX * Math.min(1, Math.max(0, f)));
+        }
+        let roundStartedAt = null;   // performance.now() when the picture appeared
+        let answerMs = 0;            // total answering time this game
+        let bonusTotal = 0;
+        let stopwatchTimer = null;
+        const fmtClock = ms => { const t = Math.floor(ms / 100); return `${Math.floor(t / 600)}:${String(Math.floor(t / 10) % 60).padStart(2, '0')}.${t % 10}`; };
+        function drawStopwatch() {
+            const live = roundStartedAt === null ? 0 : performance.now() - roundStartedAt;
+            const el = document.getElementById('stopwatch');
+            el.textContent = `⏱ ${fmtClock(answerMs + live)}`;
+            el.classList.toggle('paused', roundStartedAt === null);
+        }
+        function startStopwatch() {
+            roundStartedAt = performance.now();
+            clearInterval(stopwatchTimer);
+            stopwatchTimer = setInterval(drawStopwatch, 100);
+            drawStopwatch();
+        }
+        // Stops the clock and returns this round's seconds.
+        function stopStopwatch() {
+            clearInterval(stopwatchTimer);
+            if (roundStartedAt === null) return 0;
+            const ms = performance.now() - roundStartedAt;
+            answerMs += ms;
+            roundStartedAt = null;
+            drawStopwatch();
+            return ms / 1000;
+        }
+
+        let round = 1;
+        let totalScore = 0;
+        let gameActive = false;
+        let correctChoice = '';
+        let roundDistortion = DISTORTION_MIN;
+        let currentImage = null;
+        let imagePool = [];
+        let usedImages = [];
+        let loadAttempts = 0;
+
+        // Incremented every round. Any image callback carrying a stale token is
+        // ignored, which stops a slow or failed load from the previous round
+        // redrawing the canvas or re-rolling the answer under the player.
+        let roundToken = 0;
+
+        // 'asShown' = exactly what the player was judging.
+        // 'corrected' = the same photo with the defect removed.
+        let revealMode = 'asShown';
+
+        // Canvas dimensions in CSS pixels. The backing store is larger on
+        // high-DPI screens; a transform keeps all drawing code in CSS pixels.
+        let viewW = 0;
+        let viewH = 0;
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const choiceContainer = document.getElementById('choice-container');
+        const feedbackText = document.getElementById('feedbackText');
+        const nextButton = document.getElementById('nextButton');
+        const playAgainButton = document.getElementById('playAgainButton');
+        const compareBar = document.getElementById('compareBar');
+        const compareBtn = document.getElementById('compareBtn');
+        const compareLabel = document.getElementById('compareLabel');
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const dpr = Math.min(window.devicePixelRatio || 1, 3);
+
+            viewW = container.clientWidth;
+            viewH = container.clientHeight;
+            if (!viewW || !viewH) return;
+
+            canvas.width = Math.round(viewW * dpr);
+            canvas.height = Math.round(viewH * dpr);
+
+            // Derive the scale from the rounded backing store so the two axes
+            // can't drift apart and introduce a distortion of their own.
+            ctx.setTransform(canvas.width / viewW, 0, 0, canvas.height / viewH, 0, 0);
+        }
+
+        function clearCanvas(fill) {
+            ctx.clearRect(0, 0, viewW, viewH);
+            if (fill) {
+                ctx.fillStyle = fill;
+                ctx.fillRect(0, 0, viewW, viewH);
+            }
+        }
+
+        function canvasMessage(text, color) {
+            clearCanvas('#333');
+            ctx.fillStyle = color;
+            ctx.font = '16px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, viewW / 2, viewH / 2);
+        }
+
+        function setChoicesEnabled(enabled) {
+            choiceContainer.querySelectorAll('.btn-choice').forEach(btn => {
+                btn.disabled = !enabled;
+            });
+        }
+
+        // ============================================
+        // IMAGE LOADING
+        // ============================================
+        async function loadImages() {
+            const countInfo = document.getElementById('imageCountInfo');
+            const poolWarning = document.getElementById('poolWarning');
+
+            if (!db) {
+                imagePool = [];
+                poolWarning.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const snapshot = await getDocs(collection(db, 'picture-perfect-images'));
+                imagePool = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                
+                if (countInfo) {
+                    countInfo.textContent = `${imagePool.length} images in pool`;
+                }
+                poolWarning.classList.toggle('hidden', imagePool.length > 0);
+            } catch (error) {
+                console.error('Load images error:', error);
+                imagePool = [];
+                poolWarning.classList.remove('hidden');
+            }
+        }
+
+        // ============================================
+        // GAME FLOW
+        // ============================================
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        function startGame() {
+            if (imagePool.length === 0) {
+                showScreen('startScreen');
+                document.getElementById('poolWarning').classList.remove('hidden');
+                return;
+            }
+
+            round = 1;
+            totalScore = 0;
+            usedImages = [];
+            clearInterval(stopwatchTimer);
+            roundStartedAt = null; answerMs = 0; bonusTotal = 0;
+            drawStopwatch();
+            
+            document.getElementById('totalScore').textContent = '0';
+            document.getElementById('roundCounter').textContent = '1';
+            feedbackText.textContent = 'Pick your answer!';
+            feedbackText.className = 'feedback-text';
+            
+            showScreen('gameScreen');
+            newRound();
+        }
+
+        function newRound() {
+            if (round > TOTAL_ROUNDS) {
+                endGame();
+                return;
+            }
+            
+            roundToken++;
+            gameActive = false;
+            revealMode = 'asShown';
+            loadAttempts = 0;
+
+            document.getElementById('roundCounter').textContent = round;
+            feedbackText.textContent = 'Pick your answer!';
+            feedbackText.className = 'feedback-text';
+            nextButton.classList.add('hidden');
+            compareBar.classList.add('hidden');
+            
+            choiceContainer.querySelectorAll('.btn-choice').forEach(btn => {
+                btn.classList.remove('selected', 'correct', 'incorrect');
+            });
+            // Stay disabled until the image is actually on screen, so nobody can
+            // answer a blank canvas.
+            setChoicesEnabled(false);
+            
+            document.getElementById('canvasContainer').classList.remove('feedback-correct', 'feedback-incorrect');
+            
+            resizeCanvas();
+            loadImageForRound();
+        }
+
+        function getRandomChoice() {
+            const baseChoices = ['correct', 'vertical', 'horizontal', 'pixelated'];
+            return baseChoices[Math.floor(Math.random() * baseChoices.length)];
+        }
+
+        function rollDistortion() {
+            return DISTORTION_MIN + Math.random() * (DISTORTION_MAX - DISTORTION_MIN);
+        }
+
+        function loadImageForRound() {
+            const token = roundToken;
+
+            if (imagePool.length === 0) {
+                canvasMessage('No images available.', '#ef4444');
+                return;
+            }
+
+            let available = imagePool.filter(img => !usedImages.includes(img.id));
+            if (available.length === 0) {
+                // Pool exhausted this game - start reusing rather than recursing.
+                usedImages = [];
+                available = imagePool.slice();
+            }
+            
+            const imageData = available[Math.floor(Math.random() * available.length)];
+            usedImages.push(imageData.id);
+            
+            correctChoice = getRandomChoice();
+            roundDistortion = rollDistortion();
+            
+            canvasMessage('Loading image...', '#9ca3af');
+            
+            const img = new Image();
+            // v2.4.1: NO crossOrigin. The game only DRAWS pictures (drawImage, including
+            // the pixelated path), never reads pixels back, so it doesn't need the
+            // picture's server to allow cross-origin reads. With crossOrigin set, every
+            // picture failed once they moved to Firebase Storage, whose bucket sent no
+            // CORS header. ⚠️ If this game ever calls getImageData/toDataURL, it needs
+            // crossOrigin back AND the bucket's CORS setting (README → Storage CORS).
+            
+            img.onload = () => {
+                if (token !== roundToken) return;   // stale round, ignore
+                if (!img.naturalWidth || !img.naturalHeight) {
+                    img.onerror();
+                    return;
+                }
+                currentImage = img;
+                loadAttempts = 0;
+                drawImage();
+                gameActive = true;
+                setChoicesEnabled(true);
+                startStopwatch();   // the clock starts when the picture is on screen
+            };
+
+            img.onerror = () => {
+                if (token !== roundToken) return;   // stale round, ignore
+                loadAttempts++;
+
+                if (loadAttempts >= MAX_LOAD_ATTEMPTS) {
+                    canvasMessage('Could not load an image. Press Next Round to retry.', '#ef4444');
+                    nextButton.classList.remove('hidden');
+                    return;
+                }
+
+                canvasMessage('Error loading image. Trying next...', '#ef4444');
+                setTimeout(() => {
+                    if (token === roundToken) loadImageForRound();
+                }, 1000);
+            };
+
+            img.src = imageData.imageUrl;
+        }
+
+        // ============================================
+        // RENDERING
+        // ============================================
+
+        /**
+         * Work out where and how large to draw the photo.
+         *
+         * The undistorted fit box is shrunk by DISTORTION_MAX up front so that
+         * applying the stretch afterwards can never push the render past the
+         * canvas edge. Before v2.2.0 the stretch was applied after a full-size
+         * fit, which pushed roughly 11% of the image outside the canvas whenever
+         * the stretched axis was the one the fit was constrained by.
+         */
+        function computeLayout(mode, distortion) {
+            const imageRatio = currentImage.naturalWidth / currentImage.naturalHeight;
+            if (!isFinite(imageRatio) || imageRatio <= 0) return null;
+
+            const boxW = viewW * FIT_FRACTION / DISTORTION_MAX;
+            const boxH = viewH * FIT_FRACTION / DISTORTION_MAX;
+
+            let w, h;
+            if (boxW / boxH > imageRatio) {
+                h = boxH;
+                w = h * imageRatio;
+            } else {
+                w = boxW;
+                h = w / imageRatio;
+            }
+
+            if (mode === 'horizontal') {
+                w *= distortion;
+            } else if (mode === 'vertical') {
+                h *= distortion;
+            }
+
+            return { w, h, x: (viewW - w) / 2, y: (viewH - h) / 2 };
+        }
+
+        function drawImage() {
+            if (!currentImage || !currentImage.complete || !currentImage.naturalWidth) return;
+
+            // v2.2.0: the mode drawn is driven by revealMode, which only ever
+            // changes when the player asks for the comparison. Nothing swaps the
+            // image out from under them at verdict time any more.
+            const mode = (revealMode === 'corrected') ? 'correct' : correctChoice;
+
+            const layout = computeLayout(mode, roundDistortion);
+            if (!layout) return;
+
+            clearCanvas('#333');
+
+            const { w, h, x, y } = layout;
+
+            if (mode === 'pixelated') {
+                const tinyW = Math.max(1, Math.round(w / PIXEL_SIZE));
+                const tinyH = Math.max(1, Math.round(h / PIXEL_SIZE));
+
+                const tinyCanvas = document.createElement('canvas');
+                tinyCanvas.width = tinyW;
+                tinyCanvas.height = tinyH;
+
+                const tinyCtx = tinyCanvas.getContext('2d');
+                tinyCtx.imageSmoothingEnabled = true;
+                tinyCtx.drawImage(currentImage, 0, 0, tinyW, tinyH);
+
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(tinyCanvas, x, y, w, h);
+                ctx.imageSmoothingEnabled = true;
+            } else {
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(currentImage, x, y, w, h);
+            }
+        }
+
+        // ============================================
+        // COMPARE CONTROL
+        // ============================================
+        function updateCompareUI() {
+            const corrected = (revealMode === 'corrected');
+            compareLabel.textContent = corrected
+                ? 'Showing: the fixed version'
+                : 'Showing: the image as you saw it';
+            compareLabel.classList.toggle('is-corrected', corrected);
+            compareBtn.textContent = corrected
+                ? 'Show what you saw'
+                : 'Show the fixed version';
+        }
+
+        function toggleCompare() {
+            if (compareBar.classList.contains('hidden')) return;
+            revealMode = (revealMode === 'corrected') ? 'asShown' : 'corrected';
+            updateCompareUI();
+            drawImage();
+        }
+
+        // ============================================
+        // ANSWERING
+        // ============================================
+        function checkAnswer(selection) {
+            if (!gameActive) return;
+            gameActive = false;
+            const seconds = stopStopwatch();
+
+            const selectedBtn = choiceContainer.querySelector(`[data-choice="${selection}"]`);
+            const correctBtn = choiceContainer.querySelector(`[data-choice="${correctChoice}"]`);
+            
+            setChoicesEnabled(false);
+            
+            if (selectedBtn) selectedBtn.classList.add('selected');
+
+            const canvasContainer = document.getElementById('canvasContainer');
+            
+            if (selection === correctChoice) {
+                const bonus = speedBonus(seconds);
+                bonusTotal += bonus;
+                totalScore += 100 + bonus;
+                document.getElementById('totalScore').textContent = totalScore;
+                feedbackText.textContent = `✓ Correct! +100 · speed +${bonus} (${seconds.toFixed(1)}s)`;
+                feedbackText.className = 'feedback-text correct';
+                if (selectedBtn) selectedBtn.classList.add('correct');
+                canvasContainer.classList.add('feedback-correct');
+            } else {
+                let correctAnswerText = '';
+                switch (correctChoice) {
+                    case 'correct': correctAnswerText = 'It was correct'; break;
+                    case 'pixelated': correctAnswerText = 'It was pixelated'; break;
+                    case 'horizontal': correctAnswerText = 'It was stretched horizontally'; break;
+                    case 'vertical': correctAnswerText = 'It was stretched vertically'; break;
+                }
+                feedbackText.textContent = '✗ ' + correctAnswerText;
+                feedbackText.className = 'feedback-text incorrect';
+                if (selectedBtn) selectedBtn.classList.add('incorrect');
+                if (correctBtn) correctBtn.classList.add('correct');
+                canvasContainer.classList.add('feedback-incorrect');
+            }
+
+            // Offer the side-by-side only when there is actually something to
+            // compare. The canvas keeps showing the image the player judged, so
+            // the verdict text and the picture always agree.
+            if (correctChoice !== 'correct') {
+                revealMode = 'asShown';
+                updateCompareUI();
+                compareBar.classList.remove('hidden');
+            }
+
+            round++;
+            nextButton.classList.remove('hidden');
+        }
+
+        function endGame() {
+            showScreen('gameOverScreen');
+            compareBar.classList.add('hidden');
+            
+            clearInterval(stopwatchTimer);
+            document.getElementById('finalScore').textContent = totalScore;
+            document.getElementById('averageScore').textContent =
+                `${totalScore - bonusTotal} for accuracy + ${bonusTotal} speed bonus · time ${fmtClock(answerMs)}`;
+            
+            document.getElementById('scoreSubmitted').classList.add('hidden');
+            document.getElementById('initialsError').classList.add('hidden');
+            
+            if (currentUser) {
+                document.getElementById('initialsEntry').classList.remove('hidden');
+                document.getElementById('notSignedInMsg').classList.add('hidden');
+                document.getElementById('initialsInput').value = '';
+                document.getElementById('initialsInput').focus();
+            } else {
+                document.getElementById('initialsEntry').classList.add('hidden');
+                document.getElementById('notSignedInMsg').classList.remove('hidden');
+            }
+            
+            loadLeaderboard();
+        }
+
+        async function handleScoreSubmit() {
+            const initialsInput = document.getElementById('initialsInput');
+            const initials = initialsInput.value.trim().toUpperCase();
+            const initialsError = document.getElementById('initialsError');
+            
+            if (initials.length < 2 || initials.length > 3) {
+                initialsError.textContent = 'Enter 2-3 characters';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            if (containsProfanity(initials)) {
+                initialsError.textContent = 'Please choose different initials.';
+                initialsError.classList.remove('hidden');
+                return;
+            }
+            
+            initialsError.classList.add('hidden');
+            
+            const scoreId = await submitScore(initials, totalScore);
+            
+            if (scoreId) {
+                document.getElementById('initialsEntry').classList.add('hidden');
+                document.getElementById('scoreSubmitted').classList.remove('hidden');
+                
+                const scores = await loadLeaderboard(scoreId);
+                const rank = scores.findIndex(s => s.id === scoreId) + 1;
+                if (rank > 0) {
+                    document.getElementById('playerRank').textContent = `You ranked #${rank}!`;
+                }
+            }
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        document.getElementById('signInBtn').addEventListener('click', signInWithGoogle);
+        document.getElementById('signOutBtn').addEventListener('click', signOut);
+        document.getElementById('startGameBtn').addEventListener('click', startGame);
+        document.getElementById('submitScoreBtn').addEventListener('click', handleScoreSubmit);
+        compareBtn.addEventListener('click', toggleCompare);
+
+        document.getElementById('initialsInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleScoreSubmit();
+            }
+        });
+
+        choiceContainer.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-choice');
+            if (btn && !btn.disabled) {
+                checkAnswer(btn.dataset.choice);
+            }
+        });
+
+        nextButton.addEventListener('click', newRound);
+        playAgainButton.addEventListener('click', startGame);
+        
+        window.addEventListener('resize', () => {
+            if (document.getElementById('gameScreen').classList.contains('active')) {
+                resizeCanvas();
+                drawImage();
+            }
+        });
+        
+        window.addEventListener('keydown', (e) => {
+            // Don't hijack keys while the player is typing their initials.
+            const tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) {
+                return;
+            }
+
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (!nextButton.classList.contains('hidden')) {
+                    newRound();
+                } else if (document.getElementById('gameOverScreen').classList.contains('active')) {
+                    startGame();
+                } else if (document.getElementById('startScreen').classList.contains('active')) {
+                    startGame();
+                }
+            }
+            if (e.key === 'c' || e.key === 'C') {
+                toggleCompare();
+            }
+            if (gameActive) {
+                if (e.key === '1') checkAnswer('correct');
+                if (e.key === '2') checkAnswer('pixelated');
+                if (e.key === '3') checkAnswer('horizontal');
+                if (e.key === '4') checkAnswer('vertical');
+            }
+        });
+
+        // ============================================
+        // INIT
+        // ============================================
+        initFirebase();
+    </script>
+</body>
+</html>
