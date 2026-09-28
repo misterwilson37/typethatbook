@@ -1,3 +1,5 @@
+// progress-cache-test.mjs v1.1.0 — Round 149: Part F, a pass filed under the
+// wrong lesson id when Next beat the write.
 // progress-cache-test.mjs v1.0.0 — ⚠️⚠️ THE PROGRESS CACHE IS NEVER WRITTEN BEFORE IT IS READ.
 //
 // ═══════════════════════════════════════════════════════════════════════════
@@ -126,6 +128,33 @@ ok(unlocked && /userProgress\[prev\.id\]\?\.passed === true/.test(unlocked),
 ok(unlocked && /if \(idx === 0\) return true;/.test(unlocked),
    'E2 the first lesson is unconditionally unlocked — the one the student was ' +
    'left with');
+
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n--- F. A PASS IS FILED UNDER THE LESSON THAT EARNED IT (Round 149) ---');
+// Jake, on learn2: a defended city, Next, refresh — and the same lesson still
+// locked. saveProgress() re-read `currentLesson` after its await; Next had
+// already moved it on, so the pass went into memory under the NEXT lesson's id
+// and the cache (D above) preserved the mistake. BOTH twins carry the function.
+for (const f of ['learn.js', 'learn2.js']) {
+    const t = readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+    const i = t.indexOf('async function saveProgress(');
+    const body = i < 0 ? '' : t.slice(i, t.indexOf('\n}\n', i));
+    const code = body.split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
+    const afterAwait = code.slice(code.indexOf('await '));
+    ok(body && code.indexOf('await ') > 0, `F1 ${f}: saveProgress() found and awaits`);
+    ok(!/currentLesson/.test(afterAwait),
+       `⚠️⚠️ F2 ${f}: saveProgress() does not read currentLesson after its await — ` +
+       'the student may be in the next lesson by then');
+    ok(code.indexOf('userProgress[lessonId] = record') >= 0 &&
+       code.indexOf('userProgress[lessonId] = record') < code.indexOf('await '),
+       `⚠️ F3 ${f}: the passed record reaches memory BEFORE the await, so a fast ` +
+       'Next and the cache see it');
+    ok(/pendingProgress\.add\(lessonId\)/.test(code.slice(0, code.indexOf('await '))),
+       `F4 ${f}: and stays pending until the write lands, so a failed write is retried`);
+    ok(/'ttb_lessonProgCache_v2'/.test(t),
+       `F5 ${f}: the progress cache key is v2 (v1 caches may hold a misfiled pass), ` +
+       'and both twins share it');
+}
 
 console.log('');
 if (fail === 0) console.log(`PASS - ${pass} passing, 0 failing`);

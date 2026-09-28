@@ -1,5 +1,18 @@
 # CHANGELOG — TypeThatBook
 
+## Round 149 — the lesson after the game
+
+**⭐ Passing the Deadline game now actually unlocks the next lesson.** If a student
+pressed Next (or hit the space bar, which the game leaves them doing) before the save
+reached Firestore, the pass was filed in memory under the *next* lesson's id, and the
+8-hour progress cache kept that mistake through refreshes. `saveProgress()` now captures
+the lesson id once and updates memory before the write; the cache key moves to v2 so
+affected students re-read Firestore once. Same race fixed in `learn.js`.
+**The next lesson's passage shows again after a game** — `beginGameStep()` hid the text
+area and nothing un-hid it. learn.js v2.50.1 (v2.43.0's header entry archived, 8-entry
+budget), learn2.js v0.10.1.
+Harnesses: progress-cache-test.mjs Part F, lesson-game-layout-test.mjs Part F.
+
 ## Round 148 — names on accounts
 
 **⭐ Each student's name and email are saved on their account**, once, the next time
@@ -10505,6 +10518,31 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.43.0 — archived Round 149, 8-entry budget
+
+Pushed over by v2.50.1 (saveProgress() files a pass under the lesson that earned it). Verbatim.
+
+```
+// v2.43.0 — ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. The twin of
+//           game.js v3.47.0(a), and it must stay the twin. The rollover fired
+//           only on a COUNTED SECOND, so a tab that woke on a new day and
+//           flushed — without the student typing — worked from yesterday's day
+//           counters while _flushStatsInner() stamped its document with today's
+//           date. The block is now rollDayIfNeeded(), moved VERBATIM, with the
+//           tick calling it at exactly the point the block used to occupy, so
+//           the ordering constraints this file spent Round 6 getting right hold
+//           by construction: above the increments, above `anonSecondsAccum++`,
+//           above `armAnonLoginPrompt()`. Two new callers: the existing
+//           visible-half visibilitychange handler, and _flushStatsInner()'s top.
+//           ⚠️ ABOVE THE `!currentUser` GUARD ON PURPOSE. A guest tab goes stale
+//           the same way, and the roll needs no account — it writes localStorage
+//           and zeroes memory. That guard is about who may write to Firestore.
+//           ⚠️ ROADMAP 9 RECORDS THAT THESE TWO TICK LOOPS HAVE ALREADY DRIFTED
+//           ONCE ON THIS EXACT PATH. midnight-test.mjs v1.1.0 Part B2 asserts
+//           that BOTH files have more than one caller, so a fix applied to one
+//           file and forgotten in the other goes red.
+```
 
 ### daylog.js v1.2.0 — archived Round 92, 8-entry budget
 

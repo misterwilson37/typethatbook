@@ -1,4 +1,11 @@
-// learn2.js v0.10.0-staging
+// learn2.js v0.10.1-staging
+//
+// v0.10.1 — Round 149: saveProgress() no longer files a passed lesson under the
+//   NEXT lesson's id (the lesson never unlocked), and the progress cache key
+//   moves to v2 so already-affected students re-read Firestore. Same in learn.js
+//   v2.50.1. ALSO: the passage is visible again on the lesson after a game.
+//   beginGameStep() hid #drill-text-area and nothing un-hid it; beginStep() now
+//   restores the typed view itself. See the note in beginStep().
 //
 // v0.10.0 — Round 148: the name and email saved once on the account, as in game.js v3.57.0.
 //
@@ -381,7 +388,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.10.0-staging";
+const LEARN_VERSION = "0.10.1-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1448,7 +1455,10 @@ async function retroactiveSaveAnonSession(user) {
 
 const LESSONS_CACHE_KEY   = 'ttb_lessonsCache_v1';
 const LESSONS_CACHE_MS    = 4 * 3600 * 1000;    // content edits land within 4h
-const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v1';
+// ⚠️ v2 in Round 149: v1 caches may hold a passed lesson recorded under the
+// wrong id (see saveProgress()); bumping forces one fresh Firestore read.
+// ⚠️ SHARED WITH THE TWIN — learn.js and learn2.js must use the same key.
+const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v2';
 const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
 
 // ⚠️⚠️ v2.42.0 — ROADMAP 43. THE CACHE MUST NOT BE WRITTEN BEFORE IT IS READ.
@@ -2665,6 +2675,25 @@ function beginStep(stepIdx) {
     activeDrill.style.opacity = '';
     activeDrill.style.pointerEvents = '';
     drillModal.classList.add('hidden');
+
+    // ⚠️⚠️ v0.10.1 — THE BLANK PASSAGE AFTER THE VICTORY LAP. Round 149.
+    // Jake: *"after a student plays the game at the end of lessons, it does not
+    // fully load the next lesson - it loads the keyboard, but it does not show
+    // what needs to be typed until there's a refresh."*
+    // beginGameStep() HIDES the typed-drill furniture with inline styles, and its
+    // own comment promised a later typed run would get "an unmodified DOM" back.
+    // ⚠️ NOTHING KEPT THAT PROMISE FOR #drill-text-area. The keyboard wrap came
+    // back only because the result modal's Next button happens to un-hide it;
+    // the text area had no writer at all except the line that hid it. So every
+    // lesson after a game drew its passage into an invisible box, and only a
+    // reload (fresh markup) brought it back.
+    // ⭐ SAME GENERALISATION AS THE v2.4.0 NOTE ABOVE: beginStep() asserts the
+    // whole typed view for itself instead of trusting the previous run to have
+    // cleaned up. lesson-game-layout-test.mjs Part F pins that every element
+    // beginGameStep() hides with display:none is restored here.
+    const drillTextAreaEl = document.getElementById('drill-text-area');
+    if (drillTextAreaEl) drillTextAreaEl.style.display = '';
+    document.getElementById('drill-keyboard-wrap').style.display = '';
 
     // Keyboard was pre-built during intro — only rebuild if it somehow ended up empty
     if (drillKeyboard.querySelectorAll('.key').length === 0) {
@@ -5153,13 +5182,35 @@ async function saveProgress(passed, wpm, acc, grade) {
     const prevWPM = prev.finalWPM || 0;
     if (prevWPM > 0 && wpm > prevWPM * 1.5) record.leapFlagged = true;
 
+    // ⚠️⚠️ ROUND 149 — THE LESSON THAT NEVER UNLOCKED. Jake, on learn2: after a
+    // defended city, *"it's almost as though it hasn't even unlocked. She
+    // refreshes... and the highest unlocked lesson is the same round of
+    // deadline."*
+    // This function used to read `currentLesson` AGAIN after the await. The
+    // result modal's Next button calls startLesson(next) without waiting for
+    // this write, so a student who moved on before Firestore answered had the
+    // PASSED record filed in memory under the NEXT lesson's id, and the lesson
+    // they had just passed stayed unpassed locally. refreshProgressCache() then
+    // persisted that map, and loadUserProgress() trusts the cache over
+    // Firestore — so a refresh showed the same lesson still locked, re-stamped
+    // by every flush for as long as she kept typing.
+    // ⭐ The game made it near-certain: it ends mid-typing with Next focused, so
+    // the next space bar clicks it. But the race was always here.
+    // ⭐ FIX: the id is captured once, and memory is updated BEFORE the await,
+    // with the lesson left in pendingProgress (and the WAL) until the write
+    // lands — so a failed or unfinished write is retried by the normal flush
+    // with passed:true in it instead of being lost.
+    const lessonId = currentLesson.id;
+    userProgress[lessonId] = record;
+    pendingProgress.add(lessonId);
+    learnWalSave();
     try {
         await setDoc(
-            doc(db, 'users', currentUser.uid, 'lessonProgress', currentLesson.id),
+            doc(db, 'users', currentUser.uid, 'lessonProgress', lessonId),
             record, { merge: true }
         );
-        userProgress[currentLesson.id] = record;
-        pendingProgress.delete(currentLesson.id);   // this write covered it
+        // Only clear if nothing newer was recorded for this lesson meanwhile.
+        if (userProgress[lessonId] === record) pendingProgress.delete(lessonId);
         // ⚠️ v2.34.0 — stampAdvanceIfNew() IS GONE. The window no longer runs from
         // the last advance; recordRunOutcome() stamps lastLockDay when a run
         // crosses 4 points. Passing a lesson is no longer a clock event.

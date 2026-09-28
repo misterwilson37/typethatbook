@@ -1,4 +1,8 @@
-// learn.js v2.50.0
+// learn.js v2.50.1
+//
+// v2.50.1 — Round 149: saveProgress() no longer files a passed lesson under the
+//   NEXT lesson's id when the student clicks Next before the write lands; the
+//   progress cache key moves to v2 so already-affected students re-read Firestore.
 //
 // v2.50.0 — Round 148: ⭐ each student's name and email are saved on their account, once
 //           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
@@ -95,26 +99,7 @@
 //           so. DO NOT "fix" the e.key comparison — this file teaches capitals,
 //           and forgiving case would make every capital drill unfailable.
 //
-// v2.43.0 — ⚠️⚠️ ROADMAP 9: THE DAY ROLLOVER IS NO LONGER TICK-ONLY. The twin of
-//           game.js v3.47.0(a), and it must stay the twin. The rollover fired
-//           only on a COUNTED SECOND, so a tab that woke on a new day and
-//           flushed — without the student typing — worked from yesterday's day
-//           counters while _flushStatsInner() stamped its document with today's
-//           date. The block is now rollDayIfNeeded(), moved VERBATIM, with the
-//           tick calling it at exactly the point the block used to occupy, so
-//           the ordering constraints this file spent Round 6 getting right hold
-//           by construction: above the increments, above `anonSecondsAccum++`,
-//           above `armAnonLoginPrompt()`. Two new callers: the existing
-//           visible-half visibilitychange handler, and _flushStatsInner()'s top.
-//           ⚠️ ABOVE THE `!currentUser` GUARD ON PURPOSE. A guest tab goes stale
-//           the same way, and the roll needs no account — it writes localStorage
-//           and zeroes memory. That guard is about who may write to Firestore.
-//           ⚠️ ROADMAP 9 RECORDS THAT THESE TWO TICK LOOPS HAVE ALREADY DRIFTED
-//           ONCE ON THIS EXACT PATH. midnight-test.mjs v1.1.0 Part B2 asserts
-//           that BOTH files have more than one caller, so a fix applied to one
-//           file and forgotten in the other goes red.
-//
-// (Older entries — v2.42.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v2.43.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 //
@@ -223,7 +208,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.50.0";
+const LEARN_VERSION = "2.50.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1284,7 +1269,10 @@ async function retroactiveSaveAnonSession(user) {
 
 const LESSONS_CACHE_KEY   = 'ttb_lessonsCache_v1';
 const LESSONS_CACHE_MS    = 4 * 3600 * 1000;    // content edits land within 4h
-const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v1';
+// ⚠️ v2 in Round 149: v1 caches may hold a passed lesson recorded under the
+// wrong id (see saveProgress()); bumping forces one fresh Firestore read.
+// ⚠️ SHARED WITH THE TWIN — learn.js and learn2.js must use the same key.
+const PROGRESS_CACHE_KEY  = 'ttb_lessonProgCache_v2';
 const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
 
 // ⚠️⚠️ v2.42.0 — ROADMAP 43. THE CACHE MUST NOT BE WRITTEN BEFORE IT IS READ.
@@ -4142,13 +4130,35 @@ async function saveProgress(passed, wpm, acc, grade) {
     const prevWPM = prev.finalWPM || 0;
     if (prevWPM > 0 && wpm > prevWPM * 1.5) record.leapFlagged = true;
 
+    // ⚠️⚠️ ROUND 149 — THE LESSON THAT NEVER UNLOCKED. Jake, on learn2: after a
+    // defended city, *"it's almost as though it hasn't even unlocked. She
+    // refreshes... and the highest unlocked lesson is the same round of
+    // deadline."*
+    // This function used to read `currentLesson` AGAIN after the await. The
+    // result modal's Next button calls startLesson(next) without waiting for
+    // this write, so a student who moved on before Firestore answered had the
+    // PASSED record filed in memory under the NEXT lesson's id, and the lesson
+    // they had just passed stayed unpassed locally. refreshProgressCache() then
+    // persisted that map, and loadUserProgress() trusts the cache over
+    // Firestore — so a refresh showed the same lesson still locked, re-stamped
+    // by every flush for as long as she kept typing.
+    // ⭐ The game made it near-certain: it ends mid-typing with Next focused, so
+    // the next space bar clicks it. But the race was always here.
+    // ⭐ FIX: the id is captured once, and memory is updated BEFORE the await,
+    // with the lesson left in pendingProgress (and the WAL) until the write
+    // lands — so a failed or unfinished write is retried by the normal flush
+    // with passed:true in it instead of being lost.
+    const lessonId = currentLesson.id;
+    userProgress[lessonId] = record;
+    pendingProgress.add(lessonId);
+    learnWalSave();
     try {
         await setDoc(
-            doc(db, 'users', currentUser.uid, 'lessonProgress', currentLesson.id),
+            doc(db, 'users', currentUser.uid, 'lessonProgress', lessonId),
             record, { merge: true }
         );
-        userProgress[currentLesson.id] = record;
-        pendingProgress.delete(currentLesson.id);   // this write covered it
+        // Only clear if nothing newer was recorded for this lesson meanwhile.
+        if (userProgress[lessonId] === record) pendingProgress.delete(lessonId);
         // ⚠️ v2.34.0 — stampAdvanceIfNew() IS GONE. The window no longer runs from
         // the last advance; recordRunOutcome() stamps lastLockDay when a run
         // crosses 4 points. Passing a lesson is no longer a clock event.

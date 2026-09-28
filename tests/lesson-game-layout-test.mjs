@@ -1,3 +1,5 @@
+// lesson-game-layout-test.mjs v1.1.0 — Round 149: Part F, the blank passage
+// after the victory lap.
 // lesson-game-layout-test.mjs v1.0.0 — A LESSON RUN AND AN ARCADE RUN ARE THE
 // SAME GAME, ON THE SAME PLAYFIELD. Round 114 (Carriage).
 //
@@ -289,6 +291,60 @@ console.log('\nE — THE WRAP HIDES, NOT THE MOUNT');
     ok(!/gm\.classList\.add\('hidden'\)/.test(teardown),
        '\u26a0\u26a0 the mount itself is no longer the thing that hides \u2014 two hiding ' +
        'mechanisms would be two answers to "is the game on screen"');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+console.log('\nF — WHAT THE GAME HIDES, THE NEXT TYPED RUN SHOWS');
+// ═══════════════════════════════════════════════════════════════════════════
+{
+    // ⚠️⚠️ Round 149. Jake: *"it loads the keyboard, but it does not show what
+    // needs to be typed until there's a refresh."* beginGameStep() hid
+    // #drill-text-area with an inline display:none and NOTHING un-hid it, so
+    // every lesson after a victory lap drew its passage into an invisible box.
+    // ⭐ THE RULE: every element beginGameStep() hides by id with
+    // style.display = 'none' must be restored by beginStep()'s typed path —
+    // beginStep() owns the typed view, not whoever ran before it.
+    const body = name => {
+        const i = learn2js.indexOf('function ' + name + '(');
+        const j = learn2js.indexOf('\nfunction ', i + 10);
+        return learn2js.slice(i, j);
+    };
+    const game = body('beginGameStep');
+    const begin = body('beginStep');
+    // The typed path is everything after the early return into the game.
+    const typed = begin.slice(begin.indexOf('beginGameStep(stepIdx);'));
+
+    // Resolve `const x = document.getElementById('id')` aliases so both the
+    // direct and the variable form are caught.
+    const aliases = src => {
+        const m = {};
+        for (const [, v, id] of src.matchAll(
+                /const (\w+) = document\.getElementById\('([\w-]+)'\)/g)) m[v] = id;
+        return m;
+    };
+    const hiddenBy = (src, value) => {
+        const a = aliases(src), ids = new Set();
+        const esc = value.replace(/'/g, "\\'");
+        for (const [, id] of src.matchAll(new RegExp(
+                "getElementById\\('([\\w-]+)'\\)\\.style\\.display = '" + esc + "'", 'g'))) ids.add(id);
+        for (const [, v] of src.matchAll(new RegExp(
+                "(\\w+)\\.style\\.display = '" + esc + "'", 'g'))) if (a[v]) ids.add(a[v]);
+        return ids;
+    };
+    const hidden = hiddenBy(game, 'none');
+    const shown  = hiddenBy(typed, '');
+
+    ok(hidden.has('drill-text-area'),
+       'beginGameStep() hides #drill-text-area (the precondition this part guards)');
+    // anchor-hint is re-decided per run by beginStep() (block or none), so it
+    // is owned, not leaked; everything else must come back unconditionally.
+    const owned = new Set(['anchor-hint']);
+    for (const id of hidden) {
+        if (owned.has(id)) continue;
+        ok(shown.has(id),
+           '\u26a0\u26a0 beginStep() restores #' + id + ' that beginGameStep() hid \u2014 ' +
+           'otherwise the lesson after a game shows a keyboard with nothing to type');
+    }
 }
 
 console.log(fail
