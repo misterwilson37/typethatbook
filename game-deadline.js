@@ -1,3 +1,5 @@
+// game-deadline.js v1.22.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
+// ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-deadline.js v1.21.0 — Round 127 (Didot): passes the calibrator's sample
 // and rejection counts through to telemetry. ⚠️ READ OFF `d.calibrator` AT THE
 // SAME INSTANT AS THE ESTIMATE THEY EXPLAIN, not cached (Rule 9).
@@ -382,7 +384,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.21.0';
+export const GAME_DEADLINE_VERSION = '1.22.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -852,6 +854,12 @@ export function mount(container, opts) {
     // prototypes uppercased everything and matched on the uppercase, which made
     // every capital in a book lesson free.
     function onKeyDown(e) {
+        // ⚠️⚠️ Round 150 (Nesmith): ONLY A REAL KEYBOARD PLAYS. A `javascript:`
+        // bookmark runs with the console removed; a script-made key event
+        // arrives with isTrusted false and a plain object with none at all.
+        // Same rule as game.js isRealKey(). Harnesses send trusted keys through
+        // tests/fixtures/trusted-key.mjs.
+        if (!e || e.isTrusted !== true) return;
         if (ended) return;
         // ⚠️ THE GET-READY AND PAUSE PANELS MUST NOT EAT KEYSTROKES INTO THE
         // DIRECTOR. Before the countdown finishes there is nothing to type at,

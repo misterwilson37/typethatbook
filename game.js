@@ -1,4 +1,14 @@
-// game.js v3.57.0
+// game.js v3.58.0
+//
+// v3.58.0 — Round 150 (Nesmith): ⚠️⚠️⚠️ RE-TYPED GROUND IS NOT PAID. Jake: a student
+//           typed `h`, pressed Backspace, typed `h` — forever. Each `h` was a real,
+//           correct keystroke, so it paid time AND counted a character, held 100%,
+//           climbed the 🔥 streak (a leaderboard) and fooled the Library gate.
+//           isNewGround(): below `backspaceOrigin` a key is processed but earns
+//           nothing. TWO CLOCKS: lastInputTime (AFK) and lastProgressTime (pay).
+//           ⭐ Also: isRealKey() refuses script-made keys (bookmarklets);
+//           window.ttbGate is admins-only; a signed-out tab inherits the last
+//           student's gate. See tests/retype-farm-test.mjs.
 //
 // v3.57.0 — Round 148: ⭐ each student's name and email are saved on their account, once
 //           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
@@ -67,23 +77,7 @@
 //           very modal draws can satisfy neither, and the stamp would die with
 //           the tab. Once per book, at the one moment it is knowable.
 //
-// v3.50.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. `goals` now
-//           carries `weekStartDay` (0=Sun … 6=Sat), resolved the SAME way
-//           dailySeconds/weeklySeconds already are — class doc → settings/goals
-//           → 6 — inside the SAME loadGoals() read, at ZERO extra Firestore
-//           cost. `getWeekStart()` passes it to daylog.js's weekStartOf(); every
-//           readWeek() call site now sends `weekStartDay: goals.weekStartDay`.
-//           ⚠️ GOALS_CACHE_KEY BUMPED v1 → v2 — an entry cached before this
-//           version has no weekStartDay field, and `|| 6` on the read makes a
-//           cache miss on the anchor read as Saturday rather than as `undefined`
-//           flowing into date arithmetic. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK
-//           MOVES ITS CELEBRATION-LATCH KEY (`celebrationMark('week', ...)` is
-//           keyed by the week-start STRING), so a student can re-earn or miss a
-//           weekly fireworks moment the day the anchor changes. Harmless and
-//           rare enough not to guard; said here so it isn't rediscovered as a
-//           bug.
-//
-// (Older entries — v3.49.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.50.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -159,7 +153,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.57.0";
+const VERSION = "3.58.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1089,6 +1083,8 @@ let anonLoginInProgress = false; // prevent auth handler from reloading during a
 let modalActionCallback = null;
 let chapterCompleteAt = 0;   // when the chapter-complete modal opened (any-key grace period)
 let lastInputTime = 0; let timeAccumulator = 0;
+// ⚠️ Round 150: the PAY clock. lastInputTime is the AFK clock. See isNewGround().
+let lastProgressTime = 0;
 let wpmHistory = []; let accuracyHistory = [];
 let currentLetterStatus = 'clean';
 let mistakesAtCurrent = 0;   // uncorrected mistakes at the current letter (one backspace undoes one)
@@ -1467,11 +1463,13 @@ async function init() {
             // Remembered across the null that a token expiry produces, so the
             // else-branch can tell an expired session from a first visit.
             if (!user.isAnonymous) lastKnownUid = user.uid;
+            if (!user.isAnonymous) gateOwnerRemember(user.uid);   // Round 150 — see gateStorageKey()
             sessionExpired = false;
             updateAuthUI(true);
             // Show Game Genie for admins
             const ggBtn = document.getElementById('genie-btn');
             if (ggBtn) ggBtn.classList.toggle('hidden', !ADMIN_EMAILS.includes(user.email));
+            setGateConsole(ADMIN_EMAILS.includes(user.email));   // Round 150 — admins only
             // Skip full reload if login came from anon prompt (we handle it ourselves)
             if (anonLoginInProgress) return;
             try {
@@ -1539,6 +1537,7 @@ async function init() {
             updateAuthUI(false);
             const ggBtn = document.getElementById('genie-btn');
             if (ggBtn) ggBtn.classList.add('hidden');
+            setGateConsole(false);   // Round 150 — admins only
             trophyBtn.classList.add('hidden');
 
             if (wasSignedIn) {
@@ -2762,7 +2761,7 @@ function startGame() {
     // ⚠️ 0, NOT Date.now() (v3.26.0). A sprint does not start its clock; the
     // first keystroke does. See gameTick(). Both gates there test this for
     // truthiness before subtracting, so a zero means "not started", never 1970.
-    lastInputTime = 0;
+    lastInputTime = 0; lastProgressTime = 0;
     consecutiveMistakes = 0; backspaceOrigin = -1; mistakesAtCurrent = 0;
     currentStreak = 0; streakMilestone = 0;
     updateStreak(false); // reset display
@@ -2819,7 +2818,9 @@ function gameTick() {
     // ⚠️⚠️ THE LESSON GATE DECIDES WHETHER THIS 100 ms MAY BE CREDITED — see
     // gateOnActiveTick(). It is called only when the student is genuinely
     // active, so the gate's own window keeps measuring even while locked.
-    if (lastInputTime && now - lastInputTime < IDLE_THRESHOLD && gateOnActiveTick(100)) {
+    // ⚠️ Round 150: PAID ON `lastProgressTime`, NOT `lastInputTime` — a re-typed
+    // letter keeps the game awake (AFK, above) but does not keep it paying.
+    if (lastProgressTime && now - lastProgressTime < IDLE_THRESHOLD && gateOnActiveTick(100)) {
         timeAccumulator += 100;
         timerDisplay.style.opacity = '1';
         if (timeAccumulator >= 1000) {
@@ -3128,6 +3129,8 @@ function updateStreak(correct) {
 }
 
 document.addEventListener('keydown', (e) => {
+    // ⚠️⚠️ ONLY A REAL KEYBOARD TYPES HERE — Round 150 (Nesmith). See isRealKey().
+    if (!isRealKey(e)) return;
     // Caps Lock detection
     if (e.getModifierState && e.key !== 'CapsLock') {
         const capsOn = e.getModifierState('CapsLock');
@@ -3341,9 +3344,23 @@ const GATE_KEY = 'ttb_libGate_v1';
 let gate = null;
 
 function gateToday() { return getLocalDateStr(new Date()); }
+// ⚠️⚠️ Round 150 (Nesmith): A SIGNED-OUT TAB INHERITS THE LAST STUDENT'S GATE.
+// The key used to fall back to `guest`, a fresh gate of its own — so a locked
+// student could sign out, type more ungated minutes, and sign back in, and
+// retroactiveSaveGuestSession() would add those minutes to the account. ⭐ Every
+// student here has their OWN browser profile on their OWN MacBook, so "whoever
+// last signed in on this browser" IS the person typing as a guest. Stored on
+// sign-in and deliberately NOT cleared on sign-out; that is the point. A browser
+// nobody has ever signed into still gets `guest`, exactly as before.
+const GATE_OWNER_KEY = 'ttb_libGate_owner_v1';
+function gateOwnerRemember(uid) {
+    if (!uid) return;
+    try { localStorage.setItem(GATE_OWNER_KEY, uid); } catch (_) {}
+}
 function gateStorageKey() {
-    const uid = (typeof currentUser !== 'undefined' && currentUser && currentUser.uid) || 'guest';
-    return `${GATE_KEY}_${uid}`;
+    let uid = (typeof currentUser !== 'undefined' && currentUser && !currentUser.isAnonymous && currentUser.uid) || '';
+    if (!uid) { try { uid = localStorage.getItem(GATE_OWNER_KEY) || ''; } catch (_) {} }
+    return `${GATE_KEY}_${uid || 'guest'}`;
 }
 function gateFresh() {
     return { date: gateToday(), stage: 'ok', chanceUsed: false, pending: null,
@@ -3566,16 +3583,28 @@ function gateToast(msg) {
 
 // ⭐ FOR JAKE'S OWN TESTING. At 90 WPM he will never see either choice, so the
 // console needs a way in: ttbGate.state(), ttbGate.force('first'|'second'),
-// ttbGate.reset(). Same spirit as ttbMeter.
-if (typeof window !== 'undefined') {
-    window.ttbGate = {
-        state: () => { gateEnsure(); return JSON.parse(JSON.stringify(gate)); },
-        force: (kind) => { gateEnsure(); gate.last = gate.last || { wpm: 9, acc: 72 };
-                           gate.pending = kind === 'second' ? 'second' : 'first';
-                           gate.pendingSince = Date.now() - GATE_FALLBACK_MS; gateSave();
-                           return 'pending ' + gate.pending + ' \u2014 end a sentence or press space'; },
-        reset: () => { gate = gateFresh(); gate.key = gateStorageKey(); gateSave(); gateApplyTimerLook(); return 'reset'; },
-    };
+// ttbGate.reset().
+//
+// ⚠️⚠️ Round 150 (Nesmith): ADMINS ONLY, ATTACHED AT SIGN-IN. This used to sit on
+// `window` for everyone from the first line of the page, and the console being
+// removed from student machines is not what kept it safe — a bookmark whose
+// address is `javascript:ttbGate.reset()` runs without a console and wipes the
+// Library lesson gate. Same test as the Game Genie button, applied in the same
+// two auth branches. ⭐ ttbMeter and ttbGuide stay public on purpose: they only
+// REPORT, nothing they do changes a number a student is graded on, and Jake uses
+// them to diagnose student-shaped page loads.
+const TTB_GATE_CONSOLE = {
+    state: () => { gateEnsure(); return JSON.parse(JSON.stringify(gate)); },
+    force: (kind) => { gateEnsure(); gate.last = gate.last || { wpm: 9, acc: 72 };
+                       gate.pending = kind === 'second' ? 'second' : 'first';
+                       gate.pendingSince = Date.now() - GATE_FALLBACK_MS; gateSave();
+                       return 'pending ' + gate.pending + ' \u2014 end a sentence or press space'; },
+    reset: () => { gate = gateFresh(); gate.key = gateStorageKey(); gateSave(); gateApplyTimerLook(); return 'reset'; },
+};
+function setGateConsole(isAdmin) {
+    if (typeof window === 'undefined') return;
+    if (isAdmin) window.ttbGate = TTB_GATE_CONSOLE;
+    else { try { delete window.ttbGate; } catch (_) { window.ttbGate = undefined; } }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3624,14 +3653,69 @@ function countsAsActivity(key, repeat) {
     return true;
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// ⚠️⚠️⚠️ ONLY NEW GROUND IS PAID — Round 150 (Nesmith).
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Jake, 2026-10-01: *"a kid just found another way to cheat — if the word is
+// 'he', the student can hit the h and then backspace continually to count
+// time."* Round 131 refused Backspace and held keys, and that was right, but the
+// `h` in between is a REAL, single, CORRECT keystroke — it passed every check.
+// ⚠️⚠️ AND IT WAS WORSE THAN TIME. Every re-typed `h` was a new correct
+// character: charsToday went up, accuracy sat at 100%, the live WPM read high,
+// the 🔥 streak climbed forever (and bestStreak is a LEADERBOARD), and the
+// Library gate's window counted the h's as typing — so the one guard built to
+// catch a student who isn't really typing saw a fast, accurate one.
+//
+// ⭐ THE RULE: a keystroke on ground this run has ALREADY COVERED is a correction.
+// It is processed exactly as before — the letter is re-typed, a wrong key is
+// still a mistake — but it earns nothing: no pay clock, no character, no gate
+// credit, no live WPM sample, no streak. `backspaceOrigin` already records the
+// furthest point a backspace run started from (it is what paints letters
+// "fixed"), so the frontier is not new state; this asks the question the file
+// already knew the answer to.
+//
+// ⚠️⚠️ TWO CLOCKS NOW, AND THEY MUST STAY TWO. `lastInputTime` still means "is
+// anyone at the keyboard?" — it feeds the AFK auto-pause, and a re-typed letter
+// still stamps it, so a child genuinely retyping half a sentence is NOT paused
+// mid-correction. `lastProgressTime` means "should this moment be PAID?" and only
+// new ground stamps it. Merging them back either pauses honest corrections or
+// re-opens the farm.
+//
+// ⭐ THE COST TO A REAL STUDENT: an ordinary typo fix happens inside the 2-second
+// window left by the last real letter, so it stays paid. Only a long correction
+// goes unpaid, and only until the cursor passes the point where it began.
+// tests/retype-farm-test.mjs replays both.
+function isNewGround(pos, origin) {
+    return !(origin >= 0 && pos < origin);
+}
+
+// ⚠️⚠️ ONLY A REAL KEYBOARD TYPES — Round 150 (Nesmith). A bookmark whose address
+// starts `javascript:` runs on the page even with the developer console removed,
+// and nothing here ever asked whether a keypress came from a keyboard. A
+// bookmarklet that reads the next letter off the screen and fires fake key events
+// would type a whole book at 100%. The browser marks every event it made itself
+// `isTrusted: true` and every script-made one `false`, and a script cannot change
+// it. ⚠️ `!== true`, NOT `=== false`: a plain object handed to a handler has no
+// isTrusted at all, and that is a script too.
+function isRealKey(e) {
+    return !!e && e.isTrusted === true;
+}
+
 function handleTyping(key, opts) {
-    // ⚠️ THE ONLY WRITE OF `lastInputTime` DURING PLAY, AND IT IS GUARDED. See
-    // countsAsActivity(). The key is still PROCESSED below either way — a held
-    // letter still lands as mistakes, a Backspace still corrects. Only the
-    // crediting of time changed, which is the one thing that was wrong.
+    // ⚠️ THE ONLY WRITES OF THE TWO CLOCKS DURING PLAY, AND BOTH ARE GUARDED. See
+    // countsAsActivity() and isNewGround(). The key is still PROCESSED below
+    // either way — a held letter still lands as mistakes, a Backspace still
+    // corrects, a re-typed letter is still re-typed. Only what is CREDITED
+    // changes. ⚠️ `onNewGround` is decided HERE, before anything below moves the
+    // cursor or the origin.
+    const onNewGround = isNewGround(currentCharIndex, backspaceOrigin);
     if (countsAsActivity(key, !!(opts && opts.repeat))) {
         lastInputTime = Date.now();
-        timerDisplay.style.opacity = '1';
+        if (onNewGround) {
+            lastProgressTime = lastInputTime;
+            timerDisplay.style.opacity = '1';
+        }
     }
 
     let inputChar = key;
@@ -3673,10 +3757,13 @@ function handleTyping(key, opts) {
     if (inputChar === targetChar) {
         // ⚠️ THE GATE ALWAYS MEASURES; THE STATS RECORD ONLY WHILE UNLOCKED. A locked
         // character counted here would inflate a run whose seconds are frozen.
-        gateOnKey(true);
-        if (!gateLocked()) {
-            statsData.charsToday++; statsData.charsWeek++; statsData.charsLibrary++;
-            anonCharsTyped++;
+        // ⚠️⚠️ Round 150: A RE-TYPED LETTER IS NOT A NEW CHARACTER — see isNewGround().
+        if (onNewGround) {
+            gateOnKey(true);
+            if (!gateLocked()) {
+                statsData.charsToday++; statsData.charsWeek++; statsData.charsLibrary++;
+                anonCharsTyped++;
+            }
         }
         // Deferred so it runs after this keystroke has finished advancing.
         { const _gc = inputChar; setTimeout(() => gateMaybeShow(_gc), 0); }
@@ -3719,7 +3806,9 @@ function handleTyping(key, opts) {
             if (['.', '!', '?'].includes(prevChar)) markDirty();
         }
 
-        updateRunningWPM(); updateRunningAccuracy(true); updateStreak(true);
+        // ⚠️ Round 150: a correction neither raises nor breaks the streak, and is
+        // not a speed sample. bestStreak is a leaderboard; h-backspace farmed it.
+        if (onNewGround) { updateRunningWPM(); updateRunningAccuracy(true); updateStreak(true); }
 
         if (currentCharIndex >= fullText.length) { finishChapter(); return; }
 
@@ -3872,7 +3961,9 @@ function resumeGame() {
     timerInterval = setInterval(gameTick, 100);
     consecutiveMistakes = 0;
     mistakesAtCurrent = 0;
-    lastInputTime = Date.now();
+    // ⚠️ Round 150: both clocks, exactly as the single clock was — a resume has
+    // always earned its first idle window, and this round does not change that.
+    lastInputTime = Date.now(); lastProgressTime = lastInputTime;
 
     _ttbEmit('respawn', { position: currentCharIndex });
 

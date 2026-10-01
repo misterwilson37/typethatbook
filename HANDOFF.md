@@ -1,8 +1,29 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-09-25 by Round 148, for whoever is next
+> ## ▶ START HERE — written 2026-10-01 by Round 150 (Nesmith), for whoever is next
 >
-> **ALL 117 HARNESSES PASS.**
+> **118 harnesses pass**, all of them. (Round 149 shipped a CHANGELOG entry and no
+> section here; its change — a passed Deadline game now really unlocks the next
+> lesson — is fully described in CHANGELOG.md and needed nothing below.)
+>
+> ⚠️⚠️⚠️ **RE-TYPED GROUND EARNS NOTHING — READ §49 BEFORE TOUCHING ANY KEY HANDLER
+> OR EITHER CLOCK.** A student typed `h`, Backspace, `h`, Backspace… for time. Every
+> `h` was a real correct key, so it paid time, counted a character, held 100%, farmed
+> the streak leaderboard, fooled the Library gate, and in School lifted the GRADED
+> WPM. `isNewGround()` now makes a key below `backspaceOrigin` /
+> `drillBackspaceOrigin` earn nothing. ⭐⭐ **LIBRARY HAS TWO CLOCKS NOW AND MUST
+> KEEP TWO:** `lastInputTime` (AFK auto-pause) and `lastProgressTime` (pay). School
+> has the same split: `learnLastInputTime` pays, `learnLastKeyTime` feeds only the
+> idle space-skip. Merge either pair and you get either the farm back or an honest
+> correction that auto-skips a space into a mistake (`retype-farm-test.mjs` E3).
+> Every typing handler and arcade `onKeyDown` also refuses script-made keys
+> (`isTrusted`); harnesses press keys through `tests/fixtures/trusted-key.mjs`.
+>
+> ⚠️ **ASK JAKE (still open):** whether bookmarklets run on a student machine —
+> bookmark `javascript:alert('hi')`, click it on TTB while signed in as a student.
+> It decides how much the `isTrusted` guard is carrying.
+>
+> ⭐ **Everything below, from Round 148, still stands.**
 >
 > ⚠️⚠️⚠️ **A STUDENT'S OWN BROWSER COULD UNDO A TEACHER'S DELETION — FIXED IN ROUND
 > 145, ONE HOLE LEFT (ROADMAP 145a).** `stats-wal.js` took the LARGER of the
@@ -7653,6 +7674,7 @@ a pointer to a file you should go and read.**
 | 25 | Hall | Audited the whole cutover on its eve and found it sound. `lessons-admin.js` dated `typing_logs` by the stamped field where every other reader keys off the document ID — cosmetic before the cutover, load-bearing after it. The drill filter and the font picker shipped into `learn.js` on Jake's call. |
 | 24 | Monotype | ⚠️ OPENED WITH A RETRACTION — records two rounds had called LOST were merely LATE. The evening guest: `sessionLogAdopt()` recomputed dates from UTC, filing an after-7pm Library sprint on tomorrow. THE OVERNIGHT RESCUE shipped on Jake's ruling. Item 3 deleted as a phantom by one grep; item 6 confirmed and fixed for Library. |
 | 22 | Smith Premier | ⚠️ §3.1 CLOSED. The writers ship per-source FIELDS, date-gated so the upload is safe on a school night and the shape switches on 2026-08-22. Confirmed Jake's `firestore.rules` v2.6.0 by execution and gave it the harness it never had. Found two readers nobody had counted: `recalcDailyLog()`'s cutover constant was out of scope and would have thrown on the ⟳ button, and `lessons-admin.js` was a fourth reader of `typing_logs` that would have shown every student's week as nearly nothing from Saturday. Rewrote `crossmode-overwrite-test.mjs`, which had spent six rounds validating a design the rules reject. |
+| 150 | Nesmith | ⚠️⚠️⚠️ **RE-TYPED GROUND EARNS NOTHING.** `h`-Backspace-`h` farmed time, characters, the streak board, the Library gate and School's graded WPM. Two clocks per page; `isTrusted` on every typing handler; admins-only `ttbGate`; a signed-out tab keeps its student's gate. §49 |
 
 ---
 
@@ -7664,6 +7686,7 @@ a pointer to a file you should go and read.**
 |---|---|
 | `HANDOFF.md` | this file, and **as of Round 114 this row is finally true**: the only handoff. **Root**, and it stays there. ⚠️⚠️ **IT SAID "the only handoff" FROM ROUND 23 TO ROUND 114 WHILE THIS VERY TABLE LISTED THREE SIBLINGS FOUR ROWS BELOW** — `HANDOFF-games.md`, `HANDOFF-learn2.md`, plus `INTEGRATION.md` and `NEXT-STEPS.md` doing a handoff's job under other names. ⭐ Jake, 2026-09-10: *"that ends up being dozens of documents... it gets superconfusing for me."* All five are now §§10–14 below, appended verbatim. ⚠️ **DO NOT CREATE `HANDOFF-<anything>.md` AGAIN** — a round's handoff is a new numbered section in this file, which is what the section numbers are for |
 | `README.md` | what the project is; file map, data model. **Root** |
+| `UPLOAD-ME.md` | **Root.** The CURRENT round's deploy steps for Jake, in his words — what to paste where, and in what order. ⚠️ **OVERWRITTEN EVERY ROUND, NEVER ACCUMULATED**; history is in CHANGELOG. ⚠️ **Missing from this table from Round 148, when it first reached the repo, until Round 150** — `docs-vs-repo-test.mjs` A3 was red on it the whole time |
 | `ROADMAP.md` | **Root.** Every open item, the index at the top, and the § CONVENTIONS block. ⚠️⚠️ **MISSING FROM THIS TABLE UNTIL ROUND 81** — the document every round reads most, absent from the map that lists the ones it reads least. Found by `docs-vs-repo-test.mjs` on its first run, which is the entire argument for that harness. ⚠️ It is Claude's working file, NOT Jake's: *"the document is too large and unwieldy for me to even navigate"* — never answer him in item numbers |
 | `privacy.html` | **Root.** ⭐ The COPPA online notice (Round 138) — the page a PARENT reads. Every claim in it is pinned to code or to SECURITY.md by `privacy-policy-test.mjs`; change a promise and its source together or the suite fails |
 | `SECURITY.md` | **Root.** ⭐ The written information security program (Round 135) — what is collected, who can see it, outside services, retention, deletion, breach steps. Written for a DISTRICT REVIEWER, so keep it plain and keep every claim true to the rules and code; mark anything not yet real as **Planned**. Update it whenever a new kind of data or a new outside service is added |
@@ -11820,3 +11843,112 @@ Jake ran `ttbGuide.last()` at a dash after Round 147: `reason: "ok"`, right-pink
 normal path — the fallback never fired. Nothing in 147 changed how a dash is placed, so
 the earlier failure was most likely a stale cached game.js. The instrumentation stays.
 145b is closed unless a `[hand guide]` warning ever appears.
+
+---
+
+## §49. Round 150 (Nesmith) — re-typed ground earns nothing
+
+**2026-10-01. Instance name: Nesmith** — Bette Nesmith Graham, a typist who in 1956
+invented the correction fluid later sold as Liquid Paper. This round is about what a
+correction is worth, so the name fits; checked against every round name in this
+file, CHANGELOG, ROADMAP and the code headers — unused.
+
+### A. THE REPORT, AND WHY ROUND 131's FIX DID NOT COVER IT
+Jake: *"a kid just found another way to cheat — if the word is 'he', the student can
+hit the h and then backspace continually to count time."* Round 131 refused Backspace
+and auto-repeat (`countsAsActivity()`). The `h` between the Backspaces is a real,
+single, correct keystroke; it passed. ⚠️⚠️ **IT FARMED FAR MORE THAN TIME:** every
+`h` incremented `charsToday`, kept accuracy at 100%, pushed a live-WPM sample, climbed
+the 🔥 streak — and `bestStreak` is a leaderboard — and fed `gateOnKey(true)`, so the
+Library gate judged a fast accurate minute. In School, `chars` (the GRADED numerator,
+`netWPM()`) counted every `h`, so the trick could lift a run over its pass line. The
+old School handler was replayed in `retype-farm-test.mjs`: 600 s paid and 1,200 graded
+characters for ten minutes of `h`-Backspace.
+
+### B. THE RULE — `isNewGround(pos, origin)`, IN ALL THREE PAGES
+`backspaceOrigin` (Library) and `drillBackspaceOrigin` (School) already recorded the
+furthest point a backspace run started from — they are what paint letters "fixed". A
+key landing BELOW that point is a correction. It is processed exactly as before (the
+letter is typed and painted; a wrong key is still a mistake and still counts toward
+the hard stop and accuracy) but earns nothing: no pay stamp, no character, no gate
+credit, no live-WPM sample, no streak (neither raised nor broken). `onNewGround` is
+decided at the top of the handler, before anything moves the cursor or the origin.
+⭐ **A KEY AT the origin is new ground** — that is the letter actually being fixed.
+
+### C. ⚠️⚠️⚠️ TWO CLOCKS PER PAGE — THE PART THAT IS EASY TO UNDO
+* **Library:** `lastInputTime` = someone is at the keyboard (AFK auto-pause, 5 s);
+  `lastProgressTime` = this moment is paid (`gameTick()`'s credit check, 2 s). Only
+  new ground stamps the second. One clock would have had to choose: pay retypes (the
+  farm) or pause a child mid-correction.
+* **School:** `learnLastInputTime` stays the pay clock — `isDrillIdle()`, the single
+  increment site, is untouched, so `open-unit-test` Part E's adjacency rule still
+  holds. `learnLastKeyTime` (new) is stamped by every real typing key and read ONLY
+  by the idle-resume space skip. ⚠️ **I nearly shipped without it.** With one clock, a
+  slow honest retype goes "idle" after 3 s, the skip jumps a space the child is about
+  to type, and their own space lands as a mistake. `retype-farm-test.mjs` E3 fails on
+  exactly that mutation.
+* **Cost to a real student,** measured in Part D: a typo fixed at the frontier is paid
+  identically to before (4.7 s vs 4.7 s); a 10-letter retype loses exactly the 4 s
+  spent retyping and is never auto-paused. ⚠️ **Day characters now count progress,
+  not keystrokes** — an honest student who corrects a lot will show slightly fewer
+  characters than they would have yesterday. Same for School's graded WPM, which is
+  now net progress over time, matching how Library's run WPM was always computed
+  (`currentCharIndex - sprintCharStart`). Rule 11 holds: both the student and the
+  teacher read the same documents, which now simply contain the honest number.
+
+### D. THE PRE-EMPTIVE PATCHES JAKE APPROVED
+* **Only a real keyboard types.** `isRealKey(e)` (`e.isTrusted === true`) on the first
+  line of game.js's keyboard listener and of `handleDrillKey()` in learn.js and
+  learn2.js; the same test inline at the top of each arcade `onKeyDown()`. `!== true`
+  not `=== false`: a plain object handed to `drillKeyboard.onkeydown` has no
+  isTrusted at all, and any page script can reach that property.
+  **jsdom harnesses** cannot make a trusted event through `dispatchEvent()` (it is, by
+  spec, a script), so `tests/fixtures/trusted-key.mjs` delivers one through jsdom's
+  internal dispatch with the flag set. abandon-lock, adaptive-arcade and arcade-mount
+  use it; no assertion in them changed. Use it for keys a STUDENT presses; use plain
+  `dispatchEvent()` when proving a script-made key is refused (Part F).
+* **`ttbGate` is admins-only.** Attached in `onAuthStateChanged` with the same
+  `ADMIN_EMAILS` test as the Game Genie button, deleted on sign-out. `javascript:ttbGate.reset()`
+  as a bookmark would otherwise wipe the Library gate. ⭐ `ttbMeter` and `ttbGuide`
+  were deliberately LEFT public: they only report, change nothing a student is graded
+  on, and Jake uses them on student-shaped page loads (§47).
+* **The guest-gate dodge.** The gate's localStorage key fell back to `guest`, a fresh
+  gate, so a locked student could sign out, type more, and have
+  `retroactiveSaveGuestSession()` add it to their account. `gateStorageKey()` now falls
+  back to the last uid that signed in on this browser (`ttb_libGate_owner_v1`, written
+  at sign-in, never cleared). Sound because every student has their own profile on
+  their own MacBook; a never-signed-in browser still gets `guest`.
+* **School: a held key types once** (`e.repeat`, Backspace exempt). Library has
+  refused paying for repeats since Round 131; School never refused them at all, so a
+  held key auto-typed double letters into graded runs.
+
+### E. RULE 10 — A REPRODUCTION, NOT A RECORDING
+No real `h`-Backspace session was available. `retype-farm-test.mjs` lifts the REAL
+`handleTyping()` and `handleDrillKey()` out of the shipped files and runs them in a
+stubbed scope (a Proxy: any name the harness does not define is a harmless no-op), with
+the real thresholds. Mutation-checked: reverting `onNewGround` to `true` turns C2–C6
+and D4–D5 red; restoring School's `chars++` turns E2 red; moving the space skip back
+to the pay clock turns E3 red. ⚠️ **The first real farmed session Jake catches
+belongs in that file**, the way Round 132 added real holds to backspace-farm-test.
+⚠️ reports.html's `idleTimeSuspect()` flag (Round 131) CANNOT find historical
+`h`-Backspace time — that trick counted characters, so it never looked idle. Already-
+stored farmed time stays until a teacher deletes it.
+
+### F. NOT DONE, AND WHY
+* **A per-student speed-jump flag in reports** (a friend typing under someone's login)
+  was discussed and not requested this round.
+* **A hard-stop rollback in Adventure** resets the cursor without an origin, so the
+  rolled-back sentence is retyped as new ground. Deliberate: it is a penalty, it costs
+  five consecutive mistakes, and it is genuine typing.
+* **Sprint restart after a break** resets `backspaceOrigin` with the rest of the run,
+  so letters erased just before an AFK pause can be paid once more after it. Bounded
+  by real typing of real text; not worth new state.
+
+### G. FILES
+game.js v3.58.0 · learn.js v2.51.0 · learn2.js v0.11.0-staging · game-deadline.js
+v1.22.0 · game-escape.js v2.10.0 · game-shatter.js v1.19.0 · README.md v2.5.0 ·
+tests: retype-farm-test.mjs v1.0.0 (new), fixtures/trusted-key.mjs v1.0.0 (new),
+open-unit-test.mjs v1.3.0 (pay gate re-anchored to `lastProgressTime`),
+abandon-lock / adaptive-arcade / arcade-mount v1.1.1, run-all-tests.mjs v1.32.0.
+No rules change. No privacy-policy change: nothing new is collected or sent; the one
+new localStorage key holds a uid the gate key already contained.

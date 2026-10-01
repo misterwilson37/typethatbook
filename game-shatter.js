@@ -1,3 +1,5 @@
+// game-shatter.js v1.19.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
+// ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-shatter.js v1.18.0 — Round 127 (Didot): passes the calibrator's sample and
 // rejection counts through to telemetry, same as Deadline.
 // game-shatter.js v1.17.0 — Round 126 (Fournier): ⚠️⚠️ THE KEYS COME OUT OF THE
@@ -284,7 +286,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.18.0';
+export const GAME_SHATTER_VERSION = '1.19.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -776,6 +778,12 @@ export function mount(container, opts) {
     }
 
     function onKeyDown(e) {
+        // ⚠️⚠️ Round 150 (Nesmith): ONLY A REAL KEYBOARD PLAYS. A `javascript:`
+        // bookmark runs with the console removed; a script-made key event
+        // arrives with isTrusted false and a plain object with none at all.
+        // Same rule as game.js isRealKey(). Harnesses send trusted keys through
+        // tests/fixtures/trusted-key.mjs.
+        if (!e || e.isTrusted !== true) return;
         if (ended) return;
         // ⚠️ THE GET-READY AND PAUSE PANELS MUST NOT EAT KEYSTROKES INTO THE
         // DIRECTOR — a key charged then is a mistake the student never made.

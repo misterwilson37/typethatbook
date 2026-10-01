@@ -1,4 +1,7 @@
-// open-unit-test.mjs v1.2.4 — the open sprint / open run, and the watermark that
+// open-unit-test.mjs v1.3.0 — the open sprint / open run, and the watermark that
+//
+// v1.3.0 — Round 150 (Nesmith): game.js's pay gate is pinned to lastProgressTime
+//          (the AFK check stays on lastInputTime). Two assertions re-anchored.
 //
 // v1.2.4 — VERSION PIN ONLY. session-log.js is v1.7.0 (Round 46, the writer).
 //          No assertion about behaviour changed.
@@ -414,9 +417,14 @@ ok(gameIncs === 1,
 // ⚠️ ROUND 134: the gate may be FOLLOWED by further conditions (the Library lesson
 // gate's `&& gateOnActiveTick(100)`). What this defends is that the tick is gated
 // on lastInputTime being set — still true — so the anchor allows a trailing `&&`.
-ok(/if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD(?:\)| &&)/.test(gameSrc2),
-   '⚠️ game.js: the tick is gated on lastInputTime being set — no free seconds ' +
-   'before the first keystroke of a sprint');
+// ⚠️⚠️ ROUND 150 (Nesmith): THE PAY GATE READS `lastProgressTime` NOW, and that
+// is pinned here, not merely allowed. lastInputTime still means "someone is at
+// the keyboard" (AFK, just below); lastProgressTime means "this moment is paid",
+// and only new ground stamps it. A pay gate back on lastInputTime re-opens the
+// h-backspace farm — see tests/retype-farm-test.mjs.
+ok(/if \(lastProgressTime && now - lastProgressTime < IDLE_THRESHOLD(?:\)| &&)/.test(gameSrc2),
+   '⚠️ game.js: the tick is gated on lastProgressTime being set — no free seconds ' +
+   'before the first keystroke of a sprint, and none for re-typed ground');
 
 ok(/if \(lastInputTime && now - lastInputTime > AFK_THRESHOLD/.test(gameSrc2),
    '⚠️ game.js: the AFK check is guarded too — unguarded, `now - 0` auto-pauses ' +
@@ -429,7 +437,7 @@ ok(/if \(lastInputTime && now - lastInputTime > AFK_THRESHOLD/.test(gameSrc2),
 // ⚠️ ROUND 134: COMMENT LINES may now sit between the paint and the gate (the
 // lesson gate's explanation). The ORDER is the property and it is unchanged, so
 // only `//` lines are allowed in between — any code there still fails this.
-ok(/\n    updateTimerUI\(\);\n\n(?:    \/\/[^\n]*\n)*    if \(lastInputTime && now - lastInputTime < IDLE_THRESHOLD/.test(gameSrc2),
+ok(/\n    updateTimerUI\(\);\n\n(?:    \/\/[^\n]*\n)*    if \(lastProgressTime && now - lastProgressTime < IDLE_THRESHOLD/.test(gameSrc2),
    '⚠️ game.js paints the readout ABOVE the idle gate — inside it, students see ' +
    'game.html\'s hardcoded "Daily 0:00" placeholder until they type');
 

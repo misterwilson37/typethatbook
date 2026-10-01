@@ -1,3 +1,5 @@
+// arcade-mount-test.mjs v1.1.1 — Round 150 (Nesmith): keys are sent TRUSTED via fixtures/trusted-key.mjs —
+// the arcade now refuses script-made key events. No assertion changed.
 // arcade-mount-test.mjs v1.1.0 — Round 117 (Corona): btn() is visibility-aware.
 // ⚠⚠ A4 WAS RED AGAINST CORRECT CODE. `hidePanel()` adds `display:none` and does
 // NOT empty the panel, and game-shatter supplies `onCountdown`, so the Start
@@ -43,6 +45,7 @@
 // arcade-panels-test.mjs, against a real recording context.
 
 import { JSDOM } from 'jsdom';
+import { trustedKeyDispatcher } from './fixtures/trusted-key.mjs';
 
 let pass = 0, fail = 0;
 const failures = [];
@@ -88,8 +91,8 @@ dom.window.HTMLElement.prototype.getBoundingClientRect = () => RECT;
 const { mount } = await import('../game-shatter.js');
 const { COUNTDOWN_MS } = await import('../game-chrome.js');
 
-const fire = key => dom.window.dispatchEvent(
-    new dom.window.KeyboardEvent('keydown', { key, bubbles: true }));
+// ⚠️ Round 150: trusted keys — the arcade now refuses script-made ones.
+const fire = trustedKeyDispatcher(dom.window);
 const tick = (n = 1) => new Promise(r => setTimeout(r, n));
 /**
  * ⚠️⚠️ A BUTTON THE STUDENT CANNOT SEE IS NOT ON OFFER, AND THE FIRST DRAFT OF

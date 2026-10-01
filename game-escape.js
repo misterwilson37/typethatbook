@@ -1,3 +1,5 @@
+// game-escape.js v2.10.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
+// ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-escape.js v2.9.0 — Round 126 (Fournier): ⚠️ Backspace moves into a
 // `controls` row; the hint names adjacency and what ends the run. ⚠️⚠️ ONE ROW
 // AND NO MORE — `controls` is omitted where there is nothing to say, because an
@@ -222,7 +224,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.9.0';
+export const GAME_ESCAPE_VERSION = '2.10.0';
 
 /**
  * @param {HTMLElement} container
@@ -401,6 +403,12 @@ export function mount(container, opts) {
 
     // ── input ───────────────────────────────────────────────────────────────
     function onKeyDown(e) {
+        // ⚠️⚠️ Round 150 (Nesmith): ONLY A REAL KEYBOARD PLAYS. A `javascript:`
+        // bookmark runs with the console removed; a script-made key event
+        // arrives with isTrusted false and a plain object with none at all.
+        // Same rule as game.js isRealKey(). Harnesses send trusted keys through
+        // tests/fixtures/trusted-key.mjs.
+        if (!e || e.isTrusted !== true) return;
         if (ended) return;
         // ⚠️ THE GET-READY AND PAUSE PANELS MUST NOT EAT KEYSTROKES INTO THE
         // DIRECTOR — a key charged then is a mistake the student never made.

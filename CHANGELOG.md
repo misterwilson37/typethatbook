@@ -1,5 +1,22 @@
 # CHANGELOG — TypeThatBook
 
+## Round 150 (Nesmith) — re-typed ground earns nothing
+
+**⭐ The `h`-Backspace trick is closed.** A student on the word "he" typed `h`, pressed
+Backspace, typed `h` again — forever. Every `h` was a real, correct keystroke, so it
+earned time *and* a character, kept accuracy at 100%, climbed the 🔥 streak (which is a
+leaderboard), and made the Library lesson gate see a fast, accurate typist. In School it
+also counted toward the **graded** WPM. Now, once a student backspaces, letters typed
+below where the backspacing began are corrections: they type normally but earn nothing.
+An ordinary typo fix is paid exactly as before; a long correction is never auto-paused.
+**Also:** only a real keyboard types (bookmarklets can't fire fake keys at any typing page
+or arcade game); `ttbGate` is admins-only; a signed-out tab keeps the last student's
+Library gate; and a held key types once in School.
+game.js v3.58.0, learn.js v2.51.0, learn2.js v0.11.0-staging, game-deadline.js v1.22.0,
+game-escape.js v2.10.0, game-shatter.js v1.19.0. (game.js v3.50.0's and learn.js
+v2.44.0's header entries archived, 8-entry budget.)
+New harness: retype-farm-test.mjs. **ALL 118 HARNESSES PASS.**
+
 ## Round 149 — the lesson after the game
 
 **⭐ Passing the Deadline game now actually unlocks the next lesson.** If a student
@@ -13598,4 +13615,56 @@ Moved verbatim. Nothing deleted.
 // ⚠️ v2.40.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS — still cited
 // inline at the midnight-rollover block, the dateOverride comment, and both
 // `= 0` resets below; those citations stand alone and needed no pointer.
+```
+
+### game.js v3.50.0 — archived by Round 150 (Nesmith), 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v3.50.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. `goals` now
+//           carries `weekStartDay` (0=Sun … 6=Sat), resolved the SAME way
+//           dailySeconds/weeklySeconds already are — class doc → settings/goals
+//           → 6 — inside the SAME loadGoals() read, at ZERO extra Firestore
+//           cost. `getWeekStart()` passes it to daylog.js's weekStartOf(); every
+//           readWeek() call site now sends `weekStartDay: goals.weekStartDay`.
+//           ⚠️ GOALS_CACHE_KEY BUMPED v1 → v2 — an entry cached before this
+//           version has no weekStartDay field, and `|| 6` on the read makes a
+//           cache miss on the anchor read as Saturday rather than as `undefined`
+//           flowing into date arithmetic. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK
+//           MOVES ITS CELEBRATION-LATCH KEY (`celebrationMark('week', ...)` is
+//           keyed by the week-start STRING), so a student can re-earn or miss a
+//           weekly fireworks moment the day the anchor changes. Harmless and
+//           rare enough not to guard; said here so it isn't rediscovered as a
+//           bug.
+```
+
+### learn.js v2.44.0 — archived by Round 150 (Nesmith), 8-entry budget
+
+Moved verbatim. Nothing deleted.
+
+```
+// v2.44.0 — ⚠️⚠️ ROADMAP 49: A RESTARTED DRILL INHERITED THE PREVIOUS ONE'S
+//           HARD-STOP OVERLAY. `#drill-hardstop` was removed at two sites and
+//           `drillIsHardStop` cleared at two; beginStep() was the one that
+//           cleared the flag and left the ELEMENT standing. Its parent,
+//           #drill-keyboard-wrap, is static markup in learn.html that
+//           beginStep() never rebuilds, so nothing tore it down.
+//           ⚠️ WHAT JAKE PHOTOGRAPHED: a drill reading `;lfd;` under a red `S`
+//           and "Too many errors — type the correct key to continue". The `S`
+//           was the expected character of the sequence that had just been
+//           discarded. Two students, two browsers.
+//           ⚠️⚠️ THE FLAG WAS ALREADY FALSE, SO THE DRILL UNDERNEATH WAS LIVE
+//           AND SCORING under a 92%-white sheet — the app grading a run the
+//           child believed it was refusing them. Worse than a lock.
+//           ⚠️ THE FIX IS OWNERSHIP, NOT A LINE: both now go through
+//           _hideHardStopOverlay(), and hardstop-overlay-test.mjs asserts the
+//           PAIRING at every site that clears the flag — a third site appearing
+//           unnoticed is what this defect WAS.
+//           ⚠️⚠️ CAPS LOCK IS WHAT GETS A STUDENT HERE AND IS NOT FIXED, ON
+//           JAKE'S RULING (2026-09-02): "The kid needs to learn to turn off caps
+//           lock... that's the kid needing to learn." With Caps Lock on the
+//           child really is producing the wrong character and the banner says
+//           so. DO NOT "fix" the e.key comparison — this file teaches capitals,
+//           and forgiving case would make every capital drill unfailable.
 ```

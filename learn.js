@@ -1,4 +1,12 @@
-// learn.js v2.50.1
+// learn.js v2.51.0
+//
+// v2.51.0 — Round 150 (Nesmith): ⚠️⚠️ RE-TYPED GROUND IS NOT PAID — twin of game.js
+//           v3.58.0. A correct key below drillBackspaceOrigin is typed but not
+//           counted: not in `chars` (the GRADED numerator — h-backspace could lift
+//           a run's WPM over the pass line), not in the day, no pay stamp. The idle
+//           space skip moves to its own clock (learnLastKeyTime) so a long honest
+//           correction cannot trigger it. Held keys type once; script-made keys are
+//           refused (isRealKey). See tests/retype-farm-test.mjs.
 //
 // v2.50.1 — Round 149: saveProgress() no longer files a passed lesson under the
 //   NEXT lesson's id when the student clicks Next before the write lands; the
@@ -75,33 +83,8 @@
 //           one refresh was judged not worth the risk. Say that rather than
 //           implying it is instant.
 //
-// v2.44.0 — ⚠️⚠️ ROADMAP 49: A RESTARTED DRILL INHERITED THE PREVIOUS ONE'S
-//           HARD-STOP OVERLAY. `#drill-hardstop` was removed at two sites and
-//           `drillIsHardStop` cleared at two; beginStep() was the one that
-//           cleared the flag and left the ELEMENT standing. Its parent,
-//           #drill-keyboard-wrap, is static markup in learn.html that
-//           beginStep() never rebuilds, so nothing tore it down.
-//           ⚠️ WHAT JAKE PHOTOGRAPHED: a drill reading `;lfd;` under a red `S`
-//           and "Too many errors — type the correct key to continue". The `S`
-//           was the expected character of the sequence that had just been
-//           discarded. Two students, two browsers.
-//           ⚠️⚠️ THE FLAG WAS ALREADY FALSE, SO THE DRILL UNDERNEATH WAS LIVE
-//           AND SCORING under a 92%-white sheet — the app grading a run the
-//           child believed it was refusing them. Worse than a lock.
-//           ⚠️ THE FIX IS OWNERSHIP, NOT A LINE: both now go through
-//           _hideHardStopOverlay(), and hardstop-overlay-test.mjs asserts the
-//           PAIRING at every site that clears the flag — a third site appearing
-//           unnoticed is what this defect WAS.
-//           ⚠️⚠️ CAPS LOCK IS WHAT GETS A STUDENT HERE AND IS NOT FIXED, ON
-//           JAKE'S RULING (2026-09-02): "The kid needs to learn to turn off caps
-//           lock... that's the kid needing to learn." With Caps Lock on the
-//           child really is producing the wrong character and the banner says
-//           so. DO NOT "fix" the e.key comparison — this file teaches capitals,
-//           and forgiving case would make every capital drill unfailable.
-//
-// (Older entries — v2.43.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v2.44.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
-//
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // ROADMAP item 10 — the lesson-farming gate. ⚠️ PURE MODULE, NO FIRESTORE: every
@@ -208,7 +191,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.50.1";
+const LEARN_VERSION = "2.51.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -500,7 +483,14 @@ function applyGoalCelebrationState() {
 }
 let learnActiveSeconds   = 0;   // active seconds this step (for HUD display)
 let learnTickInterval    = null;
-let learnLastInputTime   = 0;
+let learnLastInputTime   = 0;   // ⚠️ the PAY clock — isDrillIdle() reads it (Round 150)
+// ⚠️⚠️ Round 150 (Nesmith): THE KEYBOARD CLOCK. Stamped by every real typing key,
+// new ground or not. ONLY the idle-resume space skip reads it. Before this round
+// one clock did both jobs; now a re-typed letter must not PAY (see
+// handleDrillKey()), and if the skip still read the pay clock, three seconds of
+// honest retyping would make it "idle" and auto-skip a space mid-correction —
+// the student's own space then lands as a mistake. Two jobs, two clocks.
+let learnLastKeyTime     = 0;
 const LEARN_IDLE_THRESHOLD = 3000; // 3s idle = paused
 
 // ─── Drill session state ─────────────────────────────────────────────────────
@@ -2510,7 +2500,7 @@ function beginStep(stepIdx) {
     resetStepLogWatermark();
 
     learnActiveSeconds = 0;
-    learnLastInputTime = 0;
+    learnLastInputTime = 0; learnLastKeyTime = 0;
     clearInterval(timerInterval);
     clearInterval(learnTickInterval);
 
@@ -2735,7 +2725,29 @@ function generateRandom(keySet, groupSize, groupCount) {
 }
 
 // ─── Keypress Handler ─────────────────────────────────────────────────────────
+// ⚠️⚠️ ONLY A REAL KEYBOARD TYPES — Round 150 (Nesmith). Same rule as game.js
+// isRealKey(): a `javascript:` bookmark runs with the console removed, and a
+// script-made key event (or a plain object handed to drillKeyboard.onkeydown,
+// which any page script can reach) arrives with isTrusted not true.
+function isRealKey(e) {
+    return !!e && e.isTrusted === true;
+}
+
+// ⚠️⚠️ ONLY NEW GROUND IS PAID — Round 150 (Nesmith). Twin of game.js
+// isNewGround(); read the full reasoning there. `drillBackspaceOrigin` is the
+// furthest point a backspace run started from, so a keystroke below it is
+// re-typing ground this run already covered.
+function isNewGround(pos, origin) {
+    return !(origin >= 0 && pos < origin);
+}
+
 function handleDrillKey(e) {
+    if (!isRealKey(e)) return;
+    // ⚠️ Round 150: A HELD KEY TYPES ONCE. Library has refused auto-repeat since
+    // Round 131; School never did, so holding a key auto-typed double letters
+    // ("ll", "ee") into a GRADED run. Backspace is exempt — holding it to erase
+    // is ordinary, and erasing earns nothing anyway.
+    if (e.repeat && e.key !== 'Backspace') { e.preventDefault(); return; }
     // Ignore modifier keys
     if (e.key === 'Shift' || e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta') return;
     if (e.key === 'CapsLock') return;
@@ -2799,7 +2811,7 @@ function handleDrillKey(e) {
             _hideHardStopOverlay();
             clearInterval(timerInterval);
             startGradedTimer();
-            learnLastInputTime = Date.now();
+            learnLastInputTime = Date.now(); learnLastKeyTime = learnLastInputTime;
             // Now process the correct key normally
             flashFingerPressed(drillKeyboard);
             if (drillLetterStatus === 'clean')      drillCharStates[drillPos] = 'perfect';
@@ -2847,7 +2859,8 @@ function handleDrillKey(e) {
     // and the current position is a space, skip it once so they don't have to
     // type a space as their first character back. During active typing every
     // space is required as normal.
-    const wasIdle = learnLastInputTime > 0 && (Date.now() - learnLastInputTime) > LEARN_IDLE_THRESHOLD;
+    // ⚠️ Round 150: the KEYBOARD clock, not the pay clock — see learnLastKeyTime.
+    const wasIdle = learnLastKeyTime > 0 && (Date.now() - learnLastKeyTime) > LEARN_IDLE_THRESHOLD;
     // ⚠️⚠️ v2.41.0 — ROADMAP 31. THE SKIP MOVES drillPos, SO THE SKIP MUST REPAINT.
     //
     // This block advanced past the space and returned to the caller with the
@@ -2882,12 +2895,22 @@ function handleDrillKey(e) {
     }
     const newExpected = drillSequence[drillPos];
 
-    chars++;
+    // ⚠️⚠️ Round 150: DECIDED HERE, after the space skip has settled drillPos and
+    // before anything below moves it. A re-typed letter is still TYPED (it
+    // advances, it paints) but it is not a new character: not in `chars` — the
+    // GRADED numerator, so h-backspace bursts can no longer lift a run's WPM over
+    // the pass line — not in the day's characters, and it does not stamp the pay
+    // clock. A WRONG key is a mistake wherever it lands and is counted as before.
+    const onNewGround = isNewGround(drillPos, drillBackspaceOrigin);
+    learnLastKeyTime = Date.now();
+    if (typed !== newExpected || onNewGround) chars++;
     if (typed === newExpected) {
         flashFingerPressed(drillKeyboard);
         drillConsecutiveMistakes = 0; // reset on any correct key
-        learnLastInputTime = Date.now();
-        statsData.charsToday++;  statsData.charsWeek++; statsData.charsSchool++;
+        if (onNewGround) {
+            learnLastInputTime = learnLastKeyTime;
+            statsData.charsToday++;  statsData.charsWeek++; statsData.charsSchool++;
+        }
 
         if (drillLetterStatus === 'clean')       drillCharStates[drillPos] = 'perfect';
         else if (drillLetterStatus === 'fixed')  drillCharStates[drillPos] = 'fixed';
@@ -2912,7 +2935,7 @@ function handleDrillKey(e) {
     } else {
         mistakes++;
         drillConsecutiveMistakes++;
-        learnLastInputTime = Date.now();
+        if (onNewGround) learnLastInputTime = learnLastKeyTime;   // Round 150
         statsData.mistakesToday++; statsData.mistakesWeek++; statsData.mistakesSchool++;
         if (newExpected !== ' ') {
             missedChars[newExpected] = (missedChars[newExpected] || 0) + 1;

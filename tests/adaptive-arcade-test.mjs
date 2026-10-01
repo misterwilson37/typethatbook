@@ -1,3 +1,5 @@
+// adaptive-arcade-test.mjs v1.1.1 — Round 150 (Nesmith): keys are sent TRUSTED via fixtures/trusted-key.mjs —
+// the arcade now refuses script-made key events. No assertion changed.
 // adaptive-arcade-test.mjs v1.1.0 — Round 119 (Hammond): Parts H and I — the
 // THIRD cabinet (Deadline has its own view; Shatter and Shards share one, so
 // wiring game-shatter.js covered two and read like three), the replay that
@@ -37,6 +39,7 @@
 // arcade-panels-test.mjs's job.
 
 import { JSDOM } from 'jsdom';
+import { trustedKeyDispatcher } from './fixtures/trusted-key.mjs';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -202,8 +205,8 @@ const { mount } = await import('../game-shatter.js');
 const { mount: mountDeadline } = await import('../game-deadline.js');
 const { COUNTDOWN_MS } = await import('../game-chrome.js');
 
-const key = k => dom.window.dispatchEvent(
-    new dom.window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+// ⚠️ Round 150: trusted keys — the arcade now refuses script-made ones.
+const key = trustedKeyDispatcher(dom.window);
 
 /**
  * Mount Shatter, run the countdown out, and hand back a driver.

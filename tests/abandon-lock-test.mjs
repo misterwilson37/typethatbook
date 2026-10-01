@@ -1,3 +1,5 @@
+// abandon-lock-test.mjs v1.1.1 — Round 150 (Nesmith): keys are sent TRUSTED via fixtures/trusted-key.mjs —
+// the arcade now refuses script-made key events. No assertion changed.
 // abandon-lock-test.mjs v1.1.0 — Round 119: Part P, the paused board clock,
 // found in real 4Hz telemetry rather than by reading code.
 // abandon-lock-test.mjs v1.0.0 — ⚠️⚠️ A STUDENT MUST ALWAYS BE ABLE TO LET GO OF
@@ -48,6 +50,7 @@
 // other half was a sentence on screen that stayed true-looking for ten rounds.
 
 import { JSDOM } from 'jsdom';
+import { trustedKeyDispatcher } from './fixtures/trusted-key.mjs';
 import { readFileSync } from 'fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -100,8 +103,8 @@ const { mount: mountShatter } = await import('../game-shatter.js');
 const { mount: mountDeadline } = await import('../game-deadline.js');
 const { COUNTDOWN_MS } = await import('../game-chrome.js');
 
-const key = k => dom.window.dispatchEvent(
-    new dom.window.KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+// ⚠️ Round 150: trusted keys — the arcade now refuses script-made ones.
+const key = trustedKeyDispatcher(dom.window);
 
 const WORDS = ['sunlight', 'morning', 'planted', 'reading', 'whisper', 'kitchen'];
 

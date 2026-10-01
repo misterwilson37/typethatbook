@@ -4,7 +4,13 @@ A classroom typing application for Ellis Middle School. Students type real books
 one sentence at a time, and the time they spend doing it becomes the number their
 teacher grades.
 
-<!-- README.md v2.4.0 — Round 64 (Duplex), 2026-09-03.
+<!-- README.md v2.5.0 — Round 150 (Nesmith), 2026-10-01.
+
+     v2.5.0 — New section "What counts as typing time": the rules that decide
+     whether a keystroke earns time, a character or a grade, in one place,
+     because three rounds have now been spent closing ways around them.
+
+     README.md v2.4.0 — Round 64 (Duplex), 2026-09-03.
 
      v2.4.0 — ⚠️⚠️ THE REGENERATION COMMAND IN THIS FILE WAS WRONG, AND IT WAS
      WRONG IN THE DIRECTION THAT HIDES A DEFECT. It grepped `versions.js` for
@@ -153,6 +159,40 @@ evidence does not touch it**, and it cannot be reconstructed from evidence:
 `runScores` is a cumulative SUM and `runGrades` is best-ever-seen, so neither can
 have one entry removed. That is ROADMAP 33, and it is why clearing mastery is an
 explicit control in reports.html rather than a side effect of deleting a run.
+
+## What counts as typing time
+
+Time is the number a teacher grades, so every rule below exists because a student
+found a way around the one before it. They hold on all three typing pages
+(Library `game.js`, School `learn.js` and the `learn2.js` fork).
+
+* **The clock starts at the first keystroke**, not when a book or lesson opens.
+* **Backspace never earns time**, and **a held key never earns time** (Round 131 —
+  students were holding Backspace for ten minutes). In School a held key also
+  types only once, so it cannot auto-type a double letter into a graded run.
+* **Re-typed ground earns nothing** (Round 150 — `h`, Backspace, `h`, Backspace…).
+  Once a student backspaces, every letter below the point where the backspacing
+  began is a correction: it is typed and painted normally, a wrong key there is
+  still a mistake, but it adds no time, no character, no streak, no Library-gate
+  credit and, in School, nothing to the graded WPM. The rule is `isNewGround()`.
+* **Library runs two clocks.** `lastInputTime` answers "is someone at the
+  keyboard?" and drives the 5-second auto-pause; `lastProgressTime` answers
+  "should this moment be paid?" and only new ground resets it. So an honest long
+  correction is never auto-paused — it just goes unpaid until the cursor is past
+  where it started. A typo fixed straight away costs nothing, because it happens
+  inside the 2-second window the last real letter left. School has the same
+  split: `learnLastInputTime` is the pay clock and `learnLastKeyTime` drives only
+  the "you paused, so skip the space" helper.
+* **Only a real keyboard types.** Every typing handler, including the three arcade
+  games, ignores key events a script made (`isRealKey()`, `e.isTrusted`). Removing
+  the developer console does not stop a `javascript:` bookmark.
+* **The Library lesson gate follows the student, not the sign-in.** A signed-out
+  tab uses the gate of whoever last signed in on that browser (every student has
+  their own profile), and `ttbGate` exists in the console for admins only.
+
+`tests/backspace-farm-test.mjs` and `tests/retype-farm-test.mjs` replay each trick
+through the real handlers. Harnesses that need to press keys use
+`tests/fixtures/trusted-key.mjs`, which delivers a browser-trusted key in jsdom.
 
 ## Working on it
 
