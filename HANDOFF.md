@@ -1,6 +1,42 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-10-01 by Round 150 (Nesmith), for whoever is next
+> ## ▶ START HERE — written 2026-10-11 by Round 151 (Olympia), for whoever is next
+>
+> **119 harnesses pass**, all of them (new: `csv-import-test.mjs`).
+>
+> **Why "Olympia":** the handoff names rounds after typewriter makers, and this round
+> was about a machine that printed the work somewhere nobody could see it. Olympia
+> was unclaimed (Underwood, Hermes and Royal are taken).
+>
+> ⚠️⚠️⚠️ **THE STUDENT CSV IMPORT WORKED AND THE SCREEN SAID NOTHING — FIXED.**
+> Jake, with a screenshot of eleven "empty row" lines: *"Why can't I import students
+> into my class?"* — then, having committed anyway: *"I don't know if they got
+> committed. Or what happened to the students who were already in it."* Every real
+> row had been accepted. Three defects hid it: queued rows `return`ed before being
+> drawn; comma-only spreadsheet padding was drawn instead; and the question, the
+> ready count and Commit's "✓ Done" were all `innerHTML +=`'d under the data inside
+> one 240px scroll box. ⭐ `lessons-admin.js` v1.23.0 / `admin.html` v1.23.1: summary
+> → decision → table in ONE write, only the table scrolls, blank rows counted and
+> removable, Commit REPLACES the panel with a receipt that reads
+> `pendingClassAssignments` back, and a new **Check queued students** button lists
+> who's still waiting and when each expires.
+> ⭐ **THE HABIT:** nothing a teacher must read or answer may live inside a scroll
+> region below data rows, and no confirmation may be an append.
+> ⚠️ **ALSO FIXED, FOUND ON THE WAY:** a brand-new student in a not-yet-created class
+> was "class unknown — skipped" and never offered Create (missing-class is now
+> checked before the no-uid test); and admin.html's textarea placeholder showed a
+> real-looking 7-digit student ID (Rule 4) — now `studentid@…`.
+> ⚠️ **RULE 10, HONESTLY:** the harness runs a file SHAPED like Jake's (header,
+> CRLF, BOM, ~130 students, 300 comma lines), with invented emails — his file holds
+> student IDs and is not retained. Against v1.22.0 it reproduces his screenshot
+> exactly: 306 rows drawn, 0 of them students. ⚠️ **ASK JAKE:** re-run Test File
+> on his real file and confirm the summary's student count matches his roster.
+> ⚠️ **OPEN, NOT BUILT:** Jake's earlier commit (pre-fix) left no receipt. "Check
+> queued students" answers it from Firestore; nothing else is needed.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-10-01 by Round 150 (Nesmith)
 >
 > **118 harnesses pass**, all of them. (Round 149 shipped a CHANGELOG entry and no
 > section here; its change — a passed Deadline game now really unlocks the next
@@ -7675,6 +7711,7 @@ a pointer to a file you should go and read.**
 | 24 | Monotype | ⚠️ OPENED WITH A RETRACTION — records two rounds had called LOST were merely LATE. The evening guest: `sessionLogAdopt()` recomputed dates from UTC, filing an after-7pm Library sprint on tomorrow. THE OVERNIGHT RESCUE shipped on Jake's ruling. Item 3 deleted as a phantom by one grep; item 6 confirmed and fixed for Library. |
 | 22 | Smith Premier | ⚠️ §3.1 CLOSED. The writers ship per-source FIELDS, date-gated so the upload is safe on a school night and the shape switches on 2026-08-22. Confirmed Jake's `firestore.rules` v2.6.0 by execution and gave it the harness it never had. Found two readers nobody had counted: `recalcDailyLog()`'s cutover constant was out of scope and would have thrown on the ⟳ button, and `lessons-admin.js` was a fourth reader of `typing_logs` that would have shown every student's week as nearly nothing from Saturday. Rewrote `crossmode-overwrite-test.mjs`, which had spent six rounds validating a design the rules reject. |
 | 150 | Nesmith | ⚠️⚠️⚠️ **RE-TYPED GROUND EARNS NOTHING.** `h`-Backspace-`h` farmed time, characters, the streak board, the Library gate and School's graded WPM. Two clocks per page; `isTrusted` on every typing handler; admins-only `ttbGate`; a signed-out tab keeps its student's gate. §49 |
+| 151 | Olympia | ⚠️⚠️⚠️ **THE CSV IMPORT WORKED IN SILENCE.** Queued students never drawn, comma padding drawn as "empty row", question and Commit's confirmation buried under the data in one scroll box. Summary-first preview, blank-row removal, Commit receipt with Firestore read-back, Check queued students. lessons-admin.js v1.23.0, admin.html v1.23.1, csv-import-test.mjs. |
 
 ---
 

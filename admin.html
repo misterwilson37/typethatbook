@@ -1,9 +1,16 @@
 <!DOCTYPE html>
-<!-- admin.html v1.23.0 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.23.1 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.23.1 — Round 151 (Olympia). CSV import: #student-csv-preview-area loses
+               its 240px cap (the summary, the question and Commit's receipt all sat
+               under the data rows inside it); new "Check queued students" button
+               (#student-csv-queue-btn → lessons-admin.js _showQueuedAssignments);
+               the textarea placeholder no longer shows a real-looking student ID
+               (Rule 4). See lessons-admin.js v1.23.0.
 
      v1.23.0 — ⭐ ROADMAP 58 STEP TWO. The Class Manager's editor gains a "Week
      Starts On" picker, 5th column in what was a 4-column grid — new utility
@@ -1270,7 +1277,6 @@
         .u-margin-top-8px { margin-top: 8px; }
 
         /* max-height */
-        .u-max-height-240px { max-height: 240px; }
         .u-max-height-340px { max-height: 340px; }
         .u-max-height-360px { max-height: 360px; }
         .u-max-height-400px { max-height: 400px; }
@@ -2075,13 +2081,17 @@
                     <input type="file" id="student-csv-file" accept=".csv,.txt" class="u-flex-1 u-font-size-0-8em">
                 </div>
                 <textarea id="student-csv-paste" class="l-field u-font-size-0-78em u-font-family-monospace u-margin-bottom-8px" rows="4"
-                    placeholder="email,class_name&#10;1088461@sumnerk12.net,7th &amp; 8th Grade (Standard)"></textarea>
+                    placeholder="email,class_name&#10;studentid@sumnerk12.net,7th &amp; 8th Grade (Standard)"></textarea>
                 <div class="u-display-flex u-gap-8px u-align-items-center">
                     <button id="student-csv-preview-btn" class="lbtn lbtn-primary u-width-auto u-padding-5px-14px u-font-size-0-8em">1. Test File</button>
                     <button id="student-csv-commit-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-14px u-font-size-0-8em u-opacity-0-4" style="cursor:not-allowed;" disabled>2. Commit</button>
+                    <button id="student-csv-queue-btn" class="lbtn lbtn-secondary u-width-auto u-padding-5px-14px u-font-size-0-8em" title="Students queued by an import who haven't signed in yet">Check queued students</button>
                     <span id="student-csv-loading" class="u-color-888 u-font-size-0-78em u-display-none">Loading classes…</span>
                 </div>
-                <div id="student-csv-preview-area" class="u-margin-top-10px u-font-size-0-78em u-max-height-240px u-overflow-y-auto"></div>
+                <!-- ⚠️ v1.23.1: NO max-height / overflow on THIS box. It holds the summary, the
+                     decision question and Commit's receipt, and capping it put all three
+                     under the data rows (Round 151). The tables inside scroll on their own. -->
+                <div id="student-csv-preview-area" class="u-margin-top-10px u-font-size-0-78em"></div>
             </div>
 
             <!-- Status bar -->

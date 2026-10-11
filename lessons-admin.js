@@ -1,4 +1,26 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.22.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.23.0
+//
+// v1.23.0 — ⚠️⚠️ ROUND 151 (Olympia): THE CSV IMPORT WORKED AND THE SCREEN
+//           SAID NOTHING. Jake's whole roster was ACCEPTED and he saw eleven
+//           "empty row" lines: queued rows `return`ed out of the loop before
+//           being drawn; comma-only spreadsheet padding was drawn instead; and
+//           the question, the ready count AND Commit's "✓ Done" were appended
+//           under all of it inside one 240px scroll box. ⭐ Now: summary →
+//           missing classes → decision → table, in ONE innerHTML write; only
+//           the table scrolls. `_parseRosterCSV()` is pure (BOM, CRLF, quoted
+//           class names, trailing padding columns stripped) and counts blank
+//           rows; "Remove them from the text" strips them. Commit REPLACES the
+//           panel with a receipt and READS pendingClassAssignments BACK per
+//           class. New "Check queued students" lists who's still waiting and
+//           when each expires (30 days). ⚠️ Missing-class rows are now caught
+//           BEFORE the no-uid test — a brand-new student in a not-yet-created
+//           class used to be "skipped" with no Create offer. Duplicate emails
+//           and no-class-no-uid rows are shown, not silently dropped.
+//           tests/csv-import-test.mjs.
+//
+// ⚠️ v1.15.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (8-entry
+// budget, Round 151, Olympia), along with its pointer lines to v1.14.0 and
+// earlier — all moved together, unchanged.
 //
 // v1.22.0 — ⭐ ROADMAP 58 STEP TWO: THE CLASS EDITOR'S HALF. `saveClass()` gains
 //           a `weekStartDay` field (0=Sun…6=Sat) from admin.html's new "Week
@@ -121,24 +143,7 @@
 //      ./read-meter.js (a URL swap), warns before scanning >40 students, and
 //      prints the actual read count next to the results.
 //
-// v1.15.0 — ⭐ ROADMAP §10.H — THE MEASUREMENT JAKE ASKED FOR FIRST, unbuilt for
-// five rounds and shipped here for ZERO EXTRA READS. scanForStuck() already reads
-// every record it needs — one lessonProgress subcollection per filtered student —
-// so the per-lesson aggregate rides the same sweep. A second button would have
-// re-read ~300 documents to answer a neighbouring question about the same data.
-// ⚠️⚠️ TWO COLUMNS, NOT ONE: replay-rate high with a HIGH pass rate is the strong
-// ones coasting; the same number with a LOW pass rate is the struggling ones
-// grinding. Opposite problems, opposite fixes, and one "attempts" column cannot
-// tell them apart. ⚠️ It sums runAttempts, NOT `attempts` — a student stuck on
-// run 2 of 12 has attempts: 0 and is exactly who this is looking for (§0.-13).
-// ⚠️ A🔥 counts are recorded from 2026-08-25 onward only; a dash means NOT
-// RECORDED, not zero earned, and the table footnote says so.
-//
-// ⚠️ v1.14.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS, along with its
-// own pointer lines to v1.13.2/v1.13.1/v1.13.0/v1.12.0/v1.11.0 — all moved
-// together, unchanged.
-//
-window.LESSONS_ADMIN_VERSION = '1.22.0';
+window.LESSONS_ADMIN_VERSION = '1.23.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1873,6 +1878,8 @@ function initStudentsPanel() {
     document.getElementById('student-one-add-btn').addEventListener('click', _addOneStudent);
     document.getElementById('student-csv-preview-btn').addEventListener('click', _previewCSV);
     document.getElementById('student-csv-commit-btn').addEventListener('click', _commitCSV);
+    // v1.23.0 — "did my queued students land?", answerable any time.
+    document.getElementById('student-csv-queue-btn').addEventListener('click', _showQueuedAssignments);
 
     // Progress tabs
     document.querySelectorAll('.progress-tab-btn').forEach(btn => {
@@ -2734,8 +2741,127 @@ function _renderRoster() {
 }
 
 // ── CSV Import ─────────────────────────────────────────────────────────────────
+//
+// ⚠️⚠️ v1.23.0 (Round 151, Olympia) — THE IMPORT WORKED AND THE SCREEN SAID NOTHING.
+// Jake, 2026-10-11, with a screenshot of eleven rows reading "empty row" and nothing
+// else: *"Why can't I import students into my class?"* — and then, after committing
+// anyway: *"I don't know if they got committed."* Every real row in his file had
+// been ACCEPTED. Three separate defects hid that:
+//
+//   1. Queued rows (no typing logs yet) were pushed to _csvParsed and then
+//      `return`ed out of the loop BEFORE their table row was drawn. The one kind of
+//      student a new rotation is made of was the one kind never shown.
+//   2. Excel/Sheets exports pad the sheet with lines of bare commas. Each one
+//      survived `l.trim()` and was drawn as "empty row" — so the only rows on screen
+//      were the meaningless ones.
+//   3. The whole preview area was ONE 240px scroll box, and the decision question,
+//      the "ready" count, AND Commit's "✓ Done" line were all `+=`-appended to its
+//      bottom, under every blank row. Commit's confirmation was buried exactly the
+//      way the question was.
+//
+// ⭐ THE SHAPE NOW: summary → decision → table, written in ONE innerHTML assignment.
+// The table alone scrolls, in its own box. Nothing a teacher must read or answer
+// may live inside a scroll region below data rows. Commit REPLACES the panel with
+// a receipt rather than appending to it, and the receipt reads Firestore back.
+// csv-import-test.mjs pins all of this.
+
+// ⚠️ PURE AND SELF-CONTAINED ON PURPOSE. csv-import-test.mjs lifts this function
+// out of the file by brace-matching and runs it standalone, so it may depend on
+// nothing outside its own body — same constraint as applyPendingClassAssignment
+// in learn.js. A top-level helper used in here is a ReferenceError in the harness.
+//
+// Returns { header, blank, rows:[{ line, email, cls }] }. `line` is the 1-based
+// line number in the file as the teacher sees it in a text editor.
+function _parseRosterCSV(raw) {
+    const text  = String(raw == null ? '' : raw).replace(/^\uFEFF/, '');
+    const lines = text.split(/\r\n|\r|\n/);
+    // A trailing newline yields one final '' that no human would call a row.
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+
+    // BLANK = nothing left once separators, quotes and whitespace are gone. This is
+    // what a spreadsheet's padding rows look like: ",", ",,", '"",""', tabs.
+    const isBlank = (l) => l.replace(/[\s,;"']/g, '').length === 0;
+    const unquote = (s) => {
+        s = s.trim();
+        if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') s = s.slice(1, -1).replace(/""/g, '"');
+        return s.trim();
+    };
+
+    const out = { header: false, blank: 0, rows: [] };
+    let sawFirst = false;
+    lines.forEach((l, i) => {
+        if (isBlank(l)) { out.blank++; return; }
+
+        let email, cls;
+        const idx = l.indexOf(',');
+        if (idx === -1) { email = l; cls = ''; }
+        else {
+            email = l.slice(0, idx);
+            let rest = l.slice(idx + 1).trimStart();
+            if (rest[0] === '"') {
+                // Quoted class name: may itself contain commas ("7th, 8th Grade").
+                let j = 1, buf = '';
+                while (j < rest.length) {
+                    if (rest[j] === '"') {
+                        if (rest[j + 1] === '"') { buf += '"'; j += 2; continue; }
+                        break;
+                    }
+                    buf += rest[j++];
+                }
+                cls = buf.trim();
+            } else {
+                // Unquoted: everything after the first comma, minus the padding
+                // columns a spreadsheet adds ("Class,,,"). ⚠️ Without the strip,
+                // "7th & 8th Grade (Standard),," is a class that does not exist.
+                cls = rest.replace(/[\s,]+$/, '');
+            }
+        }
+        email = unquote(email);
+        cls   = unquote(cls);
+
+        if (!sawFirst) {
+            sawFirst = true;
+            // Same test as before v1.23.0: a first row that names the column, or
+            // that has no address in it, is a header.
+            if (email.toLowerCase() === 'email' || !email.includes('@')) { out.header = true; return; }
+        }
+        out.rows.push({ line: i + 1, email, cls });
+    });
+    return out;
+}
+
+// The file minus its blank lines, byte-for-byte otherwise. Pure for the same reason.
+function _stripBlankRosterLines(raw) {
+    const text  = String(raw == null ? '' : raw);
+    const eol   = /\r\n/.test(text) ? '\r\n' : '\n';
+    return text.split(/\r\n|\r|\n/)
+        .filter(l => l.replace(/[\s,;"']/g, '').length > 0)
+        .join(eol);
+}
+
+function _removeBlankRowsFromCSV() {
+    const ta = document.getElementById('student-csv-paste');
+    if (!ta) return;
+    ta.value = _stripBlankRosterLines(ta.value);
+    // ⚠️ The chosen file is now out of date with the text box; clear the picker so
+    // nobody believes the file on disk was edited. It was not.
+    const fileEl = document.getElementById('student-csv-file');
+    if (fileEl) fileEl.value = '';
+    _previewCSV();
+}
+
+const _CSV_STATUS = {
+    assign:  { color: '#22c55e', ready: true  },
+    already: { color: '#22c55e', ready: true  },
+    move:    { color: '#ffaa00', ready: true  },
+    queue:   { color: '#4B9CD3', ready: true  },
+    clear:   { color: '#888',    ready: true  },
+    missing: { color: '#ffaa00', ready: false },
+    problem: { color: '#ff6666', ready: false },
+};
+
 async function _previewCSV() {
-    const raw       = document.getElementById('student-csv-paste').value.trim();
+    const raw       = document.getElementById('student-csv-paste').value;
     const areaEl    = document.getElementById('student-csv-preview-area');
     const commitBtn = document.getElementById('student-csv-commit-btn');
     const testBtn   = document.getElementById('student-csv-preview-btn');
@@ -2744,12 +2870,15 @@ async function _previewCSV() {
     // ⚠️ Reset with the parse. A mode chosen for the PREVIOUS file must not
     // survive into this one — paste a new roster, get asked again.
     _csvOverwriteMode = null;
+    _csvMissingClasses = [];
     commitBtn.disabled = true;
     commitBtn.style.opacity = '0.4';
     commitBtn.style.cursor  = 'not-allowed';
+    commitBtn.className = 'lbtn lbtn-secondary';
+    if (testBtn) testBtn.className = 'lbtn lbtn-primary';
     areaEl.innerHTML = '';
 
-    if (!raw) {
+    if (!raw.trim()) {
         areaEl.innerHTML = '<span style="color:#ff6666;">No data — upload a file or paste CSV first.</span>';
         return;
     }
@@ -2768,26 +2897,17 @@ async function _previewCSV() {
     }
     if (loadingEl) loadingEl.style.display = 'none';
 
-    const lines = raw.split(/\r?\n/).filter(l => l.trim());
-    const rows  = lines.map(l => {
-        const idx = l.indexOf(',');
-        return idx === -1 ? [l.trim(), ''] : [l.slice(0, idx).trim(), l.slice(idx+1).trim()];
-    }).map(cols => cols.map(c => c.replace(/^"|"$/g, '').trim()));
+    const parsed = _parseRosterCSV(raw);
 
-    const hasHeader = rows[0][0].toLowerCase() === 'email' || !rows[0][0].includes('@');
-    const dataRows  = hasHeader ? rows.slice(1) : rows;
-
-    // ⚠️ NORMALISED KEYS (v1.8.0). This used to lowercase and nothing else, so a
-    // roster export writing "Period 3" against a class named "Period-3" was
-    // reported as missing. That mattered more once the importer could CREATE
-    // missing classes: the obvious feature, built on the old lookup, would have
-    // answered a punctuation mismatch by making a second class with the same
-    // name and splitting the roster across both.
+    // ⚠️ NORMALISED KEYS (v1.8.0) — see _classKey(). A punctuation mismatch must
+    // not read as a missing class, or the create-classes offer below would make a
+    // second class with the same name and split the roster across both.
     const classLookup = new Map();
     Object.values(_classCache).forEach(cls => {
         classLookup.set(_classKey(cls.name), cls.id);
         classLookup.set(_classKey(cls.id), cls.id);
     });
+    const className = (id) => (_classCache[id]?.name || id);
 
     const emailToUid = new Map();
     const uidToClass = new Map();
@@ -2796,234 +2916,212 @@ async function _previewCSV() {
         uidToClass.set(r.uid, r.classId || '');
     });
 
-    // normalised key → { name: first spelling seen in the file, rows: how many }
-    const missingClasses = new Map();
+    const missingClasses = new Map();   // key → { name, rows }
+    const seen = new Map();             // email → first line it appeared on
+    const counts = { assign: 0, already: 0, move: 0, queue: 0, clear: 0, missing: 0, problem: 0 };
+    const tableRows = [];
 
-    // ── The two counts the decision block is about (v1.10.0) ──
-    // queuedRows: no uid, so this becomes a pendingClassAssignments record and the
-    //   student's existing class — if they have one — is unknown from here.
-    // movedRows: has a uid AND is already in a DIFFERENT class, so committing
-    //   moves them. This was always what happened; it was just never said out loud.
-    let queuedRows = 0;
-    let movedRows  = 0;
-
-    let html = '<table style="width:100%; border-collapse:collapse;">' +
-        '<tr style="color:#666; border-bottom:1px solid #333;">' +
-        '<th style="text-align:left; padding:3px 6px;">Email</th>' +
-        '<th style="text-align:left; padding:3px 6px;">Class</th>' +
-        '<th style="text-align:left; padding:3px 6px;">Status</th></tr>';
-
-    dataRows.forEach(cols => {
-        const email   = (cols[0] || '').toLowerCase().trim();
-        const clsRaw  = (cols[1] || '').trim();
+    // ⚠️⚠️ EVERY NON-BLANK ROW IS DRAWN. There is no early `return` in this loop,
+    // and there must never be one again: that is precisely how every queued
+    // student vanished from the preview before v1.23.0. Decide the kind, then
+    // fall through to the single place that records and draws it.
+    parsed.rows.forEach(({ line, email: emailRaw, cls: clsRaw }) => {
+        const email   = emailRaw.toLowerCase();
         const uid     = emailToUid.get(email);
-        const classId = classLookup.get(_classKey(clsRaw));
-        const clsName = classId ? (_classCache[classId]?.name || classId) : null;
+        const classId = clsRaw ? classLookup.get(_classKey(clsRaw)) : undefined;
+        let kind, text;
 
-        let status, ok = false;
-        if (!email)    { status = '<span style="color:#555;">empty row</span>'; }
-        else if (!uid) {
-            // ⚠️ THIS LABEL USED TO SAY "will apply on first login" AND IT WAS AN
-            // ASSERTION ABOUT A STUDENT THIS FUNCTION KNOWS NOTHING ABOUT.
-            //
-            // A missing uid means only one thing: no typing_logs in the last
-            // ROSTER_DAYS days. It does NOT mean the student is new. A returning
-            // student who last typed in the spring looks identical here, and they
-            // already have a classId from last year — which is exactly the case
-            // the consumer used to discard in silence. The old wording promised an
-            // outcome for the one case where the outcome was "nothing happens",
-            // in confident blue, with no error anywhere in the chain.
-            //
-            // Say what is actually known, and let the decision block below ask
-            // about what isn't.
-            if (classId) {
-                status = '<span style="color:#4B9CD3;">⏰ not in the last ' + ROSTER_DAYS +
-                    ' days of logs — will queue for ' + escHtml(clsName) + '</span>';
-                ok = true; // write to pending collection keyed by email
-                queuedRows++;
-                _csvParsed.push({ uid: null, email, classId: classId || '' });
-                return; // skip the push below
-            } else {
-                status = '<span style="color:#888;">not in logs, class unknown — skipped</span>';
-            }
+        if (!email || !email.includes('@')) {
+            kind = 'problem';
+            text = email ? 'not an email address — skipped' : 'no email on this line — skipped';
         }
-        else if (!clsRaw) { status = '<span style="color:#888;">will clear class</span>'; ok = true; }
+        else if (seen.has(email)) {
+            kind = 'problem';
+            text = 'duplicate of line ' + seen.get(email) + ' — skipped (the first one wins)';
+        }
+        else if (!clsRaw) {
+            if (uid) { kind = 'clear'; text = 'no class given — will REMOVE their current class'; }
+            else     { kind = 'problem'; text = 'no class given — nothing to do'; }
+        }
         else if (!_isUsableClassName(clsRaw)) {
-            status = '<span style="color:#ff6666;">class name has no letters or numbers: "' +
-                escHtml(clsRaw) + '" — fix the file</span>';
+            kind = 'problem';
+            text = 'class name has no letters or numbers — fix the file';
         }
         else if (!classId) {
-            // ⚠️ Record it rather than only complaining about it. The file in
-            // front of us already names every class the import needs; sending
-            // an admin to another tab to retype them was the bug.
-            if (!missingClasses.has(_classKey(clsRaw))) {
-                missingClasses.set(_classKey(clsRaw), { name: clsRaw, rows: 0 });
-            }
-            missingClasses.get(_classKey(clsRaw)).rows++;
-            status = '<span style="color:#ffaa00;">no class named "' + escHtml(clsRaw) +
-                '" yet — see below</span>';
+            // ⚠️ Checked BEFORE the uid test (v1.23.0). It used to come after, so a
+            // brand-new student in a not-yet-created class — the normal case for a
+            // fresh rotation — was "class unknown — skipped" and never offered the
+            // create-class button that exists for exactly this file.
+            kind = 'missing';
+            text = 'class does not exist yet — see above';
+            const k = _classKey(clsRaw);
+            if (!missingClasses.has(k)) missingClasses.set(k, { name: clsRaw, rows: 0 });
+            missingClasses.get(k).rows++;
         }
-        else { status = '<span style="color:#22c55e;">✓ → ' + escHtml(clsName) + '</span>'; ok = true; }
-
-        // A visible student already in a different class is a MOVE, and the row
-        // should say so rather than showing the same green tick as a first
-        // placement. This is the case the roster can actually see; the queued rows
-        // above are the same question with the answer hidden.
-        if (ok && uid && classId) {
+        else if (!uid) {
+            // ⚠️ A missing uid means ONLY "no typing_logs in the last ROSTER_DAYS
+            // days". Not "new". A returning student looks identical here and may
+            // already hold last year's class — the decision block asks about that.
+            kind = 'queue';
+            text = 'hasn\u2019t typed in ' + ROSTER_DAYS + ' days — will be placed when they sign in';
+        }
+        else {
             const cur = uidToClass.get(uid) || '';
-            if (cur && cur !== classId) {
-                movedRows++;
-                status = '<span style="color:#ffaa00;">↷ move from ' +
-                    escHtml(_classCache[cur]?.name || cur) + ' → ' + escHtml(clsName) + '</span>';
-            }
+            if (cur === classId)  { kind = 'already'; text = 'already in this class'; }
+            else if (cur)         { kind = 'move';    text = 'currently in ' + className(cur) + ' — would move'; }
+            else                  { kind = 'assign';  text = 'will be placed now'; }
         }
 
-        if (ok) _csvParsed.push({ uid, email, classId: classId || '' });
-
-        html += '<tr style="border-bottom:1px solid #111;">' +
-            '<td style="padding:2px 6px; color:#ccc;">' + escHtml(email) + '</td>' +
+        if (email && !seen.has(email)) seen.set(email, line);
+        counts[kind]++;
+        if (_CSV_STATUS[kind].ready) {
+            _csvParsed.push({ uid: uid || null, email, classId: classId || '', kind,
+                              fromClassId: uid ? (uidToClass.get(uid) || '') : '' });
+        }
+        tableRows.push(
+            '<tr style="border-bottom:1px solid #1d1d1d;">' +
+            '<td style="padding:2px 6px; color:#555; text-align:right;">' + line + '</td>' +
+            '<td style="padding:2px 6px; color:#ccc;">' + escHtml(email || '—') + '</td>' +
             '<td style="padding:2px 6px; color:#aaa;">' + escHtml(clsRaw || '—') + '</td>' +
-            '<td style="padding:2px 6px;">' + status + '</td></tr>';
+            '<td style="padding:2px 6px; color:' + _CSV_STATUS[kind].color + ';">' + escHtml(text) + '</td></tr>');
     });
-    html += '</table>';
-    areaEl.innerHTML = html;
 
-    // ── Offer to create the classes this file names and Firestore doesn't have ──
+    // ── 1. SUMMARY — the first thing on screen, always ────────────────────────
+    const n = (k) => counts[k];
+    const plural = (c, one, many) => c + ' ' + (c === 1 ? one : many);
+    const lines = [];
+    if (n('assign'))  lines.push(['#22c55e', plural(n('assign'), 'student', 'students') + ' will be placed in their class right away']);
+    if (n('already')) lines.push(['#22c55e', plural(n('already'), 'student is', 'students are') + ' already in the class named — no change']);
+    if (n('queue'))   lines.push(['#4B9CD3', plural(n('queue'), 'student hasn\u2019t', 'students haven\u2019t') +
+                                  ' typed yet — each will be placed the first time they sign in (within 30 days)']);
+    if (n('move'))    lines.push(['#ffaa00', plural(n('move'), 'student is', 'students are') + ' currently in a DIFFERENT class']);
+    if (n('clear'))   lines.push(['#888',    plural(n('clear'), 'student has', 'students have') + ' no class on their line — their current class will be removed']);
+    if (n('missing')) lines.push(['#ffaa00', plural(n('missing'), 'student is', 'students are') + ' waiting on a class that doesn\u2019t exist yet']);
+    if (n('problem')) lines.push(['#ff6666', plural(n('problem'), 'line', 'lines') + ' can\u2019t be used — marked in red in the table']);
+
+    let summary =
+        '<div style="padding:8px 10px; border:1px solid #333; background:#141414;">' +
+        '<div style="color:#eee; font-weight:bold; margin-bottom:4px;">' +
+        plural(parsed.rows.length, 'student line', 'student lines') + ' in this file' +
+        (parsed.header ? ' (plus a header row)' : '') + '</div>' +
+        '<ul style="margin:2px 0 0 18px; padding:0;">' +
+        lines.map(([c, t]) => '<li style="margin:2px 0; color:' + c + ';">' + escHtml(t) + '</li>').join('') +
+        '</ul>' +
+        '<div style="color:#888; margin-top:6px;">Students already in a class who are <b>not</b> in this ' +
+        'file are never touched. This import only adds people; it never takes anyone out.</div>';
+    if (parsed.blank) {
+        summary +=
+            '<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
+            '<span style="color:#888;">' + plural(parsed.blank, 'blank row', 'blank rows') +
+            ' (lines with nothing but commas) — ignored.</span>' +
+            '<button id="csv-strip-blank-btn" class="lbtn lbtn-secondary" ' +
+            'style="width:auto; padding:3px 10px; font-size:0.9em;">Remove them from the text</button>' +
+            '</div>';
+    }
+    summary += '</div>';
+
+    // ── 2. MISSING CLASSES — offer to create what the file names ──────────────
+    let missingHtml = '';
     if (missingClasses.size) {
         const schools = await _loadSchoolOptions();
         const list = [...missingClasses.values()];
         _csvMissingClasses = list;
-
-        const rowsWord = n => n + ' student' + (n === 1 ? '' : 's');
         const names = list.map(m =>
             '<li style="margin:2px 0;"><b style="color:#eee;">' + escHtml(m.name) + '</b>' +
-            ' <span style="color:#666;">— ' + rowsWord(m.rows) + '</span></li>').join('');
-
-        let picker;
-        if (!schools.length) {
-            // schoolId is REQUIRED by firestore.rules; a class with no building
-            // cannot be scoped, so there is nothing useful to offer here.
-            picker = '<div style="color:#ffaa00; margin-top:6px;">No schools available — ' +
-                     'a super admin has to create one first (Firestore console → schools). ' +
-                     'A class has to belong to a building.</div>';
-        } else {
-            picker =
-                '<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
-                '<label style="color:#888;">Building:</label>' +
-                '<select id="csv-newclass-school" class="l-field" style="width:auto; padding:3px 6px;">' +
-                schools.map(x => '<option value="' + escHtml(x.id) + '">' + escHtml(x.name) + '</option>').join('') +
-                '</select>' +
-                '<button id="csv-create-classes-btn" class="lbtn lbtn-primary" ' +
-                'style="width:auto; padding:5px 12px; font-size:0.85em;">' +
-                'Create ' + list.length + ' class' + (list.length === 1 ? '' : 'es') + '</button>' +
-                '<span id="csv-create-classes-status" style="color:#888;"></span>' +
-                '</div>';
-        }
-
-        areaEl.innerHTML +=
+            ' <span style="color:#666;">— ' + plural(m.rows, 'student', 'students') + '</span></li>').join('');
+        const picker = !schools.length
+            // schoolId is REQUIRED by firestore.rules; a class must belong to a building.
+            ? '<div style="color:#ffaa00; margin-top:6px;">No schools available — a super admin has to ' +
+              'create one first (Firestore console → schools). A class has to belong to a building.</div>'
+            : '<div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">' +
+              '<label style="color:#888;">Building:</label>' +
+              '<select id="csv-newclass-school" class="l-field" style="width:auto; padding:3px 6px;">' +
+              schools.map(x => '<option value="' + escHtml(x.id) + '">' + escHtml(x.name) + '</option>').join('') +
+              '</select>' +
+              '<button id="csv-create-classes-btn" class="lbtn lbtn-primary" ' +
+              'style="width:auto; padding:5px 12px; font-size:0.85em;">' +
+              'Create ' + list.length + ' class' + (list.length === 1 ? '' : 'es') + '</button>' +
+              '<span id="csv-create-classes-status" style="color:#888;"></span></div>';
+        missingHtml =
             '<div style="margin-top:10px; padding:8px 10px; border:1px solid #444; background:#141414;">' +
             '<div style="color:#ffaa00; font-weight:bold; margin-bottom:4px;">' +
             list.length + ' class name' + (list.length === 1 ? '' : 's') + ' in this file ' +
-            (list.length === 1 ? 'does' : 'do') + " not exist yet</div>" +
+            (list.length === 1 ? 'does' : 'do') + ' not exist yet</div>' +
             '<ul style="margin:4px 0 0 18px; padding:0; color:#ccc;">' + names + '</ul>' +
-            // ⚠️ The read-before-write warning is the whole reason this is a
-            // button and not automatic. A typo is indistinguishable from a new
-            // class, and the resulting split roster looks correct here.
-            '<div style="color:#888; margin-top:6px; font-size:0.95em;">' +
-            'Read these before creating them — a misspelling here becomes a real class, ' +
-            'and the students in it stop showing up under the class you meant.' +
-            '</div>' + picker +
-            '</div>';
-
-        // ⚠️ NO addEventListener HERE ANY MORE (v1.10.0), AND THIS WAS ALREADY A
-        // BUG BEFORE THIS VERSION EXISTED. The Create-classes button used to be
-        // wired right here — and then the `_csvParsed.length > 0` block below did
-        // `areaEl.innerHTML +=`, which re-parses this container and throws away
-        // every node in it, listener and all. So any file that named both a new
-        // class AND at least one valid row produced a Create-classes button that
-        // did nothing at all when clicked. Silently: a dead button looks exactly
-        // like a slow one.
-        //
-        // ⚠️ `innerHTML +=` IS NOT AN APPEND. It is a read, a concatenate, and a
-        // full re-parse of the whole subtree. Every listener bound to anything
-        // already inside is gone. All wiring for this panel now happens once, at
-        // the end of the function, after the last write. Do not bind above it.
+            // ⚠️ Why this is a button and not automatic: a typo is indistinguishable
+            // from a new class, and the resulting split roster looks correct here.
+            '<div style="color:#888; margin-top:6px; font-size:0.95em;">Read these before creating them — ' +
+            'a misspelling here becomes a real class, and the students in it stop showing up under ' +
+            'the class you meant.</div>' + picker + '</div>';
     }
 
-    if (_csvParsed.length > 0) {
-        // ── THE DECISION BLOCK (v1.10.0) ──────────────────────────────────────
-        //
-        // ⚠️ THIS IS THE POINT OF THE WHOLE VERSION. An import that reassigns
-        // students had exactly one behaviour and never named it: visible students
-        // were moved without being asked about, and queued students were silently
-        // dropped by the consumer if they already had a class. Two opposite
-        // outcomes, one button, no way to tell which you were getting.
-        //
-        // It is deliberately NOT an overlay modal. This file already has a pattern
-        // for a decision that changes what gets written — the "create the classes
-        // this file names" block — and it works because it sits in the preview,
-        // next to the table it is about, and cannot be dismissed by a stray click
-        // the way a modal can. Commit stays locked until a radio is chosen, so the
-        // answer is impossible to skip rather than merely easy to give.
-        //
-        // Asked only when it matters: a file with no returning students and no
-        // moves has nothing to decide, and a prompt with one sane answer trains
-        // people to click through prompts.
-        const needsDecision = (queuedRows > 0 || movedRows > 0);
-        if (needsDecision) {
-            const parts = [];
-            if (movedRows)  parts.push('<b style="color:#eee;">' + movedRows + '</b> ' +
-                (movedRows === 1 ? 'student is' : 'students are') +
-                ' already in a different class');
-            if (queuedRows) parts.push('<b style="color:#eee;">' + queuedRows + '</b> ' +
-                (queuedRows === 1 ? 'student has' : 'students have') +
-                ' not typed in ' + ROSTER_DAYS + ' days, so whether ' +
-                (queuedRows === 1 ? 'they already have' : 'they already have') +
-                ' a class is unknown from here');
+    // ── 3. THE DECISION — only when there is something to decide ─────────────
+    // ⚠️ Asked when a visible student would MOVE, or when queued students might
+    // already hold a class we can't see (returning students carry last year's).
+    // Commit stays locked until it's answered; a prompt with one sane answer is
+    // not shown at all, because those train people to click through prompts.
+    const needsDecision = _csvParsed.length > 0 && (n('queue') > 0 || n('move') > 0);
+    let decisionHtml = '';
+    if (needsDecision) {
+        const why = [];
+        if (n('move'))  why.push(plural(n('move'), 'student in this file is', 'students in this file are') +
+                                 ' currently in a different class.');
+        if (n('queue')) why.push('The ' + plural(n('queue'), 'student', 'students') + ' who haven\u2019t typed yet ' +
+                                 'might still be in a class from last year — this page can\u2019t see that until they sign in.');
+        decisionHtml =
+            '<div style="margin-top:10px; padding:8px 10px; border:1px solid #4B9CD3; background:#0f1620;">' +
+            '<div style="color:#4B9CD3; font-weight:bold; margin-bottom:4px;">' +
+            'If a student in this file is already in a different class, what should happen?</div>' +
+            '<div style="color:#ccc; margin-bottom:6px;">' + why.map(escHtml).join(' ') + '</div>' +
+            '<label style="display:block; color:#ccc; margin:4px 0; cursor:pointer;">' +
+            '<input type="radio" name="csv-overwrite" value="move"> ' +
+            '<b>Move them into the class named in this file.</b>' +
+            '<span style="color:#777;"> Use this when the file is your current class list — e.g. a new ' +
+            '9-week group, where some students may still be sitting in last group\u2019s class.</span></label>' +
+            '<label style="display:block; color:#ccc; margin:4px 0; cursor:pointer;">' +
+            '<input type="radio" name="csv-overwrite" value="newonly"> ' +
+            '<b>Leave them where they are.</b>' +
+            '<span style="color:#777;"> Only students with no class at all get placed.</span></label>' +
+            '<div id="csv-overwrite-status" style="color:#ffaa00; margin-top:6px;">Choose one to unlock Commit.</div>' +
+            '</div>';
+    }
 
-            areaEl.innerHTML +=
-                '<div style="margin-top:10px; padding:8px 10px; border:1px solid #4B9CD3; background:#0f1620;">' +
-                '<div style="color:#4B9CD3; font-weight:bold; margin-bottom:4px;">' +
-                'What should happen to students who already have a class?</div>' +
-                '<ul style="margin:4px 0 6px 18px; padding:0; color:#ccc;">' +
-                parts.map(p => '<li style="margin:2px 0;">' + p + '</li>').join('') +
-                '</ul>' +
-                '<div style="color:#888; font-size:0.95em; margin-bottom:6px;">' +
-                'Returning students carry last year&rsquo;s class until something moves them. ' +
-                'A queued assignment applies the next time that student signs in.' +
-                '</div>' +
-                '<label style="display:block; color:#ccc; margin:3px 0; cursor:pointer;">' +
-                '<input type="radio" name="csv-overwrite" value="move"> ' +
-                'Move them into the class named in this file' +
-                '<span style="color:#666;"> — use this for a new rotation</span></label>' +
-                '<label style="display:block; color:#ccc; margin:3px 0; cursor:pointer;">' +
-                '<input type="radio" name="csv-overwrite" value="newonly"> ' +
-                'Leave existing classes alone; only place students who have none' +
-                '<span style="color:#666;"> — use this to top up a roster mid-term</span></label>' +
-                '<div id="csv-overwrite-status" style="color:#ffaa00; margin-top:6px;">' +
-                'Choose one to unlock Commit.</div>' +
-                '</div>';
-        }
+    // ── 4. READY LINE ─────────────────────────────────────────────────────────
+    const readyHtml = _csvParsed.length
+        ? '<div style="margin-top:8px; color:#22c55e; font-weight:bold;">✓ ' +
+          plural(_csvParsed.length, 'student', 'students') + ' ready' +
+          (needsDecision ? ' — answer the question above, then click 2. Commit.' : ' — click 2. Commit to apply.') + '</div>'
+        : '<div style="margin-top:8px; color:' + (missingClasses.size ? '#888' : '#ffaa00') + ';">' +
+          (missingClasses.size ? 'Nothing to commit yet — create the classes above and this re-checks itself.'
+                               : 'Nothing in this file can be applied — see the table below.') + '</div>';
 
-        // Enable Commit and make it the obvious next step. When a decision is
-        // outstanding the button stays locked — see the radio handler below.
-        const unlockCommit = () => {
-            commitBtn.disabled = false;
-            commitBtn.style.opacity = '1';
-            commitBtn.style.cursor  = 'pointer';
-            commitBtn.className = 'lbtn lbtn-primary';
-            if (testBtn) { testBtn.className = 'lbtn lbtn-secondary'; }
-        };
+    // ── 5. THE TABLE, in its own scroll box, LAST ─────────────────────────────
+    const tableHtml = tableRows.length
+        ? '<div style="margin-top:10px; max-height:260px; overflow-y:auto; border:1px solid #2a2a2a;">' +
+          '<table style="width:100%; border-collapse:collapse;">' +
+          '<tr style="color:#666; border-bottom:1px solid #333; position:sticky; top:0; background:#1a1a1a;">' +
+          '<th style="text-align:right; padding:3px 6px;">Line</th>' +
+          '<th style="text-align:left; padding:3px 6px;">Email</th>' +
+          '<th style="text-align:left; padding:3px 6px;">Class</th>' +
+          '<th style="text-align:left; padding:3px 6px;">What will happen</th></tr>' +
+          tableRows.join('') + '</table></div>'
+        : '';
 
-        areaEl.innerHTML += '<div style="margin-top:6px; color:#22c55e; font-weight:bold;">' +
-            '✓ ' + _csvParsed.length + ' assignment' + (_csvParsed.length !== 1 ? 's' : '') +
-            ' ready' + (needsDecision ? ' — answer the question above, then click Commit.'
-                                      : ' — click Commit to apply.') + '</div>';
+    // ⚠️⚠️ ONE ASSIGNMENT. No `innerHTML +=` anywhere in this function: `+=`
+    // re-parses the container and drops every listener already in it (the dead
+    // Create-classes button, v1.10.0), and appending is how the question and the
+    // confirmation both ended up under the data. Build it all, write it once.
+    areaEl.innerHTML = summary + missingHtml + decisionHtml + readyHtml + tableHtml;
 
-        // ── ALL WIRING HAPPENS HERE, AFTER THE LAST innerHTML WRITE ──────────
-        // See the note in the missing-classes block above. Nothing may be bound
-        // before this point, because any later `innerHTML +=` re-parses the whole
-        // container and silently discards every listener inside it.
+    // ── WIRING, after the one write ───────────────────────────────────────────
+    const unlockCommit = () => {
+        commitBtn.disabled = false;
+        commitBtn.style.opacity = '1';
+        commitBtn.style.cursor  = 'pointer';
+        commitBtn.className = 'lbtn lbtn-primary';
+        if (testBtn) testBtn.className = 'lbtn lbtn-secondary';
+    };
+    if (_csvParsed.length) {
         if (needsDecision) {
             areaEl.querySelectorAll('input[name="csv-overwrite"]').forEach(radio => {
                 radio.addEventListener('change', () => {
@@ -3032,29 +3130,23 @@ async function _previewCSV() {
                     if (st) {
                         st.style.color = '#22c55e';
                         st.textContent = radio.value === 'move'
-                            ? '\u2713 Students already in a class will be moved.'
-                            : '\u2713 Students already in a class will be left where they are.';
+                            ? '\u2713 Students already in another class will be moved here.'
+                            : '\u2713 Students already in another class will be left where they are.';
                     }
                     unlockCommit();
                 });
             });
         } else {
-            // Nothing ambiguous in this file. 'move' is the correct mode for the
-            // rows that remain: a student with no class cannot be moved out of one,
-            // so the flag changes nothing and there is no question to ask.
+            // Nothing ambiguous: no one would move and no one is unseen, so 'move'
+            // changes nothing and there is no question to ask.
             _csvOverwriteMode = 'move';
             unlockCommit();
         }
-    } else {
-        areaEl.innerHTML += missingClasses.size
-            ? '<div style="margin-top:6px; color:#888;">Nothing to commit yet — create the classes above, ' +
-              'then this re-checks itself.</div>'
-            : '<div style="margin-top:6px; color:#ffaa00;">No valid rows — check class names match and students have typing logs.</div>';
     }
-
-    // Create-classes button, wired last for the same reason as the radios.
     const createBtn = document.getElementById('csv-create-classes-btn');
     if (createBtn) createBtn.addEventListener('click', _createMissingClasses);
+    const stripBtn = document.getElementById('csv-strip-blank-btn');
+    if (stripBtn) stripBtn.addEventListener('click', _removeBlankRowsFromCSV);
 }
 
 let _csvMissingClasses = [];
@@ -3248,8 +3340,10 @@ async function _createMissingClasses() {
     }
     if (failed.length) {
         const areaEl = document.getElementById('student-csv-preview-area');
-        if (areaEl) areaEl.innerHTML += '<div style="color:#ff6666; margin-top:6px;">Could not create: ' +
-            escHtml(failed.join('; ')) + '</div>';
+        // ⚠️ insertAdjacentHTML, not `innerHTML +=` — see _previewCSV(): += re-parses
+        // the panel and kills every listener in it, including this button's own.
+        if (areaEl) areaEl.insertAdjacentHTML('afterbegin', '<div style="color:#ff6666; margin-bottom:6px;">Could not create: ' +
+            escHtml(failed.join('; ')) + '</div>');
         if (!made) {
             if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.style.cursor = 'pointer'; }
             return;
@@ -3259,87 +3353,207 @@ async function _createMissingClasses() {
     await _previewCSV();
 }
 
+// ⚠️⚠️ v1.23.0 — COMMIT ENDS IN A RECEIPT, NOT A LINE. Jake: *"I followed the
+// rules and clicked commit, but I don't know if they got committed."* The old
+// "✓ Done" was `+=`-appended to the bottom of a scroll box full of blank rows.
+// Now the panel is REPLACED: totals at the top, a per-student list, and a check
+// that READS FIRESTORE BACK rather than repeating what we meant to write.
+//
+// ⚠️ WHAT "CONFIRMED" MEANS HERE, PRECISELY:
+//   • Placed-now rows: setDoc() resolved. firebase-config.js runs Firestore with
+//     NO offline persistence, so a resolved write is a server acknowledgement,
+//     not a local cache entry. That is confirmation, and it is said as such.
+//   • Queued rows: one query per class the file names, on pendingClassAssignments.
+//     The receipt counts how many of THIS commit's emails Firestore now holds.
+//     A mismatch is reported in orange, by name, not rounded away.
 async function _commitCSV() {
     if (!_csvParsed.length) return;
     const commitBtn = document.getElementById('student-csv-commit-btn');
+    const testBtn   = document.getElementById('student-csv-preview-btn');
     const areaEl    = document.getElementById('student-csv-preview-area');
-    commitBtn.disabled = true;
-    areaEl.innerHTML += '<div style="color:#888; margin-top:6px;">Writing…</div>';
-
-
-    // ⚠️ THE MODE MUST GOVERN BOTH PATHS OR IT IS A LIE (v1.10.0). "Leave existing
-    // classes alone" has to mean the same thing for a student the roster can see
-    // as for one it cannot — otherwise the answer applies to whichever half of the
-    // file the 45-day log window happened to put someone in, which is exactly the
-    // kind of split behaviour this version exists to remove. Visible students are
-    // skipped here; queued students carry the flag to the consumer in game.js and
-    // learn.js, which is the only code in a position to see their current class.
-    const overwrite = (_csvOverwriteMode !== 'newonly');
-
-    let ok = 0, fail = 0, skipped = 0, queued = 0;
-    for (const { uid, email, classId } of _csvParsed) {
-        // ⚠️ v1.14.0 — ROADMAP 11. Through the one answerer, not out of
-        // _classCache. ⚠️ PER ROW, NOT HOISTED: a rollover CSV can name a
-        // DIFFERENT class on every line, so one lookup for the file would stamp
-        // the first row's building onto all of them. _schoolIdForClass() caches,
-        // so this is one read per distinct class, not per row.
-        const _csvSchoolId = await _schoolIdForClass(classId);
-        try {
-            if (uid) {
-                if (!overwrite) {
-                    const r = _rosterData.find(r => r.uid === uid);
-                    const cur = (r && r.classId) || '';
-                    if (cur && cur !== classId) { skipped++; continue; }
-                }
-                // Student has typed — write directly to their user doc
-                // schoolId MUST ride along. If this student has no user document
-                // yet, the write is a CREATE, and firestore.rules requires the
-                // building on create — otherwise there's nothing to scope by.
-                await setDoc(doc(_db, 'users', uid), {
-                    classId: classId || null,
-                    schoolId: _csvSchoolId
-                }, { merge: true });
-                const r = _rosterData.find(r => r.uid === uid);
-                if (r) r.classId = classId || '';
-                ok++;
-            } else {
-                // Not in the last ROSTER_DAYS of logs, so there is no uid to write
-                // to. Queue it by email; the student's own next sign-in applies it.
-                //
-                // ⚠️ `overwrite` IS THE WHOLE FIX. Without it the consumer had to
-                // guess whether a student's existing classId was last year's or
-                // this morning's, guessed "leave it", and discarded every rollover
-                // assignment in silence. The teacher answered that question on the
-                // preview screen; this carries the answer to where it is needed.
-                await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()), {
-                    classId: classId || null,
-                    schoolId: _csvSchoolId,
-                    overwrite,
-                    assignedAt: new Date().toISOString() });
-                queued++;
-            }
-        } catch(e) { fail++; }
-    }
-
-    // Every number that is not zero gets said out loud. A bare "12 assigned" over
-    // a 14-row file is how the returning-student defect stayed invisible: the
-    // count was true and the sentence was still misleading.
-    const bits = [ok + ' assigned'];
-    if (queued)  bits.push(queued + ' queued for their next sign-in');
-    if (skipped) bits.push(skipped + ' left in their current class');
-    if (fail)    bits.push(fail + ' failed');
-    areaEl.innerHTML += '<div style="color:' + (fail ? '#ffaa00' : '#22c55e') +
-        '; margin-top:4px;">✓ Done: ' + bits.join(', ') + '.</div>';
-    _csvParsed = [];
-    _csvOverwriteMode = null;
-    // Reset buttons to default state
     commitBtn.disabled = true;
     commitBtn.style.opacity = '0.4';
     commitBtn.style.cursor  = 'not-allowed';
+
+    // Progress at the TOP, replacing the preview — the preview is now history.
+    const total = _csvParsed.length;
+    areaEl.innerHTML =
+        '<div id="csv-commit-progress" style="padding:10px; border:1px solid #4B9CD3; background:#0f1620; color:#ccc;">' +
+        'Saving 0 of ' + total + '…</div>';
+    const progEl = document.getElementById('csv-commit-progress');
+    try { areaEl.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (_) {}
+
+    // ⚠️ THE MODE MUST GOVERN BOTH PATHS OR IT IS A LIE (v1.10.0). Visible
+    // students are skipped here; queued students carry the flag to the consumer
+    // in game.js / learn.js / learn2.js, the only code that can see their class.
+    const overwrite = (_csvOverwriteMode !== 'newonly');
+    const rows = _csvParsed.slice();
+    const cname = (id) => id ? (_classCache[id]?.name || id) : '(no class)';
+    const outcomes = [];   // { email, classId, result, note }
+
+    let i = 0;
+    for (const { uid, email, classId, fromClassId } of rows) {
+        i++;
+        if (progEl && (i % 5 === 0 || i === total)) progEl.textContent = 'Saving ' + i + ' of ' + total + '…';
+        try {
+            // ⚠️ v1.14.0 — ROADMAP 11. Through the one answerer, PER ROW: a
+            // rollover CSV can name a different class on every line.
+            const schoolId = await _schoolIdForClass(classId);
+            if (uid) {
+                if (!overwrite && fromClassId && fromClassId !== classId) {
+                    outcomes.push({ email, classId, result: 'left',
+                        note: 'left in ' + cname(fromClassId) + ' (you chose not to move anyone)' });
+                    continue;
+                }
+                await setDoc(doc(_db, 'users', uid), { classId: classId || null, schoolId }, { merge: true });
+                const r = _rosterData.find(r => r.uid === uid);
+                if (r) r.classId = classId || '';
+                outcomes.push({ email, classId, result: 'placed',
+                    note: !classId ? 'class removed'
+                        : (fromClassId && fromClassId !== classId) ? 'moved from ' + cname(fromClassId)
+                        : (fromClassId === classId) ? 'already here — confirmed'
+                        : 'placed' });
+            } else {
+                // No uid: queue by email; the student's own next sign-in applies it.
+                await setDoc(doc(_db, 'pendingClassAssignments', email.toLowerCase()), {
+                    classId: classId || null,
+                    schoolId,
+                    overwrite,
+                    assignedAt: new Date().toISOString() });
+                outcomes.push({ email, classId, result: 'queued', note: 'waiting for first sign-in' });
+            }
+        } catch (e) {
+            outcomes.push({ email, classId, result: 'failed', note: 'NOT saved — ' + (e.message || e) });
+        }
+    }
+
+    // ── READ-BACK: does Firestore actually hold the queued ones? ──────────────
+    if (progEl) progEl.textContent = 'Checking Firestore…';
+    const queued = outcomes.filter(o => o.result === 'queued');
+    let verifyHtml = '';
+    if (queued.length) {
+        const found = new Set();
+        let verifyErr = '';
+        for (const cid of [...new Set(queued.map(o => o.classId).filter(Boolean))]) {
+            try {
+                const snap = await getDocs(query(collection(_db, 'pendingClassAssignments'), where('classId', '==', cid)));
+                snap.forEach(d => found.add(d.id.toLowerCase() + '|' + cid));
+            } catch (e) { verifyErr = e.message || String(e); }
+        }
+        const missing = queued.filter(o => !found.has(o.email.toLowerCase() + '|' + o.classId));
+        missing.forEach(o => { o.result = 'failed'; o.note = 'write returned OK but Firestore does not show it — re-run this file'; });
+        verifyHtml = verifyErr
+            ? '<div style="color:#ffaa00; margin-top:4px;">Could not read back the queue to double-check: ' + escHtml(verifyErr) + '</div>'
+            : missing.length
+                ? '<div style="color:#ffaa00; margin-top:4px;">⚠ Read back from Firestore: ' + (queued.length - missing.length) +
+                  ' of ' + queued.length + ' queued students found. The missing ones are marked below.</div>'
+                : '<div style="color:#22c55e; margin-top:4px;">✓ Read back from Firestore: all ' + queued.length +
+                  ' queued students are there.</div>';
+    }
+
+    // ── THE RECEIPT ───────────────────────────────────────────────────────────
+    const tally = { placed: 0, queued: 0, left: 0, failed: 0 };
+    outcomes.forEach(o => tally[o.result]++);
+    const byClass = {};
+    outcomes.filter(o => o.result === 'placed' || o.result === 'queued')
+            .forEach(o => { byClass[cname(o.classId)] = (byClass[cname(o.classId)] || 0) + 1; });
+
+    const color = { placed: '#22c55e', queued: '#4B9CD3', left: '#888', failed: '#ff6666' };
+    const head = tally.failed ? '#ffaa00' : '#22c55e';
+    const stamp = new Date().toLocaleString();
+    const listRows = outcomes.map(o =>
+        '<tr style="border-bottom:1px solid #1d1d1d;">' +
+        '<td style="padding:2px 6px; color:#ccc;">' + escHtml(o.email) + '</td>' +
+        '<td style="padding:2px 6px; color:#aaa;">' + escHtml(cname(o.classId)) + '</td>' +
+        '<td style="padding:2px 6px; color:' + color[o.result] + ';">' + escHtml(o.note) + '</td></tr>').join('');
+
+    areaEl.innerHTML =
+        '<div style="padding:10px 12px; border:2px solid ' + head + '; background:#101a12;">' +
+        '<div style="color:' + head + '; font-weight:bold; font-size:1.15em; margin-bottom:6px;">' +
+        (tally.failed ? '⚠ Import finished with problems' : '✓ Import saved') +
+        ' <span style="color:#666; font-weight:normal; font-size:0.8em;">' + escHtml(stamp) + '</span></div>' +
+        '<ul style="margin:2px 0 0 18px; padding:0; color:#ccc;">' +
+        (tally.placed ? '<li><b style="color:#22c55e;">' + tally.placed + '</b> placed now (saved to the server)</li>' : '') +
+        (tally.queued ? '<li><b style="color:#4B9CD3;">' + tally.queued + '</b> queued — each joins the class the first ' +
+                        'time they sign in, if that\u2019s within 30 days</li>' : '') +
+        (tally.left   ? '<li><b>' + tally.left + '</b> left in their current class</li>' : '') +
+        (tally.failed ? '<li><b style="color:#ff6666;">' + tally.failed + '</b> NOT saved — listed below</li>' : '') +
+        '</ul>' +
+        (Object.keys(byClass).length
+            ? '<div style="color:#888; margin-top:6px;">By class: ' +
+              Object.entries(byClass).map(([k, v]) => escHtml(k) + ' — ' + v).join(' · ') + '</div>' : '') +
+        verifyHtml +
+        '<div style="color:#888; margin-top:6px;">Nobody outside this file was changed. ' +
+        'Use <b>Check queued students</b> any time to see who is still waiting to sign in.</div>' +
+        '</div>' +
+        '<div style="margin-top:10px; max-height:260px; overflow-y:auto; border:1px solid #2a2a2a;">' +
+        '<table style="width:100%; border-collapse:collapse;">' +
+        '<tr style="color:#666; border-bottom:1px solid #333; position:sticky; top:0; background:#1a1a1a;">' +
+        '<th style="text-align:left; padding:3px 6px;">Email</th>' +
+        '<th style="text-align:left; padding:3px 6px;">Class</th>' +
+        '<th style="text-align:left; padding:3px 6px;">Result</th></tr>' +
+        listRows + '</table></div>';
+
+    _csvParsed = [];
+    _csvOverwriteMode = null;
     commitBtn.className = 'lbtn lbtn-secondary';
-    const testBtnR = document.getElementById('student-csv-preview-btn');
-    if (testBtnR) testBtnR.className = 'lbtn lbtn-primary';
+    if (testBtn) testBtn.className = 'lbtn lbtn-primary';
     _renderRoster();
+}
+
+// ── "Did my queued students land?" — answerable any time, from Firestore ──────
+// ⚠️ READS THE SAME RECORD THE STUDENT'S SIGN-IN CONSUMES (Rule 9): there is no
+// second list of pending students anywhere. A doc here = still waiting; a doc
+// gone = the student signed in and was placed (or it expired — see the age).
+// Staff may list this collection (firestore.rules, match /pendingClassAssignments).
+async function _showQueuedAssignments() {
+    const areaEl = document.getElementById('student-csv-preview-area');
+    areaEl.innerHTML = '<div style="color:#888;">Reading the queue from Firestore…</div>';
+    let docs = [];
+    try {
+        const snap = await getDocs(collection(_db, 'pendingClassAssignments'));
+        snap.forEach(d => docs.push({ email: d.id, ...d.data() }));
+    } catch (e) {
+        areaEl.innerHTML = '<span style="color:#ff6666;">Could not read the queue: ' + escHtml(e.message || e) + '</span>';
+        return;
+    }
+    if (!Object.keys(_classCache).length) {
+        try {
+            const cs = await getDocs(collection(_db, 'classes'));
+            cs.forEach(d => { _classCache[d.id] = { id: d.id, ...d.data() }; });
+        } catch (_) {}
+    }
+    if (!docs.length) {
+        areaEl.innerHTML = '<div style="padding:8px 10px; border:1px solid #333; background:#141414; color:#ccc;">' +
+            'Nobody is waiting. Every queued student has signed in and been placed (or nothing was queued).</div>';
+        return;
+    }
+    const DAY = 86400000;
+    const groups = {};
+    docs.forEach(d => {
+        const name = d.classId ? (_classCache[d.classId]?.name || d.classId) : '(no class)';
+        const t = Date.parse(d.assignedAt || '');
+        const left = isFinite(t) ? Math.ceil((t + 30 * DAY - Date.now()) / DAY) : null;
+        (groups[name] = groups[name] || []).push({ ...d, left });
+    });
+    const sections = Object.keys(groups).sort().map(name => {
+        const g = groups[name].sort((a, b) => a.email.localeCompare(b.email));
+        return '<div style="margin-top:8px; color:#eee; font-weight:bold;">' + escHtml(name) +
+            ' <span style="color:#4B9CD3; font-weight:normal;">— ' + g.length + ' waiting</span></div>' +
+            '<table style="width:100%; border-collapse:collapse;">' + g.map(d =>
+                '<tr style="border-bottom:1px solid #1d1d1d;">' +
+                '<td style="padding:2px 6px; color:#ccc;">' + escHtml(d.email) + '</td>' +
+                '<td style="padding:2px 6px; color:' + (d.left !== null && d.left <= 5 ? '#ffaa00' : '#888') + ';">' +
+                (d.left === null ? 'no date' : d.left <= 0 ? 'expired — will be discarded at sign-in'
+                                 : 'expires in ' + d.left + ' day' + (d.left === 1 ? '' : 's')) + '</td>' +
+                '<td style="padding:2px 6px; color:#666;">' + (d.overwrite === false ? 'won\u2019t move them' : 'will move them') + '</td>' +
+                '</tr>').join('') + '</table>';
+    }).join('');
+    areaEl.innerHTML =
+        '<div style="padding:8px 10px; border:1px solid #4B9CD3; background:#0f1620; color:#ccc;">' +
+        '<b style="color:#4B9CD3;">' + docs.length + ' student' + (docs.length === 1 ? ' is' : 's are') +
+        ' queued and haven\u2019t signed in yet.</b> When each one signs in, they\u2019re placed and drop off this list.' +
+        '</div><div style="max-height:320px; overflow-y:auto;">' + sections + '</div>';
 }
 
 // ── Book progress (Books pane) ─────────────────────────────────────────────────

@@ -1,5 +1,20 @@
 # CHANGELOG — TypeThatBook
 
+## Round 151 (Olympia) — the import that worked in silence
+
+**⭐ The student CSV import now shows you what it's doing.** Test File opens with a
+summary — how many students are in the file, who'll be placed now, who'll be placed at
+first sign-in, who'd move from another class, and what can't be used — then the
+question (if there is one), then the table. Every student appears in the table; the
+blank comma rows a spreadsheet adds are counted and ignored, with a button to remove
+them from the text. **Commit now ends in a receipt at the top of the panel**: placed,
+queued, left alone, failed — and it reads the queue back from Firestore to confirm.
+**Check queued students** lists everyone still waiting to sign in and when each
+expires. Also: a new student in a class that doesn't exist yet is now offered Create.
+lessons-admin.js v1.23.0 (v1.15.0's header entry archived, 8-entry budget),
+admin.html v1.23.1, run-all-tests.mjs v1.33.0.
+New harness: csv-import-test.mjs. **ALL 119 HARNESSES PASS.**
+
 ## Round 150 (Nesmith) — re-typed ground earns nothing
 
 **⭐ The `h`-Backspace trick is closed.** A student on the word "he" typed `h`, pressed
@@ -10802,6 +10817,30 @@ Verbatim, nothing deleted.
 //           admin.html v1.9.0 now, with `btn-tint` for the brightness.
 //           ⚠️ THE OTHER DEAD HOVER WAS THE CLASS MANAGER'S DELETE, and it was a
 //           worse bug than a missing glow — see lessons-admin.js v1.17.0.
+```
+
+### lessons-admin.js v1.15.0 — archived by Round 151 (Olympia), 8-entry budget
+
+Pushed over by v1.23.0 (the CSV import receipt). Verbatim, pointer lines included.
+
+```
+// v1.15.0 — ⭐ ROADMAP §10.H — THE MEASUREMENT JAKE ASKED FOR FIRST, unbuilt for
+// five rounds and shipped here for ZERO EXTRA READS. scanForStuck() already reads
+// every record it needs — one lessonProgress subcollection per filtered student —
+// so the per-lesson aggregate rides the same sweep. A second button would have
+// re-read ~300 documents to answer a neighbouring question about the same data.
+// ⚠️⚠️ TWO COLUMNS, NOT ONE: replay-rate high with a HIGH pass rate is the strong
+// ones coasting; the same number with a LOW pass rate is the struggling ones
+// grinding. Opposite problems, opposite fixes, and one "attempts" column cannot
+// tell them apart. ⚠️ It sums runAttempts, NOT `attempts` — a student stuck on
+// run 2 of 12 has attempts: 0 and is exactly who this is looking for (§0.-13).
+// ⚠️ A🔥 counts are recorded from 2026-08-25 onward only; a dash means NOT
+// RECORDED, not zero earned, and the table footnote says so.
+//
+// ⚠️ v1.14.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS, along with its
+// own pointer lines to v1.13.2/v1.13.1/v1.13.0/v1.12.0/v1.11.0 — all moved
+// together, unchanged.
+//
 ```
 
 ### lessons-admin.js v1.14.0 — archived this round, 8-entry budget

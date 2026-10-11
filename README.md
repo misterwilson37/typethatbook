@@ -647,3 +647,33 @@ before delivering. This round ships it byte-identical to the upload.
 only, all cascading from one that finds zero stored records while Parts A–C pass.
 It probably means the harness's setup went stale, but it touches student time
 merging, so it deserves its own round rather than a guess. Left alone on purpose.
+
+## Appendix C — Round 151 — the roster CSV import, and how to rebuild it
+
+**What it does.** Admin → Students → CSV Import takes `email,class_name` lines and
+puts each student in a class. A student who has typed in the last 45 days is
+written directly (`users/{uid}.classId`). A student who hasn't is *queued*
+(`pendingClassAssignments/{email}`) and placed by their own first sign-in
+(`applyPendingClassAssignment` in game.js, learn.js and learn2.js — three copies,
+change all three). A queued record older than 30 days is discarded at sign-in.
+
+**The import only adds.** Nobody who is absent from the file is ever touched.
+When a student in the file already holds a *different* class, Test File asks
+whether to move them or leave them; Commit stays locked until it's answered.
+
+**The three things that went wrong, so you don't rebuild them.**
+1. Queued rows were skipped by an early `return` before being drawn, so a file
+   of new students previewed as nothing.
+2. Spreadsheet exports pad the sheet with lines of bare commas; they were drawn
+   as "empty row". They are now counted, ignored, and removable with a button.
+3. The question and Commit's confirmation were appended (`innerHTML +=`) to the
+   bottom of one capped scroll box. Now everything a person must read or answer
+   is written above the table in a single assignment, and only the table scrolls.
+
+**To rebuild it.** In `lessons-admin.js`: `_parseRosterCSV()` (pure; header, BOM,
+CRLF, quoted names, padding columns, blank count) → `_previewCSV()` (classify every
+row, then write summary → missing classes → decision → ready line → table, once)
+→ `_commitCSV()` (replace the panel with a receipt; read the queue back per
+class) → `_showQueuedAssignments()` (the "Check queued students" button: the same
+collection the sign-in consumes, grouped by class, with days until expiry).
+`tests/csv-import-test.mjs` drives all of it in jsdom.
