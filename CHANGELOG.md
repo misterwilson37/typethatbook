@@ -1,5 +1,20 @@
 # CHANGELOG — TypeThatBook
 
+## Round 152 — hands beside the words
+
+**⭐ An optional pair of hands beside the words and/or beside the keyboard.** The finger
+to use lights up in its row colour (right index green, left pinky pink…) and the letter
+appears on the back of that hand. A capital lights the opposite pinky and says SHIFT; the
+space bar lights both thumbs and says SPACE. Built for students who need far more than
+the sliding fingertip dot. **⚙ Settings → Show hands:** Off / Beside the words / Beside
+the keyboard / Both. The choice is saved on the student's account, so it follows them to
+any Chromebook — and a teacher can set it up for them the first time. Hidden below 1000px
+wide, where there is no room. **Cost:** one extra read per student per machine per week
+(`users/{uid}/profile/info.handGuide`); nothing while the 7-day cache is fresh.
+keyboard.js v1.2.0, settings-panel.js v1.3.0, learn.js v2.52.0, style.css v3.10.0.
+(learn.js v2.45.0's header entry archived, 8-entry budget.) learn2.js (staging) NOT
+changed.
+
 ## Round 151 (Olympia) — the import that worked in silence
 
 **⭐ The student CSV import now shows you what it's doing.** Test File opens with a
@@ -10550,6 +10565,23 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.45.0 — archived Round 152, 8-entry budget
+
+Pushed over by v2.52.0 (side hands). Verbatim.
+
+```
+// v2.45.0 — ⚠️ ROADMAP 50: loadGateState() now calls logdays.js's reconcile()
+//           beside its existing ensureSince(), on the user document it ALREADY
+//           HOLDS — zero extra reads. Unions the server's ttbLogDays back into
+//           this browser's mirror so a missing day cannot become a skipped read
+//           and a lost week.
+//           ⚠️ IT HEALS THE NEXT PAGE LOAD, NOT THIS ONE. loadGateState() runs
+//           after loadUserStats()'s readWeek(), and reordering startup to gain
+//           one refresh was judged not worth the risk. Say that rather than
+//           implying it is instant.
+//
+```
 
 ### learn.js v2.43.0 — archived Round 149, 8-entry budget
 

@@ -1,4 +1,19 @@
-// learn.js v2.51.0
+// learn.js v2.52.0
+//
+// v2.52.0 — Round 152: ⭐ SIDE HANDS. An optional pair of hands beside the words
+//           and/or beside the keyboard, the target finger lit in its row colour with
+//           the character on the back of the hand (SHIFT on the other pinky for a
+//           capital, SPACE on both for the space bar). For students who need more
+//           than the sliding fingertip dot. ⚙ Settings → "Show hands": Off / Beside
+//           the words / Beside the keyboard / Both.
+//           ⚠️ THE CHOICE FOLLOWS THE STUDENT: written to
+//           users/{uid}/profile/info.handGuide (the document Library's view mode
+//           lives in; the rules already allow it) and cached in localStorage for 7
+//           days. COST: one extra read of that document per student per machine per
+//           week, ZERO while the cache is fresh. Opening Settings reads nothing.
+//           ⚠️ settings-panel.js STILL SAVES NOTHING — it calls onChange and THIS
+//           file does the write (see its contract). keyboard.js v1.2.0 draws the
+//           hands from getFingerInfo()/FINGER_COLORS: there is no second finger map.
 //
 // v2.51.0 — Round 150 (Nesmith): ⚠️⚠️ RE-TYPED GROUND IS NOT PAID — twin of game.js
 //           v3.58.0. A correct key below drillBackspaceOrigin is typed but not
@@ -73,17 +88,7 @@
 //           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
 //           the repo and fails if any but daylog.js contains that expression.
 //
-// v2.45.0 — ⚠️ ROADMAP 50: loadGateState() now calls logdays.js's reconcile()
-//           beside its existing ensureSince(), on the user document it ALREADY
-//           HOLDS — zero extra reads. Unions the server's ttbLogDays back into
-//           this browser's mirror so a missing day cannot become a skipped read
-//           and a lost week.
-//           ⚠️ IT HEALS THE NEXT PAGE LOAD, NOT THIS ONE. loadGateState() runs
-//           after loadUserStats()'s readWeek(), and reordering startup to gain
-//           one refresh was judged not worth the risk. Say that rather than
-//           implying it is instant.
-//
-// (Older entries — v2.44.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v2.45.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -140,7 +145,7 @@ import { showReceipt } from "./receipt.js";
 // in game.js is deliberately NOT imported: it reaches into book, chapter, sprint
 // and view state School has none of. This module is its shape, not its body.
 import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
-         SETTINGS_PANEL_VERSION } from "./settings-panel.js";
+         HAND_GUIDE_MODES, SETTINGS_PANEL_VERSION } from "./settings-panel.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -182,7 +187,8 @@ import {
     createKeyboard, buildFingerMap, getFingerInfo,
     createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
     resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
-    getHomePositions, getKeyCenterInKB, toggleKeyboardCase
+    getHomePositions, getKeyCenterInKB, toggleKeyboardCase,
+    createSideHands, setSideHandsToChar, clearSideHands, removeSideHands
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -191,7 +197,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.51.0";
+const LEARN_VERSION = "2.52.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -649,6 +655,92 @@ const hudTimer       = document.getElementById('hud-time');
 applyDrillFont(readDrillFont());
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ✋ THE SIDE HANDS (Round 152)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Optional hands beside the words and/or beside the keyboard. The drawing lives in
+// keyboard.js (createSideHands / setSideHandsToChar); THIS is the controller: where
+// the choice is stored, and when the hands are built and lit.
+//
+// ⚠️ THE CHOICE: 'off' | 'text' | 'keys' | 'both' (HAND_GUIDE_MODES). Stored in
+// users/{uid}/profile/info.handGuide — the durable copy, so it follows a student to
+// any Chromebook — and cached in localStorage for 7 days, stamped with the uid.
+// ⚠️ THE UID STAMP IS NOT DECORATION. A shared Chromebook must not show the last
+// child's choice to the next one; cacheRead() rejects an entry for another uid.
+// ⚠️ A SIGNED-OUT OR ANONYMOUS STUDENT GETS THE LOCAL COPY ONLY: nothing to write to.
+// ⚠️ COST: syncHandGuideFromProfile() is one read when the cache is empty or older
+// than a week, and NOTHING when it is fresh. Opening Settings reads nothing.
+const HAND_GUIDE_KEY = 'ttb_handGuide_v1';
+const HAND_GUIDE_MS  = 7 * 24 * 3600 * 1000;
+let sideHandsOn = false;
+
+function getHandGuideMode() {
+    const c = cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, currentUser ? currentUser.uid : '');
+    return (c && HAND_GUIDE_MODES.some(m => m[0] === c.mode)) ? c.mode : 'off';
+}
+
+// Called by the Settings row's onChange. ⚠️ settings-panel.js saves nothing — this does.
+function setHandGuideMode(mode) {
+    if (!HAND_GUIDE_MODES.some(m => m[0] === mode)) return;
+    cacheWrite(HAND_GUIDE_KEY, { uid: currentUser ? currentUser.uid : '', mode });
+    mountSideHands();
+    if (currentUser && !currentUser.isAnonymous) {
+        setDoc(doc(db, 'users', currentUser.uid, 'profile', 'info'),
+               { handGuide: mode }, { merge: true })
+            .catch(e => console.warn('[TTB] Save hand guide failed:', e));
+    }
+}
+
+// Fresh local copy → no read. Otherwise ask the account once and cache the answer,
+// INCLUDING "never chose" ('off'), so a student who never touched it does not pay a
+// read on every page load.
+async function syncHandGuideFromProfile(user) {
+    if (!user || user.isAnonymous) return;
+    if (cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, user.uid)) return;
+    try {
+        const snap = await getDoc(doc(db, 'users', user.uid, 'profile', 'info'));
+        // The student may have picked something while this read was in flight —
+        // theirs is newer than the account's.
+        if (cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, user.uid)) return;
+        const m = snap.exists() ? snap.data().handGuide : undefined;
+        cacheWrite(HAND_GUIDE_KEY, { uid: user.uid,
+            mode: HAND_GUIDE_MODES.some(x => x[0] === m) ? m : 'off' });
+        mountSideHands();
+    } catch (e) { console.warn('[TTB] hand guide sync failed:', e); }
+}
+
+// (Re)build the hands for the current choice. Safe to call at any time: it removes
+// whatever was there first, and it lives in the two WRAPPERS, never inside
+// #virtual-keyboard, because createKeyboard() wipes that element's children.
+function mountSideHands() {
+    const mode     = getHandGuideMode();
+    const textHost = document.getElementById('drill-text-area');
+    const kbHost   = document.getElementById('drill-keyboard-wrap');
+    removeSideHands(textHost);
+    removeSideHands(kbHost);
+    sideHandsOn = false;
+    if (mode === 'off') return;
+    if (mode === 'text' || mode === 'both') createSideHands(textHost, 'text');
+    if (mode === 'keys' || mode === 'both') createSideHands(kbHost, 'kb');
+    sideHandsOn = true;
+    // A drill already under way lights its current target at once.
+    if (currentStep && drillPos < drillSequence.length) updateSideHands(drillSequence[drillPos]);
+}
+
+function updateSideHands(ch) {
+    if (!sideHandsOn) return;
+    setSideHandsToChar(document.getElementById('drill-text-area'),   fingerMap, ch);
+    setSideHandsToChar(document.getElementById('drill-keyboard-wrap'), fingerMap, ch);
+}
+
+// A step or lesson has ended — nothing to point at, so no hand stays lit.
+function idleSideHands() {
+    if (!sideHandsOn) return;
+    clearSideHands(document.getElementById('drill-text-area'));
+    clearSideHands(document.getElementById('drill-keyboard-wrap'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ⚙ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b)
 // ═══════════════════════════════════════════════════════════════════════════
 //
@@ -707,7 +799,10 @@ function openSchoolSettings() {
     const drillRunning = drillView && !drillView.classList.contains('hidden');
     if (drillRunning) clearInterval(learnTickInterval);
 
-    const rows = [{ kind: 'font' }];
+    const rows = [
+        { kind: 'font' },
+        { kind: 'handguide', value: getHandGuideMode(), onChange: setHandGuideMode },
+    ];
 
     // ⚠️ THIS IS THE DEBT learn.js v2.24.0 CREATED, BEING PAID. `#user-class-name`
     // was removed from the top bar on Jake's ruling ("forget about the class, it
@@ -825,6 +920,7 @@ onAuthStateChanged(auth, async user => {
         await loadUserStats();
         walRecoverLearn();   // replay unflushed lesson time from a dead session
         await loadGoals();
+        syncHandGuideFromProfile(user);   // Round 152 — not awaited: never delays the map
         // ⚠️ ORDER CHANGED: goals now runs FIRST so classInfo is populated, and
         // the pending-assignment lookup is skipped entirely for the ~99% of
         // students who already have a class. That read was firing on every
@@ -2450,6 +2546,7 @@ function beginStep(stepIdx) {
         createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
     }
     drillKeyboard.focus();
+    mountSideHands();
 
     // Progress pips — one per run, so a chunked step shows its parts
     stepProgressEl.innerHTML = currentRuns.map((r, i) => {
@@ -3069,6 +3166,7 @@ function advanceHandGuide() {
     if (drillPos >= drillSequence.length) return;
     const ch = drillSequence[drillPos];
     setHandGuideToChar(drillKeyboard, fingerMap, LAYOUT, ch);
+    updateSideHands(ch);
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
 
@@ -3381,6 +3479,7 @@ function finishStep() {
 function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
+    idleSideHands();
 
     const gates    = gatesForRun(currentStep, currentLesson && currentLesson.gates);
     const minWPM   = gates.minWPM;
@@ -3521,6 +3620,7 @@ function renderRemediationResult(wpm, acc) {
 
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
+    idleSideHands();
 }
 
 // ⚠️ v2.32.0 — ROADMAP 10. The practice run's end screen. It shows the student

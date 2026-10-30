@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.9.0 */
+/* TypeThatBook style.css v3.10.0 */
+/* v3.10.0: SIDE HANDS — .sh-pair / .sh-hand / .sh-label, the optional hands beside the
+   words and beside the keyboard (keyboard.js v1.2.0). #drill-keyboard-wrap became
+   position:relative so the hands can sit in it. */
 /* v3.9.0: ROADMAP item 10 — .practice-banner and .map-lesson-card.practice-only.
            ⚠️ THE BANNER IS NOT A TOAST AND MUST NOT BE STYLED AS ONE: no fade,
            no auto-dismiss, no close affordance. It states, for the whole run,
@@ -123,7 +126,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.9.0"; display: none; }
+body::before { content: "v3.10.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1411,7 +1414,7 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 
 /* Drill keyboard wrap — fixed height matches keyboard so swapping
    keyboard↔modal never changes the height of the slot, preventing text jump */
-#drill-keyboard-wrap { flex-shrink: 0; height: 309px; overflow: hidden; }
+#drill-keyboard-wrap { flex-shrink: 0; height: 309px; overflow: hidden; position: relative; }
 
 /* Drill modal */
 #drill-modal {
@@ -1607,3 +1610,29 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
     color: #8a6d00;
     text-transform: uppercase;
 }
+
+/* ─── Side hands (v3.10.0) ──────────────────────────────────────────────────
+   Two hands, one each side of the words and/or the keyboard, the target finger lit
+   in its row colour with the character on the back of the hand (keyboard.js
+   createSideHands). They sit on whatever is already behind them — white beside the
+   words, the keyboard's grey beside the keys.
+   ⚠️ DECORATION ONLY: pointer-events none, aria-hidden, not focusable. Nothing here
+   may ever take a keystroke or a click (the Tab hazard — see settings-panel.js).
+   --shw is the room left on each side of the 700px word column (or the ~685px
+   keyboard, given 720 to clear its thumbs); below 1000px wide there is too little,
+   so the hands step aside entirely. */
+.sh-pair {
+    position: absolute; top: 0; bottom: 0; left: 50%; transform: translateX(-50%);
+    display: flex; justify-content: space-between; align-items: center;
+    pointer-events: none; z-index: 3; box-sizing: border-box;
+}
+.sh-pair.sh-text { --shw: min(calc((100vw - 700px) / 2 - 12px), 180px); width: calc(700px + 2 * var(--shw) + 48px); }
+.sh-pair.sh-kb   { --shw: min(calc((100vw - 720px) / 2 - 12px), 180px); width: calc(720px + 2 * var(--shw) + 24px); }
+.sh-hand { flex: none; width: var(--shw); height: auto; max-height: 92%; overflow: visible; }
+.sh-label {
+    font-family: 'Courier Prime', 'Courier New', monospace; font-weight: 800;
+    fill: #fff; stroke: #0f172a; paint-order: stroke; stroke-linejoin: round;
+}
+.sh-label-char { font-size: 92px; stroke-width: 7px; }
+.sh-label-word { font-size: 34px; stroke-width: 5px; }
+@media (max-width: 999px) { .sh-pair { display: none; } }

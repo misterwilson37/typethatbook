@@ -1,4 +1,9 @@
-// settings-panel.js v1.2.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+// settings-panel.js v1.3.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+//
+// v1.3.0 — `handguide` row: where to show the side hands (off / beside the words /
+//          beside the keyboard / both). ⚠️ HONOURS THE CONTRACT BELOW: this file
+//          draws the select and calls `row.onChange(value)`; the page controller
+//          (learn.js) does the saving. It saves nothing itself.
 //
 // v1.2.0 — `copy` on an info row: click the value to put a longer form on the
 //          clipboard. Added for the student ID when Round 27g deleted the corner
@@ -72,7 +77,17 @@
 // again must be able to keep typing without clicking anything. Losing that is
 // the same defect as eating a keystroke, one step removed.
 
-export const SETTINGS_PANEL_VERSION = '1.2.0';
+export const SETTINGS_PANEL_VERSION = '1.3.0';
+
+// The hand-guide choices. ⚠️ The keys are what learn.js stores — in localStorage and
+// in users/{uid}/profile/info.handGuide — so renaming one orphans every saved choice.
+export const HAND_GUIDE_MODES = [
+    // key,    label
+    ['off',  'Off'],
+    ['text', 'Beside the words'],
+    ['keys', 'Beside the keyboard'],
+    ['both', 'Both'],
+];
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE READING-FONT MODEL — moved here from learn.js v2.23.0 in one commit
@@ -144,6 +159,7 @@ export function writeDrillFont(key) {
 // `rows` is an array, drawn in order:
 //   { kind: 'info',  label, value, hint }   read-only text
 //   { kind: 'font' }                        the reading-font control
+//   { kind: 'handguide', value, onChange }  side-hands picker; onChange(key) — NOT saved here
 //   { kind: 'note',  text }                 a quiet line of explanation
 //
 // ⚠️ RE-ENTRANCY GUARDED. A double-click on the ⚙ must not stack two overlays,
@@ -192,6 +208,7 @@ export function openSettingsPanel({ title = 'Settings', rows = [], onClose = nul
     for (const row of rows) {
         if (!row) continue;
         if (row.kind === 'font') { body.appendChild(_fontRow()); continue; }
+        if (row.kind === 'handguide') { body.appendChild(_handGuideRow(row)); continue; }
         if (row.kind === 'note') {
             const n = document.createElement('div');
             n.className = 'settings-note';
@@ -339,6 +356,48 @@ function _fontRow() {
     line.appendChild(sel);
     wrap.appendChild(lab);
     wrap.appendChild(line);
+    return wrap;
+}
+
+// ⚠️ THE HAND GUIDE PICKER. Same shape as the font row: a labelled select built when
+// the dialog opens and destroyed when it closes, so there is nothing to Tab to between
+// opens. It reports the choice through `row.onChange` and persists NOTHING — see the
+// contract at the top of this file.
+function _handGuideRow(row) {
+    const wrap = document.createElement('div');
+    wrap.id = 'hand-guide-pick';
+    wrap.className = 'settings-row';
+
+    const lab = document.createElement('label');
+    lab.className = 'settings-label';
+    lab.setAttribute('for', 'hand-guide-select');
+    lab.textContent = 'Show hands';
+
+    const line = document.createElement('div');
+    line.className = 'settings-control';
+
+    const sel = document.createElement('select');
+    sel.id = 'hand-guide-select';
+    for (const m of HAND_GUIDE_MODES) {
+        const o = document.createElement('option');
+        o.value = m[0];
+        o.textContent = m[1];
+        sel.appendChild(o);
+    }
+    sel.value = HAND_GUIDE_MODES.some(m => m[0] === row.value) ? row.value : 'off';
+    sel.addEventListener('change', () => {
+        try { if (typeof row.onChange === 'function') row.onChange(sel.value); }
+        catch (e) { console.warn('hand guide onChange failed:', e); }
+    });
+
+    const hint = document.createElement('div');
+    hint.className = 'settings-hint';
+    hint.textContent = 'lights up the finger to use, with the letter on the back of the hand';
+
+    line.appendChild(sel);
+    wrap.appendChild(lab);
+    wrap.appendChild(line);
+    wrap.appendChild(hint);
     return wrap;
 }
 

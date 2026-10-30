@@ -1,10 +1,19 @@
 // keyboard.js — Shared keyboard renderer + hand guide
 // Imported by both game.js and learn.js.
-// keyboard.js v1.1.1
+// keyboard.js v1.2.0
+// v1.2.0 — SIDE HANDS. createSideHands / setSideHandsToChar / clearSideHands /
+//          removeSideHands: two hands drawn beside the words and/or beside the
+//          keyboard, the target finger lit in its FINGER_COLORS row colour and
+//          the character (or SHIFT / SPACE) on the back of the hand. Built for
+//          students who need far more than the sliding fingertip dot. ⚠️ NO
+//          SECOND FINGER MAP: it asks getFingerInfo() and FINGER_COLORS, the same
+//          as the keyboard overlay, so the two can never disagree. ⚠️ DOM-ONLY,
+//          NOT FOCUSABLE (aria-hidden, pointer-events:none) — see the Tab hazard
+//          in settings-panel.js.
 // v1.1.1 — patch release; see KB_VERSION.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
-export const KB_VERSION = '1.1.1';
+export const KB_VERSION = '1.2.0';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
@@ -397,5 +406,129 @@ export function flashFingerPressed(containerEl) {
     if (sp && sp.classList.contains('space-active')) {
         sp.classList.add('space-pressed');
         setTimeout(function() { sp.classList.remove('space-pressed'); }, 120);
+    }
+}
+
+// ─── Side hands ──────────────────────────────────────────────────────────────
+// Two cartoon hands, back-of-hand view. Drawn ONCE as SVG DOM and recoloured on
+// each character — no innerHTML churn per keystroke.
+//
+// Geometry is the LEFT hand (pinky far left, thumb right); the right hand is the
+// same drawing mirrored. The label text sits OUTSIDE the mirror group so it is
+// never drawn backwards.
+const SH_NS      = 'http://www.w3.org/2000/svg';
+const SH_NEUTRAL = '#d9dfe6';
+const SH_LINE    = '#5b6b7b';
+// name, centre-x, length, width, splay (degrees)
+const SH_FINGERS = [
+    ['pinky',  40,  92, 30, -10],
+    ['ring',   76, 122, 33,  -4],
+    ['middle', 112, 132, 34,   0],
+    ['index',  148, 122, 33, 4.5],
+];
+const SH_THUMB = ['thumb', 172, 92, 37, 60];   // rotated about its own base below
+const SH_PALM_D = 'M24,172 C24,150 38,142 56,142 L146,142 C168,142 178,152 178,172 L178,225 C178,265 150,292 101,292 C52,292 24,265 24,222 Z';
+
+function _shEl(tag, attrs, parent) {
+    const e = document.createElementNS(SH_NS, tag);
+    Object.keys(attrs || {}).forEach(function(k) { e.setAttribute(k, attrs[k]); });
+    if (parent) parent.appendChild(e);
+    return e;
+}
+
+function _shFinger(g, name, cx, len, w, rot, base) {
+    const fg = _shEl('g', { transform: 'rotate(' + rot + ' ' + cx + ' ' + base + ')' }, g);
+    _shEl('rect', { 'class': 'sh-finger', 'data-finger': name,
+        x: cx - w / 2, y: base - len, width: w, height: len + 30, rx: w / 2,
+        fill: SH_NEUTRAL, stroke: SH_LINE, 'stroke-width': 3 }, fg);
+    // fingernail — the cue that this is the BACK of the hand
+    _shEl('rect', { 'class': 'sh-nail',
+        x: cx - w / 2 + 5, y: base - len + 6, width: w - 10, height: w * 0.62,
+        rx: (w - 10) / 2.6, fill: '#fff', 'fill-opacity': 0.55 }, fg);
+}
+
+function _buildSideHand(side) {
+    const svg = _shEl('svg', { 'class': 'sh-hand', 'data-side': side,
+        viewBox: '0 0 220 300', 'aria-hidden': 'true', focusable: 'false' });
+    const flip = _shEl('g', side === 'right' ? { transform: 'translate(220,0) scale(-1,1)' } : {}, svg);
+    // thumb first so the palm overlaps its root, then fingers, then palm
+    _shFinger(flip, SH_THUMB[0], SH_THUMB[1], SH_THUMB[2], SH_THUMB[3], SH_THUMB[4], 245);
+    SH_FINGERS.forEach(function(f) { _shFinger(flip, f[0], f[1], f[2], f[3], f[4], 165); });
+    _shEl('path', { 'class': 'sh-palm', d: SH_PALM_D, fill: SH_NEUTRAL, stroke: SH_LINE, 'stroke-width': 3 }, flip);
+    const lab = _shEl('text', { 'class': 'sh-label', x: side === 'right' ? 119 : 101, y: 217,
+        'text-anchor': 'middle', 'dominant-baseline': 'central' }, svg);
+    lab.textContent = '';
+    return svg;
+}
+
+function _sideHandsPair(hostEl) { return hostEl ? hostEl.querySelector(':scope > .sh-pair') : null; }
+function _sideHand(hostEl, side) {
+    const pair = _sideHandsPair(hostEl);
+    return pair ? pair.querySelector('.sh-hand[data-side="' + side + '"]') : null;
+}
+
+// variant: 'text' (beside the words) or 'kb' (beside the keyboard) — CSS only.
+export function createSideHands(hostEl, variant) {
+    if (!hostEl) return null;
+    removeSideHands(hostEl);
+    const pair = document.createElement('div');
+    pair.className = 'sh-pair sh-' + (variant || 'text');
+    pair.setAttribute('aria-hidden', 'true');
+    pair.appendChild(_buildSideHand('left'));
+    pair.appendChild(_buildSideHand('right'));
+    hostEl.appendChild(pair);
+    return pair;
+}
+
+export function removeSideHands(hostEl) {
+    const pair = _sideHandsPair(hostEl);
+    if (pair) pair.remove();
+}
+
+function _shLight(hand, fingerName, color, label) {
+    if (!hand) return;
+    const f = hand.querySelector('.sh-finger[data-finger="' + fingerName + '"]');
+    if (f) f.setAttribute('fill', color);
+    const palm = hand.querySelector('.sh-palm');
+    if (palm) palm.setAttribute('fill', color);
+    const t = hand.querySelector('.sh-label');
+    if (t) {
+        t.textContent = label;
+        // one character is BIG; a word (SHIFT, SPACE, ENTER, TAB) is smaller
+        t.setAttribute('class', 'sh-label ' + (label.length > 1 ? 'sh-label-word' : 'sh-label-char'));
+    }
+}
+
+export function clearSideHands(hostEl) {
+    ['left', 'right'].forEach(function(side) {
+        const hand = _sideHand(hostEl, side);
+        if (!hand) return;
+        hand.querySelectorAll('.sh-finger').forEach(function(f) { f.setAttribute('fill', SH_NEUTRAL); });
+        const palm = hand.querySelector('.sh-palm');
+        if (palm) palm.setAttribute('fill', SH_NEUTRAL);
+        const t = hand.querySelector('.sh-label');
+        if (t) { t.textContent = ''; t.setAttribute('class', 'sh-label'); }
+    });
+}
+
+// Light the hand(s) for `ch`. Uses the SAME fingerMap the keyboard overlay uses.
+export function setSideHandsToChar(hostEl, fingerMap, ch) {
+    if (!_sideHandsPair(hostEl)) return;
+    clearSideHands(hostEl);
+    const info = getFingerInfo(fingerMap, ch);
+    if (!info) return;
+
+    if (info.finger === 'thumb') {            // space bar — either thumb, show both
+        _shLight(_sideHand(hostEl, 'left'),  'thumb', FINGER_COLORS['left-thumb'],  'SPACE');
+        _shLight(_sideHand(hostEl, 'right'), 'thumb', FINGER_COLORS['right-thumb'], 'SPACE');
+        return;
+    }
+    const parts = info.finger.split('-');     // e.g. ['left','index']
+    const label = ch === '\n' ? 'ENTER' : ch === '\t' ? 'TAB' : ch;
+    _shLight(_sideHand(hostEl, parts[0]), parts[1], FINGER_COLORS[info.finger], label);
+
+    if (info.shift) {                         // the OPPOSITE pinky holds Shift
+        const other = parts[0] === 'left' ? 'right' : 'left';
+        _shLight(_sideHand(hostEl, other), 'pinky', FINGER_COLORS[other + '-pinky'], 'SHIFT');
     }
 }
