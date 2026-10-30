@@ -1,6 +1,6 @@
-# Round 155 — a tighter thumb, a centred letter
+# Round 156 — Adventure's map line goes behind the hands
 
-⚠️ **Assumes Round 154 is deployed.** No Firestore rules change. **One code file changes.**
+⚠️ **Assumes Round 155 is deployed.** No Firestore rules change. **One code file changes.**
 
 ## Order
 
@@ -10,16 +10,13 @@
 
 ## What changes
 
-* **The thumb stays plain unless the thumb is the target.** Before, its base lit up with the
-  palm whenever any finger was the target.
-* **The big letter sits in the middle of the palm.**
-* Same Settings choice, colours, placement and SHIFT/SPACE behaviour, in School, Library and
-  learn2.
+* **Library, Adventure view only:** the hands are drawn in front of the map's route line
+  instead of behind it. Nothing else moves. School and Classic view are unchanged.
 
 ## Check
 
-Hard-refresh a School drill with ⚙ → Show hands → Both. Type an `f`: the yellow should stop at
-a straight line beside the index finger, the thumb side stays grey, and the `f` is centred in
-the yellow. Then a space: the thumb and palm both light.
+Hard-refresh Library, switch to Adventure, turn on ⚙ → Show hands → Beside the keyboard (or
+Both), and open a book. The footer should read `style.css v3.11.1`. The dotted route line
+should pass *behind* a hand, not across it.
 
 Expect **ALL 119 HARNESSES PASS.** (No new harness this round.)

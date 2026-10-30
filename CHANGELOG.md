@@ -1,5 +1,23 @@
 # CHANGELOG — TypeThatBook
 
+## Round 156 — Adventure's map line goes behind the hands
+
+**In Library's Adventure view the hands now sit in front of the map's route/progress line,
+not behind it.** The line is drawn on the Adventure canvas (z-index 5), which reaches down
+into the keyboard area, and the hands were at z-index 3, so the line was painted across them.
+They are now at 6 — one above the canvas, the same step adventure.css already takes for the
+caps-lock bar. **Library Adventure only:** School and Library's Classic view have no canvas
+and are unchanged. style.css v3.11.1 only. Checked with a see-through stand-in canvas line
+drawn through a hand (before: over it; after: behind it); the real Adventure renderer can't
+run outside the live page, so look at one real book.
+
+## Round 156 — Adventure: the map's lines go behind the hands
+
+**In Adventure view the progress/route lines no longer paint across the hands.** They are drawn
+on the Adventure canvas (z-index 5), and the hands were one layer below it (3), so the canvas drew
+over them. The keyboard-side hands now sit one layer above the canvas (6) in Adventure only.
+Classic view has no canvas and is unchanged. style.css v3.11.1 only.
+
 ## Round 155 — a tighter thumb, a centred letter
 
 **The thumb no longer lights beyond itself, and the big letter is centred.** When a finger was
