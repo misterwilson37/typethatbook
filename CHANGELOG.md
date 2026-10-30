@@ -1,5 +1,38 @@
 # CHANGELOG — TypeThatBook
 
+## Round 158 — Adventure gets its own hands drop-down
+
+**In Library's Adventure view, ⚙ → Show hands now offers Off / Human hand / Skeleton hand** —
+not Classic's four choices — because Adventure has no text column, so "beside the words" and
+"both" have nowhere to go. **The skeleton is reserved for Adventure:** Classic view and School
+never show it. The two choices are **independent** (Adventure's is saved separately, as
+`handGuideAdv` on the student's account plus its own browser key), so picking a hand in
+Adventure never turns hands on in Classic or School, and the other way round. **Never chosen in
+Adventure → it follows Classic:** off stays off, anything else shows the skeleton (that is what
+Adventure already did, so nothing changes for a student who already has hands on). The menu
+list swaps when the View drop-down changes under it. **No extra reads** — the Adventure choice
+rides in the profile document Library already loads. keyboard.js v1.6.0 (the vocabulary and
+shared cache code), game.js v3.61.0. (game.js v3.53.0's header entry archived, 8-entry budget.)
+Also: two duplicated fragments in keyboard.js's header comment (from Rounds 155 and 158) cleaned up.
+
+## Round 157 — skeleton hands for Adventure
+
+**In Library's Adventure view the keyboard-side hands are a skeleton.** Classic view (and
+School) keep the normal hand. Same Settings choice, same colours, same SHIFT and SPACE
+behaviour; a finger lights by painting its bones in the finger colour (shadow bones stay
+shadows), and the palm — the long hand bones and the wrist bones — carries the letter.
+**New file `hand-skeleton.js`** (v1.0.0, data only, ~50KB): the supplied SVG was optimised
+from 327KB with no visible change, and its 145 bones sorted into thumb / index / middle /
+ring / pinky / palm by position (checked by painting each group a different colour). It is
+**loaded on demand** — a dynamic import the first time Adventure shows hands, like
+adventure-renderer.js — so Classic and School never download it; if it fails to load, the
+Classic hand is used. Switching between Classic and Adventure redraws the hands.
+keyboard.js v1.5.0 (an optional third argument `art` on createSideHands; nothing else
+changes), game.js v3.60.0, style.css v3.12.0, versions.js v1.18.0 (SOURCES entry).
+(game.js v3.52.0's header entry archived, 8-entry budget.)
+**⚠️ The skeleton art's author and licence were not recorded** — see the credit note in
+hand-skeleton.js; fill it in, or swap the file if it is not free to ship.
+
 ## Round 156 — Adventure's map line goes behind the hands
 
 **In Library's Adventure view the hands now sit in front of the map's route/progress line,
@@ -10624,6 +10657,65 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.53.0 — archived Round 158, 8-entry budget
+
+Pushed over by v3.61.0 (Adventure's own hands drop-down). Verbatim.
+
+```
+// v3.53.0 — Round 134 (Bodoni II): ⭐⭐ THE LIBRARY LESSON GATE — ROADMAP 131a, as
+// Jake ruled it. Every minute of active Library typing is judged; under 15 WPM OR
+// under 80% accuracy offers GO TO LESSONS or ANOTHER CHANCE at the next sentence
+// end, hard-stop resume, or (after 20 s) word boundary. A second bad minute offers
+// the same choice, except that keeping going means time will not count — and then
+// NOTHING is recorded (seconds, characters or mistakes) and the timer greys out and
+// pulses red. ⭐ THE UNLOCK IS PERFORMANCE: one good minute and counting resumes.
+// It resets daily; a reload does NOT reset it. ⚠️⚠️ "NOTHING RECORDED" IS THE ONLY
+// CONSISTENT CHOICE — freezing only the day's seconds leaves the run's growing and
+// ⟳ Recalculate rebuilds the day from runs; freezing seconds but counting
+// characters manufactures a 100 WPM run and trips 🚩. ⚠️ NO EXEMPTION YET (134a).
+// Console: ttbGate.state() / .force('first'|'second') / .reset().
+// See tests/library-gate-test.mjs.
+//
+```
+
+### versions.js v1.10.0 — archived Round 157, 8-entry budget
+
+Pushed over by v1.18.0 (hand-skeleton.js in SOURCES). Verbatim.
+
+```
+// v1.10.0 — SOURCES gained drill-filter.js, celebrate.js and receipt.js:
+//           three modules game.js and learn.js import, which the footer could
+//           not report because nobody added them here when they were extracted.
+//           ⚠️ tests/version-stamp-test.mjs D2 now reads the writers' imports
+//           and FAILS if a module they load is missing from this list, so the
+//           next extraction cannot repeat it. ROADMAP 9b; HANDOFF §0.-15.
+//           ⚠️ Cost: three more static-file fetches on a footer hover, ~38 KB
+//           against the 684 KB game.js and learn.js already pull, cached per
+//           tab in sessionStorage. NOT Firestore reads — nothing here is billed
+//           per operation.
+//
+```
+
+### game.js v3.52.0 — archived Round 157, 8-entry budget
+
+Pushed over by v3.60.0 (skeleton hands). Verbatim.
+
+```
+// v3.52.0 — Round 131 (Garamond): ⚠️⚠️⚠️ A HELD BACKSPACE EARNED TEN MINUTES.
+// Jake, 2026-09-23: *"students have learned that they can hold the backspace key
+// and it counts it as time."* `handleTyping()` stamped `lastInputTime` on its
+// FIRST LINE, for every key, before looking at which one — and a held key
+// auto-repeats ~30 Hz, so the idle clock never ran out. Once the hold rewound to
+// the start of the run, every further Backspace was a NO-OP that still stamped.
+// ⭐ School was always immune: learn.js stamps only on a real character press.
+// countsAsActivity() copies that rule and also refuses `e.repeat`, which nothing
+// in this repo had ever read, so the whole "hold a key" family closes, not just
+// the key being used. ⚠️ It governs AFK too, deliberately: a held Backspace now
+// auto-pauses the game after five seconds. See tests/backspace-farm-test.mjs.
+//
+//
+```
 
 ### learn.js v2.46.0 — archived Round 153, 8-entry budget
 

@@ -1,12 +1,27 @@
 // keyboard.js — Shared keyboard renderer + hand guide
 // Imported by both game.js and learn.js.
-// keyboard.js v1.4.1
+// keyboard.js v1.6.0
+// v1.6.0 — ADVENTURE HAS ITS OWN CHOICE: HAND_GUIDE_ADV_MODES (off / human / skeleton) and
+//          readHandGuideAdvCache / writeHandGuideAdvCache / handGuideAdvModeOf. Adventure has
+//          no text column, so "beside the words" and "both" mean nothing there; what it needs
+//          to choose is which HAND to draw. It is stored apart from the Classic/School choice
+//          (own localStorage key, own account field handGuideAdv), so picking a hand in
+//          Adventure never switches hands on in Classic. Never chosen → it FOLLOWS the
+//          Classic choice: off stays off, anything else shows the skeleton.
+//          The cache code is shared with the Classic choice (one reader, one writer).
+// v1.5.0 — A SECOND ART: THE SKELETON. createSideHands(host, variant, art) takes an
+//          optional third argument — hand-skeleton.js's HAND_SKELETON — and then draws
+//          bones instead of the Classic hand. Library's Adventure view passes it; every
+//          other caller passes nothing and gets exactly what it got before. The rest of
+//          the API (setSideHandsToChar / clearSideHands / removeSideHands) is unchanged
+//          and works on either art. The art is PASSED IN, never imported here, so
+//          School and Classic never download the ~50KB skeleton.
 // v1.4.1 — TIGHTER THUMB, CENTRED LETTER. The thumb's region now runs down the whole
 //          thumb side of the hand — a vertical line continuing the index finger's edge —
 //          so the thumb's base no longer lights when a FINGER is the target. That also
 //          leaves the palm a clean shape, and the letter is placed at its MEASURED
 //          centre (see SH_ANCHOR). No API change.
-// v1.4.0 — NEW HAND DRAWING.// v1.4.0 — NEW HAND DRAWING. The cartoon hand is replaced by a natural back-of-hand
+// v1.4.0 — NEW HAND DRAWING. The cartoon hand is replaced by a natural back-of-hand
 //          silhouette by oksmith (public domain; credit and the one-outline-five-fingers
 //          trick are explained at SH_SIL below). NO API CHANGE: createSideHands /
 //          setSideHandsToChar / clearSideHands / removeSideHands, the .sh-finger /
@@ -31,7 +46,7 @@
 // v1.1.1 — patch release; see KB_VERSION.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
-export const KB_VERSION = '1.4.1';
+export const KB_VERSION = '1.6.0';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
@@ -528,6 +543,51 @@ function _buildSideHand(side) {
     return svg;
 }
 
+// ─── Skeleton art (Library's Adventure view) ────────────────────────────────
+// The art arrives as DATA (hand-skeleton.js). Each bone is its own <path> tagged with the
+// finger it belongs to; lighting repaints the bones of one finger. ⚠️ See hand-skeleton.js
+// for how the 145 bones were sorted into fingers and why.
+// Darken (k < 1) a '#rrggbb' colour: the shadow bones stay shadows when a finger is lit.
+function _shShade(hex, k) {
+    const h = hex.replace('#', '');
+    const c = [0, 2, 4].map(function(i) { return Math.max(0, Math.min(255, Math.round(parseInt(h.substr(i, 2), 16) * k))); });
+    return '#' + c.map(function(v) { return (v < 16 ? '0' : '') + v.toString(16); }).join('');
+}
+
+function _buildSkeletonHand(side, art) {
+    const v = art.view;                       // minX, minY, width, height
+    const svg = _shEl('svg', { 'class': 'sh-hand sh-skel-hand', 'data-side': side, 'data-art': 'skeleton',
+        viewBox: v.join(' '), 'aria-hidden': 'true', focusable: 'false' });
+    svg.style.setProperty('--sh-u', art.unit);            // scales the label type to this art's units
+    // The art is a RIGHT hand; the left hand is its mirror image, about the viewBox's own centre.
+    const g = _shEl('g', side === 'left' ? { transform: 'translate(' + (2 * v[0] + v[2]) + ',0) scale(-1,1)' } : {}, svg);
+    const rays = {};
+    art.bones.forEach(function(b) {
+        const el = _shEl('path', { d: b[3], fill: '#' + b[1], stroke: '#' + b[1] }, g);
+        if (b[0] !== 'line') {                // 'line' is the hair-thin edge drawing: never recoloured
+            el.setAttribute('data-ray', b[0]);
+            el.__rest = '#' + b[1];
+            el.__k = b[2];
+            (rays[b[0]] = rays[b[0]] || []).push(el);
+        }
+    });
+    svg.__rays = rays;
+    // The label is OUTSIDE the mirror group so it is never drawn backwards.
+    const ax = side === 'left' ? (2 * v[0] + v[2]) - art.anchor[0] : art.anchor[0];
+    const lab = _shEl('text', { 'class': 'sh-label', x: ax, y: art.anchor[1],
+        'text-anchor': 'middle', 'dominant-baseline': 'central' }, svg);
+    lab.textContent = '';
+    return svg;
+}
+
+function _shPaintRay(hand, ray, color) {      // color === null puts the ray back to bone
+    (hand.__rays[ray] || []).forEach(function(el) {
+        const c = color ? _shShade(color, el.__k) : el.__rest;
+        el.setAttribute('fill', c);
+        el.setAttribute('stroke', c);
+    });
+}
+
 function _sideHandsPair(hostEl) { return hostEl ? hostEl.querySelector(':scope > .sh-pair') : null; }
 function _sideHand(hostEl, side) {
     const pair = _sideHandsPair(hostEl);
@@ -535,14 +595,16 @@ function _sideHand(hostEl, side) {
 }
 
 // variant: 'text' (beside the words) or 'kb' (beside the keyboard) — CSS only.
-export function createSideHands(hostEl, variant) {
+// art: OPTIONAL — hand-skeleton.js's HAND_SKELETON to draw bones; omit for the Classic hand.
+export function createSideHands(hostEl, variant, art) {
     if (!hostEl) return null;
     removeSideHands(hostEl);
     const pair = document.createElement('div');
-    pair.className = 'sh-pair sh-' + (variant || 'text');
+    pair.className = 'sh-pair sh-' + (variant || 'text') + (art ? ' sh-skel' : '');
     pair.setAttribute('aria-hidden', 'true');
-    pair.appendChild(_buildSideHand('left'));
-    pair.appendChild(_buildSideHand('right'));
+    const build = art ? function(side) { return _buildSkeletonHand(side, art); } : _buildSideHand;
+    pair.appendChild(build('left'));
+    pair.appendChild(build('right'));
     hostEl.appendChild(pair);
     return pair;
 }
@@ -554,10 +616,15 @@ export function removeSideHands(hostEl) {
 
 function _shLight(hand, fingerName, color, label) {
     if (!hand) return;
-    const f = hand.querySelector('.sh-finger[data-finger="' + fingerName + '"]');
-    if (f) f.setAttribute('fill', color);
-    const palm = hand.querySelector('.sh-palm');
-    if (palm) palm.setAttribute('fill', color);
+    if (hand.__rays) {                        // skeleton: repaint this finger's bones and the palm's
+        _shPaintRay(hand, fingerName, color);
+        _shPaintRay(hand, 'palm', color);
+    } else {
+        const f = hand.querySelector('.sh-finger[data-finger="' + fingerName + '"]');
+        if (f) f.setAttribute('fill', color);
+        const palm = hand.querySelector('.sh-palm');
+        if (palm) palm.setAttribute('fill', color);
+    }
     const t = hand.querySelector('.sh-label');
     if (t) {
         t.textContent = label;
@@ -570,9 +637,13 @@ export function clearSideHands(hostEl) {
     ['left', 'right'].forEach(function(side) {
         const hand = _sideHand(hostEl, side);
         if (!hand) return;
-        hand.querySelectorAll('.sh-finger').forEach(function(f) { f.setAttribute('fill', SH_NEUTRAL); });
-        const palm = hand.querySelector('.sh-palm');
-        if (palm) palm.setAttribute('fill', SH_NEUTRAL);
+        if (hand.__rays) {
+            Object.keys(hand.__rays).forEach(function(r) { _shPaintRay(hand, r, null); });
+        } else {
+            hand.querySelectorAll('.sh-finger').forEach(function(f) { f.setAttribute('fill', SH_NEUTRAL); });
+            const palm = hand.querySelector('.sh-palm');
+            if (palm) palm.setAttribute('fill', SH_NEUTRAL);
+        }
         const t = hand.querySelector('.sh-label');
         if (t) { t.textContent = ''; t.setAttribute('class', 'sh-label'); }
     });
@@ -618,26 +689,43 @@ export function normalizeHandGuideMode(m) {
 export const HAND_GUIDE_KEY = 'ttb_handGuide_v1';
 const HAND_GUIDE_MS = 7 * 24 * 3600 * 1000;
 
-// The cached choice for THIS uid, or null when there is no fresh entry (never set on
-// this machine, older than a week, or written for a different student).
-// ⚠️ THE UID STAMP IS NOT DECORATION: a shared Chromebook must not show the last
-// child's choice to the next one. Signed-out visitors use uid ''.
-export function readHandGuideCache(uid) {
+// One reader and one writer for BOTH choices (Classic/School and Adventure).
+// ⚠️ THE UID STAMP IS NOT DECORATION: a shared Chromebook must not show the last child's
+// choice to the next one. Signed-out visitors use uid ''. Returns the mode, or null when
+// there is no fresh entry (never set on this machine, older than a week, or another student's).
+function _shReadCache(key, modes, uid) {
     try {
-        const raw = localStorage.getItem(HAND_GUIDE_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) return null;
         const c = JSON.parse(raw);
         if (c.uid !== (uid || '')) return null;
         if ((Date.now() - c.at) > HAND_GUIDE_MS) return null;
-        return HAND_GUIDE_MODES.some(function(x) { return x[0] === c.mode; }) ? c.mode : null;
+        return modes.some(function(x) { return x[0] === c.mode; }) ? c.mode : null;
     } catch (_) { return null; }
 }
-
-export function writeHandGuideCache(uid, mode) {
+function _shWriteCache(key, modes, uid, mode) {
     try {
-        localStorage.setItem(HAND_GUIDE_KEY,
-            JSON.stringify({ at: Date.now(), uid: uid || '', mode: normalizeHandGuideMode(mode) }));
+        const m = modes.some(function(x) { return x[0] === mode; }) ? mode : modes[0][0];   // modes[0] is 'off'
+        localStorage.setItem(key, JSON.stringify({ at: Date.now(), uid: uid || '', mode: m }));
     } catch (_) { /* private mode — the choice just won't be remembered */ }
 }
 
+export function readHandGuideCache(uid) { return _shReadCache(HAND_GUIDE_KEY, HAND_GUIDE_MODES, uid); }
+export function writeHandGuideCache(uid, mode) { _shWriteCache(HAND_GUIDE_KEY, HAND_GUIDE_MODES, uid, mode); }
 export function handGuideModeOf(uid) { return readHandGuideCache(uid) || 'off'; }
+
+// ─── Adventure's own choice ──────────────────────────────────────────────────
+// ⚠️ The KEYS are stored (localStorage and users/{uid}/profile/info.handGuideAdv) — never rename one.
+export const HAND_GUIDE_ADV_MODES = [
+    // key,       label
+    ['off',      'Off'],
+    ['human',    'Human hand'],
+    ['skeleton', 'Skeleton hand'],
+];
+export const HAND_GUIDE_ADV_KEY = 'ttb_handGuideAdv_v1';
+export function readHandGuideAdvCache(uid) { return _shReadCache(HAND_GUIDE_ADV_KEY, HAND_GUIDE_ADV_MODES, uid); }
+export function writeHandGuideAdvCache(uid, mode) { _shWriteCache(HAND_GUIDE_ADV_KEY, HAND_GUIDE_ADV_MODES, uid, mode); }
+// Never chosen in Adventure → follow the Classic choice: off stays off, anything else is the skeleton.
+export function handGuideAdvModeOf(uid) {
+    return readHandGuideAdvCache(uid) || (handGuideModeOf(uid) === 'off' ? 'off' : 'skeleton');
+}

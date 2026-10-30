@@ -1,6 +1,7 @@
-# Round 156 — Adventure's map line goes behind the hands
+# Round 158 — Adventure gets its own hands drop-down
 
-⚠️ **Assumes Round 155 is deployed.** No Firestore rules change. **One code file changes.**
+⚠️ **Assumes Round 157 is deployed** (it ships `hand-skeleton.js`, which this round relies on).
+No Firestore rules change. **No new file** — three code files change.
 
 ## Order
 
@@ -10,13 +11,20 @@
 
 ## What changes
 
-* **Library, Adventure view only:** the hands are drawn in front of the map's route line
-  instead of behind it. Nothing else moves. School and Classic view are unchanged.
+* **In Adventure view, ⚙ → Show hands is Off / Human hand / Skeleton hand.** In Classic it is
+  still Off / Beside the words / Beside the keyboard / Both.
+* **The skeleton shows only in Adventure.** Classic and School never show it.
+* **Independent choices.** Picking a hand in Adventure does not touch Classic or School.
+* **Never chosen in Adventure → follows Classic** (off stays off; anything else is the skeleton).
+  So a student who already has hands on sees the same skeleton they see today — and can switch
+  to the human hand with one click.
+* Changing the **View** drop-down inside the ⚙ menu swaps the hands list straight away.
 
 ## Check
 
-Hard-refresh Library, switch to Adventure, turn on ⚙ → Show hands → Beside the keyboard (or
-Both), and open a book. The footer should read `style.css v3.11.1`. The dotted route line
-should pass *behind* a hand, not across it.
+Hard-refresh Library; the footer should read `game.js v3.61.0`. Open ⚙ with Classic showing: the
+hands list has four choices. Switch **View** to Adventure: the list becomes Off / Human hand /
+Skeleton hand. Pick Human hand, then Skeleton hand — the hands change. Switch back to Classic:
+its own choice is untouched.
 
 Expect **ALL 119 HARNESSES PASS.** (No new harness this round.)

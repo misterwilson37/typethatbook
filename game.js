@@ -1,4 +1,25 @@
-// game.js v3.59.0
+// game.js v3.61.0
+//
+// v3.61.0 — Round 158: ⭐ ADVENTURE HAS ITS OWN HANDS DROP-DOWN. ⚙ → Hand Guide → "Show
+//           hands" now lists, in Adventure view, Off / Human hand / Skeleton hand — NOT the
+//           Classic list — because Adventure has no text column, so "beside the words" and
+//           "both" are meaningless there. The skeleton is reserved for Adventure. Classic
+//           view keeps its four choices and never shows a skeleton. ⚠️ TWO INDEPENDENT
+//           CHOICES: Adventure's is stored apart (localStorage ttb_handGuideAdv_v1, account
+//           field profile/info.handGuideAdv), so picking a hand in Adventure never turns
+//           hands on in Classic or School. Never chosen → it FOLLOWS Classic (off stays off,
+//           anything else shows the skeleton). The menu's select is rebuilt when the View
+//           select changes. No extra reads: handGuideAdv rides in profileInfo.
+//
+// v3.60.0 — Round 157: ⭐ SKELETON HANDS IN ADVENTURE. In Adventure view the keyboard-side
+//           hands are a skeleton (hand-skeleton.js) instead of the Classic hand; Classic
+//           view is unchanged. Same Settings choice, same colours, same SHIFT/SPACE rules —
+//           a finger lights by painting its bones. ⚠️ LOADED ON DEMAND: hand-skeleton.js is
+//           ~50KB of path data, dynamically imported the first time Adventure shows hands
+//           (the way adventure-renderer.js is), so Classic never downloads it. Until it
+//           arrives the keyboard side simply shows no hands; if it FAILS to load, the
+//           Classic hand is used so a student is never left with none. Switching views
+//           re-draws the hands (applyViewMode → mountSideHands).
 //
 // v3.59.0 — Round 153: ⭐ SIDE HANDS IN LIBRARY — the twin of learn.js v2.52.x. ⚙ →
 //           Hand Guide → "Show hands": Off / Beside the words / Beside the keyboard /
@@ -54,42 +75,16 @@
 //           week re-read. The leaderboard's weekly floor yields too, and each best now
 //           records the date it was set. See tests/teacher-change-stamp-test.mjs.
 //
-// v3.53.0 — Round 134 (Bodoni II): ⭐⭐ THE LIBRARY LESSON GATE — ROADMAP 131a, as
-// Jake ruled it. Every minute of active Library typing is judged; under 15 WPM OR
-// under 80% accuracy offers GO TO LESSONS or ANOTHER CHANCE at the next sentence
-// end, hard-stop resume, or (after 20 s) word boundary. A second bad minute offers
-// the same choice, except that keeping going means time will not count — and then
-// NOTHING is recorded (seconds, characters or mistakes) and the timer greys out and
-// pulses red. ⭐ THE UNLOCK IS PERFORMANCE: one good minute and counting resumes.
-// It resets daily; a reload does NOT reset it. ⚠️⚠️ "NOTHING RECORDED" IS THE ONLY
-// CONSISTENT CHOICE — freezing only the day's seconds leaves the run's growing and
-// ⟳ Recalculate rebuilds the day from runs; freezing seconds but counting
-// characters manufactures a 100 WPM run and trips 🚩. ⚠️ NO EXEMPTION YET (134a).
-// Console: ttbGate.state() / .force('first'|'second') / .reset().
-// See tests/library-gate-test.mjs.
-//
-// v3.52.0 — Round 131 (Garamond): ⚠️⚠️⚠️ A HELD BACKSPACE EARNED TEN MINUTES.
-// Jake, 2026-09-23: *"students have learned that they can hold the backspace key
-// and it counts it as time."* `handleTyping()` stamped `lastInputTime` on its
-// FIRST LINE, for every key, before looking at which one — and a held key
-// auto-repeats ~30 Hz, so the idle clock never ran out. Once the hold rewound to
-// the start of the run, every further Backspace was a NO-OP that still stamped.
-// ⭐ School was always immune: learn.js stamps only on a real character press.
-// countsAsActivity() copies that rule and also refuses `e.repeat`, which nothing
-// in this repo had ever read, so the whole "hold a key" family closes, not just
-// the key being used. ⚠️ It governs AFK too, deliberately: a held Backspace now
-// auto-pauses the game after five seconds. See tests/backspace-farm-test.mjs.
-//
-//
-// (Older entries — v3.51.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.53.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
 // Round 153 — the side hands. ⚠️ ONLY the hands and the saved choice come from
 // keyboard.js; this file keeps its OWN keyboard, finger map and fingertip-dot guide.
 import { createSideHands, setSideHandsToChar, clearSideHands, removeSideHands,
-         HAND_GUIDE_MODES, handGuideModeOf, readHandGuideCache,
-         writeHandGuideCache } from "./keyboard.js";
+         HAND_GUIDE_MODES, handGuideModeOf, readHandGuideCache, writeHandGuideCache,
+         HAND_GUIDE_ADV_MODES, handGuideAdvModeOf, readHandGuideAdvCache,
+         writeHandGuideAdvCache } from "./keyboard.js";
 // ROADMAP item 10's gate lives in School, but its clock is fed from BOTH pages —
 // Jake: "when I say a month, I mean a month of typing ANYTHING". A student who
 // spends the period in Library is having an active day, and a School lesson must
@@ -162,7 +157,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.59.0";
+const VERSION = "3.61.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -608,6 +603,7 @@ async function applyViewMode(mode, opts) {
     VIEW_MODE = mode;
     document.body.classList.toggle('view-adventure', mode === 'adventure');
     document.body.classList.toggle('view-classic',   mode === 'classic');
+    mountSideHands();   // Round 157 — Adventure's hands are a skeleton; swap the art with the view
 
     if (mode === 'classic') {
         // The renderer's keyboard skin repaints .key inline backgrounds to a
@@ -956,12 +952,57 @@ function getFingerColor(fingerName) {
 // users/{uid}/profile/info.handGuide. Library already holds that document in
 // `profileInfo`, so reading it costs nothing new.
 let sideHandsOn = false;
+let skeletonArt = null;            // hand-skeleton.js's HAND_SKELETON, once loaded
+let skeletonState = 'idle';        // 'idle' | 'loading' | 'ready' | 'failed'
+
+// ⚠️ ON DEMAND, like adventure-renderer.js: ~50KB that Classic never needs.
+function loadSkeletonArt() {
+    if (skeletonState === 'loading') return;
+    skeletonState = 'loading';
+    import('./hand-skeleton.js').then(function (m) {
+        skeletonArt = m.HAND_SKELETON; skeletonState = 'ready'; mountSideHands();
+    }).catch(function (e) {
+        console.warn('Skeleton hands failed to load; using the Classic hand.', e);
+        skeletonState = 'failed'; mountSideHands();
+    });
+}
 
 function sideHandsMode() {
     return handGuideModeOf(currentUser ? currentUser.uid : '');
 }
 
-// The ⚙ menu's "Show hands" select.
+// ⚠️ ADVENTURE'S OWN CHOICE (Round 158): off / human / skeleton. Independent of the Classic
+// choice below; see keyboard.js's HAND_GUIDE_ADV_MODES.
+function adventureHandsMode() {
+    return handGuideAdvModeOf(currentUser ? currentUser.uid : '');
+}
+function setAdventureHandsMode(mode) {
+    if (!HAND_GUIDE_ADV_MODES.some(m => m[0] === mode)) return;
+    writeHandGuideAdvCache(currentUser ? currentUser.uid : '', mode);
+    if (profileInfo) profileInfo.handGuideAdv = mode;
+    mountSideHands();
+    if (currentUser && !currentUser.isAnonymous) {
+        setDoc(doc(db, "users", currentUser.uid, "profile", "info"),
+               { handGuideAdv: mode }, { merge: true })
+            .catch(e => console.warn("Save Adventure hand guide failed:", e));
+    }
+}
+// The ⚙ menu's select shows whichever list belongs to the CURRENT view.
+function handsSelectOptionsHTML() {
+    const adv = (VIEW_MODE === 'adventure');
+    const modes = adv ? HAND_GUIDE_ADV_MODES : HAND_GUIDE_MODES;
+    const now = adv ? adventureHandsMode() : sideHandsMode();
+    return modes.map(m => `<option value="${m[0]}" ${now === m[0] ? 'selected' : ''}>${m[1]}</option>`).join('');
+}
+function onHandsSelectChange(value) {
+    if (VIEW_MODE === 'adventure') setAdventureHandsMode(value); else setSideHandsMode(value);
+}
+function refreshHandsSelect() {     // the View select just changed under an open menu
+    const sel = document.getElementById('hands-select');
+    if (sel) sel.innerHTML = handsSelectOptionsHTML();
+}
+
+// The ⚙ menu's "Show hands" select (Classic's choice).
 function setSideHandsMode(mode) {
     if (!HAND_GUIDE_MODES.some(m => m[0] === mode)) return;
     writeHandGuideCache(currentUser ? currentUser.uid : '', mode);
@@ -982,23 +1023,38 @@ function resolveSideHands() {
     const remote = profileInfo.handGuide;
     if (HAND_GUIDE_MODES.some(m => m[0] === remote)) writeHandGuideCache(currentUser.uid, remote);
     else if (readHandGuideCache(currentUser.uid) === null) writeHandGuideCache(currentUser.uid, 'off');
+    // Adventure's own choice, if the account has one (absent → it follows Classic).
+    const remoteAdv = profileInfo.handGuideAdv;
+    if (HAND_GUIDE_ADV_MODES.some(m => m[0] === remoteAdv)) writeHandGuideAdvCache(currentUser.uid, remoteAdv);
     mountSideHands();
 }
 
 // (Re)build for the current choice. Safe at any time. ⚠️ createKeyboard() wipes
 // #virtual-keyboard, so the keyboard-side hands are re-mounted after it.
 function mountSideHands() {
-    const mode     = sideHandsMode();
     const textHost = document.getElementById('game-container');
     removeSideHands(textHost);
     removeSideHands(keyboardDiv);
-    const wantText = (mode === 'text' || mode === 'both');
-    const wantKeys = (mode === 'keys' || mode === 'both');
+    let wantText = false, wantKeys = false, skel = false;
+    if (VIEW_MODE === 'adventure') {
+        // Adventure has no text column, so only the keyboard side exists; its choice is
+        // which HAND. A failed skeleton load falls back to the Classic hand.
+        const m = adventureHandsMode();
+        wantKeys = (m !== 'off');
+        skel = (m === 'skeleton' && skeletonState !== 'failed');
+    } else {
+        const mode = sideHandsMode();
+        wantText = (mode === 'text' || mode === 'both');
+        wantKeys = (mode === 'keys' || mode === 'both');
+    }
     // The class is what makes room: style.css narrows #text-stream while it is set.
     document.body.classList.toggle('sh-text-on', wantText);
     sideHandsOn = wantText || wantKeys;
     if (wantText) createSideHands(textHost, 'text');
-    if (wantKeys) createSideHands(keyboardDiv, 'kb');
+    if (wantKeys) {
+        if (skel && !skeletonArt) loadSkeletonArt();          // re-mounts itself when it arrives
+        else createSideHands(keyboardDiv, 'kb', skel ? skeletonArt : undefined);
+    }
     // The column just changed width, so where the current letter sits changed too.
     if (typeof invalidateContainerHeight === 'function') { invalidateContainerHeight(); centerView(); }
     updateSideHands();
@@ -6983,7 +7039,7 @@ async function openMenuModal() {
                 </div>
                 <div class="menu-label" style="margin-top:8px;">Show hands</div>
                 <select id="hands-select" class="modal-select">
-                    ${HAND_GUIDE_MODES.map(m => `<option value="${m[0]}" ${sideHandsMode() === m[0] ? 'selected' : ''}>${m[1]}</option>`).join('')}
+                    ${handsSelectOptionsHTML()}
                 </select>
             </div>
             ${initialsHTML}
@@ -7014,6 +7070,7 @@ async function openMenuModal() {
     document.getElementById('view-select').onchange = async (e) => {
         const ok = await applyViewMode(e.target.value, { replay: true, persist: true });
         if (!ok) e.target.value = 'classic';   // module failed to load
+        refreshHandsSelect();                  // Round 158 — each view has its own hands list
     };
 
     document.getElementById('view-ask-each').onchange = async (e) => {
@@ -7044,7 +7101,7 @@ async function openMenuModal() {
         const colorRow = document.getElementById('guide-color-row');
         if (colorRow) colorRow.style.display = handGuideRainbow ? 'none' : 'flex';
     };
-    document.getElementById('hands-select').onchange = (e) => setSideHandsMode(e.target.value);
+    document.getElementById('hands-select').onchange = (e) => onHandsSelectChange(e.target.value);
     document.getElementById('guide-color').oninput = (e) => {
         handGuideColor = e.target.value;
         localStorage.setItem('ttb_handGuideColor', handGuideColor);
