@@ -1,5 +1,14 @@
 # CHANGELOG — TypeThatBook
 
+## Round 159 — the skeleton's source is on record
+
+**The Adventure skeleton hand's origin and licence are now recorded.** It is "Hand Skeleton",
+published by OpenClipart on FreeSVG.org (https://freesvg.org/hand-skeleton, SVG ID 170541,
+2019-04-12), **public domain (CC0)** — free to ship in a school app, no credit required. This
+closes the "author and licence were not recorded" warning from Round 157. The page names no
+individual artist. hand-skeleton.js v1.0.1 (comments and the version stamp only — the drawing
+and data are untouched).
+
 ## Round 158 — Adventure gets its own hands drop-down
 
 **In Library's Adventure view, ⚙ → Show hands now offers Off / Human hand / Skeleton hand** —

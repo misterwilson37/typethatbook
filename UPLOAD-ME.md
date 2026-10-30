@@ -1,30 +1,19 @@
-# Round 158 — Adventure gets its own hands drop-down
+# Round 159 — the skeleton's source is on record
 
-⚠️ **Assumes Round 157 is deployed** (it ships `hand-skeleton.js`, which this round relies on).
-No Firestore rules change. **No new file** — three code files change.
+⚠️ **Assumes Round 158 is deployed.** No Firestore rules change. **Comments and a version stamp only.**
 
 ## Order
 
 1. Upload everything in the zip, keeping the folders. Nothing has to go first.
-2. To reach tabs that are already open: Firestore → `settings` → `appVersion` → field
-   `nonce` → increase it by one. Open tabs reload within ten minutes.
 
 ## What changes
 
-* **In Adventure view, ⚙ → Show hands is Off / Human hand / Skeleton hand.** In Classic it is
-  still Off / Beside the words / Beside the keyboard / Both.
-* **The skeleton shows only in Adventure.** Classic and School never show it.
-* **Independent choices.** Picking a hand in Adventure does not touch Classic or School.
-* **Never chosen in Adventure → follows Classic** (off stays off; anything else is the skeleton).
-  So a student who already has hands on sees the same skeleton they see today — and can switch
-  to the human hand with one click.
-* Changing the **View** drop-down inside the ⚙ menu swaps the hands list straight away.
+* Nothing a student can see. `hand-skeleton.js` now records where the skeleton came from:
+  "Hand Skeleton", published by OpenClipart on FreeSVG.org, **public domain (CC0)** — safe to
+  ship, no credit required. The warning from Round 157 is closed.
 
 ## Check
 
-Hard-refresh Library; the footer should read `game.js v3.61.0`. Open ⚙ with Classic showing: the
-hands list has four choices. Switch **View** to Adventure: the list becomes Off / Human hand /
-Skeleton hand. Pick Human hand, then Skeleton hand — the hands change. Switch back to Classic:
-its own choice is untouched.
+None needed. `hand-skeleton.js` becomes v1.0.1 (the build list in the footer shows it).
 
-Expect **ALL 119 HARNESSES PASS.** (No new harness this round.)
+Expect **ALL 119 HARNESSES PASS.**
