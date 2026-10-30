@@ -1,5 +1,28 @@
 # CHANGELOG — TypeThatBook
 
+## Round 155 — a tighter thumb, a centred letter
+
+**The thumb no longer lights beyond itself, and the big letter is centred.** When a finger was
+the target, the thumb's fleshy base lit up with the palm, which looked like part of the thumb
+was lit and pulled the coloured area lopsided. The thumb's region now runs down the whole
+thumb side of the hand along a straight line continuing the index finger's edge, so the palm
+is a clean shape and the thumb stays plain unless the thumb is the target. The letter's
+position was re-measured from the lit palm's real shape (not eyeballed) and now sits in its
+middle. keyboard.js v1.4.1 only.
+
+## Round 154 — a real hand
+
+**The side hands now use a natural back-of-hand drawing** instead of the cartoon one — fanned
+fingers, nails, knuckle lines, a thumb. Source: "Back of hand" **by oksmith** — Openclipart #334867
+(https://openclipart.org/artist/oksmith), also on publicdomainq.net — **public domain**, so no
+credit is required, but it is given; recorded in keyboard.js's header.
+It is one outline, so each finger lights by drawing the silhouette again over that finger,
+clipped to its region. **Nothing else changes:** same Settings choice, same colours, same
+SHIFT/SPACE behaviour, same placement; only keyboard.js (v1.4.0) is touched. The hand is a
+neutral grey rather than the icon's peach, so the lit colours stand out and no one skin tone
+is implied. Known roughness: the lit palm and thumb are one colour, so on the space bar the
+thumb is not singled out from the palm (the SPACE label says it).
+
 ## Round 153 — hands in the Library too
 
 **⭐ "Show hands" is now in Library as well as School.** ⚙ → Hand Guide → **Show hands**:

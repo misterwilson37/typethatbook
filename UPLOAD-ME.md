@@ -1,7 +1,6 @@
-# Round 153 — hands in the Library too
+# Round 155 — a tighter thumb, a centred letter
 
-⚠️ **Assumes Round 152 is deployed** (it is: "Show hands" already works in School).
-No Firestore rules change this round.
+⚠️ **Assumes Round 154 is deployed.** No Firestore rules change. **One code file changes.**
 
 ## Order
 
@@ -11,27 +10,16 @@ No Firestore rules change this round.
 
 ## What changes
 
-* **Library has "Show hands".** ⚙ → Hand Guide column → **Show hands**: Off / Beside the
-  words / Beside the keyboard / Both. Same hands as School.
-* **It is the same setting.** Turn it on in School and it is on in Library, and the other
-  way round — for that student, on any machine.
-* **Beside the words narrows Library's text column** to 700px while it's on (there is no
-  margin to put a hand in otherwise). Adventure view has no text column, so there only
-  *Beside the keyboard* shows.
-* **Library's old "Show fingers" is untouched** — the sliding fingertip dot is a separate
-  switch.
-* **learn2.js (staging) has the hands too.**
-* Hidden below 1000px wide. The Arcade is left out on purpose.
-
-## Cost
-
-None new. Library already reads the student's profile document, so it just reads one more
-field from it. School's once-a-week read is unchanged.
+* **The thumb stays plain unless the thumb is the target.** Before, its base lit up with the
+  palm whenever any finger was the target.
+* **The big letter sits in the middle of the palm.**
+* Same Settings choice, colours, placement and SHIFT/SPACE behaviour, in School, Library and
+  learn2.
 
 ## Check
 
-Hard-refresh Library. The footer should read `game.js v3.59.0`. Open ⚙ → Show hands →
-Both, and type a few words: the hands should light with the keyboard. Then open School —
-the setting should already be on.
+Hard-refresh a School drill with ⚙ → Show hands → Both. Type an `f`: the yellow should stop at
+a straight line beside the index finger, the thumb side stays grey, and the `f` is centred in
+the yellow. Then a space: the thumb and palm both light.
 
 Expect **ALL 119 HARNESSES PASS.** (No new harness this round.)

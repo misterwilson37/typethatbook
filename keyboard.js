@@ -1,6 +1,17 @@
 // keyboard.js — Shared keyboard renderer + hand guide
 // Imported by both game.js and learn.js.
-// keyboard.js v1.3.0
+// keyboard.js v1.4.1
+// v1.4.1 — TIGHTER THUMB, CENTRED LETTER. The thumb's region now runs down the whole
+//          thumb side of the hand — a vertical line continuing the index finger's edge —
+//          so the thumb's base no longer lights when a FINGER is the target. That also
+//          leaves the palm a clean shape, and the letter is placed at its MEASURED
+//          centre (see SH_ANCHOR). No API change.
+// v1.4.0 — NEW HAND DRAWING.// v1.4.0 — NEW HAND DRAWING. The cartoon hand is replaced by a natural back-of-hand
+//          silhouette by oksmith (public domain; credit and the one-outline-five-fingers
+//          trick are explained at SH_SIL below). NO API CHANGE: createSideHands /
+//          setSideHandsToChar / clearSideHands / removeSideHands, the .sh-finger /
+//          .sh-palm / .sh-label hooks and the colours are exactly as before, so
+//          learn.js, learn2.js, game.js and style.css are untouched.
 // v1.3.0 — THE SIDE-HANDS CHOICE HAS ONE HOME. HAND_GUIDE_MODES (moved here from
 //          settings-panel.js — Rule 9, a move not a copy) and the saved-choice
 //          cache: readHandGuideCache / writeHandGuideCache / handGuideModeOf.
@@ -20,7 +31,7 @@
 // v1.1.1 — patch release; see KB_VERSION.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
-export const KB_VERSION = '1.3.0';
+export const KB_VERSION = '1.4.1';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
@@ -426,15 +437,59 @@ export function flashFingerPressed(containerEl) {
 const SH_NS      = 'http://www.w3.org/2000/svg';
 const SH_NEUTRAL = '#d9dfe6';
 const SH_LINE    = '#5b6b7b';
-// name, centre-x, length, width, splay (degrees)
-const SH_FINGERS = [
-    ['pinky',  40,  92, 30, -10],
-    ['ring',   76, 122, 33,  -4],
-    ['middle', 112, 132, 34,   0],
-    ['index',  148, 122, 33, 4.5],
+// ─── The hand drawing ───────────────────────────────────────────────────────
+// ⚠️ ART CREDIT: "Back of hand" by oksmith (https://openclipart.org/artist/oksmith),
+// Openclipart #334867, also on publicdomainq.net — PUBLIC DOMAIN, so no credit is
+// required, but it is given here anyway; recorded so the next person knows where it
+// came from and that it is safe to ship. It is a RIGHT hand, thumb on the left, one
+// silhouette. The art below is ONLY geometry: the colours are ours.
+//
+// ⚠️ HOW ONE OUTLINE BECOMES FIVE LIGHTABLE FINGERS. The silhouette cannot be split,
+// so it is drawn once as the palm and then once more over each finger and the thumb,
+// each copy CLIPPED to that finger's region (SH_CLIPS). Lighting a finger recolours
+// only its overlay; the outline, nails and wrinkles sit on top and never change.
+// ⚠️ THE PALM IS UNDER THE FINGERS, so a lit palm shows only where no finger overlay
+// covers it — which is exactly what we want, and why palm-first order matters.
+// ⚠️ CLIP REGIONS ARE IN THE ICON'S OWN (right-hand) COORDINATES, cut along the webs
+// between the fingers; the left hand is the same drawing mirrored, and the clips
+// mirror with it because they live inside the mirrored group.
+const SH_VIEW = [226, 263];
+const SH_SIL = 'M130.454,1.789 L131.397,1.799 C141.741,2.343 140.108,14.318 140.651,20.853 C141.196,27.384 142.284,103.047 142.826,106.859 C143.373,110.67 149.362,112.845 150.994,109.037 C152.627,105.226 166.78,38.814 167.869,33.373 C168.955,27.927 171.678,18.673 178.756,20.306 C185.832,21.939 188.01,31.193 186.92,37.724 C185.832,44.259 174.944,111.215 174.944,113.935 C174.944,116.656 180.932,118.291 180.932,118.291 C180.932,118.291 193.998,98.15 196.174,93.248 C198.352,88.349 205.428,74.197 208.151,68.755 C210.871,63.31 215.227,57.322 220.67,60.043 C226.112,62.767 224.481,73.111 220.127,85.086 C215.77,97.058 201.619,134.619 199.987,140.065 C198.352,145.508 193.996,177.875 192.909,184.953 C191.819,192.028 188.182,217.039 179.299,232.856 C176.002,238.723 170.045,252.996 171.135,261.703 L90.025,261.16 C90.025,261.16 87.848,245.375 82.947,239.387 C78.049,233.399 57.365,216.524 54.642,210.535 C51.92,204.547 39.4,172.973 29.059,160.453 C18.717,147.936 1.297,140.315 1.297,137.592 C1.297,134.871 11.096,120.72 27.971,128.883 C44.846,137.051 49.199,144.127 51.377,147.393 C53.555,150.658 60.088,158.278 65.529,159.367 C70.975,160.453 74.24,156.645 74.783,153.381 C75.328,150.115 78.049,124.277 77.506,121.556 C76.961,118.834 67.709,45.349 68.252,35.548 C68.795,25.75 68.795,18.673 76.416,18.127 C84.037,17.584 87.85,27.384 90.025,35.548 C92.203,43.713 106.355,110.125 106.355,110.125 C106.355,110.125 112.346,112.845 113.978,109.037 C115.612,105.226 119.965,20.306 119.965,17.584 C120.161,12.24 121.498,5.751 126.502,2.82 C127.982,1.954 128.887,1.979 130.454,1.789 z';
+const SH_OUTLINE = 'M90.025,261.16 C90.025,261.16 87.848,245.375 82.947,239.387 C78.049,233.399 57.365,216.524 54.642,210.535 C51.92,204.547 39.4,172.973 29.059,160.453 C18.717,147.936 1.297,140.315 1.297,137.592 C1.297,134.871 11.096,120.72 27.971,128.883 C44.846,137.051 49.199,144.127 51.377,147.393 C53.555,150.658 60.088,158.278 65.529,159.367 C70.975,160.453 74.24,156.645 74.783,153.381 C75.328,150.115 78.049,124.277 77.506,121.556 C76.961,118.834 67.709,45.349 68.252,35.548 C68.795,25.75 68.795,18.673 76.416,18.127 C84.037,17.584 87.85,27.384 90.025,35.548 C92.203,43.713 106.355,110.125 106.355,110.125 C106.355,110.125 112.346,112.845 113.978,109.037 C115.612,105.226 119.965,20.306 119.965,17.584 C119.965,14.863 121.055,1.255 131.397,1.799 C141.741,2.343 140.108,14.318 140.651,20.853 C141.196,27.384 142.284,103.047 142.826,106.859 C143.373,110.67 149.362,112.845 150.994,109.037 C152.627,105.226 166.78,38.814 167.869,33.373 C168.955,27.927 171.678,18.673 178.756,20.306 C185.832,21.939 188.01,31.193 186.92,37.724 C185.832,44.259 174.944,111.215 174.944,113.935 C174.944,116.656 180.932,118.291 180.932,118.291 C180.932,118.291 193.998,98.15 196.174,93.248 C198.352,88.349 205.428,74.197 208.151,68.755 C210.871,63.31 215.227,57.322 220.67,60.043 C226.112,62.767 224.481,73.111 220.127,85.086 C215.77,97.058 201.619,134.619 199.987,140.065 C198.352,145.508 193.996,177.875 192.909,184.953 C191.819,192.028 188.182,217.039 179.299,232.856 C176.002,238.723 170.045,252.996 171.135,261.703';
+const SH_NAILS = [
+    'M70.279,26.703 C70.279,26.703 71.801,37.99 73.539,38.427 C75.279,38.859 78.975,37.338 80.713,37.338 C82.451,37.338 85.494,37.338 85.713,36.685 C85.93,36.033 85.545,28.509 85.277,25.834 C84.842,21.486 81.363,17.574 75.932,18.009 C70.498,18.443 70.06,24.31 70.279,26.703',
+    'M170.852,28.671 C170.852,28.671 169.076,38.826 170.649,39.689 C172.219,40.552 176.18,40.021 177.862,40.461 C179.545,40.906 182.487,41.679 182.864,41.105 C183.239,40.529 185.155,34.306 185.576,31.65 C186.264,27.336 183.897,22.668 178.53,21.701 C173.164,20.74 171.248,26.304 170.852,28.671',
+    'M212.315,64.748 C212.315,64.748 209.584,73.068 210.674,73.9 C211.764,74.728 214.819,74.767 216.039,75.291 C217.264,75.816 219.401,76.732 219.748,76.339 C220.098,75.947 222.494,70.611 223.114,68.65 C224.116,65.466 222.848,61.67 218.901,60.341 C214.955,59.009 212.881,63.002 212.315,64.748',
+    'M1.471,137.752 C1.471,137.752 4.728,128.531 9.268,130.474 C13.807,132.424 23.092,136.346 21.795,138.291 C20.498,140.237 16.931,144.774 16.283,147.369 C15.635,149.963 1.471,137.752 1.471,137.752',
+    'M12.803,145.405 C12.803,145.405 15.07,138.057 20.58,137.842 C20.58,137.842 20.799,138.274 20.472,138.705 C20.15,139.135 17.018,143.565 15.611,147.133 L12.803,145.405',
+    'M74.394,37.886 C74.394,37.886 78.824,36.588 80.013,36.588 C81.203,36.588 85.201,36.265 85.201,36.265 C85.201,36.265 81.959,32.482 79.041,32.697 C76.123,32.914 74.178,35.185 74.394,37.886',
+    'M170.676,38.209 C170.676,38.209 170.567,39.398 172.08,39.398 C173.592,39.398 179.104,39.83 180.401,40.369 C181.698,40.912 182.237,41.236 182.455,40.588 C182.67,39.937 180.834,36.478 177.375,36.048 C173.918,35.617 170.893,37.886 170.676,38.209',
+    'M210.981,72.353 C210.981,72.353 210.549,73.545 211.737,73.652 C212.924,73.759 215.737,74.302 216.924,74.951 C218.112,75.595 218.76,76.029 219.303,75.49 C219.842,74.951 219.194,72.572 216.6,71.384 C214.006,70.193 210.981,72.353 210.981,72.353',
+    'M123.245,9.347 C123.245,9.347 122.725,20.724 124.358,21.465 C125.993,22.201 129.9,21.364 131.611,21.675 C133.321,21.985 136.315,22.529 136.647,21.926 C136.977,21.323 137.942,13.852 138.157,11.172 C138.505,6.816 135.782,2.345 130.36,1.803 C124.936,1.259 123.457,6.954 123.245,9.347',
+    'M125.296,21.086 C125.296,21.086 129.886,20.599 131.057,20.812 C132.227,21.024 136.218,21.422 136.218,21.422 C136.218,21.422 133.704,17.12 130.795,16.81 C127.885,16.502 125.565,18.389 125.296,21.086',
 ];
-const SH_THUMB = ['thumb', 172, 92, 37, 60];   // rotated about its own base below
-const SH_PALM_D = 'M24,172 C24,150 38,142 56,142 L146,142 C168,142 178,152 178,172 L178,225 C178,265 150,292 101,292 C52,292 24,265 24,222 Z';
+const SH_WRINKLES = [
+    'M70.279,26.703 C70.279,26.703 71.801,37.99 73.539,38.427 C75.279,38.859 78.975,37.338 80.713,37.338 C82.451,37.338 85.494,37.338 85.713,36.685 C85.93,36.033 85.545,28.509 85.277,25.834 C84.842,21.486 81.363,17.574 75.932,18.009 C70.498,18.443 70.06,24.31 70.279,26.703 z M122.862,10.185 C122.862,10.185 122.971,21.177 124.655,21.795 C126.338,22.41 130.172,21.287 131.901,21.474 C133.631,21.658 136.657,21.982 136.944,21.353 C137.227,20.732 137.852,13.599 137.869,10.91 C137.899,6.541 134.854,2.283 129.405,2.14 C123.955,1.996 122.901,7.783 122.862,10.185 z',
+    'M170.852,28.671 C170.852,28.671 169.076,38.826 170.649,39.689 C172.219,40.552 176.18,40.021 177.862,40.461 C179.545,40.906 182.487,41.679 182.864,41.105 C183.239,40.529 185.155,34.306 185.576,31.65 C186.264,27.336 183.897,22.668 178.53,21.701 C173.164,20.74 171.248,26.304 170.852,28.671 z',
+    'M212.315,64.748 C212.315,64.748 209.584,73.068 210.674,73.9 C211.764,74.728 214.819,74.767 216.039,75.291 C217.264,75.816 219.401,76.732 219.748,76.339 C220.098,75.947 222.494,70.611 223.114,68.65 C224.116,65.466 222.848,61.67 218.901,60.341 C214.955,59.009 212.881,63.002 212.315,64.748 z M75.713,50.396 C75.713,50.396 82.451,47.789 87.232,48.658 M78.539,53.222 C78.539,53.222 82.018,52.57 84.625,52.138 M78.975,78.22 C78.975,78.22 89.842,75.611 92.668,75.828 M81.799,83.002 C81.799,83.002 87.451,81.045 89.842,80.392 M124.405,32.789 C124.405,32.789 133.1,32.357 136.362,33.443 M127.881,36.486 C127.881,36.486 131.36,36.701 133.752,36.701 M122.883,64.525 C122.883,64.525 130.272,63.22 135.709,64.525 M125.926,69.091 C125.926,69.091 129.619,69.306 132.229,69.091 M168.965,49.529 C168.965,49.529 175.053,49.529 178.748,50.83 M170.705,53.222 C170.705,53.222 175.268,54.091 177.444,54.091 M164.401,72.351 C164.401,72.351 170.922,72.568 176.139,74.525 M164.619,77.132 C164.619,77.132 170.705,77.785 174.182,78.654 M207.006,81.263 C207.006,81.263 212.659,82.349 217.002,84.959 M208.526,85.83 L213.092,87.783 M199.397,99.088 C199.397,99.088 205.049,101.912 208.311,103 M197.44,103 C197.44,103 200.92,105.392 205.483,106.695 M88.756,112.564 C88.756,112.564 91.365,119.084 89.627,121.908 C87.885,124.736 89.627,130.172 89.627,130.822 M131.36,106.478 C131.36,106.478 131.795,111.478 132.664,113.65 C133.534,115.824 133.1,122.129 133.1,123.65 M162.227,130.822 C162.227,130.822 163.53,125.822 163.53,122.129 M187.225,140.387 C187.225,140.387 189.616,136.039 190.049,135.389',
+    'M1.471,137.752 C1.471,137.752 4.728,128.531 9.268,130.474 C13.807,132.424 23.092,136.346 21.795,138.291 C20.498,140.237 16.931,144.774 16.283,147.369 C15.635,149.963 1.471,137.752 1.471,137.752 z M25.336,155.664 C25.336,155.664 28.9,148.858 32.467,147.237 M28.254,157.61 L31.818,152.1 M91.361,140.108 C92.656,143.133 94.818,145.295 94.818,147.889 C94.818,150.483 96.115,154.373 96.978,159.125',
+    'M71.045,216.613 C71.045,216.613 79.475,221.149 85.309,223.094 C91.143,225.043 95.033,235.418 96.978,242.547',
+    'M123.245,9.347 C123.245,9.347 122.725,20.724 124.358,21.465 C125.993,22.201 129.9,21.364 131.611,21.675 C133.321,21.985 136.315,22.529 136.647,21.926 C136.977,21.323 137.942,13.852 138.157,11.172 C138.505,6.816 135.782,2.345 130.36,1.803 C124.936,1.259 123.457,6.954 123.245,9.347 z',
+];
+const SH_CLIPS = {
+    thumb:  '-10,123 77.8,123 76,153 76,300 -10,300',
+    index:  '60,-5 60,124 110,111 110,-5',
+    middle: '110,-5 110,111 147,109 147,-5',
+    ring:   '147,-5 147,109 178,116 213,-5',
+    pinky:  '213,-5 178,116 207,128 240,128 240,-5',
+};
+// Where the big letter goes (palm centre), per hand, in final (post-mirror) coordinates.
+// ⚠️ MEASURED, NOT GUESSED: the lit palm is the silhouette minus the five clip regions,
+// rasterised and measured — x 76..204, y 109..262 in icon coordinates; its centroid is
+// (134, 183) and its widest point (135, 169). Letter at x 135 (mirrored for the left hand
+// → 226-135 = 91), y 180 between the two. Move a CLIP and these must be re-measured.
+const SH_ANCHOR = { left: [91, 180], right: [135, 180] };
+let _shUid = 0;   // every hand needs its own clipPath ids: copies must not borrow the first one's
 
 function _shEl(tag, attrs, parent) {
     const e = document.createElementNS(SH_NS, tag);
@@ -443,26 +498,31 @@ function _shEl(tag, attrs, parent) {
     return e;
 }
 
-function _shFinger(g, name, cx, len, w, rot, base) {
-    const fg = _shEl('g', { transform: 'rotate(' + rot + ' ' + cx + ' ' + base + ')' }, g);
-    _shEl('rect', { 'class': 'sh-finger', 'data-finger': name,
-        x: cx - w / 2, y: base - len, width: w, height: len + 30, rx: w / 2,
-        fill: SH_NEUTRAL, stroke: SH_LINE, 'stroke-width': 3 }, fg);
-    // fingernail — the cue that this is the BACK of the hand
-    _shEl('rect', { 'class': 'sh-nail',
-        x: cx - w / 2 + 5, y: base - len + 6, width: w - 10, height: w * 0.62,
-        rx: (w - 10) / 2.6, fill: '#fff', 'fill-opacity': 0.55 }, fg);
-}
-
 function _buildSideHand(side) {
+    const uid = ++_shUid;
     const svg = _shEl('svg', { 'class': 'sh-hand', 'data-side': side,
-        viewBox: '0 0 220 300', 'aria-hidden': 'true', focusable: 'false' });
-    const flip = _shEl('g', side === 'right' ? { transform: 'translate(220,0) scale(-1,1)' } : {}, svg);
-    // thumb first so the palm overlaps its root, then fingers, then palm
-    _shFinger(flip, SH_THUMB[0], SH_THUMB[1], SH_THUMB[2], SH_THUMB[3], SH_THUMB[4], 245);
-    SH_FINGERS.forEach(function(f) { _shFinger(flip, f[0], f[1], f[2], f[3], f[4], 165); });
-    _shEl('path', { 'class': 'sh-palm', d: SH_PALM_D, fill: SH_NEUTRAL, stroke: SH_LINE, 'stroke-width': 3 }, flip);
-    const lab = _shEl('text', { 'class': 'sh-label', x: side === 'right' ? 119 : 101, y: 217,
+        viewBox: '0 0 ' + SH_VIEW[0] + ' ' + SH_VIEW[1], 'aria-hidden': 'true', focusable: 'false' });
+    const defs = _shEl('defs', {}, svg);
+    Object.keys(SH_CLIPS).forEach(function(name) {
+        const cp = _shEl('clipPath', { id: 'sh-clip-' + name + '-' + uid }, defs);
+        _shEl('polygon', { points: SH_CLIPS[name] }, cp);
+    });
+    // The art is a RIGHT hand; the left hand is its mirror image.
+    const g = _shEl('g', side === 'left' ? { transform: 'translate(' + SH_VIEW[0] + ',0) scale(-1,1)' } : {}, svg);
+    _shEl('path', { 'class': 'sh-palm', d: SH_SIL, fill: SH_NEUTRAL }, g);
+    ['thumb', 'index', 'middle', 'ring', 'pinky'].forEach(function(name) {
+        _shEl('path', { 'class': 'sh-finger', 'data-finger': name, d: SH_SIL, fill: SH_NEUTRAL,
+            'clip-path': 'url(#sh-clip-' + name + '-' + uid + ')' }, g);
+    });
+    SH_NAILS.forEach(function(d) { _shEl('path', { d: d, fill: '#fff', 'fill-opacity': 0.6 }, g); });
+    SH_WRINKLES.forEach(function(d) {
+        _shEl('path', { d: d, fill: 'none', stroke: '#000', 'stroke-opacity': 0.28, 'stroke-width': 1.8,
+            'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+    });
+    _shEl('path', { d: SH_OUTLINE, fill: 'none', stroke: SH_LINE, 'stroke-width': 4,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, g);
+    // The label is OUTSIDE the mirror group so it is never drawn backwards.
+    const lab = _shEl('text', { 'class': 'sh-label', x: SH_ANCHOR[side][0], y: SH_ANCHOR[side][1],
         'text-anchor': 'middle', 'dominant-baseline': 'central' }, svg);
     lab.textContent = '';
     return svg;
