@@ -1,4 +1,10 @@
-// learn.js v2.52.0
+// learn.js v2.52.1
+//
+// v2.52.1 — Round 153: THE SIDE-HANDS CHOICE MOVED INTO keyboard.js, so Library
+//           (game.js v3.59.0) stores it identically. No behaviour change in School:
+//           same Settings row, same account field, same 7-day cache — the cache read
+//           and write are keyboard.js's readHandGuideCache()/writeHandGuideCache()
+//           now, and HAND_GUIDE_MODES is imported from there. Rule 9: one home.
 //
 // v2.52.0 — Round 152: ⭐ SIDE HANDS. An optional pair of hands beside the words
 //           and/or beside the keyboard, the target finger lit in its row colour with
@@ -74,21 +80,7 @@
 //           the overlay shows the key rather than penalising. If the early
 //           lessons start feeling sticky, THIS is the first thing to look at.
 //
-// v2.46.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
-//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
-//           them had ALREADY drifted once, and the symptom was that Saturday's
-//           typing sat inside the number on a child's screen and outside the
-//           teacher's report — every evening, which is when a teacher grades.
-//           This file's week function is a SHAPE ADAPTER now: daylog.js's
-//           weekStartOf() owns the rule, and this converts the argument type its
-//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
-//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
-//           that collapses AND configures cannot tell a collapse bug from an
-//           anchor bug. Making it per-class is ROADMAP 58 step two.
-//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
-//           the repo and fails if any but daylog.js contains that expression.
-//
-// (Older entries — v2.45.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v2.46.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
@@ -145,7 +137,7 @@ import { showReceipt } from "./receipt.js";
 // in game.js is deliberately NOT imported: it reaches into book, chapter, sprint
 // and view state School has none of. This module is its shape, not its body.
 import { openSettingsPanel, buildSettingsButton, applyDrillFont, readDrillFont,
-         HAND_GUIDE_MODES, SETTINGS_PANEL_VERSION } from "./settings-panel.js";
+         SETTINGS_PANEL_VERSION } from "./settings-panel.js";
 // ⚠️ HANDOFF §0.0 — the student now reads the GRADED document. See daylog.js.
 // ⚠️ readDaySessions/projectDayTotal deliberately NOT imported — v2.19.0
 // reverted the projection. See HANDOFF §0.0.
@@ -188,7 +180,8 @@ import {
     createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
     resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
     getHomePositions, getKeyCenterInKB, toggleKeyboardCase,
-    createSideHands, setSideHandsToChar, clearSideHands, removeSideHands
+    createSideHands, setSideHandsToChar, clearSideHands, removeSideHands,
+    HAND_GUIDE_MODES, handGuideModeOf, readHandGuideCache, writeHandGuideCache
 } from "./keyboard.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -197,7 +190,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.52.0";
+const LEARN_VERSION = "2.52.1";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -655,34 +648,31 @@ const hudTimer       = document.getElementById('hud-time');
 applyDrillFont(readDrillFont());
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ✋ THE SIDE HANDS (Round 152)
+// ✋ THE SIDE HANDS (Round 152; storage moved into keyboard.js in Round 153)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Optional hands beside the words and/or beside the keyboard. The drawing lives in
-// keyboard.js (createSideHands / setSideHandsToChar); THIS is the controller: where
-// the choice is stored, and when the hands are built and lit.
+// Optional hands beside the words and/or beside the keyboard. The drawing AND the
+// saved-choice cache live in keyboard.js (createSideHands / setSideHandsToChar /
+// readHandGuideCache); THIS is the controller: when the hands are built and lit, and
+// the one place School writes the account copy.
 //
 // ⚠️ THE CHOICE: 'off' | 'text' | 'keys' | 'both' (HAND_GUIDE_MODES). Stored in
 // users/{uid}/profile/info.handGuide — the durable copy, so it follows a student to
-// any Chromebook — and cached in localStorage for 7 days, stamped with the uid.
-// ⚠️ THE UID STAMP IS NOT DECORATION. A shared Chromebook must not show the last
-// child's choice to the next one; cacheRead() rejects an entry for another uid.
+// any Chromebook — and cached in localStorage for 7 days, stamped with the uid, in
+// the SAME key Library (game.js) uses: set it in either place and it is in both.
 // ⚠️ A SIGNED-OUT OR ANONYMOUS STUDENT GETS THE LOCAL COPY ONLY: nothing to write to.
 // ⚠️ COST: syncHandGuideFromProfile() is one read when the cache is empty or older
 // than a week, and NOTHING when it is fresh. Opening Settings reads nothing.
-const HAND_GUIDE_KEY = 'ttb_handGuide_v1';
-const HAND_GUIDE_MS  = 7 * 24 * 3600 * 1000;
 let sideHandsOn = false;
 
 function getHandGuideMode() {
-    const c = cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, currentUser ? currentUser.uid : '');
-    return (c && HAND_GUIDE_MODES.some(m => m[0] === c.mode)) ? c.mode : 'off';
+    return handGuideModeOf(currentUser ? currentUser.uid : '');
 }
 
 // Called by the Settings row's onChange. ⚠️ settings-panel.js saves nothing — this does.
 function setHandGuideMode(mode) {
     if (!HAND_GUIDE_MODES.some(m => m[0] === mode)) return;
-    cacheWrite(HAND_GUIDE_KEY, { uid: currentUser ? currentUser.uid : '', mode });
+    writeHandGuideCache(currentUser ? currentUser.uid : '', mode);
     mountSideHands();
     if (currentUser && !currentUser.isAnonymous) {
         setDoc(doc(db, 'users', currentUser.uid, 'profile', 'info'),
@@ -696,15 +686,13 @@ function setHandGuideMode(mode) {
 // read on every page load.
 async function syncHandGuideFromProfile(user) {
     if (!user || user.isAnonymous) return;
-    if (cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, user.uid)) return;
+    if (readHandGuideCache(user.uid) !== null) return;
     try {
         const snap = await getDoc(doc(db, 'users', user.uid, 'profile', 'info'));
         // The student may have picked something while this read was in flight —
         // theirs is newer than the account's.
-        if (cacheRead(HAND_GUIDE_KEY, HAND_GUIDE_MS, user.uid)) return;
-        const m = snap.exists() ? snap.data().handGuide : undefined;
-        cacheWrite(HAND_GUIDE_KEY, { uid: user.uid,
-            mode: HAND_GUIDE_MODES.some(x => x[0] === m) ? m : 'off' });
+        if (readHandGuideCache(user.uid) !== null) return;
+        writeHandGuideCache(user.uid, snap.exists() ? snap.data().handGuide : 'off');
         mountSideHands();
     } catch (e) { console.warn('[TTB] hand guide sync failed:', e); }
 }

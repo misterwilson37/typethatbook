@@ -1,6 +1,13 @@
 // keyboard.js — Shared keyboard renderer + hand guide
 // Imported by both game.js and learn.js.
-// keyboard.js v1.2.0
+// keyboard.js v1.3.0
+// v1.3.0 — THE SIDE-HANDS CHOICE HAS ONE HOME. HAND_GUIDE_MODES (moved here from
+//          settings-panel.js — Rule 9, a move not a copy) and the saved-choice
+//          cache: readHandGuideCache / writeHandGuideCache / handGuideModeOf.
+//          learn.js, learn2.js and game.js all store the choice the same way, in the
+//          same localStorage key, so a setting made in School is already there in
+//          Library. ⚠️ Pure localStorage — NO Firestore here. The page controllers
+//          own the account copy (users/{uid}/profile/info.handGuide).
 // v1.2.0 — SIDE HANDS. createSideHands / setSideHandsToChar / clearSideHands /
 //          removeSideHands: two hands drawn beside the words and/or beside the
 //          keyboard, the target finger lit in its FINGER_COLORS row colour and
@@ -13,7 +20,7 @@
 // v1.1.1 — patch release; see KB_VERSION.
 // v1.1.0 — fixes duplicate-ID bug (two keyboards in learn.html DOM),
 //           all lookups now scoped to containerEl rather than document.
-export const KB_VERSION = '1.2.0';
+export const KB_VERSION = '1.3.0';
 
 export const FINGER_COLORS = {
     'left-pinky':   '#FF69B4',
@@ -532,3 +539,45 @@ export function setSideHandsToChar(hostEl, fingerMap, ch) {
         _shLight(_sideHand(hostEl, other), 'pinky', FINGER_COLORS[other + '-pinky'], 'SHIFT');
     }
 }
+
+// ─── Side-hands choice: vocabulary and local cache ───────────────────────────
+// ⚠️ The KEYS are what every page stores — in localStorage and in
+// users/{uid}/profile/info.handGuide — so renaming one orphans every saved choice.
+export const HAND_GUIDE_MODES = [
+    // key,    label
+    ['off',  'Off'],
+    ['text', 'Beside the words'],
+    ['keys', 'Beside the keyboard'],
+    ['both', 'Both'],
+];
+
+export function normalizeHandGuideMode(m) {
+    return HAND_GUIDE_MODES.some(function(x) { return x[0] === m; }) ? m : 'off';
+}
+
+export const HAND_GUIDE_KEY = 'ttb_handGuide_v1';
+const HAND_GUIDE_MS = 7 * 24 * 3600 * 1000;
+
+// The cached choice for THIS uid, or null when there is no fresh entry (never set on
+// this machine, older than a week, or written for a different student).
+// ⚠️ THE UID STAMP IS NOT DECORATION: a shared Chromebook must not show the last
+// child's choice to the next one. Signed-out visitors use uid ''.
+export function readHandGuideCache(uid) {
+    try {
+        const raw = localStorage.getItem(HAND_GUIDE_KEY);
+        if (!raw) return null;
+        const c = JSON.parse(raw);
+        if (c.uid !== (uid || '')) return null;
+        if ((Date.now() - c.at) > HAND_GUIDE_MS) return null;
+        return HAND_GUIDE_MODES.some(function(x) { return x[0] === c.mode; }) ? c.mode : null;
+    } catch (_) { return null; }
+}
+
+export function writeHandGuideCache(uid, mode) {
+    try {
+        localStorage.setItem(HAND_GUIDE_KEY,
+            JSON.stringify({ at: Date.now(), uid: uid || '', mode: normalizeHandGuideMode(mode) }));
+    } catch (_) { /* private mode — the choice just won't be remembered */ }
+}
+
+export function handGuideModeOf(uid) { return readHandGuideCache(uid) || 'off'; }

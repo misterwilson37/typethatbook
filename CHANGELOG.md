@@ -1,5 +1,23 @@
 # CHANGELOG — TypeThatBook
 
+## Round 153 — hands in the Library too
+
+**⭐ "Show hands" is now in Library as well as School.** ⚙ → Hand Guide → **Show hands**:
+Off / Beside the words / Beside the keyboard / Both — the same hands, the same row
+colours, the same SHIFT and SPACE behaviour as School. **One setting, two pages:** both
+store it the same way (same browser key, same account field), so a student set up in
+School already has it in Library, and the other way round. Library's older **Show fingers**
+(the sliding fingertip dot) is separate and unchanged. **Beside the words** narrows
+Library's text column to 700px while it is on, because the classic column leaves no
+margin for a hand; Adventure has no text column, so there only *Beside the keyboard*
+shows. Hidden below 1000px wide. **No extra reads in Library** — it already holds the
+student's profile document. The Arcade is deliberately left out.
+**Also:** the finished-choice storage moved into keyboard.js (Rule 9 — School and Library
+would otherwise each have a copy), and **learn2.js (staging) now has the hands too.**
+keyboard.js v1.3.0, settings-panel.js v1.3.1, game.js v3.59.0, learn.js v2.52.1,
+learn2.js v0.12.0-staging, style.css v3.11.0. (learn.js v2.46.0's and game.js v3.51.0's
+header entries archived, 8-entry budget.)
+
 ## Round 152 — hands beside the words
 
 **⭐ An optional pair of hands beside the words and/or beside the keyboard.** The finger
@@ -10565,6 +10583,48 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### learn.js v2.46.0 — archived Round 153, 8-entry budget
+
+Pushed over by v2.52.1 (side-hands storage moved to keyboard.js). Verbatim.
+
+```
+// v2.46.0 — ⚠️⚠️ ROADMAP 58, THE COLLAPSE STEP: THE WEEK ANCHOR HAS ONE HOME.
+//           `(getDay() + 1) % 7` was written out SIX times across the repo. Two of
+//           them had ALREADY drifted once, and the symptom was that Saturday's
+//           typing sat inside the number on a child's screen and outside the
+//           teacher's report — every evening, which is when a teacher grades.
+//           This file's week function is a SHAPE ADAPTER now: daylog.js's
+//           weekStartOf() owns the rule, and this converts the argument type its
+//           callers already use. ⚠️ DO NOT REINTRODUCE THE ARITHMETIC.
+//           ⚠️ THE ANCHOR IS STILL HARDCODED TO SATURDAY, DELIBERATELY — a round
+//           that collapses AND configures cannot tell a collapse bug from an
+//           anchor bug. Making it per-class is ROADMAP 58 step two.
+//           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
+//           the repo and fails if any but daylog.js contains that expression.
+//
+```
+
+### game.js v3.51.0 — archived Round 153, 8-entry budget
+
+Pushed over by v3.59.0 (side hands in Library). Verbatim.
+
+```
+// v3.51.0 — ⚠️ ROADMAP 67 (Jake, 2026-09-08): A FINISHED BOOK KEPT APPEARING
+//           UNDER "CONTINUE READING". *"It's still showing in my continue
+//           reading menu, although I'm definitely done with it. Got to the
+//           library from the finished page, in fact."* This file's completion
+//           branch was the ONLY place that knew a book was over, and it wrote
+//           nothing down — index.html had no field to ask. `finishedAt` is now
+//           stamped on the progress document in the write that branch already
+//           triggers. ⚠️⚠️ FLUSHED EXPLICITLY: pagehide only does walSave()/
+//           flushSessionsNow() (localStorage, no Firestore progress write) and
+//           visibilitychange:hidden reaches flushAll() only past a time/delta
+//           gate — a student clicking the "Back to the library" button this
+//           very modal draws can satisfy neither, and the stamp would die with
+//           the tab. Once per book, at the one moment it is knowable.
+//
+```
 
 ### learn.js v2.45.0 — archived Round 152, 8-entry budget
 

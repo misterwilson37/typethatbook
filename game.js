@@ -1,4 +1,22 @@
-// game.js v3.58.0
+// game.js v3.59.0
+//
+// v3.59.0 — Round 153: ⭐ SIDE HANDS IN LIBRARY — the twin of learn.js v2.52.x. ⚙ →
+//           Hand Guide → "Show hands": Off / Beside the words / Beside the keyboard /
+//           Both. The target finger lights in its row colour with the character on the
+//           back of the hand (SHIFT on the other pinky, SPACE on both thumbs).
+//           ⚠️ SAME CHOICE, SAME PLACE AS SCHOOL: keyboard.js v1.3.0 owns the
+//           vocabulary and the 7-day localStorage cache, and the account copy is
+//           users/{uid}/profile/info.handGuide — so a setting made in School is
+//           already on in Library. ⚠️ ZERO EXTRA READS HERE: profileInfo is already
+//           the session's one read of that document (see loadProfileInfo()).
+//           ⚠️ INDEPENDENT OF "Show fingers": that toggle is the older sliding
+//           fingertip dot and keeps its own rainbow/colour options; this is a
+//           separate picture and neither switches the other.
+//           ⚠️ "BESIDE THE WORDS" NARROWS THE TEXT COLUMN to 700px while it is on
+//           (style.css v3.11.0), because the classic column is 80% wide and leaves
+//           no margin to put a hand in. ADVENTURE has no text column, so there the
+//           words-side hands stay away and only "beside the keyboard" shows.
+//           Hidden below 1000px wide, where there is no room.
 //
 // v3.58.0 — Round 150 (Nesmith): ⚠️⚠️⚠️ RE-TYPED GROUND IS NOT PAID. Jake: a student
 //           typed `h`, pressed Backspace, typed `h` — forever. Each `h` was a real,
@@ -63,24 +81,15 @@
 // auto-pauses the game after five seconds. See tests/backspace-farm-test.mjs.
 //
 //
-// v3.51.0 — ⚠️ ROADMAP 67 (Jake, 2026-09-08): A FINISHED BOOK KEPT APPEARING
-//           UNDER "CONTINUE READING". *"It's still showing in my continue
-//           reading menu, although I'm definitely done with it. Got to the
-//           library from the finished page, in fact."* This file's completion
-//           branch was the ONLY place that knew a book was over, and it wrote
-//           nothing down — index.html had no field to ask. `finishedAt` is now
-//           stamped on the progress document in the write that branch already
-//           triggers. ⚠️⚠️ FLUSHED EXPLICITLY: pagehide only does walSave()/
-//           flushSessionsNow() (localStorage, no Firestore progress write) and
-//           visibilitychange:hidden reaches flushAll() only past a time/delta
-//           gate — a student clicking the "Back to the library" button this
-//           very modal draws can satisfy neither, and the stamp would die with
-//           the tab. Once per book, at the one moment it is knowable.
-//
-// (Older entries — v3.50.0 and before — are archived verbatim in CHANGELOG.md
+// (Older entries — v3.51.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
 //
 import { db, auth, ADMIN_EMAILS, isStaffUser } from "./firebase-config.js";
+// Round 153 — the side hands. ⚠️ ONLY the hands and the saved choice come from
+// keyboard.js; this file keeps its OWN keyboard, finger map and fingertip-dot guide.
+import { createSideHands, setSideHandsToChar, clearSideHands, removeSideHands,
+         HAND_GUIDE_MODES, handGuideModeOf, readHandGuideCache,
+         writeHandGuideCache } from "./keyboard.js";
 // ROADMAP item 10's gate lives in School, but its clock is fed from BOTH pages —
 // Jake: "when I say a month, I mean a month of typing ANYTHING". A student who
 // spends the period in Library is having an active day, and a School lesson must
@@ -153,7 +162,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.58.0";
+const VERSION = "3.59.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -936,6 +945,76 @@ function getFingerColor(fingerName) {
     return handGuideColor;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ✋ THE SIDE HANDS (Round 153) — twin of learn.js's block of the same name
+// ═══════════════════════════════════════════════════════════════════════════
+// Hands beside the words and/or beside the keyboard. The drawing and the saved-choice
+// cache are keyboard.js's; THIS is the controller. ⚠️ NOT the "Show fingers" guide
+// above (handGuideEnabled) — a separate picture, switched separately.
+// ⚠️ THE CHOICE: 'off' | 'text' | 'keys' | 'both', cached under the same localStorage
+// key School uses (stamped with the uid) and saved on the account at
+// users/{uid}/profile/info.handGuide. Library already holds that document in
+// `profileInfo`, so reading it costs nothing new.
+let sideHandsOn = false;
+
+function sideHandsMode() {
+    return handGuideModeOf(currentUser ? currentUser.uid : '');
+}
+
+// The ⚙ menu's "Show hands" select.
+function setSideHandsMode(mode) {
+    if (!HAND_GUIDE_MODES.some(m => m[0] === mode)) return;
+    writeHandGuideCache(currentUser ? currentUser.uid : '', mode);
+    if (profileInfo) profileInfo.handGuide = mode;
+    mountSideHands();
+    if (currentUser && !currentUser.isAnonymous) {
+        setDoc(doc(db, "users", currentUser.uid, "profile", "info"),
+               { handGuide: mode }, { merge: true })
+            .catch(e => console.warn("Save hand guide failed:", e));
+    }
+}
+
+// After profile/info is loaded (no read of its own). The account is authoritative
+// when it has an answer — the "different Chromebook" path. When it has none and this
+// machine has none either, cache 'off' so School does not pay a read to learn that.
+function resolveSideHands() {
+    if (!profileInfo || !currentUser || currentUser.isAnonymous) { mountSideHands(); return; }
+    const remote = profileInfo.handGuide;
+    if (HAND_GUIDE_MODES.some(m => m[0] === remote)) writeHandGuideCache(currentUser.uid, remote);
+    else if (readHandGuideCache(currentUser.uid) === null) writeHandGuideCache(currentUser.uid, 'off');
+    mountSideHands();
+}
+
+// (Re)build for the current choice. Safe at any time. ⚠️ createKeyboard() wipes
+// #virtual-keyboard, so the keyboard-side hands are re-mounted after it.
+function mountSideHands() {
+    const mode     = sideHandsMode();
+    const textHost = document.getElementById('game-container');
+    removeSideHands(textHost);
+    removeSideHands(keyboardDiv);
+    const wantText = (mode === 'text' || mode === 'both');
+    const wantKeys = (mode === 'keys' || mode === 'both');
+    // The class is what makes room: style.css narrows #text-stream while it is set.
+    document.body.classList.toggle('sh-text-on', wantText);
+    sideHandsOn = wantText || wantKeys;
+    if (wantText) createSideHands(textHost, 'text');
+    if (wantKeys) createSideHands(keyboardDiv, 'kb');
+    // The column just changed width, so where the current letter sits changed too.
+    if (typeof invalidateContainerHeight === 'function') { invalidateContainerHeight(); centerView(); }
+    updateSideHands();
+}
+
+function updateSideHands() {
+    if (!sideHandsOn) return;
+    const textHost = document.getElementById('game-container');
+    if (!fullText || currentCharIndex >= fullText.length) {
+        clearSideHands(textHost); clearSideHands(keyboardDiv); return;
+    }
+    const ch = fullText[currentCharIndex];
+    setSideHandsToChar(textHost,    fingerMap, ch);
+    setSideHandsToChar(keyboardDiv, fingerMap, ch);
+}
+
 // ⚠️ v3.43.0 — THE LIST IS GONE FROM THIS FILE. It is imported from
 // firebase-config.js, which every page already loads. It used to be duplicated
 // here, in learn.js, in admin.js and in reports.html — four hand-maintained
@@ -1454,6 +1533,7 @@ async function init() {
     createKeyboard();
     buildFingerMap();
     createHandGuide();
+    mountSideHands();   // Round 153 — the cached choice; resolveSideHands() corrects it after sign-in
     setupAuthListeners();
     trophyBtn.onclick = () => openLeaderboard();
 
@@ -1481,6 +1561,7 @@ async function init() {
                 // with no replay needed.
                 await loadProfileInfo();
                 await resolveViewMode();
+                resolveSideHands();   // Round 153 — same document, no extra read
                 await loadUserProgress();
                 // ⚠️ v3.36.0 — BEFORE loadUserStats(), NOT AFTER, AND THIS IS
                 // THE FIX FOR THE LOST GUEST MINUTE. loadUserStats() ASSIGNS the
@@ -4591,6 +4672,7 @@ function highlightCurrentChar() {
     _activeLetterEl = el || null;
     if (el) { el.classList.add('active'); highlightKey(fullText[currentCharIndex]); }
     updateHandGuide();
+    updateSideHands();
     updateProgressBars();
 }
 
@@ -6899,6 +6981,10 @@ async function openMenuModal() {
                         style="width:28px; height:22px; border:1px solid #555; border-radius:3px; cursor:pointer; background:none; padding:0;">
                     <span style="font-size:0.7em; color:#888;">Color</span>
                 </div>
+                <div class="menu-label" style="margin-top:8px;">Show hands</div>
+                <select id="hands-select" class="modal-select">
+                    ${HAND_GUIDE_MODES.map(m => `<option value="${m[0]}" ${sideHandsMode() === m[0] ? 'selected' : ''}>${m[1]}</option>`).join('')}
+                </select>
             </div>
             ${initialsHTML}
         </div>
@@ -6958,6 +7044,7 @@ async function openMenuModal() {
         const colorRow = document.getElementById('guide-color-row');
         if (colorRow) colorRow.style.display = handGuideRainbow ? 'none' : 'flex';
     };
+    document.getElementById('hands-select').onchange = (e) => setSideHandsMode(e.target.value);
     document.getElementById('guide-color').oninput = (e) => {
         handGuideColor = e.target.value;
         localStorage.setItem('ttb_handGuideColor', handGuideColor);
@@ -7196,6 +7283,7 @@ function setKeyboardLayout(layout) {
     const old = document.getElementById('hand-guide-overlay');
     if (old) old.remove();
     createHandGuide();
+    mountSideHands();   // Round 153 — createKeyboard() just wiped the keyboard's children
     highlightCurrentChar();
 }
 

@@ -1,4 +1,8 @@
-// settings-panel.js v1.3.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+// settings-panel.js v1.3.1 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+//
+// v1.3.1 — HAND_GUIDE_MODES now lives in keyboard.js (Rule 9: Library needs the same
+//          list, and a second copy is how they drift). Imported here; nothing else
+//          changed. Still DOM-only and saves nothing.
 //
 // v1.3.0 — `handguide` row: where to show the side hands (off / beside the words /
 //          beside the keyboard / both). ⚠️ HONOURS THE CONTRACT BELOW: this file
@@ -77,17 +81,10 @@
 // again must be able to keep typing without clicking anything. Losing that is
 // the same defect as eating a keystroke, one step removed.
 
-export const SETTINGS_PANEL_VERSION = '1.3.0';
+import { HAND_GUIDE_MODES } from "./keyboard.js";
 
-// The hand-guide choices. ⚠️ The keys are what learn.js stores — in localStorage and
-// in users/{uid}/profile/info.handGuide — so renaming one orphans every saved choice.
-export const HAND_GUIDE_MODES = [
-    // key,    label
-    ['off',  'Off'],
-    ['text', 'Beside the words'],
-    ['keys', 'Beside the keyboard'],
-    ['both', 'Both'],
-];
+export const SETTINGS_PANEL_VERSION = '1.3.1';
+
 
 // ═════════════════════════════════════════════════════════════════════════════
 // THE READING-FONT MODEL — moved here from learn.js v2.23.0 in one commit

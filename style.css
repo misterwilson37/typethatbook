@@ -1,4 +1,7 @@
-/* TypeThatBook style.css v3.10.0 */
+/* TypeThatBook style.css v3.11.0 */
+/* v3.11.0: Library side hands — body.sh-text-on narrows #text-stream to a 700px column
+   (classic view only) so the words-side hands have a margin; Adventure has no text
+   column, so the words-side pair is hidden there. */
 /* v3.10.0: SIDE HANDS — .sh-pair / .sh-hand / .sh-label, the optional hands beside the
    words and beside the keyboard (keyboard.js v1.2.0). #drill-keyboard-wrap became
    position:relative so the hands can sit in it. */
@@ -126,7 +129,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.10.0"; display: none; }
+body::before { content: "v3.11.0"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1636,3 +1639,18 @@ button.secondary-btn:hover { border-color: #888; color: #fff; }
 .sh-label-char { font-size: 92px; stroke-width: 7px; }
 .sh-label-word { font-size: 34px; stroke-width: 5px; }
 @media (max-width: 999px) { .sh-pair { display: none; } }
+
+/* ─── Side hands in Library (v3.11.0) ───────────────────────────────────────
+   Library's text column is 80% wide, which leaves ~10% each side — no room for a hand.
+   While the words-side hands are on, the column becomes the same 700px School uses.
+   ⚠️ left/width, NOT a transform: #text-stream's transform is the scroll offset
+   (centerView() writes translateY), and a second transform would fight it.
+   ⚠️ SAME 1000px FLOOR AS THE HANDS THEMSELVES, so the column is never narrowed for
+   hands that are hidden. Adventure draws its words on a canvas, so no column and no
+   words-side hands there. */
+@media (min-width: 1000px) {
+    body.sh-text-on:not(.view-adventure) #text-stream { left: calc(50% - 350px); width: 700px; }
+}
+body.view-adventure .sh-pair.sh-text { display: none; }
+/* Adventure's round keys make the keyboard ~770px wide, not ~685 — give it 800 to clear. */
+body.view-adventure .sh-pair.sh-kb { --shw: min(calc((100vw - 800px) / 2 - 12px), 180px); width: calc(800px + 2 * var(--shw) + 24px); }

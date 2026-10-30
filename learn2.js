@@ -1,4 +1,10 @@
-// learn2.js v0.11.0-staging
+// learn2.js v0.12.0-staging
+//
+// v0.12.0 — Round 153: SIDE HANDS, the same feature as learn.js v2.52.x (Settings →
+//   "Show hands"; keyboard.js v1.3.0 draws them and owns the saved choice). Ported
+//   whole, not shared by flag, because this is a fork. ⚠️ DECK AND GAME RUNS: the
+//   hands follow drillSequence/drillPos exactly as the keyboard overlay does, so they
+//   are right on typed runs and idle on Deadline runs, which never touch drillPos.
 //
 // v0.11.0 — Round 150 (Nesmith): re-typed ground is not paid or counted, held keys
 //   type once, script-made keys are refused — exactly as learn.js v2.51.0.
@@ -370,7 +376,9 @@ import {
     createKeyboard, buildFingerMap, getFingerInfo,
     createHandGuide, buildFingerSVG, setHandGuideToChar, setHandGuideToChars,
     resetHandGuideToHome, colorKeyboardKeys, flashFingerPressed,
-    getHomePositions, getKeyCenterInKB, toggleKeyboardCase
+    getHomePositions, getKeyCenterInKB, toggleKeyboardCase,
+    createSideHands, setSideHandsToChar, clearSideHands, removeSideHands,
+    HAND_GUIDE_MODES, handGuideModeOf, readHandGuideCache, writeHandGuideCache
 } from "./keyboard.js";
 // ⚠️⚠️ NEW IN learn2.js — SEE THE BANNER AT THE TOP OF THIS FILE.
 // missionConfigFromRun() is the SAME function arcade.html already calls to
@@ -391,7 +399,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.11.0-staging";
+const LEARN_VERSION = "0.12.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -855,6 +863,87 @@ const hudTimer       = document.getElementById('hud-time');
 applyDrillFont(readDrillFont());
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ✋ THE SIDE HANDS (Round 152; storage moved into keyboard.js in Round 153)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Optional hands beside the words and/or beside the keyboard. The drawing AND the
+// saved-choice cache live in keyboard.js (createSideHands / setSideHandsToChar /
+// readHandGuideCache); THIS is the controller: when the hands are built and lit, and
+// the one place School writes the account copy.
+//
+// ⚠️ THE CHOICE: 'off' | 'text' | 'keys' | 'both' (HAND_GUIDE_MODES). Stored in
+// users/{uid}/profile/info.handGuide — the durable copy, so it follows a student to
+// any Chromebook — and cached in localStorage for 7 days, stamped with the uid, in
+// the SAME key Library (game.js) uses: set it in either place and it is in both.
+// ⚠️ A SIGNED-OUT OR ANONYMOUS STUDENT GETS THE LOCAL COPY ONLY: nothing to write to.
+// ⚠️ COST: syncHandGuideFromProfile() is one read when the cache is empty or older
+// than a week, and NOTHING when it is fresh. Opening Settings reads nothing.
+let sideHandsOn = false;
+
+function getHandGuideMode() {
+    return handGuideModeOf(currentUser ? currentUser.uid : '');
+}
+
+// Called by the Settings row's onChange. ⚠️ settings-panel.js saves nothing — this does.
+function setHandGuideMode(mode) {
+    if (!HAND_GUIDE_MODES.some(m => m[0] === mode)) return;
+    writeHandGuideCache(currentUser ? currentUser.uid : '', mode);
+    mountSideHands();
+    if (currentUser && !currentUser.isAnonymous) {
+        setDoc(doc(db, 'users', currentUser.uid, 'profile', 'info'),
+               { handGuide: mode }, { merge: true })
+            .catch(e => console.warn('[TTB] Save hand guide failed:', e));
+    }
+}
+
+// Fresh local copy → no read. Otherwise ask the account once and cache the answer,
+// INCLUDING "never chose" ('off'), so a student who never touched it does not pay a
+// read on every page load.
+async function syncHandGuideFromProfile(user) {
+    if (!user || user.isAnonymous) return;
+    if (readHandGuideCache(user.uid) !== null) return;
+    try {
+        const snap = await getDoc(doc(db, 'users', user.uid, 'profile', 'info'));
+        // The student may have picked something while this read was in flight —
+        // theirs is newer than the account's.
+        if (readHandGuideCache(user.uid) !== null) return;
+        writeHandGuideCache(user.uid, snap.exists() ? snap.data().handGuide : 'off');
+        mountSideHands();
+    } catch (e) { console.warn('[TTB] hand guide sync failed:', e); }
+}
+
+// (Re)build the hands for the current choice. Safe to call at any time: it removes
+// whatever was there first, and it lives in the two WRAPPERS, never inside
+// #virtual-keyboard, because createKeyboard() wipes that element's children.
+function mountSideHands() {
+    const mode     = getHandGuideMode();
+    const textHost = document.getElementById('drill-text-area');
+    const kbHost   = document.getElementById('drill-keyboard-wrap');
+    removeSideHands(textHost);
+    removeSideHands(kbHost);
+    sideHandsOn = false;
+    if (mode === 'off') return;
+    if (mode === 'text' || mode === 'both') createSideHands(textHost, 'text');
+    if (mode === 'keys' || mode === 'both') createSideHands(kbHost, 'kb');
+    sideHandsOn = true;
+    // A drill already under way lights its current target at once.
+    if (currentStep && drillPos < drillSequence.length) updateSideHands(drillSequence[drillPos]);
+}
+
+function updateSideHands(ch) {
+    if (!sideHandsOn) return;
+    setSideHandsToChar(document.getElementById('drill-text-area'),   fingerMap, ch);
+    setSideHandsToChar(document.getElementById('drill-keyboard-wrap'), fingerMap, ch);
+}
+
+// A step or lesson has ended — nothing to point at, so no hand stays lit.
+function idleSideHands() {
+    if (!sideHandsOn) return;
+    clearSideHands(document.getElementById('drill-text-area'));
+    clearSideHands(document.getElementById('drill-keyboard-wrap'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ⚙ THE SCHOOL SETTINGS PANEL (ROADMAP item 0b)
 // ═══════════════════════════════════════════════════════════════════════════
 //
@@ -913,7 +1002,10 @@ function openSchoolSettings() {
     const drillRunning = drillView && !drillView.classList.contains('hidden');
     if (drillRunning) clearInterval(learnTickInterval);
 
-    const rows = [{ kind: 'font' }];
+    const rows = [
+        { kind: 'font' },
+        { kind: 'handguide', value: getHandGuideMode(), onChange: setHandGuideMode },
+    ];
 
     // ⚠️ THIS IS THE DEBT learn.js v2.24.0 CREATED, BEING PAID. `#user-class-name`
     // was removed from the top bar on Jake's ruling ("forget about the class, it
@@ -1031,6 +1123,7 @@ onAuthStateChanged(auth, async user => {
         await loadUserStats();
         walRecoverLearn();   // replay unflushed lesson time from a dead session
         await loadGoals();
+        syncHandGuideFromProfile(user);   // not awaited: never delays the map
         // ⚠️ ORDER CHANGED: goals now runs FIRST so classInfo is populated, and
         // the pending-assignment lookup is skipped entirely for the ~99% of
         // students who already have a class. That read was firing on every
@@ -2712,6 +2805,7 @@ function beginStep(stepIdx) {
         createHandGuide(drillKeyboard, fingerMap, LAYOUT, true);
     }
     drillKeyboard.focus();
+    mountSideHands();
 
     // Progress pips — one per run, so a chunked step shows its parts
     stepProgressEl.innerHTML = currentRuns.map((r, i) => {
@@ -4082,6 +4176,7 @@ function advanceHandGuide() {
     if (drillPos >= drillSequence.length) return;
     const ch = drillSequence[drillPos];
     setHandGuideToChar(drillKeyboard, fingerMap, LAYOUT, ch);
+    updateSideHands(ch);
     const info = getFingerInfo(fingerMap, ch);
     toggleKeyboardCase(drillKeyboard, info?.shift || false);
 
@@ -4431,6 +4526,7 @@ function finishStep() {
 function showStepModal(wpm, acc, nextIdx, totalSteps) {
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
+    idleSideHands();
 
     const gates    = gatesForRun(currentStep, currentLesson && currentLesson.gates);
     const minWPM   = gates.minWPM;
@@ -4571,6 +4667,7 @@ function renderRemediationResult(wpm, acc) {
 
     drillModal.classList.remove('hidden');
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
+    idleSideHands();
 }
 
 // ⚠️ v2.32.0 — ROADMAP 10. The practice run's end screen. It shows the student
