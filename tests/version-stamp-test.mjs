@@ -118,6 +118,7 @@ const SOURCES = [
     { file: 'read-meter.js',         pattern: /\bexport\s+const\s+READ_METER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'logdays.js',            pattern: /\bexport\s+const\s+LOGDAYS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

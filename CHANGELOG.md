@@ -1,5 +1,37 @@
 # CHANGELOG — TypeThatBook
 
+## Round 161 — a target only when someone set one
+
+**A student who isn't in a class no longer sees a target.** Jake had a student who wasn't in
+his class and nothing showed it: the HUD read `Daily 9:22 / 10:00` like everyone else's, because
+the 10:00 came from the site-wide minutes in Reports. *"The target time would not exist unless it
+actually existed."* Goals now come from **the class** if there is one (the class always wins, even
+one that sets no goals) → else **the student's own goals** → else **none**, and the HUD just counts
+time daily and weekly with no `/ target` and no ✓. One shared rule in the new **goal-ladder.js**
+v1.0.0, used by Library, School, School BETA and the landing page (they had drifted: the landing
+page never used the site default while the other three did).
+
+- **⚙ Settings, School:** "Your goals" is an editable pair of boxes (min/day, min/week) plus Save
+  for a student with no class; read-only, "set by your teacher", for a student in one. The Class
+  row already says "No class assigned". **⚙ Settings, Library:** gains Class and Goals in the same
+  shape. Saved on the account (`users/{uid}.ownDailySeconds` / `ownWeeklySeconds`), so it follows
+  the student between Chromebooks. **No Firestore rules change** — the owner could already write
+  their own users doc. Nothing graded reads these fields.
+- **On the HUD the missing `/ target` is the only sign** — on Jake's ruling: *"Should people want to
+  use this on their own, we don't need to rub their faces in the lack of class."*
+- **reports.html:** the Daily/Weekly goal boxes are gone; the panel is now "School Week" with
+  Week Starts On only, and Save rewrites `settings/goals` with that field (the old minutes are
+  cleared). Classes still inherit the week anchor from it.
+- **Goals cache key `ttb_goalsCache_v2` → `v3`** on all pages, so no browser keeps the old
+  site-wide minutes for up to a day. index.html had been reading `v1`, which nothing wrote, so its
+  cache never hit; it now shares v3.
+- Class picker / class delete wording: "default goals" → "no goals unless they set their own".
+- Versions: game.js v3.62.0, learn.js v2.53.0, learn2.js v0.13.0-staging, index.html v3.25.0,
+  reports.html v1.22.0, admin.html v1.23.2, lessons-admin.js v1.23.1, settings-panel.js v1.4.0,
+  versions.js v1.18.0 (registers goal-ladder.js). New harness `goal-ladder-test.mjs`;
+  `class-week-anchor-test` and `mirror-heal-test` updated to the new shape (same invariants). The
+  oldest header entries of game.js, learn.js, lessons-admin.js and versions.js archived (8-entry budget).
+
 ## Round 160 — big letters on the skeleton
 
 **The letter on the skeleton hands is now big enough to cover the whole palm of bones**
@@ -10674,6 +10706,91 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.54.0 — archived Round 161, 8-entry budget
+
+Pushed over by v3.62.0 (goal-ladder.js). Verbatim.
+
+```
+// v3.54.0 — Round 145: ⚠️⚠️⚠️ A TEACHER'S CORRECTION NOW SURVIVES THE STUDENT'S NEXT LOAD. The
+//           stats-wal recovery took the LARGER of the browser's log and the server for
+//           the whole week, so deleted minutes came back on every load — and on the same
+//           day, flushAll wrote them back into today's record. loadUserStats() now calls
+//           statsWalRecoverChecked(), which reads users/{uid}.logsChangedAt only when the
+//           log would raise a number; on a teacher change the log is discarded and the
+//           week re-read. The leaderboard's weekly floor yields too, and each best now
+//           records the date it was set. See tests/teacher-change-stamp-test.mjs.
+```
+
+### learn.js v2.47.0 — archived Round 161, 8-entry budget
+
+Pushed over by v2.53.0 (goal-ladder.js). Verbatim.
+
+```
+// v2.47.0 — ⚠️⚠️ ROADMAP 35: THE SPAM GUARD COULD NOT FIRE IN A TWO-KEY LESSON.
+//           Jake, 2026-08-29: *"kids spamming the keyboard in the early lessons.
+//           When it's just two keys, it's not hard to finish a lesson with an
+//           F."* His ruling, 2026-09-06: *"Reduce the threshold for error
+//           stopping when it's only 2 keys. It's not punishing, it's just asking
+//           kids to slow down."*
+//           ⚠️ THE GUARD WAS NEVER BROKEN, IT WAS UNREACHABLE. Both thresholds
+//           count CONSECUTIVE mistakes and reset on any correct key, so over two
+//           keys a masher needed a coin-flip run of five — about 1 attempt in 30.
+//           The numbers were written for prose. Now computed per drill by
+//           hardStopThresholdFor()/spamThresholdFor() (lesson-gate.js v1.2.0).
+//           ⚠️ ONLY EVER TIGHTENS — capped at the old 5/10, so book typing is
+//           byte-for-byte the behaviour it shipped with.
+//           ⚠️⚠️ WHAT THIS IS NOT: it does NOT make an F worth zero minutes, and
+//           nobody should claim it does. Time is banked one second at a time into
+//           the SINGLE increment site four counting bugs died to create; there is
+//           no subtract path and there must not be one. What it does is make the
+//           EXISTING hard stop reachable — and that stop already runs
+//           clearInterval(timerInterval), so the clock dies the moment it fires.
+//           A masher banks a few seconds instead of a run. Fewer, never zero.
+//           ⚠️ A STRUGGLING CHILD IN A SHORT LESSON MEETS THE OVERLAY SOONER TOO.
+//           Named to Jake before he ruled; he ruled anyway, on the grounds that
+//           the overlay shows the key rather than penalising. If the early
+//           lessons start feeling sticky, THIS is the first thing to look at.
+```
+
+### lessons-admin.js v1.16.0 — archived Round 161, 8-entry budget
+
+Pushed over by v1.23.1 (goal-ladder.js). Verbatim.
+
+```
+// v1.16.0 — ⚠️⚠️ THE LESSON-TRAFFIC SIGNAL FIRED ON ALMOST EVERY ROW, AND THE
+// SWEEP SPENT ~4,000 READS WITHOUT SAYING SO. Both found by Jake on the first
+// real run, over 138 students.
+//   1. v1.15.0 flagged anything above 3 runs/student. The real median is ~6-7,
+//      so "replayed after passing" appeared on nearly every line. ⚠️ THAT IS
+//      §0.-20.B's ALARM THAT IS ALWAYS ON — a signal on every row is decoration,
+//      and it teaches a teacher to stop reading the column. The threshold is now
+//      RELATIVE (twice this scan's MEDIAN, min 8 students) because a constant
+//      chosen without data cannot know what normal looks like in this building.
+//   2. Ordering by runs/student alone put ONE-STUDENT lessons above 97-student
+//      ones. Flagged rows lead now; small samples are listed but never flagged.
+//   3. ⚠️ THIS FILE WAS NOT METERED. It imported Firestore directly, so
+//      ttbMeter never saw the most expensive click in the app. Now imports
+//      ./read-meter.js (a URL swap), warns before scanning >40 students, and
+//      prints the actual read count next to the results.
+```
+
+### versions.js v1.10.0 — archived Round 161, 8-entry budget
+
+Pushed over by v1.18.0 (goal-ladder.js). Verbatim.
+
+```
+// v1.10.0 — SOURCES gained drill-filter.js, celebrate.js and receipt.js:
+//           three modules game.js and learn.js import, which the footer could
+//           not report because nobody added them here when they were extracted.
+//           ⚠️ tests/version-stamp-test.mjs D2 now reads the writers' imports
+//           and FAILS if a module they load is missing from this list, so the
+//           next extraction cannot repeat it. ROADMAP 9b; HANDOFF §0.-15.
+//           ⚠️ Cost: three more static-file fetches on a footer hover, ~38 KB
+//           against the 684 KB game.js and learn.js already pull, cached per
+//           tab in sessionStorage. NOT Firestore reads — nothing here is billed
+//           per operation.
+```
 
 ### game.js v3.53.0 — archived Round 158, 8-entry budget
 

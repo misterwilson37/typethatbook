@@ -1,4 +1,11 @@
-// game.js v3.61.0
+// game.js v3.62.0
+//
+// v3.62.0 — Round 161: ⭐ A TARGET EXISTS ONLY WHEN SOMEONE SET ONE (goal-ladder.js).
+//           Minutes: class → the student's own (⚙ Settings → Goals, saved on
+//           users/{uid}) → none, and the HUD drops its "/ target". settings/goals
+//           supplies weekStartDay only. Settings now says which class the student
+//           is in, or "No class assigned". Goals cache key v2 → v3 (with learn.js)
+//           and the entry now carries className so School can share it.
 //
 // v3.61.0 — Round 158: ⭐ ADVENTURE HAS ITS OWN HANDS DROP-DOWN. ⚙ → Hand Guide → "Show
 //           hands" now lists, in Adventure view, Off / Human hand / Skeleton hand — NOT the
@@ -66,14 +73,7 @@
 //           board row shows the admin alone when its score was set, and whether it is a
 //           kept record from a student who has left. See tests/leaderboard-keep-test.mjs.
 //
-// v3.54.0 — Round 145: ⚠️⚠️⚠️ A TEACHER'S CORRECTION NOW SURVIVES THE STUDENT'S NEXT LOAD. The
-//           stats-wal recovery took the LARGER of the browser's log and the server for
-//           the whole week, so deleted minutes came back on every load — and on the same
-//           day, flushAll wrote them back into today's record. loadUserStats() now calls
-//           statsWalRecoverChecked(), which reads users/{uid}.logsChangedAt only when the
-//           log would raise a number; on a teacher change the log is discarded and the
-//           week re-read. The leaderboard's weekly floor yields too, and each best now
-//           records the date it was set. See tests/teacher-change-stamp-test.mjs.
+// ⚠️ v3.54.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
 // (Older entries — v3.53.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
@@ -110,6 +110,7 @@ import {
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark } from "./hud.js";
+import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
 // ⚠️ v3.41.0 — THE CELEBRATIONS MOVED OUT. They were a hand-maintained twin of
 // learn.js's, and the two had already drifted. celebrate.js owns them now; this
 // file decides WHETHER to celebrate, that file decides HOW. Do not re-add a
@@ -157,7 +158,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.61.0";
+const VERSION = "3.62.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1175,7 +1176,7 @@ let lastKnownUid = '';        // survives the null, so we can tell whose session
 // ⚠️ v3.53.0 — ROADMAP 58 STEP TWO. weekStartDay defaults to 6 (Saturday) so a
 // call to getWeekStart() before loadGoals() has resolved anything behaves
 // exactly as every version before this one did.
-let goals = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6 };
+let goals = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6, source: 'none' };
 let dailyGoalCelebrated = false;
 let weeklyGoalCelebrated = false;
 
@@ -2134,7 +2135,10 @@ function getWeekStart(date) {
 // once instead of serving a cache shape from before the field existed, and a
 // value nobody can name a case where it disagrees with the fallback is not
 // worth trusting only by accident.
-const GOALS_CACHE_KEY = 'ttb_goalsCache_v2';
+// ⚠️ Round 161 — v2 → v3, in lockstep with learn.js/learn2.js. A v2 entry can
+// hold the retired site-wide minutes (goal-ladder.js), which would keep a
+// student with no class seeing a target for up to a day after this ships.
+const GOALS_CACHE_KEY = 'ttb_goalsCache_v3';
 
 // ─── Student school picker (v3.8.0) ───────────────────────────────────────
 //
@@ -2196,6 +2200,26 @@ async function saveStudentSchool(schoolId) {
         return false;
     }
 }
+// ⭐ Round 161 — A STUDENT WITH NO CLASS SETS THEIR OWN GOALS (goal-ladder.js).
+// Same write shape as saveStudentSchool() above; the class always wins, so this
+// refuses when one resolved. The cache is DROPPED so School reads the new
+// minutes too.
+async function saveOwnGoals(dailyMinutes, weeklyMinutes) {
+    if (!currentUser || currentUser.isAnonymous) return false;
+    if (goals.source === 'class') return false;
+    const patch = ownGoalsPatch(dailyMinutes, weeklyMinutes);
+    try {
+        await setDoc(doc(db, "users", currentUser.uid), patch, { merge: true });
+    } catch (e) { console.warn('Save own goals failed:', e); return false; }
+    const g = resolveMinuteGoals({ classDoc: null, userDoc: patch });
+    goals.dailySeconds  = g.dailySeconds;
+    goals.weeklySeconds = g.weeklySeconds;
+    goals.source        = g.source;
+    try { localStorage.removeItem(GOALS_CACHE_KEY); } catch (_) {}
+    try { updateTimerUI(); } catch (_) {}
+    return true;
+}
+
 // ─── Apply pending class assignment set by admin before student first typed ──
 //
 // ⚠️ ADDED v3.14.0. This existed only in learn.js, and game.html is the page a
@@ -2338,28 +2362,34 @@ async function loadGoals() {
                     goals.weeklySeconds = c.weeklySeconds || 0;
                     goals.weekStartDay = Number.isInteger(c.weekStartDay) ? c.weekStartDay : 6;
                     ttbClassId = c.classId || '';
+                    ttbClassName = c.className || '';
                     ttbSchoolId = c.schoolId || '';
+                    goals.source = c.source || (c.classId ? 'class' : 'none');
                     applyGoalCelebrationState();
                     return;
                 }
             }
         } catch (_) { /* fall through to a real read */ }
 
-        let resolved = false;         // dailySeconds/weeklySeconds resolved
+        // ⭐ Round 161 (goal-ladder.js): MINUTES come from the class if one
+        // exists, else the student's OWN goals, else NONE. settings/goals no
+        // longer supplies minutes — only weekStartDay, below.
         let anchorResolved = false;   // weekStartDay resolved from a CLASS override
-        ttbClassId = ''; ttbSchoolId = '';
+        let classDoc = null, userDoc = null;
+        ttbClassId = ''; ttbClassName = ''; ttbSchoolId = '';
         if (currentUser && !currentUser.isAnonymous) {
             const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
             if (userSnap.exists()) {
                 const ud = userSnap.data();
+                userDoc = ud;
                 ttbClassId = ud.classId || '';
                 ttbSchoolId = ud.schoolId || '';
                 if (ud.classId) {
                     const classSnap = await getDoc(doc(db, 'classes', ud.classId));
                     if (classSnap.exists()) {
                         const cd = classSnap.data();
-                        goals.dailySeconds  = cd.dailySeconds  || 0;
-                        goals.weeklySeconds = cd.weeklySeconds || 0;
+                        classDoc = cd;
+                        ttbClassName = cd.name || '';
                         // A class knows its building; the user doc may not yet.
                         if (!ttbSchoolId && cd.schoolId) ttbSchoolId = cd.schoolId;
                         // ⚠️ v3.50.0 — a class carries no weekStartDay AT ALL unless
@@ -2370,28 +2400,27 @@ async function loadGoals() {
                             goals.weekStartDay = cd.weekStartDay;
                             anchorResolved = true;
                         }
-                        console.log(`Goals from class "${cd.name}": daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
-                        resolved = true;
                     }
+                    // ⚠️ A classId pointing at a DELETED class resolves as no
+                    // class (goals.source !== 'class'). ttbClassId is left as
+                    // it was — it also stamps every typing log, and this round
+                    // does not change what the logs say.
                 }
             }
         }
-        // ⚠️ v3.50.0 — READ ONCE, USED FOR TWO FALLBACKS. A class that resolved
-        // its OWN minutes but not its OWN anchor still needs this read for the
-        // anchor alone — the "zero extra reads" claim in ROADMAP 58 holds for
-        // the two cases that existed before this version (no class; class sets
-        // everything) and costs exactly one extra document for the new middle
-        // case, once per student per GOALS_CACHE_MS window.
-        if (!resolved || !anchorResolved) {
+        const g = resolveMinuteGoals({ classDoc, userDoc });
+        goals.dailySeconds  = g.dailySeconds;
+        goals.weeklySeconds = g.weeklySeconds;
+        goals.source        = g.source;
+        console.log(`Goals (${g.source}): daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
+
+        // ⚠️ v3.50.0 — the week ANCHOR still falls back to settings/goals when a
+        // class didn't pick its own. One read, only in that case.
+        if (!anchorResolved) {
             const goalsSnap = await getDoc(doc(db, "settings", "goals"));
             if (goalsSnap.exists()) {
                 const data = goalsSnap.data();
-                if (!resolved) {
-                    goals.dailySeconds  = data.dailySeconds  || 0;
-                    goals.weeklySeconds = data.weeklySeconds || 0;
-                    console.log(`Goals from settings: daily=${goals.dailySeconds}s, weekly=${goals.weeklySeconds}s`);
-                }
-                if (!anchorResolved && Number.isInteger(data.weekStartDay) &&
+                if (Number.isInteger(data.weekStartDay) &&
                     data.weekStartDay >= 0 && data.weekStartDay <= 6) {
                     goals.weekStartDay = data.weekStartDay;
                 }
@@ -2402,8 +2431,10 @@ async function loadGoals() {
             localStorage.setItem(GOALS_CACHE_KEY, JSON.stringify({
                 uid: currentUser ? currentUser.uid : '', at: Date.now(),
                 dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
-                weekStartDay: goals.weekStartDay,
-                classId: ttbClassId, schoolId: ttbSchoolId
+                weekStartDay: goals.weekStartDay, source: goals.source,
+                // className: learn.js treats an entry naming a class without
+                // one as a miss, so writing it lets both pages share the entry.
+                classId: ttbClassId, className: ttbClassName, schoolId: ttbSchoolId
             }));
         } catch (_) {}
 
@@ -4792,6 +4823,7 @@ let statsDocDirty = false;          // ⚠️ v3.31.0: now means "a WAL recovery
 // Denormalised tenancy stamps, written onto every log so reports can be scoped
 // by class or building without reading the whole collection. See MULTITENANCY.md.
 let ttbClassId = '';
+let ttbClassName = '';   // Round 161 — shown in ⚙ Settings; '' = no class
 let ttbSchoolId = '';
 
 function walSnapshot() {
@@ -6970,6 +7002,39 @@ async function openMenuModal() {
             tell your teacher this if something looks wrong</div>
     ` : '';
 
+    // ⭐ Round 161 — CLASS AND GOALS (goal-ladder.js). Jake wanted the class
+    // stated explicitly SOMEWHERE, and Settings is that place; the HUD only drops
+    // its "/ target". A class's goals are read-only. With no class the student
+    // may set their own — optional, never a nag.
+    const inClass = goals.source === 'class';
+    const ownD = goals.source === 'own' ? Math.round(goals.dailySeconds  / 60) : 0;
+    const ownW = goals.source === 'own' ? Math.round(goals.weeklySeconds / 60) : 0;
+    const classGoalsHTML = (currentUser && !currentUser.isAnonymous) ? `
+        <div class="menu-label" style="margin-top:8px;">Class</div>
+        <div style="font-size:0.75em; color:${inClass ? '#ccc' : '#777'}; margin-top:3px; text-align:center;
+                    ${inClass ? '' : 'font-style:italic;'}">
+            ${inClass ? escapeHtml(ttbClassName || 'Assigned') : 'No class assigned'}</div>
+        <div class="menu-label" style="margin-top:8px;">Goals</div>
+        ${inClass ? `
+            <div style="font-size:0.75em; color:#ccc; margin-top:3px; text-align:center;">
+                ${escapeHtml(describeGoals(goals.dailySeconds, goals.weeklySeconds) || 'None set')}<br>
+                <span style="color:#aaa; font-size:0.9em;">set by your teacher</span>
+            </div>`
+        : `
+            <div style="display:flex; gap:4px; align-items:center; justify-content:center; margin-top:3px; font-size:0.7em; color:#888;">
+                <input id="own-goal-daily" type="number" min="0" max="120" step="1" inputmode="numeric"
+                       value="${ownD || ''}" placeholder="\u2014" aria-label="minutes a day"
+                       class="modal-select" style="width:3.6em; margin:0; padding:2px 4px;"> /day
+                <input id="own-goal-weekly" type="number" min="0" max="600" step="5" inputmode="numeric"
+                       value="${ownW || ''}" placeholder="\u2014" aria-label="minutes a week"
+                       class="modal-select" style="width:3.6em; margin:0; padding:2px 4px;"> /wk
+            </div>
+            <div style="text-align:center; margin-top:3px;">
+                <button id="own-goal-save" class="modal-btn" style="width:auto; padding:0 10px; font-size:12px;">Save goals</button>
+            </div>
+            <div id="own-goal-status" style="font-size:0.7em; color:#888; min-height:1em; margin-top:2px; text-align:center;">minutes \u2014 optional</div>`}
+    ` : '';
+
     const initialsHTML = (currentUser && !currentUser.isAnonymous) ? `
         <div class="menu-col menu-col-initials">
             <div class="menu-label">Initials</div>
@@ -6981,6 +7046,7 @@ async function openMenuModal() {
                 Hide me from leaderboards
             </label>
             ${schoolHTML}
+            ${classGoalsHTML}
             ${idHTML}
         </div>` : '';
 
@@ -7223,6 +7289,23 @@ async function openMenuModal() {
         const actionBtn = document.getElementById('action-btn');
         if (actionBtn) actionBtn.innerText = "Start Reading";
     };
+
+    // ⭐ Round 161 — own goals (only drawn when the student has no class).
+    const ownGoalBtn = document.getElementById('own-goal-save');
+    if (ownGoalBtn) {
+        ownGoalBtn.onclick = async () => {
+            const st = document.getElementById('own-goal-status');
+            const dIn = document.getElementById('own-goal-daily');
+            const wIn = document.getElementById('own-goal-weekly');
+            if (st) { st.textContent = 'Saving\u2026'; st.style.color = '#888'; }
+            ownGoalBtn.disabled = true;
+            const ok = await saveOwnGoals(Number(dIn && dIn.value) || 0, Number(wIn && wIn.value) || 0);
+            ownGoalBtn.disabled = false;
+            if (!st) return;
+            if (!ok) { st.textContent = "Couldn't save."; st.style.color = '#D32F2F'; return; }
+            st.textContent = '\u2713 Saved'; st.style.color = '#2E7D32';
+        };
+    }
 
     // "No school" is a valid permanent state, not a prompt to fix something —
     // never nag, never block, and never auto-select the first school.

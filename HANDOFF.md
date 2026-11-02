@@ -1,6 +1,25 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-10-11 by Round 151 (Olympia), for whoever is next
+> ## ▶ START HERE — written 2026-11-02 by Round 161, for whoever is next
+>
+> **120 harnesses pass**, all of them (new: `goal-ladder-test.mjs`).
+>
+> ⚠️⚠️ **A TARGET EXISTS ONLY WHEN SOMEONE SET ONE — `goal-ladder.js`.** Jake had a
+> student who wasn't in his class and nothing showed it: the HUD's `/ 10:00` came
+> from the site-wide minutes in Reports. Now minutes resolve **class → the student's
+> own (⚙ Settings, `users/{uid}.ownDailySeconds`/`ownWeeklySeconds`) → none**, on
+> every page through ONE function. ⭐ **CLASS WINS**, even a class that sets 0 — never
+> let a student's own number override a teacher's. ⚠️ **`settings/goals` NOW HOLDS
+> `weekStartDay` ONLY**; never read minutes from it again (`goal-ladder-test` B3).
+> The site-wide boxes in reports.html are gone. The HUD's missing `/ target` is the
+> only sign of "no class" on purpose (Jake: *"we don't need to rub their faces in the
+> lack of class"*); Settings says "No class assigned". Goals cache key → `v3`.
+> ⚠️ **ASK JAKE:** after deploy, open Reports → School Week → Save once, which clears
+> the old minutes out of `settings/goals` (nothing reads them; it's tidiness).
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-10-11 by Round 151 (Olympia)
 >
 > **119 harnesses pass**, all of them (new: `csv-import-test.mjs`).
 >

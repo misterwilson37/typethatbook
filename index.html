@@ -710,6 +710,7 @@
         // so it is in the graph either way and costs no extra fetch.
         import { reconcile } from "./logdays.js";
         import { hudStrings } from "./hud.js";
+        import { resolveMinuteGoals } from "./goal-ladder.js";
         // ⭐ ROADMAP 26 — the ONE copy of the chapter-position rule, shared by
         // renderBooks() and renderContinue(). See chapter-position.js.
         import { chapterPositionOf, lastReadLabel } from "./chapter-position.js";
@@ -718,6 +719,11 @@
         // This page's own version. The <title> and footer are both written from
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.25.0: Round 161 — the HUD's goals come from goal-ladder.js (class →
+        //         the student's own → none), and the goals cache key is the shared
+        //         ttb_goalsCache_v3 (it read v1, which nothing had written since
+        //         game.js v3.50.0, so it never hit).
         //
         // v3.24.0: ⭐ THE LANDING PAGE IS A 2x2 GRID WITH THE TWO TRIALS ON IT.
         //         Round 115 (Tower). Jake, 2026-09-10: "I very much want to make
@@ -924,7 +930,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.24.0";
+        const INDEX_VERSION = "3.25.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -2524,7 +2530,9 @@
         // surface nobody checks against the other three. HANDOFF §0.0: one
         // document, read by every surface — and one module that turns it into
         // words.
-        const IDX_GOALS_CACHE_KEY = 'ttb_goalsCache_v1';   // written by game.js
+        // ⚠️ Round 161 — WAS 'ttb_goalsCache_v1', a key nothing had written since
+        // game.js v3.50.0 moved to v2, so this cache never hit. Now the shared v3.
+        const IDX_GOALS_CACHE_KEY = 'ttb_goalsCache_v3';   // written by game.js / learn.js
         const IDX_GOALS_CACHE_MS  = 86400000;
         let indexGoals = { dailySeconds: 0, weeklySeconds: 0 };
 
@@ -2567,12 +2575,15 @@
                 try { reconcile(currentUser.uid, ud); }
                 catch (_) { /* best effort — a failure here costs reads, never minutes */ }
 
-                if (!ud.classId) return;
-                const classSnap = await getDoc(doc(db, 'classes', ud.classId));
-                if (!classSnap.exists()) return;
-                const cd = classSnap.data();
-                indexGoals = { dailySeconds: cd.dailySeconds || 0,
-                               weeklySeconds: cd.weeklySeconds || 0 };
+                // ⭐ Round 161 — the same ladder as every other page
+                // (goal-ladder.js): class, else the student's own, else none.
+                let classDoc = null;
+                if (ud.classId) {
+                    const classSnap = await getDoc(doc(db, 'classes', ud.classId));
+                    if (classSnap.exists()) classDoc = classSnap.data();
+                }
+                const g = resolveMinuteGoals({ classDoc, userDoc: ud });
+                indexGoals = { dailySeconds: g.dailySeconds, weeklySeconds: g.weeklySeconds };
             } catch (_) { /* goals are a denominator; without them we show the figure alone */ }
         }
 

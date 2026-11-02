@@ -1,4 +1,10 @@
-// learn.js v2.52.1
+// learn.js v2.53.0
+//
+// v2.53.0 — Round 161: ⭐ A TARGET EXISTS ONLY WHEN SOMEONE SET ONE (goal-ladder.js).
+//           Minutes come from the class, else the student's own goals (⚙ Settings →
+//           "Your goals", saved on users/{uid}), else none — the HUD then counts
+//           with no "/ target". settings/goals supplies weekStartDay only. Goals
+//           cache key v2 → v3 in lockstep with game.js.
 //
 // v2.52.1 — Round 153: THE SIDE-HANDS CHOICE MOVED INTO keyboard.js, so Library
 //           (game.js v3.59.0) stores it identically. No behaviour change in School:
@@ -55,30 +61,7 @@
 //           ITS CELEBRATION-LATCH KEY, same as game.js's note — harmless, not
 //           guarded, said here so it isn't rediscovered as a bug.
 //
-// v2.47.0 — ⚠️⚠️ ROADMAP 35: THE SPAM GUARD COULD NOT FIRE IN A TWO-KEY LESSON.
-//           Jake, 2026-08-29: *"kids spamming the keyboard in the early lessons.
-//           When it's just two keys, it's not hard to finish a lesson with an
-//           F."* His ruling, 2026-09-06: *"Reduce the threshold for error
-//           stopping when it's only 2 keys. It's not punishing, it's just asking
-//           kids to slow down."*
-//           ⚠️ THE GUARD WAS NEVER BROKEN, IT WAS UNREACHABLE. Both thresholds
-//           count CONSECUTIVE mistakes and reset on any correct key, so over two
-//           keys a masher needed a coin-flip run of five — about 1 attempt in 30.
-//           The numbers were written for prose. Now computed per drill by
-//           hardStopThresholdFor()/spamThresholdFor() (lesson-gate.js v1.2.0).
-//           ⚠️ ONLY EVER TIGHTENS — capped at the old 5/10, so book typing is
-//           byte-for-byte the behaviour it shipped with.
-//           ⚠️⚠️ WHAT THIS IS NOT: it does NOT make an F worth zero minutes, and
-//           nobody should claim it does. Time is banked one second at a time into
-//           the SINGLE increment site four counting bugs died to create; there is
-//           no subtract path and there must not be one. What it does is make the
-//           EXISTING hard stop reachable — and that stop already runs
-//           clearInterval(timerInterval), so the clock dies the moment it fires.
-//           A masher banks a few seconds instead of a run. Fewer, never zero.
-//           ⚠️ A STRUGGLING CHILD IN A SHORT LESSON MEETS THE OVERLAY SOONER TOO.
-//           Named to Jake before he ruled; he ruled anyway, on the grounds that
-//           the overlay shows the key rather than penalising. If the early
-//           lessons start feeling sticky, THIS is the first thing to look at.
+// ⚠️ v2.47.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
 // (Older entries — v2.46.0 and before — are archived verbatim in CHANGELOG.md
 //  § ARCHIVED FILE HEADERS, per the 8-entry budget.)
@@ -124,6 +107,7 @@ import {
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark, fmt } from "./hud.js";
+import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
 // ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
 // in as many words for months. celebrate.js owns the celebrations; School and
 // Library now show the SAME one. Do not copy it back.
@@ -190,7 +174,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.52.1";
+const LEARN_VERSION = "2.53.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -464,7 +448,7 @@ function mergeGuestStats(serverData, dateStr, weekStart) {
 // ⚠️ v2.48.0 — ROADMAP 58 STEP TWO. weekStartDay defaults to 6 (Saturday), same
 // reasoning as game.js's twin: a call before loadGoals() resolves anything
 // behaves exactly as every version before this one did.
-let goals     = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6 };
+let goals     = { dailySeconds: 0, weeklySeconds: 0, weekStartDay: 6, source: 'none' };
 let classInfo = { id: '', name: '', dailySeconds: 0, weeklySeconds: 0 };
 let dailyGoalCelebrated  = false;
 let weeklyGoalCelebrated = false;
@@ -807,12 +791,21 @@ function openSchoolSettings() {
         // The goals the graded numbers in the top bar are measured against. A
         // child who can see `Daily 9:22 / 10:00` should be able to find out
         // where the 10:00 came from.
-        if (goals.dailySeconds > 0 || goals.weeklySeconds > 0) {
+        // ⭐ Round 161 (goal-ladder.js): a CLASS's goals are read-only here — the
+        // class always wins. With no class, the student may set their own.
+        if (classInfo && classInfo.id) {
             rows.push({
                 kind: 'info', label: 'Your goals',
-                value: (goals.dailySeconds  > 0 ? fmt(goals.dailySeconds)  + ' a day' : '')
-                     + (goals.dailySeconds > 0 && goals.weeklySeconds > 0 ? ' \u00b7 ' : '')
-                     + (goals.weeklySeconds > 0 ? fmt(goals.weeklySeconds) + ' a week' : ''),
+                value: describeGoals(goals.dailySeconds, goals.weeklySeconds),
+                empty: 'None set',
+                hint: 'set by your teacher',
+            });
+        } else {
+            rows.push({
+                kind: 'goals',
+                dailyMinutes:  goals.source === 'own' ? Math.round(goals.dailySeconds  / 60) : 0,
+                weeklyMinutes: goals.source === 'own' ? Math.round(goals.weeklySeconds / 60) : 0,
+                onSave: saveOwnGoals,
             });
         }
         // ⚠️ THE STUDENT ID. Round 27g DELETED the corner stamp that used to
@@ -1361,10 +1354,13 @@ const PROGRESS_CACHE_MS   = 8 * 3600 * 1000;    // one school day
 // across a sign-out and let the second student's flush write the first
 // student's map, or an empty one, under the new uid.
 let _progressLoadedForUid = null;
-const LEARN_GOALS_KEY     = 'ttb_goalsCache_v2'; // SAME key game.js uses — one
+const LEARN_GOALS_KEY     = 'ttb_goalsCache_v3'; // SAME key game.js uses — one
                                                  // read serves both pages.
                                                  // ⚠️ v2.48.0 — bumped v1 → v2
                                                  // in lockstep with game.js;
+                                                 // ⚠️ Round 161 — v2 → v3, same
+                                                 // lockstep: v2 entries hold the
+                                                 // retired site-wide minutes.
                                                  // these two MUST always carry
                                                  // the same string, or each
                                                  // page treats the other's
@@ -5027,6 +5023,27 @@ async function applyPendingClassAssignment(user) {
     } catch(e) { /* non-critical — don't block login */ }
 }
 
+// ⭐ Round 161 — A STUDENT WITH NO CLASS SETS THEIR OWN GOALS (goal-ladder.js).
+// Saved on users/{uid} so they follow the student between Chromebooks. The goals
+// cache is DROPPED, not rewritten, so game.js reads the new minutes too.
+async function saveOwnGoals({ dailyMinutes, weeklyMinutes }) {
+    if (!currentUser || currentUser.isAnonymous) return false;
+    if (classInfo && classInfo.id) return false;          // the class wins
+    const patch = ownGoalsPatch(dailyMinutes, weeklyMinutes);
+    try {
+        await setDoc(doc(db, 'users', currentUser.uid), patch, { merge: true });
+    } catch (e) { console.warn('saveOwnGoals failed:', e); return false; }
+    const g = resolveMinuteGoals({ classDoc: null, userDoc: patch });
+    goals.dailySeconds  = g.dailySeconds;
+    goals.weeklySeconds = g.weeklySeconds;
+    goals.source        = g.source;
+    classInfo.dailySeconds  = g.dailySeconds;
+    classInfo.weeklySeconds = g.weeklySeconds;
+    try { localStorage.removeItem(LEARN_GOALS_KEY); } catch (_) {}
+    try { renderTimeHUD(); } catch (_) {}
+    return true;
+}
+
 async function loadGoals() {
     try {
         // Cache hit? game.js has had this for several versions; learn.js never
@@ -5060,6 +5077,7 @@ async function loadGoals() {
             goals.dailySeconds  = c.dailySeconds  || 0;
             goals.weeklySeconds = c.weeklySeconds || 0;
             goals.weekStartDay  = Number.isInteger(c.weekStartDay) ? c.weekStartDay : 6;
+            goals.source        = c.classId ? 'class' : (c.source || 'none');
             classInfo = { id: c.classId || '', name: c.className || '',
                           schoolId: c.schoolId || '',
                           dailySeconds: goals.dailySeconds,
@@ -5070,18 +5088,21 @@ async function loadGoals() {
         }
 
         // Step 1: check if user belongs to a class
-        let resolved = false;         // dailySeconds/weeklySeconds resolved
+        // ⭐ Round 161 (goal-ladder.js): the MINUTES come from the class if one
+        // exists, else the student's OWN goals on their users doc, else NONE.
+        // ⚠️ settings/goals NO LONGER SUPPLIES MINUTES — only weekStartDay below.
         let anchorResolved = false;   // weekStartDay resolved from a CLASS override
+        let classDoc = null, userDoc = null;
         if (currentUser) {
             const userSnap = await getDoc(doc(db, 'users', currentUser.uid));
             if (userSnap.exists()) {
                 const ud = userSnap.data();
+                userDoc = ud;
                 if (ud.classId) {
                     const classSnap = await getDoc(doc(db, 'classes', ud.classId));
                     if (classSnap.exists()) {
                         const cd = classSnap.data();
-                        goals.dailySeconds  = cd.dailySeconds  || 0;
-                        goals.weeklySeconds = cd.weeklySeconds || 0;
+                        classDoc = cd;
                         // ⚠️ v2.48.0 — mirrors game.js exactly: an absent key here
                         // means "inherit the school default", not zero. See
                         // saveClass() in lessons-admin.js.
@@ -5090,36 +5111,30 @@ async function loadGoals() {
                             anchorResolved = true;
                         }
                         classInfo = { id: ud.classId, name: cd.name || '',
-                                      schoolId: ud.schoolId || cd.schoolId || '',
-                                      dailySeconds: goals.dailySeconds,
-                                      weeklySeconds: goals.weeklySeconds };
-                        resolved = true;
-                        updateClassDisplay();
+                                      schoolId: ud.schoolId || cd.schoolId || '' };
                     }
                 }
             }
         }
-        // Step 2: fall back to settings/goals for whichever half of the ladder
-        // a class didn't answer. ⚠️ v2.48.0 — READ ONCE, USED FOR TWO FALLBACKS,
-        // same reasoning as game.js's twin: this costs one extra document only
-        // in the new middle case (a class exists but has no anchor override).
-        if (!resolved || !anchorResolved) {
+        const g = resolveMinuteGoals({ classDoc, userDoc });
+        goals.dailySeconds  = g.dailySeconds;
+        goals.weeklySeconds = g.weeklySeconds;
+        goals.source        = g.source;
+        if (!classDoc) classInfo = { id: '', name: '' };
+        classInfo.dailySeconds  = goals.dailySeconds;
+        classInfo.weeklySeconds = goals.weeklySeconds;
+        updateClassDisplay();
+
+        // Step 2: settings/goals for the week ANCHOR only, when a class didn't
+        // set its own.
+        if (!anchorResolved) {
             const snap = await getDoc(doc(db, 'settings', 'goals'));
             if (snap.exists()) {
                 const d = snap.data();
-                if (!resolved) {
-                    goals.dailySeconds  = d.dailySeconds  || 0;
-                    goals.weeklySeconds = d.weeklySeconds || 0;
-                }
-                if (!anchorResolved && Number.isInteger(d.weekStartDay) &&
+                if (Number.isInteger(d.weekStartDay) &&
                     d.weekStartDay >= 0 && d.weekStartDay <= 6) {
                     goals.weekStartDay = d.weekStartDay;
                 }
-            }
-            if (!resolved) {
-                classInfo = { id: '', name: '', dailySeconds: goals.dailySeconds,
-                              weeklySeconds: goals.weeklySeconds };
-                updateClassDisplay();
             }
         }
 
@@ -5128,7 +5143,7 @@ async function loadGoals() {
         cacheWrite(LEARN_GOALS_KEY, {
             uid: currentUser ? currentUser.uid : '',
             dailySeconds: goals.dailySeconds, weeklySeconds: goals.weeklySeconds,
-            weekStartDay: goals.weekStartDay,
+            weekStartDay: goals.weekStartDay, source: goals.source,
             classId: classInfo.id || '', className: classInfo.name || '',
             schoolId: classInfo.schoolId || ''
         });

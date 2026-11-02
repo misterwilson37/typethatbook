@@ -1,4 +1,12 @@
-// settings-panel.js v1.3.1 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+// settings-panel.js v1.4.0 — THE ⚙ DIALOG, AND THE READING-FONT MODEL.
+//
+// v1.4.0 — Round 161: `goals` row — a student with no class sets their own daily and
+//          weekly minutes (goal-ladder.js). Two number boxes and a Save button; the
+//          page controller does the saving through `row.onSave`, per the contract
+//          below. ⚠️ KEYS TYPED IN THE BOXES DO NOT BUBBLE: learn.js refocuses the
+//          drill keyboard on ANY document keydown, which would yank focus out of the
+//          box after the first digit. Esc still closes — it is taken in the capture
+//          phase, before the box sees it.
 //
 // v1.3.1 — HAND_GUIDE_MODES now lives in keyboard.js (Rule 9: Library needs the same
 //          list, and a second copy is how they drift). Imported here; nothing else
@@ -83,7 +91,7 @@
 
 import { HAND_GUIDE_MODES } from "./keyboard.js";
 
-export const SETTINGS_PANEL_VERSION = '1.3.1';
+export const SETTINGS_PANEL_VERSION = '1.4.0';
 
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -158,6 +166,9 @@ export function writeDrillFont(key) {
 //   { kind: 'font' }                        the reading-font control
 //   { kind: 'handguide', value, onChange }  side-hands picker; onChange(key) — NOT saved here
 //   { kind: 'note',  text }                 a quiet line of explanation
+//   { kind: 'goals', dailyMinutes, weeklyMinutes, onSave }
+//                                           a student's OWN goals; onSave({dailyMinutes,
+//                                           weeklyMinutes}) -> Promise<bool> — NOT saved here
 //
 // ⚠️ RE-ENTRANCY GUARDED. A double-click on the ⚙ must not stack two overlays,
 // because the second one's close() would leave the first behind with the page
@@ -206,6 +217,7 @@ export function openSettingsPanel({ title = 'Settings', rows = [], onClose = nul
         if (!row) continue;
         if (row.kind === 'font') { body.appendChild(_fontRow()); continue; }
         if (row.kind === 'handguide') { body.appendChild(_handGuideRow(row)); continue; }
+        if (row.kind === 'goals') { body.appendChild(_goalsRow(row)); continue; }
         if (row.kind === 'note') {
             const n = document.createElement('div');
             n.className = 'settings-note';
@@ -395,6 +407,80 @@ function _handGuideRow(row) {
     wrap.appendChild(lab);
     wrap.appendChild(line);
     wrap.appendChild(hint);
+    return wrap;
+}
+
+// ⭐ v1.4.0 — A STUDENT'S OWN GOALS (goal-ladder.js). Shown by the page only when
+// the student has no class; a class's minutes always win and are shown read-only.
+// Blank or 0 means "no goal" for that half, and the HUD then shows the bare count.
+function _goalsRow(row) {
+    const wrap = document.createElement('div');
+    wrap.id = 'own-goals-pick';
+    wrap.className = 'settings-row';
+
+    const lab = document.createElement('div');
+    lab.className = 'settings-label';
+    lab.textContent = 'Your goals';
+
+    const line = document.createElement('div');
+    line.className = 'settings-control';
+
+    const box = (id, value, max, step, unit) => {
+        const i = document.createElement('input');
+        i.type = 'number'; i.id = id; i.min = '0'; i.max = String(max); i.step = String(step);
+        i.inputMode = 'numeric';
+        i.value = value > 0 ? String(value) : '';
+        i.placeholder = '\u2014';
+        i.style.width = '4.2em';
+        i.setAttribute('aria-label', unit);
+        // ⚠️ SEE v1.4.0 ABOVE — stop the key reaching learn.js's refocus listener.
+        i.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') return;
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); save(); }
+        });
+        const u = document.createElement('span');
+        u.className = 'settings-hint';
+        u.style.cssText = 'flex-basis:auto; margin:0;';
+        u.textContent = unit;
+        line.appendChild(i);
+        line.appendChild(u);
+        return i;
+    };
+    const d = box('own-goal-daily',  row.dailyMinutes  || 0, 120, 1, 'min/day');
+    const w = box('own-goal-weekly', row.weeklyMinutes || 0, 600, 5, 'min/week');
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'own-goal-save';
+    btn.textContent = 'Save';
+    line.appendChild(btn);
+
+    const status = document.createElement('div');
+    status.className = 'settings-hint';
+    status.id = 'own-goal-status';
+    status.textContent = 'optional \u2014 leave blank for no goal';
+
+    let busy = false;
+    async function save() {
+        if (busy) return;
+        busy = true; btn.disabled = true;
+        status.textContent = 'Saving\u2026';
+        let ok = false;
+        try {
+            if (typeof row.onSave === 'function') {
+                ok = await row.onSave({ dailyMinutes: Number(d.value) || 0,
+                                        weeklyMinutes: Number(w.value) || 0 });
+            }
+        } catch (e) { console.warn('own goals onSave failed:', e); ok = false; }
+        status.textContent = ok ? '\u2713 Saved' : "Couldn't save \u2014 try again";
+        busy = false; btn.disabled = false;
+    }
+    btn.onclick = save;
+
+    wrap.appendChild(lab);
+    wrap.appendChild(line);
+    wrap.appendChild(status);
     return wrap;
 }
 

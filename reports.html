@@ -1,5 +1,9 @@
 <!DOCTYPE html>
-<!-- reports.html v1.21.0 — Round 148: ⭐ the student picker remembers the day's list (no
+<!-- reports.html v1.22.0 — Round 161: the site-wide Daily/Weekly goal minutes are REMOVED
+     (goal-ladder.js) — goals are per class, or the student's own. The panel keeps
+     "Week Starts On", and Save rewrites settings/goals with that field alone.
+
+     reports.html v1.21.0 — Round 148: ⭐ the student picker remembers the day's list (no
      reads when reopened), and names now come from students' accounts (saved once by
      game.js / learn.js / learn2.js via lesson-gate.js identityPlan()).
 
@@ -707,26 +711,14 @@
     <div id="reports-section" class="hidden">
         <!-- GOALS MANAGEMENT -->
         <div class="goals-panel">
-            <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">STUDENT GOALS</h2>
+            <h2 style="font-size:1rem; color:var(--accent); margin-bottom:15px; letter-spacing:1px;">SCHOOL WEEK</h2>
+            <!-- ⭐ Round 161 (goal-ladder.js): THE SITE-WIDE DAILY/WEEKLY MINUTES ARE
+                 GONE. Jake: a target "is pretty arbitrary if you're not in my class".
+                 Minutes now come from the student's CLASS (admin.html → Class
+                 Manager) or, with no class, from the student's own ⚙ Settings —
+                 otherwise there is no target and the HUD just counts. -->
+            <div class="goal-hint" style="margin:-8px 0 12px;">Daily and weekly goals are set per class in the Class Manager.</div>
             <div class="goals-row">
-                <div class="goal-card">
-                    <div class="goal-icon">🎉</div>
-                    <label for="daily-goal">Daily Goal</label>
-                    <div class="goal-input-row">
-                        <input type="number" id="daily-goal" min="0" max="120" step="1" value="0" />
-                        <span class="goal-unit">minutes</span>
-                    </div>
-                    <div class="goal-hint">Confetti when reached</div>
-                </div>
-                <div class="goal-card">
-                    <div class="goal-icon">🎆</div>
-                    <label for="weekly-goal">Weekly Goal</label>
-                    <div class="goal-input-row">
-                        <input type="number" id="weekly-goal" min="0" max="600" step="5" value="0" />
-                        <span class="goal-unit">minutes</span>
-                    </div>
-                    <div class="goal-hint">Fireworks when reached</div>
-                </div>
                 <!-- ⚠️⚠️ ROADMAP 58 STEP TWO. THE SCHOOL DEFAULT, NOT A CLASS'S
                      OWN CHOICE — a class with its own weekStartDay (set in
                      admin.html's Class Manager) ignores this entirely. Any class
@@ -748,7 +740,7 @@
                     </div>
                     <div class="goal-hint">Applies to any class with no override of its own</div>
                 </div>
-                <button id="save-goals-btn">Save Goals</button>
+                <button id="save-goals-btn">Save</button>
             </div>
             <div class="goal-status" id="goal-status"></div>
         </div>
@@ -1782,8 +1774,6 @@
             const goalsSnap = await getDoc(doc(db, "settings", "goals"));
             if (goalsSnap.exists()) {
                 const data = goalsSnap.data();
-                document.getElementById('daily-goal').value = Math.round((data.dailySeconds || 0) / 60);
-                document.getElementById('weekly-goal').value = Math.round((data.weeklySeconds || 0) / 60);
                 if (Number.isInteger(data.weekStartDay) && data.weekStartDay >= 0 && data.weekStartDay <= 6) {
                     schoolWeekStartDay = data.weekStartDay;
                 }
@@ -1793,19 +1783,17 @@
     }
 
     document.getElementById('save-goals-btn').onclick = async () => {
-        const dailyMins = parseInt(document.getElementById('daily-goal').value) || 0;
-        const weeklyMins = parseInt(document.getElementById('weekly-goal').value) || 0;
         const weekStartDay = parseInt(document.getElementById('weekstart-goal').value, 10);
         const statusDiv = document.getElementById('goal-status');
         try {
+            // ⚠️ Round 161 — A FULL REPLACE, ON PURPOSE: it also clears the retired
+            // dailySeconds/weeklySeconds, which no page reads any more.
             await setDoc(doc(db, "settings", "goals"), {
-                dailySeconds: dailyMins * 60,
-                weeklySeconds: weeklyMins * 60,
                 weekStartDay: weekStartDay,
                 updatedAt: new Date()
             });
             schoolWeekStartDay = weekStartDay;
-            statusDiv.textContent = `Saved: ${dailyMins}m daily / ${weeklyMins}m weekly`;
+            statusDiv.textContent = `Saved: week starts ${document.getElementById('weekstart-goal').selectedOptions[0].textContent}`;
             statusDiv.className = 'goal-status ok';
         } catch (e) {
             statusDiv.textContent = "Save failed: " + e.message;

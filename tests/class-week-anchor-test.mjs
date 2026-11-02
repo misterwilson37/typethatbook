@@ -135,13 +135,19 @@ for (const [name, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
        /Number\.isInteger\(cd\.weekStartDay\)/.test(loadGoals));
     ok(`${name}: an anchor found on the class sets anchorResolved`,
        /anchorResolved\s*=\s*true/.test(loadGoals));
+    // ⚠️ Round 161 (goal-ladder.js): settings/goals supplies the ANCHOR ONLY now,
+    // so it is read exactly when the class didn't answer the anchor. The old
+    // `!resolved || !anchorResolved` was the minutes-or-anchor read; minutes no
+    // longer come from there at all.
     ok(`${name}: settings/goals is consulted when the class didn't resolve the anchor`,
-       /!resolved\s*\|\|\s*!anchorResolved/.test(loadGoals),
-       'without this OR, a class with its own minutes but no anchor override never checks the school default');
-    ok(`${name}: the school-default fallback is itself guarded by anchorResolved`,
-       /!anchorResolved\s*&&\s*Number\.isInteger\(data\.weekStartDay\)/.test(loadGoals) ||
-       /!anchorResolved\s*&&\s*Number\.isInteger\(d\.weekStartDay\)/.test(loadGoals),
-       'without this guard, settings/goals could overwrite a class\'s explicit choice');
+       /if\s*\(\s*!anchorResolved\s*\)\s*\{[\s\S]{0,200}?settings['"],\s*['"]goals/.test(loadGoals),
+       'without this guard, a class with no anchor override never checks the school default — or settings/goals overwrites a class\'s explicit choice');
+    ok(`${name}: the school-default read never supplies MINUTES (goal-ladder.js)`,
+       (() => {
+           const at = loadGoals.search(/settings['"],\s*['"]goals/);
+           return at >= 0 && !/goals\.(daily|weekly)Seconds\s*=/.test(loadGoals.slice(at));
+       })(),
+       'a site-wide target would come back for every student with no class — the defect Round 161 removed');
     ok(`${name}: getWeekStart() passes goals.weekStartDay to weekStartOf()`,
        (() => {
            const fn = extractFn(src, 'getWeekStart') || '';
@@ -160,8 +166,9 @@ for (const [name, src] of [['game.js', gameSrc], ['learn.js', learnSrc]]) {
     const lKey = (learnSrc.match(/LEARN_GOALS_KEY\s*=\s*'([^']+)'/) || [])[1];
     ok('game.js and learn.js share the exact same goals-cache key string',
        !!gKey && gKey === lKey, `game.js='${gKey}' learn.js='${lKey}'`);
-    ok('the shared key was bumped to v2 for this feature',
-       gKey === 'ttb_goalsCache_v2', gKey);
+    // v2 for this feature; v3 in Round 161 (goal-ladder.js). Never below v2.
+    ok('the shared key was bumped to v2 for this feature (or later)',
+       /^ttb_goalsCache_v(\d+)$/.test(gKey || '') && Number(gKey.split('_v')[1]) >= 2, gKey);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

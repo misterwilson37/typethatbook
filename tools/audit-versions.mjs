@@ -1,5 +1,7 @@
-// audit-versions.mjs v1.6.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// audit-versions.mjs v1.7.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
 // Round 27 (Chicago), Round 28 (Daugherty), Round 58 (Emerson), Round 81 (Fox).
+//
+// v1.7.0 — Round 161: SOURCES mirrors versions.js v1.18.0: goal-ladder.js added.
 //
 // v1.6.0 — ⚠️⚠️ ROADMAP 57: index.html registered, and HEADER_EXEMPT CORRECTED
 //          against the harness's copy, which had been right while this one was
@@ -99,6 +101,7 @@ const SOURCES = [
     { file: 'read-meter.js',         pattern: /\bexport\s+const\s+READ_METER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'logdays.js',            pattern: /\bexport\s+const\s+LOGDAYS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

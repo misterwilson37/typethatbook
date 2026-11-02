@@ -241,7 +241,10 @@ check('C2. index.html reconciles ABOVE the classId guard', () => {
     const at = callSites(src, 'reconcile')[0];
     const body = enclosingFunctionBody(src, at);
     assert.ok(body, 'could not brace-match the function enclosing the call');
-    const guard = body.search(/if\s*\(\s*!\s*\w+\.classId\s*\)\s*return/);
+    // ⚠️ Round 161: the early `if (!ud.classId) return;` became `if (ud.classId) {`
+    // (a student with no class now has their OWN goals to read). Either shape is
+    // "the class branch"; the heal must still sit above it.
+    const guard = body.search(/if\s*\(\s*!?\s*\w+\.classId\s*\)/);
     const call = body.search(/(^|[^\w.$])reconcile\s*\(/);
     assert.ok(guard >= 0, 'the classId early-return this case is about has moved or gone');
     assert.ok(call < guard,

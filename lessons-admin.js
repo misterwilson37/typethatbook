@@ -1,4 +1,8 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.23.0
+// lessons-admin.js — TypeThatBook Lesson Panel v1.23.1
+//
+// v1.23.1 — Round 161: two strings only. "No class (default goals)" and "will revert
+//           to default goals" became "no goals unless they set their own" — there is
+//           no site-wide default any more (goal-ladder.js).
 //
 // v1.23.0 — ⚠️⚠️ ROUND 151 (Olympia): THE CSV IMPORT WORKED AND THE SCREEN
 //           SAID NOTHING. Jake's whole roster was ACCEPTED and he saw eleven
@@ -127,23 +131,9 @@
 //           four lines apart in admin.html; the inline copy was a second spelling
 //           of a rule that already existed. Both are gone.
 //
-// v1.16.0 — ⚠️⚠️ THE LESSON-TRAFFIC SIGNAL FIRED ON ALMOST EVERY ROW, AND THE
-// SWEEP SPENT ~4,000 READS WITHOUT SAYING SO. Both found by Jake on the first
-// real run, over 138 students.
-//   1. v1.15.0 flagged anything above 3 runs/student. The real median is ~6-7,
-//      so "replayed after passing" appeared on nearly every line. ⚠️ THAT IS
-//      §0.-20.B's ALARM THAT IS ALWAYS ON — a signal on every row is decoration,
-//      and it teaches a teacher to stop reading the column. The threshold is now
-//      RELATIVE (twice this scan's MEDIAN, min 8 students) because a constant
-//      chosen without data cannot know what normal looks like in this building.
-//   2. Ordering by runs/student alone put ONE-STUDENT lessons above 97-student
-//      ones. Flagged rows lead now; small samples are listed but never flagged.
-//   3. ⚠️ THIS FILE WAS NOT METERED. It imported Firestore directly, so
-//      ttbMeter never saw the most expensive click in the app. Now imports
-//      ./read-meter.js (a URL swap), warns before scanning >40 students, and
-//      prints the actual read count next to the results.
+// ⚠️ v1.16.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
-window.LESSONS_ADMIN_VERSION = '1.23.0';
+window.LESSONS_ADMIN_VERSION = '1.23.1';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1745,7 +1735,7 @@ function cancelClassEdit() {
 
 async function deleteClass(classId) {
     const cls = _classCache[classId];
-    if (!confirm('Delete class "' + (cls ? cls.name : classId) + '"?\n\nStudents in this class will revert to default goals.')) return;
+    if (!confirm('Delete class "' + (cls ? cls.name : classId) + '"?\n\nStudents in this class will have no goals unless they set their own.')) return;
     try {
         await deleteDoc(doc(_db, 'classes', classId));
         delete _classCache[classId];
@@ -1757,7 +1747,7 @@ function refreshClassDropdownInStudents() {
     const sel = document.getElementById('student-class-select');
     if (sel) {
         const current = sel.value;
-        sel.innerHTML = '<option value="">— No class (default goals) —</option>';
+        sel.innerHTML = '<option value="">— No class (no goals unless they set their own) —</option>';
         Object.values(_classCache).sort((a,b) => (a.name||'').localeCompare(b.name||'')).forEach(cls => {
             const opt = document.createElement('option');
             opt.value = cls.id; opt.textContent = cls.name || cls.id;

@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<!-- admin.html v1.23.1 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.23.2 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.23.2 — Round 161: the class picker's "No class (default goals)" now reads
+               "No class (no goals unless they set their own)" — goal-ladder.js.
 
      v1.23.1 — Round 151 (Olympia). CSV import: #student-csv-preview-area loses
                its 240px cap (the summary, the question and Commit's receipt all sat
@@ -2133,7 +2136,7 @@
                     <span id="student-selected-label" class="u-font-size-0-9rem u-color-4b9cd3 u-font-weight-bold u-flex-1"></span>
                     <label class="l-label u-margin-0 u-white-space-nowrap u-font-size-0-78em">Class:</label>
                     <select id="student-class-select" class="l-field u-margin-0 u-min-width-160px">
-                        <option value="">— No class (default goals) —</option>
+                        <option value="">— No class (no goals unless they set their own) —</option>
                     </select>
                     <button id="student-class-save-btn" class="lbtn lbtn-primary u-width-auto u-padding-5px-14px u-font-size-0-8em">Save</button>
                     <span id="student-class-status" class="u-font-size-0-78em u-color-888"></span>
