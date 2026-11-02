@@ -1,4 +1,8 @@
-/* TypeThatBook style.css v3.11.1 */
+/* TypeThatBook style.css v3.12.1 */
+/* v3.12.1: the skeleton hands' letter is ~2.2x bigger with a ~2x thicker outline — it now
+   covers the whole palm of bones instead of sitting inside one bone. */
+/* v3.12.0: skeleton hands (Library Adventure view) — .sh-skel / .sh-skel-hand: label type
+   scaled to the art's units via --sh-u, and a faint ink edge so pale bones read on parchment. */
 /* v3.11.1: in Adventure view the keyboard-side hands sit ABOVE #adventure-canvas, so the
    map's route/progress lines pass behind them instead of across them. */
 /* v3.11.0: Library side hands — body.sh-text-on narrows #text-stream to a 700px column
@@ -131,7 +135,7 @@
    what versions.js reads back out of the LIVE stylesheet to tell a stale cached
    CSS from a deployed one. Bump it in the SAME EDIT as the header comment at the
    top, always. It has now drifted twice; drill-filter-test.mjs F12 catches it. */
-body::before { content: "v3.11.1"; display: none; }
+body::before { content: "v3.12.1"; display: none; }
 :root {
     --bg-color: #ffffff;
     --bg: #ffffff;           /* alias used by learn.html */
@@ -1665,3 +1669,19 @@ body.view-adventure .sh-pair.sh-kb { --shw: min(calc((100vw - 800px) / 2 - 12px)
    hides itself when a modal opens, taking the hands with it, and nothing else should
    ever sit under them. Scoped to Adventure because classic has no canvas. */
 body.view-adventure .sh-pair { z-index: 6; }
+
+/* ─── Skeleton hands (v3.12.0) — Library's Adventure view ───────────────────────
+   The skeleton is drawn in a ~1090-unit-wide box, not the Classic hand's 226, so the label
+   type is multiplied by --sh-u (keyboard.js sets it on each hand: width / 226). ⚠️ If the
+   art is ever replaced, --sh-u comes with it (hand-skeleton.js `unit`) — never hard-code
+   a size here. ⚠️ drop-shadow, not an outline: the bones are cream on parchment and would
+   otherwise fade into the keyboard; a 1px ink-coloured shadow gives them an edge without
+   touching the art, and costs nothing when no hand is on screen. */
+.sh-skel-hand { filter: drop-shadow(0 0 1px rgba(43, 34, 26, 0.65)); }
+/* ⚠️ BIG ON PURPOSE: the palm is ~700 x 1000 art units of overlapping bones; a letter that
+   fits inside ONE bone is lost against them. 200 (x --sh-u 4.82 = ~960 units) spans the
+   whole palm; the thick dark outline (15) is what keeps white readable over every bone
+   colour. Descenders (g j ; ,) overhang the wrist bones slightly — acceptable; do not shrink
+   the letter to hide it. SPACE/SHIFT (46) are as wide as the palm. */
+.sh-skel-hand .sh-label-char { font-size: calc(200px * var(--sh-u, 1)); stroke-width: calc(15px * var(--sh-u, 1)); }
+.sh-skel-hand .sh-label-word { font-size: calc(46px * var(--sh-u, 1)); stroke-width: calc(10px * var(--sh-u, 1)); }

@@ -1,5 +1,13 @@
 # CHANGELOG — TypeThatBook
 
+## Round 160 — big letters on the skeleton
+
+**The letter on the skeleton hands is now big enough to cover the whole palm of bones**
+(about 2.2x the size) with a roughly 2x thicker dark outline, instead of fitting inside one
+bone. SPACE, SHIFT and the like are as wide as the palm. The human hand's letter is unchanged.
+Checked across f, a, j, W, ;, A, g and SPACE; the descenders (g, j, ;) hang slightly below the
+wrist bones, which is acceptable. style.css v3.12.1 only.
+
 ## Round 159 — the skeleton's source is on record
 
 **The Adventure skeleton hand's origin and licence are now recorded.** It is "Hand Skeleton",
