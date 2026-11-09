@@ -1,35 +1,25 @@
-# Round 161 — a target only when someone set one
+# Round 162 — games don't count time nobody typed
 
-⚠️ **Assumes Round 160 is deployed.** No Firestore rules change. **One NEW file:
-`goal-ladder.js`** — Library, School, School BETA and the landing page all import it, so
-if it's missing, all four fail to load.
+**Already on `main` — nothing to upload.** (Round 161 is on main too.) No Firestore rules
+change. Three code files changed, all games: `game-deadline.js`, `game-shatter.js`,
+`game-escape.js`.
 
 ## Order
 
-1. Upload everything in the zip, keeping the folders. **`goal-ladder.js` first** (or all at
-   once) — the pages need it the moment they change.
+1. Nothing to upload.
 2. To reach tabs that are already open: Firestore → `settings` → `appVersion` → field
    `nonce` → increase it by one. Open tabs reload within ten minutes.
-3. Reports → **School Week** → **Save** once. It rewrites `settings/goals` with the week start
-   day only, clearing the old site-wide minutes (nothing reads them now — this is tidying).
 
 ## What changes
 
-* **No class → no target.** The HUD shows `Daily 9:22` / `Weekly 41:10` with no "/ 10:00" and
-  no ✓, unless the student set their own goals.
-* **Class always wins.** A student in a class gets the class's goals and can't change them.
-* **⚙ Settings:** School and Library both show the class ("No class assigned" if none) and
-  the goals — read-only "set by your teacher" in a class, two boxes + Save with no class.
-* **Reports:** the Daily/Weekly goal boxes are gone; "Week Starts On" stays.
+* **Deadline** (Arcade and the end-of-lesson run): stop typing for 3 seconds and the day's minutes
+  stop going up; they resume on the next key. Shatter, Shards and Escape Key already did this.
+* **All games:** holding a key down no longer keeps the minutes going.
+* **Grades don't change** — Deadline's WPM and pass/fail are computed exactly as before.
 
 ## Check
 
-Hard-refresh Library; the footer should read `game.js v3.62.0` and `goal-ladder.js v1.0.0`.
+Open the Arcade, start Deadline, type a word, then take your hands off. Watch the day's total
+in the side panel: it should stop within about 3 seconds while the game keeps running.
 
-1. **A student in your class:** HUD still shows `/ 10:00` (or whatever the class sets).
-   ⚙ shows the class name and "set by your teacher".
-2. **A student in no class** (or a test account): HUD shows no "/". ⚙ says "No class
-   assigned". Type 5 into min/day → Save → "✓ Saved", and the HUD now reads `/ 5:00`.
-   Open School: it shows the same 5:00.
-
-Expect **ALL 120 HARNESSES PASS.**
+Expect **ALL 121 HARNESSES PASS.**

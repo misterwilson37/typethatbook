@@ -1,5 +1,18 @@
 # CHANGELOG — TypeThatBook
 
+## Round 162 — games don't count time nobody typed
+
+**A game left running no longer adds to the day's minutes.** Jake: *"Kids are letting the
+games play and letting the time count up."* **Deadline** banked every second it ran — in the
+Arcade and as a lesson's final run — so a student could start it and watch. It now does what
+Shatter, Shards and Escape Key already did: **after 3 seconds with no keystroke, seconds stop
+counting** until the next key (learn.js's same 3 s). **And in all four games a key held down no
+longer counts as typing** — auto-repeat used to keep the clock alive. A free space between words
+in Deadline doesn't count either. ⚠️ **Grades are unchanged:** WPM still uses the full game clock
+(on purpose — see GameClock); only the minutes banked to the day/week move.
+game-deadline.js v1.23.0, game-shatter.js v1.20.0, game-escape.js v2.11.0. New harness
+`game-idle-time-test.mjs` runs each game on a fake clock and fails against the old files.
+
 ## Round 161 — a target only when someone set one
 
 **A student who isn't in a class no longer sees a target.** Jake had a student who wasn't in

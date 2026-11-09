@@ -1,3 +1,5 @@
+// game-shatter.js v1.20.0 — Round 162: a held-down key (auto-repeat) no longer keeps the banked clock
+// alive — Jake, 2026-11-09, kids letting games run for time. Idle after 3 s was already here.
 // game-shatter.js v1.19.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
 // ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-shatter.js v1.18.0 — Round 127 (Didot): passes the calibrator's sample and
@@ -286,7 +288,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.19.0';
+export const GAME_SHATTER_VERSION = '1.20.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -883,7 +885,9 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
-        lastKeyAt = now;
+        // ⚠️ Round 162 — NOT ON AUTO-REPEAT: a key held (or weighted) down is not
+        // typing, and must not keep the banked clock alive. Jake, 2026-11-09.
+        if (!e.repeat) lastKeyAt = now;
 
         // ⚠️⚠️ THE WARP IS TRIED BEFORE THE KEYSTROKE IS ACCOUNTED, AND ONLY THE
         // BOARD DECIDES WHETHER IT FIRES. All three of its conditions — meter

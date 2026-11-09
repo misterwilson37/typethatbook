@@ -1,6 +1,19 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-02 by Round 161, for whoever is next
+> ## ▶ START HERE — written 2026-11-09 by Round 162, for whoever is next
+>
+> **121 harnesses pass**, all of them (new: `game-idle-time-test.mjs`).
+>
+> ⚠️⚠️ **GAMES BANK ONLY TIME SPENT TYPING.** Students were leaving Deadline running for
+> minutes. Every game view now subtracts idle (no key for 3 s) from what `onSecond()`
+> banks, and ignores auto-repeat (`e.repeat`) as activity. ⚠️ **TWO CLOCKS, KEEP THEM
+> TWO:** the GRADED clock (`d.clock`, WPM) is wall time on purpose; the BANKED clock is
+> graded minus idle. A new game view must do the same or `game-idle-time-test` should
+> be extended to it — add it to that file's `GAMES` list.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-02 by Round 161
 >
 > **120 harnesses pass**, all of them (new: `goal-ladder-test.mjs`).
 >

@@ -1,3 +1,10 @@
+// game-deadline.js v1.23.0 — Round 162: ⚠️⚠️ A GAME LEFT RUNNING NO LONGER BANKS TIME. Jake,
+// 2026-11-09: *"Kids are letting the games play and letting the time count up."* This was
+// the one game whose banked clock was wall time — Shatter, Shards and Escape Key have
+// subtracted idle since their two-clock split. Now the same rule: after 3 s with no
+// keystroke (learn.js's number), seconds stop banking until the next key. ⚠️ THE GRADED
+// CLOCK IS UNTOUCHED — WPM stays wall-clock (GameClock's header); only onSecond moves.
+// A held-down key (auto-repeat) and a free word-boundary space are not typing.
 // game-deadline.js v1.22.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
 // ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-deadline.js v1.21.0 — Round 127 (Didot): passes the calibrator's sample
@@ -384,7 +391,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.22.0';
+export const GAME_DEADLINE_VERSION = '1.23.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -539,6 +546,13 @@ export function mount(container, opts) {
     const threatCtx = threatCanvas ? threatCanvas.getContext('2d') : null;
     const gaugeCtx = gaugeCanvas ? gaugeCanvas.getContext('2d') : null;
     let secondsBanked = 0;
+    // ⚠️⚠️ Round 162 — THE BANKED CLOCK STOPS WHEN THE STUDENT DOES. Same two-clock
+    // split as Shatter and Escape Key: the graded clock stays wall-clock (an
+    // idle-aware WPM is a lie, see GameClock), but a game left running on a desk
+    // is not practice and must not fill the day's minutes. learn.js's 3 seconds.
+    const IDLE_MS = 3000;
+    let lastKeyAt = 0;
+    let idleMs = 0;
 
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
     // ⚠️⚠️ ROUND 87 — THE DIRECTOR IS TOLD HOW MANY HITS THE CITY CAN ACTUALLY
@@ -960,6 +974,11 @@ export function mount(container, opts) {
             if (!midWord) return;   // preventDefault already ran above
         }
 
+        // ⚠️ Round 162 — A REAL KEYSTROKE KEEPS THE BANKED CLOCK RUNNING. Below the
+        // free word-boundary space (tapping space is not typing) and never on
+        // auto-repeat (a key held down — or weighted down — is not typing).
+        if (!e.repeat) lastKeyAt = now;
+
         if (locked && live.includes(locked)) {
             if (locked.text[locked.typed] === ch) {
                 accept(locked, ch, now);
@@ -1271,6 +1290,12 @@ export function mount(container, opts) {
         // of many seconds, and each one is a real second the host must file
         // separately — it calls localDateStr() per tick so a run through midnight
         // splits across two documents.
+        // ⚠️ Round 162 — IDLE IS ACCUMULATED ONLY WHILE THE GRADED CLOCK RUNS, or a
+        // paused minute would be subtracted twice and the bank would run backwards.
+        if (!ended && started && !paused && d.clock.seconds(now) > 0
+            && now - lastKeyAt > IDLE_MS) {
+            idleMs += dt * 1000;
+        }
         bankWholeSeconds(now);
 
         draw(now, ts / 1000);
@@ -1285,7 +1310,9 @@ export function mount(container, opts) {
      */
     function bankWholeSeconds(now) {
         if (!onSecond || !started) return;
-        const whole = Math.floor(d.clock.seconds(now));
+        // ⚠️ Round 162 — IDLE SUBTRACTED FROM THE GRADED CLOCK, so this stays
+        // DERIVED and keeps every property above. See Escape Key v2.0.0.
+        const whole = Math.floor(d.clock.seconds(now) - idleMs / 1000);
         while (secondsBanked < whole) {
             secondsBanked++;
             try { onSecond(); } catch (_) { /* never let a host error stop play */ }
@@ -2196,6 +2223,7 @@ export function mount(container, opts) {
         // survives a restart" failure this function's own header warns about,
         // and it only became reachable once the tick started firing at all.
         secondsBanked = 0;
+        idleMs = 0; lastKeyAt = 0;
         // ⚠️ AND THE FROZEN GRADE GOES WITH IT. A snapshot surviving into the
         // replay would report the PREVIOUS run's WPM as this one's pass.
         passReport = null;

@@ -1,3 +1,5 @@
+// game-escape.js v2.11.0 — Round 162: a held-down key (auto-repeat) no longer keeps the banked clock
+// alive — Jake, 2026-11-09, kids letting games run for time. Idle after 3 s was already here.
 // game-escape.js v2.10.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
 // ignores script-made key events (isTrusted), so a bookmarklet cannot auto-play.
 // game-escape.js v2.9.0 — Round 126 (Fournier): ⚠️ Backspace moves into a
@@ -224,7 +226,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.10.0';
+export const GAME_ESCAPE_VERSION = '2.11.0';
 
 /**
  * @param {HTMLElement} container
@@ -464,7 +466,9 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
-        lastKeyAt = now;
+        // ⚠️ Round 162 — NOT ON AUTO-REPEAT: a key held (or weighted) down is not
+        // typing, and must not keep the banked clock alive. Jake, 2026-11-09.
+        if (!e.repeat) lastKeyAt = now;
         const r = board.tryKey(e.key);
 
         // ⚠️ EVERY KEYSTROKE IS ACCOUNTED, INCLUDING A MISS. All three prototypes
