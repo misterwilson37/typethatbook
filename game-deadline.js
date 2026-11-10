@@ -1,3 +1,7 @@
+// game-deadline.js v1.24.0 — Round 163: ⚠️ MASHING STOPS THE BANKED CLOCK. School's hard-stop
+// number of wrong keys in a row (lesson-gate.js hardStopThresholdFor(), 2..5 by keys in play)
+// and minutes stop at once until the next correct key — no overlay, no message (Jake). A
+// typo below the number still counts. Graded clock and accuracy untouched.
 // game-deadline.js v1.23.0 — Round 162: ⚠️⚠️ A GAME LEFT RUNNING NO LONGER BANKS TIME. Jake,
 // 2026-11-09: *"Kids are letting the games play and letting the time count up."* This was
 // the one game whose banked clock was wall time — Shatter, Shards and Escape Key have
@@ -372,6 +376,7 @@
 // what reaches the student who is only here to type.
 
 import { GameDirector } from './game-shell.js';
+import { hardStopThresholdFor } from './lesson-gate.js';
 import { TypingCalibrator } from './typing-calibrator.js';
 // ⚠️ EVERY NUMBER THAT ONLY DECIDES PIXELS LIVES IN game-layout.js, so UI work
 // can happen in parallel without touching this file. See that file's header for
@@ -391,7 +396,7 @@ import {
     drawHitFeedback, drawCapsWarning, motionScale,
 } from './game-draw.js';
 
-export const GAME_DEADLINE_VERSION = '1.23.0';
+export const GAME_DEADLINE_VERSION = '1.24.0';
 
 // ⚠️⚠️ THE FINGER MAP AND THE COLOURS COME FROM keyboard.js. NOT A COPY.
 // A student who has learned that yellow is the right index finger must not meet a
@@ -553,6 +558,15 @@ export function mount(container, opts) {
     const IDLE_MS = 3000;
     let lastKeyAt = 0;
     let idleMs = 0;
+    // ⚠️⚠️ Round 163 — MASHING IS NOT TYPING. School's own hard-stop number, from the
+    // same function (lesson-gate.js hardStopThresholdFor(): distinct keys in play,
+    // clamped 2..5). That many wrong keys IN A ROW and the banked clock stops AT ONCE
+    // — as School's drill clock does — until the next correct key. A typo below the
+    // number still counts. ⚠️ NO OVERLAY, NO MESSAGE: Jake, 2026-11-10, *"just stop
+    // counting spamming."* Graded clock and accuracy untouched.
+    const MISS_CAP = hardStopThresholdFor((cfg.targets || []).join(''));
+    let missRun = 0;        // consecutive wrong keys
+    let keyHeld = false;    // this keystroke is auto-repeat — set by onKeyDown()
 
     const shieldCount = Math.max(1, Math.min(LANDMARKS.length, cfg.shields == null ? 3 : cfg.shields));
     // ⚠️⚠️ ROUND 87 — THE DIRECTOR IS TOLD HOW MANY HITS THE CITY CAN ACTUALLY
@@ -977,7 +991,9 @@ export function mount(container, opts) {
         // ⚠️ Round 162 — A REAL KEYSTROKE KEEPS THE BANKED CLOCK RUNNING. Below the
         // free word-boundary space (tapping space is not typing) and never on
         // auto-repeat (a key held down — or weighted down — is not typing).
-        if (!e.repeat) lastKeyAt = now;
+        // ⚠️ Round 163 — lastKeyAt is now stamped in accept()/reject(), which know
+        // whether the key was right; this only records whether it was held.
+        keyHeld = !!e.repeat;
 
         if (locked && live.includes(locked)) {
             if (locked.text[locked.typed] === ch) {
@@ -1005,6 +1021,9 @@ export function mount(container, opts) {
 
     function accept(target, ch, now) {
         d.keyResult(true, now);
+        // ⚠️ Round 162/163 — a correct key is typing: it ends any mashing run.
+        missRun = 0;
+        if (!keyHeld) lastKeyAt = now;
         // ⚠️ CORRECT KEYS ONLY, and this function is the correct-key path —
         // reject() is the other one. A mistyped key is accuracy, which netWPM()
         // owns; folding it in would make the PACING number fall when a child is
@@ -1056,6 +1075,9 @@ export function mount(container, opts) {
     }
 
     function reject(ch, now) {
+        // ⚠️ Round 163 — a typo counts as typing; a run of them does not.
+        missRun++;
+        if (!keyHeld && missRun < MISS_CAP) lastKeyAt = now;
         // ⚠️ MARK WHAT THEY *NEEDED*, NOT WHAT THEY HIT. The expected character
         // comes from the locked target, or the one they should be on.
         {
@@ -1293,7 +1315,7 @@ export function mount(container, opts) {
         // ⚠️ Round 162 — IDLE IS ACCUMULATED ONLY WHILE THE GRADED CLOCK RUNS, or a
         // paused minute would be subtracted twice and the bank would run backwards.
         if (!ended && started && !paused && d.clock.seconds(now) > 0
-            && now - lastKeyAt > IDLE_MS) {
+            && (now - lastKeyAt > IDLE_MS || missRun >= MISS_CAP)) {
             idleMs += dt * 1000;
         }
         bankWholeSeconds(now);
@@ -2223,7 +2245,7 @@ export function mount(container, opts) {
         // survives a restart" failure this function's own header warns about,
         // and it only became reachable once the tick started firing at all.
         secondsBanked = 0;
-        idleMs = 0; lastKeyAt = 0;
+        idleMs = 0; lastKeyAt = 0; missRun = 0;
         // ⚠️ AND THE FROZEN GRADE GOES WITH IT. A snapshot surviving into the
         // replay would report the PREVIOUS run's WPM as this one's pass.
         passReport = null;

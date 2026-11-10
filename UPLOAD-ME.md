@@ -1,8 +1,7 @@
-# Round 162 — games don't count time nobody typed
+# Round 163 — mashing doesn't count either
 
-**Already on `main` — nothing to upload.** (Round 161 is on main too.) No Firestore rules
-change. Three code files changed, all games: `game-deadline.js`, `game-shatter.js`,
-`game-escape.js`.
+**Already on `main` — nothing to upload.** No Firestore rules change. Three game files changed:
+`game-deadline.js`, `game-shatter.js`, `game-escape.js`.
 
 ## Order
 
@@ -12,14 +11,15 @@ change. Three code files changed, all games: `game-deadline.js`, `game-shatter.j
 
 ## What changes
 
-* **Deadline** (Arcade and the end-of-lesson run): stop typing for 3 seconds and the day's minutes
-  stop going up; they resume on the next key. Shatter, Shards and Escape Key already did this.
-* **All games:** holding a key down no longer keeps the minutes going.
-* **Grades don't change** — Deadline's WPM and pass/fail are computed exactly as before.
+* **All games:** a run of wrong keys in a row stops the day's minutes until the next correct key.
+  Same number as School's drills — the number of different keys in play, between 2 and 5 (so 5 for
+  almost every game). No message or overlay; the game keeps going. A single typo still counts.
+* Still in place from Round 162: no keys for 3 seconds, or a key held down, also stops the minutes.
+* **Grades and accuracy don't change.**
 
 ## Check
 
-Open the Arcade, start Deadline, type a word, then take your hands off. Watch the day's total
-in the side panel: it should stop within about 3 seconds while the game keeps running.
+Start Deadline in the Arcade, type a word, then mash letters that aren't on screen. The day's total
+should stop going up almost at once, then start again when you type a correct letter.
 
 Expect **ALL 121 HARNESSES PASS.**

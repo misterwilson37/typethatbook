@@ -160,6 +160,17 @@ for (let i = 0; i < 260; i++) {
     fire(ALPHA[(i * 7) % ALPHA.length]);
     if (i % 90 === 0) fire(' ');
 }
+// ⚠️ Round 163 — THE LOOP ABOVE IS A MASHER (it cycles the alphabet, almost every
+// key wrong), and since Round 163 a run of wrong keys banks nothing — School's
+// hard-stop rule. It stays, because it is what proves misses reach the director.
+// So the BANKING claim below is earned here, by a typist who presses the key the
+// board actually wants for two seconds.
+for (let i = 0; i < 300; i++) {
+    await tick(6);
+    const panes = inst.debug().panes;
+    const p = panes.find(x => x.typed > 0) || panes[0];
+    if (p) fire(p.text[p.typed]);
+}
 
 const rep = inst.report();
 ok(rep.chars > 0, 'correct keystrokes reached the director (' + rep.chars + ')');

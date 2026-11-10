@@ -1,4 +1,8 @@
-// game-idle-time-test.mjs v1.0.0 — Round 162. A GAME LEFT RUNNING BANKS NO TIME.
+// game-idle-time-test.mjs v1.1.0 — Round 162. A GAME LEFT RUNNING BANKS NO TIME.
+//
+// v1.1.0 — Round 163: C, MASHING. Jake, 2026-11-10: *"just stop counting spamming.
+//   Otherwise match the numbers of the learn."* School's hard-stop run of wrong keys
+//   (lesson-gate.js hardStopThresholdFor()) stops the banked clock until a correct key.
 //
 // Jake, 2026-11-09: *"Kids are letting the games play and letting the time count
 // up. Games should not count any time that students are not typing."*
@@ -13,6 +17,7 @@
 // idle stretch); B FAILS against game-shatter.js v1.19.0 / game-escape.js v2.10.0.
 import { JSDOM } from 'jsdom';
 import { trustedKeyDispatcher } from './fixtures/trusted-key.mjs';
+import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0; const failures = [];
 const ok = (c, l) => { if (c) pass++; else { fail++; failures.push(l); } };
@@ -78,12 +83,22 @@ function launch(mount, over) {
     });
     frame(0); key('Enter');
     for (let i = 0; i < 8; i++) frame(COUNTDOWN_MS / 4);
+    H = h;
     return { h, banked };
 }
 
-// Two seconds of steady real typing (a key every 200 ms), then hands off.
+// The key a correct typist presses next: Escape Key reports it; Deadline and
+// Shatter finish the half-typed target, else start the first one on the board.
+let H = null;
+function rightKey() {
+    const dbg = H.debug();
+    if ('wanted' in dbg) return dbg.wanted || 'a';
+    const p = dbg.panes.find(x => x.typed > 0) || dbg.panes[0];
+    return p ? p.text[p.typed] : 'a';
+}
+// Two seconds of steady CORRECT typing (a key every 200 ms), then hands off.
 function typeBriefly() {
-    for (let i = 0; i < 10; i++) { key(WORDS[0][i % WORDS[0].length]); run(200); }
+    for (let i = 0; i < 10; i++) { key(rightKey()); run(200); }
 }
 
 console.log('\nA — HANDS OFF THE KEYBOARD: THE BANK STOPS');
@@ -114,6 +129,38 @@ for (const [name, mount, over] of GAMES) {
     ok(heldBanked <= 4,
        `⚠️⚠️ ${name}: a key held down for 30 s banks at most the 3 s grace (banked ${heldBanked})`);
     try { h.destroy(); } catch (_) {}
+}
+
+console.log('\nC — MASHING IS NOT TYPING (School\'s hard-stop number)');
+const MASH = ['z', 'x', 'q'];          // in none of WORDS, so always wrong
+for (const [name, mount, over] of GAMES) {
+    const { h, banked } = launch(mount, over);
+    typeBriefly();
+    const before = banked.n;
+    // 30 s of mashing, five real (non-repeat) wrong keys a second.
+    for (let i = 0; i < 150; i++) { key(MASH[i % 3]); run(200); }
+    const mashBanked = banked.n - before;
+    ok(mashBanked <= 2,
+       `⚠️⚠️ ${name}: 30 s of mashing banks at most the second the run takes to reach the cap (banked ${mashBanked})`);
+    ok(h.report().mistakes >= 150, `${name}: every mashed key is still a mistake (accuracy untouched)`);
+    try { h.destroy(); } catch (_) {}
+}
+{
+    // ⚠️ A TYPO IS NOT SPAM: one wrong key every few correct ones keeps banking.
+    const { h, banked } = launch(mountDeadline, {});
+    const before = banked.n;
+    for (let i = 0; i < 60; i++) {
+        key(i % 4 === 3 ? 'z' : rightKey());
+        run(200);
+    }
+    ok(banked.n - before >= 8,
+       `Deadline: an occasional typo among real keys still banks (banked ${banked.n - before} of ~12 s)`);
+    try { h.destroy(); } catch (_) {}
+}
+for (const f of ['game-deadline.js', 'game-shatter.js', 'game-escape.js']) {
+    const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+    ok(/import \{ hardStopThresholdFor \} from '\.\/lesson-gate\.js'/.test(src),
+       `${f}: the cap is School's own function, not a copied number (Rule 9)`);
 }
 
 console.log(fail

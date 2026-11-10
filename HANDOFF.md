@@ -4,6 +4,10 @@
 >
 > **121 harnesses pass**, all of them (new: `game-idle-time-test.mjs`).
 >
+> ⭐ **Round 163 (2026-11-10) added mashing:** School's hard-stop number of wrong keys in a
+> row (`hardStopThresholdFor()` on the game's words) stops the banked clock at once until a
+> correct key. Silent by Jake's ruling — no overlay. Same harness, section C.
+>
 > ⚠️⚠️ **GAMES BANK ONLY TIME SPENT TYPING.** Students were leaving Deadline running for
 > minutes. Every game view now subtracts idle (no key for 3 s) from what `onSecond()`
 > banks, and ignores auto-repeat (`e.repeat`) as activity. ⚠️ **TWO CLOCKS, KEEP THEM

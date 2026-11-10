@@ -1,5 +1,20 @@
 # CHANGELOG — TypeThatBook
 
+## Round 163 — mashing doesn't count either
+
+**In every game, a run of wrong keys stops the day's minutes until the next correct key.** Jake:
+*"just stop counting spamming. Otherwise match the numbers of the learn."* The number is School's
+own hard-stop number, from the same function (`lesson-gate.js` `hardStopThresholdFor()`): the count
+of different keys in the game's words, never below 2 or above 5 — so a two-key early lesson stops
+after 2 wrong keys in a row, and anything with five or more keys after 5. Like School, the minutes
+stop the instant the run reaches it. **No overlay, no message** — the game plays on; a typo short
+of the number still counts as typing. Space-scatter (Shatter), the radar ping (Shards) and
+Backspace no longer count as typing on their own. Accuracy and grades are unchanged — every
+mashed key is still a mistake. game-deadline.js v1.24.0, game-shatter.js v1.21.0, game-escape.js
+v2.12.0 (its `debug()` also reports the next wanted key, for the harness).
+`game-idle-time-test.mjs` v1.1.0 gains a mashing case; it fails against the Round 162 files
+(30 s of mashing banked 32 s).
+
 ## Round 162 — games don't count time nobody typed
 
 **A game left running no longer adds to the day's minutes.** Jake: *"Kids are letting the

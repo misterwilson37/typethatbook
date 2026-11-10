@@ -1,3 +1,6 @@
+// game-escape.js v2.12.0 — Round 163: ⚠️ mashing stops the banked clock — School's hard-stop run of
+// wrong keys (lesson-gate.js hardStopThresholdFor()) and minutes stop until a correct key. No
+// overlay. Space-scatter, ping and Backspace no longer count as typing either.
 // game-escape.js v2.11.0 — Round 162: a held-down key (auto-repeat) no longer keeps the banked clock
 // alive — Jake, 2026-11-09, kids letting games run for time. Idle after 3 s was already here.
 // game-escape.js v2.10.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
@@ -207,6 +210,7 @@
 // ⚠️ THE DISPLAY TITLE LIVES IN game-names.js. Filenames and Firestore ids are
 // frozen; titles are not.
 
+import { hardStopThresholdFor } from './lesson-gate.js';
 import { GameDirector, enemyStepMs } from './game-shell.js';
 import { EscapeBoard, COLS, ROWS } from './escape-board.js';
 import { mountChrome } from './game-chrome.js';
@@ -226,7 +230,7 @@ import {
     drawPixelSprite, drawBeam, drawVaporised, drawWeb,
 } from './game-sprites.js';
 
-export const GAME_ESCAPE_VERSION = '2.11.0';
+export const GAME_ESCAPE_VERSION = '2.12.0';
 
 /**
  * @param {HTMLElement} container
@@ -382,6 +386,14 @@ export function mount(container, opts) {
     const IDLE_MS = 3000;
     let lastKeyAt = 0;
     let idleMs = 0;
+    // ⚠️⚠️ Round 163 — MASHING IS NOT TYPING. School's own hard-stop number, from the
+    // same function (lesson-gate.js hardStopThresholdFor(): distinct keys in play,
+    // clamped 2..5). That many wrong keys IN A ROW and the banked clock stops AT ONCE
+    // — as School's drill clock does — until the next correct key. A typo below the
+    // number still counts. ⚠️ NO OVERLAY, NO MESSAGE: Jake, 2026-11-10, *"just stop
+    // counting spamming."* Graded clock and accuracy untouched.
+    const MISS_CAP = hardStopThresholdFor((cfg.targets || []).join(''));
+    let missRun = 0;        // consecutive wrong keys
     // ⚠️⚠️ THE ERROR MEMORY. Round 90 built this for Deadline and it never reached
     // this game: a key the student gets wrong stays tinted red until they get it
     // right, so a child who keeps missing the same letter can SEE which one.
@@ -466,10 +478,11 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
-        // ⚠️ Round 162 — NOT ON AUTO-REPEAT: a key held (or weighted) down is not
-        // typing, and must not keep the banked clock alive. Jake, 2026-11-09.
-        if (!e.repeat) lastKeyAt = now;
         const r = board.tryKey(e.key);
+        // ⚠️ Round 162/163 — WHAT KEEPS THE BANKED CLOCK ALIVE: a correct key, or a
+        // typo short of School's hard-stop run (MISS_CAP). Never auto-repeat.
+        if (r.correct) missRun = 0; else missRun++;
+        if (!e.repeat && (r.correct || missRun < MISS_CAP)) lastKeyAt = now;
 
         // ⚠️ EVERY KEYSTROKE IS ACCOUNTED, INCLUDING A MISS. All three prototypes
         // dropped an unmatched key on the floor, so a masher held 100% accuracy.
@@ -567,7 +580,7 @@ export function mount(container, opts) {
         banner = null; flash = 0; stepAccMs = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
         blasts = [];
-        idleMs = 0; lastKeyAt = 0;
+        idleMs = 0; lastKeyAt = 0; missRun = 0;
         for (const k of Object.keys(keyStates)) delete keyStates[k];
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous
         // run's high-water mark. A fresh director means a fresh clock starting
@@ -644,7 +657,7 @@ export function mount(container, opts) {
         // AND already excluded by the pause — subtracted twice, and the banked
         // total would run backwards.
         if (!ended && started && !paused && d.clock.seconds(now) > 0
-            && now - lastKeyAt > IDLE_MS) {
+            && (now - lastKeyAt > IDLE_MS || missRun >= MISS_CAP)) {
             idleMs += dt * 1000;
         }
 
@@ -1279,6 +1292,9 @@ export function mount(container, opts) {
                 panes: [...board.wordsInUse()].map((w, i) => ({
                     id: i, text: w, typed: 0, piece: false,
                 })),
+                // Round 163 — the key a correct typist would press next, for
+                // tests/game-idle-time-test.mjs. Read-only, same as the rest.
+                wanted: nextKeyWanted(),
             };
         },
     };

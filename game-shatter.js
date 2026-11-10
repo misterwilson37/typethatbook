@@ -1,3 +1,6 @@
+// game-shatter.js v1.21.0 — Round 163: ⚠️ mashing stops the banked clock — School's hard-stop run of
+// wrong keys (lesson-gate.js hardStopThresholdFor()) and minutes stop until a correct key. No
+// overlay. Space-scatter, ping and Backspace no longer count as typing either.
 // game-shatter.js v1.20.0 — Round 162: a held-down key (auto-repeat) no longer keeps the banked clock
 // alive — Jake, 2026-11-09, kids letting games run for time. Idle after 3 s was already here.
 // game-shatter.js v1.19.0 — Round 150 (Nesmith): ⚠️ only a real keyboard plays — onKeyDown()
@@ -260,6 +263,7 @@
 // from the frame loop AS WELL AS finish(), and in finish() it sits ABOVE
 // `ended = true` and ABOVE `d.end()`.
 
+import { hardStopThresholdFor } from './lesson-gate.js';
 import { GameDirector } from './game-shell.js';
 import { TypingCalibrator } from './typing-calibrator.js';
 import { ShatterBoard, splittable, SHATTER_COST_FACTOR, paneRadius, ENTRY_R } from './shatter-board.js';
@@ -288,7 +292,7 @@ import { paneCut, drawPane, drawPrism, drawRefract } from './game-sprites.js';
 import { drawShatterPanel, drawGauges } from './game-draw.js';
 import { MAX_WARPS } from './shatter-board.js';
 
-export const GAME_SHATTER_VERSION = '1.20.0';
+export const GAME_SHATTER_VERSION = '1.21.0';
 
 // Cosmetic only. ⚠️ NOT A DIFFICULTY KNOB — the board owns travel, the shell owns
 // pacing. These decide where a rock is DRAWN, never when it arrives.
@@ -439,6 +443,14 @@ export function mount(container, opts) {
     const IDLE_MS = 3000;
     let lastKeyAt = 0;
     let idleMs = 0;
+    // ⚠️⚠️ Round 163 — MASHING IS NOT TYPING. School's own hard-stop number, from the
+    // same function (lesson-gate.js hardStopThresholdFor(): distinct keys in play,
+    // clamped 2..5). That many wrong keys IN A ROW and the banked clock stops AT ONCE
+    // — as School's drill clock does — until the next correct key. A typo below the
+    // number still counts. ⚠️ NO OVERLAY, NO MESSAGE: Jake, 2026-11-10, *"just stop
+    // counting spamming."* Graded clock and accuracy untouched.
+    const MISS_CAP = hardStopThresholdFor((cfg.targets || []).join(''));
+    let missRun = 0;        // consecutive wrong keys
 
     // ⚠️⚠️ A ONE-CHARACTER TARGET CANNOT SPLIT, so it is a Deadline word wearing
     // Shatter's costume: the student pays the doubled interval `costFactor`
@@ -885,9 +897,6 @@ export function mount(container, opts) {
         e.preventDefault();
 
         const now = performance.now();
-        // ⚠️ Round 162 — NOT ON AUTO-REPEAT: a key held (or weighted) down is not
-        // typing, and must not keep the banked clock alive. Jake, 2026-11-09.
-        if (!e.repeat) lastKeyAt = now;
 
         // ⚠️⚠️ THE WARP IS TRIED BEFORE THE KEYSTROKE IS ACCOUNTED, AND ONLY THE
         // BOARD DECIDES WHETHER IT FIRES. All three of its conditions — meter
@@ -917,6 +926,10 @@ export function mount(container, opts) {
         // student inflate accuracy by tapping space — the exact hole Round 101's
         // `reject()` was written to close, reopened from the other side.
         if (r.ignored) return;
+        // ⚠️ Round 162/163 — WHAT KEEPS THE BANKED CLOCK ALIVE: a correct key, or a
+        // typo short of School's hard-stop run (MISS_CAP). Never auto-repeat.
+        if (r.correct) missRun = 0; else missRun++;
+        if (!e.repeat && (r.correct || missRun < MISS_CAP)) lastKeyAt = now;
 
         // ⚠️ EVERY OTHER KEYSTROKE IS ACCOUNTED, INCLUDING A MISS. All three
         // prototypes dropped an unmatched key on the floor, so a masher held
@@ -1166,7 +1179,7 @@ export function mount(container, opts) {
         pingWave = null; pingLabels = new Map(); lastPingAt = -Infinity;
         bNow = 0; slowMo = 0;
         ended = false; started = false; lastFrame = null; tickAcc = 0;
-        idleMs = 0; lastKeyAt = 0;
+        idleMs = 0; lastKeyAt = 0; missRun = 0;
         // ⚠️ OR THE REPLAY'S FIRST N SECONDS ARE SWALLOWED by the previous run's
         // high-water mark. A fresh director means a fresh clock at zero, so the
         // mark has to start at zero with it.
@@ -1223,7 +1236,7 @@ export function mount(container, opts) {
         }
 
         if (!ended && started && !paused && d.clock.seconds(now) > 0
-            && now - lastKeyAt > IDLE_MS) {
+            && (now - lastKeyAt > IDLE_MS || missRun >= MISS_CAP)) {
             idleMs += dt * 1000;
         }
 
