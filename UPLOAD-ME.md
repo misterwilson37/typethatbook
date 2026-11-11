@@ -2,8 +2,7 @@
 
 **Already on `main` — nothing to upload.** No rules change in this round.
 
-⚠️ **Still outstanding from Round 164:** if you haven't yet, paste `firebase/firestore.rules`
-(v2.18.0) into Firestore → Rules and Publish — Wipe today needs it to reach an open page.
+✅ Done 2026-11-11: rules v2.18.0 published and the nonce bumped.
 
 ## Order
 

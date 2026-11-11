@@ -23,7 +23,8 @@
 > or a wiped tab's exit save puts the minutes back. ⚠️ **A NEW localStorage STORE OF
 > UNSAVED WORK MUST JOIN `LOCAL_STORES`.** ⚠️ Lesson records carry `dayStart*` (the
 > morning snapshot); every builder of a record must pass it through `withDayStart()`.
-> ⚠️ **ASK JAKE:** paste rules v2.18.0 (UPLOAD-ME.md). ROADMAP 145a is closed by this.
+> ✅ **Rules v2.18.0 are published** (Jake, 2026-11-11), and the nonce was bumped for Rounds
+> 164–165. ROADMAP 145a is closed by this.
 >
 > ---
 >
