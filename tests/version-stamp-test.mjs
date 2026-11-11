@@ -120,6 +120,7 @@ const SOURCES = [
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'run-picker.js',         pattern: /\bexport\s+const\s+RUN_PICKER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

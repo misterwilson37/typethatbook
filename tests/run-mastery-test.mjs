@@ -1,4 +1,5 @@
-// run-mastery-test.mjs v1.0.0 — ROADMAP 14's STUDENT-FACING HALF.
+// run-mastery-test.mjs v1.0.1 — ROADMAP 14's STUDENT-FACING HALF.
+// v1.0.1 — Round 165: B4 accepts firstOpenRunIdx() wrapped in openingRunIdx() (resume).
 //
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️ THIS FILE WAS CITED BY learn.js BEFORE IT EXISTED
@@ -100,7 +101,9 @@ console.log('\n─── B. THE INTRO SCREEN HONOURS IT ───');
        'B3 both entry points \u2014 button and Enter \u2014 start where startLesson() said');
 
     const start = extractFn(clean, 'startLesson') || '';
-    ok(/currentStepIdx\s*=\s*firstOpenRunIdx\(/.test(start),
+    // Round 165: wrapped in run-picker.js openingRunIdx(), which takes the LATER of
+    // this and where the student left off — so a mastered run is still skipped.
+    ok(/currentStepIdx\s*=\s*(openingRunIdx\(\s*)?firstOpenRunIdx\(/.test(start),
        'B4 startLesson() is what decides it, so there is ONE answerer');
 }
 

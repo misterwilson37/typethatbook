@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- learn.html v1.2.0 — versioned the same way style.css is: a comment near
+    <!-- learn.html v1.3.0 — versioned the same way style.css is: a comment near
          the top, parsed by versions.js. Bump when this file's markup changes.
+         v1.3.0: #intro-run-picker on the intro panel (Round 165, from learn2.html).
          v1.1.0: loads update-gate.js from its OWN script tag, below. It is a
          separate module graph on purpose — a 404 on that file cannot stop the
          lesson page from booting, and adding it required no edit to learn.js.
@@ -108,6 +109,11 @@
                     <div id="intro-keyboard-wrap">
                         <div id="intro-keyboard"></div>
                     </div>
+                    <!-- ⚠️ Round 165 — THE RUN PICKER LIVES ON THE INTRO PANEL AND NOWHERE
+                         ELSE (ROADMAP 8: a focusable control reachable by Tab from
+                         a TYPING view eats keystrokes). DO NOT MOVE THIS INTO
+                         #active-drill. Same element as learn2.html. -->
+                    <div id="intro-run-picker"></div>
                     <button class="intro-start-btn" id="intro-start-btn">Start Lesson →</button>
                 </div>
             </div>

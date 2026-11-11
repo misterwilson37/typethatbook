@@ -1,9 +1,18 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-11 by Round 164, for whoever is next
+> ## ▶ START HERE — written 2026-11-11 by Round 165, for whoever is next
 >
-> **122 harnesses pass**, all of them (new: `day-wipe-test.mjs`), and all 86 rules tests
+> **123 harnesses pass**, all of them (new: `learn-parity-test.mjs`), and all 86 rules tests
 > (`npm run test:rules` works in this container — Java is installed).
+>
+> ⭐ **Round 165: School picks up where they left off** (run-picker.js `openingRunIdx()` and the
+> intro run picker, ported from learn2.js). ⚠️ **learn.js AND learn2.js NOW DIFFER ONLY BY THE
+> GAMES**, and `learn-parity-test.mjs` enforces it: change a shared function in one file and you
+> must change it in the other, or add it to that harness's ALLOWED list with a reason.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-11 by Round 164
 >
 > ⚠️⚠️ **"WIPE TODAY" AND THE ACCOUNT LISTENER — READ `day-wipe.js`'s HEADER.** Every
 > student page now holds ONE Firestore listener on its own `users/{uid}`. A teacher stamp

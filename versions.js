@@ -1,5 +1,7 @@
-// versions.js v1.19.0 — reads every file's version constant out of the files as
+// versions.js v1.20.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.20.0 — Round 165: SOURCES gained run-picker.js (School now imports it, not only BETA).
 //
 // v1.19.0 — Round 164: SOURCES gained day-wipe.js ("Wipe today" and the open-tab listener).
 //
@@ -52,22 +54,7 @@
 //           read exactly when someone doubts what is running, which is exactly
 //           when a remembered answer is the wrong one. HANDOFF §0.-22.
 //
-// v1.12.0 — ⚠️⚠️ THE ⚠ NOTES ARE STAFF-ONLY NOW, AND THE DEFAULT IS OFF.
-//           renderBuildList(results, { notes }) — omit the option and you get
-//           NO notes. That direction is deliberate: this function has three
-//           call sites on three student-reachable surfaces (game.js, learn.js,
-//           index.html), so a caller that forgets the flag must fail toward
-//           silence, not toward a child reading "40 version entries (budget 6)"
-//           over their book. §0.-13.E's twin problem, defused by making the
-//           unsafe state the one you have to ASK for.
-//           ⚠️ IT DOES NOT GO SILENT — renderHiddenNotesLine(n) prints "n build
-//           notes — sign in as staff" and every caller ends with it. THAT IS
-//           LOAD-BEARING: Jake troubleshoots at a student's machine while
-//           signed in as nobody, and a panel that looked CLEAN when something
-//           was wrong would be a diagnostic that lies — the exact failure
-//           direction §0.-14.C is about. Hidden is fine. Absent is not.
-//           ⚠️ countBuildNotes(results) exists so a caller can add its own
-//           notes (game.js's renderer-drift line) to the same count.
+// ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 165, 8-entry budget).
 //
 // ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
@@ -138,6 +125,7 @@ const SOURCES = [
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'run-picker.js',         pattern: /\bexport\s+const\s+RUN_PICKER_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -177,7 +165,7 @@ const SOURCES = [
     { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 
-export const VERSIONS_VERSION = '1.19.0';
+export const VERSIONS_VERSION = '1.20.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

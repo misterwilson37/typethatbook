@@ -1,4 +1,10 @@
-// learn.js v2.54.0
+// learn.js v2.55.0
+//
+// v2.55.0 — Round 165: ⭐ WHERE THEY LEFT OFF, AND THE RUN PICKER — from learn2.js. A
+//           lesson opens on the run after the furthest one finished (run-picker.js
+//           openingRunIdx()), not the first unmastered run, and the intro offers
+//           "Start from which run?" for every run reached. School and BETA now differ
+//           only by the games (tests/learn-parity-test.mjs keeps it that way).
 //
 // v2.54.0 — Round 164: ⭐ "WIPE TODAY" (day-wipe.js). Listens to users/{uid} before any
 //           local replay; a live wipe or today-correction locks every save and reloads.
@@ -50,8 +56,7 @@
 //           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
 //           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
 //
-// v2.49.0 — Round 145: the same gated WAL recovery as game.js v3.54.0 — a teacher's
-//           correction is no longer undone by this browser's write-ahead log.
+// ⚠️ v2.49.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 165, 8-entry budget).
 //
 // ⚠️ v2.48.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
@@ -102,6 +107,9 @@ import {
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark, fmt } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
+// ⭐ Round 165 — WHERE THEY LEFT OFF, and the run picker: ported from learn2.js,
+// whose arithmetic was moved into run-picker.js precisely so both pages could share it.
+import { typedRunCount, maxReachableRunIdx, openingRunIdx } from './run-picker.js';
 // ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
 // in as many words for months. celebrate.js owns the celebrations; School and
 // Library now show the SAME one. Do not copy it back.
@@ -169,7 +177,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.54.0";
+const LEARN_VERSION = "2.55.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -2114,7 +2122,15 @@ function startLesson(lesson) {
     currentRunsFor = lesson.id;          // ⚠️ ROADMAP 23 — paired here, always.
     // ⚠️ v2.35.0 — NOT ALWAYS 0. See firstOpenRunIdx(): a student whose early runs
     // are mastered starts at the first one that still counts.
-    currentStepIdx = firstOpenRunIdx(lesson);
+    // ⚠️⚠️ Round 165 — WHERE THEY LEFT OFF, NOT WHERE THE MASTERY GATE SAYS.
+    // Ported from learn2.js (Jake, 2026-11-11: *"I'd like to copy the sub lesson
+    // resume to the main branch of lessons, too."*). firstOpenRunIdx() only moves
+    // past a run once it is MASTERED (4 points — A🔥 = 2, A = 1, B/C/D/F = 0), so a
+    // child passing runs with B's and C's reopened at run 1 every visit.
+    // ⚠️ The LATER of the two, never the earlier, and a run still always starts at
+    // character zero (the 2026-08-17 ruling on resuming mid-run stands).
+    currentStepIdx = openingRunIdx(firstOpenRunIdx(lesson),
+                                   userProgress[lesson.id], currentRuns);
     mistakes       = 0;
     chars          = 0;
     resetStepLogWatermark();
@@ -2235,6 +2251,11 @@ function showIntro(lesson) {
 
     introTitleEl.textContent = lesson.title || '';
     introTextEl.textContent  = lesson.intro || '';
+
+    // ⭐ Round 165 — the run picker (from learn2.js). Defaults to currentStepIdx,
+    // which startLesson() has already set to where they left off.
+    renderRunPicker(lesson);
+    syncIntroStartLabel();
 
     // Build intro keyboard
     createKeyboard(introKeyboard, LAYOUT);
@@ -4044,7 +4065,7 @@ function recordRunOutcome(runIdx, grade, advanced) {
     userProgress[id] = Object.assign({}, prev, {
         lessonId: id,
         started: true,
-        runCount: currentRuns.length,
+        runCount: typedRunCount(currentRuns),   // Round 165 — same count learn2.js writes
         // runCount is stored so a stale map is detectable: editing a lesson changes
         // how it chunks, which shifts every index in runAttempts/runFailures.
         furthestRunIdx: Math.max(prev.furthestRunIdx || 0, runIdx),
@@ -4204,6 +4225,83 @@ async function startAccountWatch(uid) {
                              onReload: () => location.reload() });
     _accountWatch = { uid, stop: w.stop };
     await w.ready;
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// ⭐ Round 165 — THE RUN PICKER, ported from learn2.js with its Deadline parts
+// removed (this page has no game slot). Jake, 2026-09-10: *"There was no way to
+// navigate to later runs he had unlocked. That was supposed to be there."*
+// The reachability arithmetic is run-picker.js's, shared and tested
+// (tests/run-picker-test.mjs); this only draws it.
+// ⚠️ IT LIVES ON THE INTRO PANEL ONLY (#intro-run-picker in learn.html). A
+// focusable control reachable from a TYPING view eats keystrokes (ROADMAP 8).
+// ═════════════════════════════════════════════════════════════════════════
+function maxReachableRunIdxFor(lesson) {
+    return maxReachableRunIdx(userProgress[lesson.id], currentRuns);
+}
+
+function renderRunPicker(lesson) {
+    const host = document.getElementById('intro-run-picker');
+    if (!host) return;
+    host.innerHTML = '';
+    if (!currentRuns.length || currentRuns.length < 2) return;
+
+    const maxIdx = maxReachableRunIdxFor(lesson);
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:0.78rem;color:#888;margin:10px 0 5px;' +
+        'font-family:\'Courier Prime\',monospace;text-align:center;';
+    label.textContent = maxIdx > 0 ? 'Start from which run?' : '';
+    host.appendChild(label);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;' +
+        'margin-bottom:10px;';
+
+    currentRuns.forEach((run, i) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        const reachable = i <= maxIdx;
+        const mastered = runMastered(userProgress[lesson.id], i);
+        chip.textContent = String(i + 1);
+        chip.title = reachable
+            ? (mastered ? 'Run ' + (i + 1) + ' \u2014 mastered, replay for practice'
+                        : 'Run ' + (i + 1))
+            : 'Run ' + (i + 1) + ' \u2014 finish the earlier runs first';
+        chip.disabled = !reachable;
+        chip.style.cssText =
+            'min-width:34px;height:34px;padding:0 8px;border-radius:5px;cursor:' +
+            (reachable ? 'pointer' : 'not-allowed') + ';' +
+            'font-family:\'Courier Prime\',monospace;font-size:0.85rem;font-weight:bold;' +
+            'border:1px solid ' + (i === currentStepIdx ? 'var(--carolina-blue,#4B9CD3)' : '#555') + ';' +
+            'background:' + (i === currentStepIdx ? 'var(--carolina-blue,#4B9CD3)' : 'transparent') + ';' +
+            'color:' + (i === currentStepIdx ? '#fff' : reachable ? (mastered ? '#7ba05b' : '#bbb') : '#555') + ';' +
+            'opacity:' + (reachable ? '1' : '0.45') + ';';
+        if (reachable) {
+            chip.onclick = () => {
+                currentStepIdx = i;
+                renderRunPicker(lesson);        // repaint the selection
+                syncIntroStartLabel();
+            };
+        }
+        row.appendChild(chip);
+    });
+    host.appendChild(row);
+
+    if (maxIdx < currentRuns.length - 1) {
+        const note = document.createElement('div');
+        note.style.cssText = 'font-size:0.72rem;color:#777;text-align:center;' +
+            'margin-bottom:8px;font-family:\'Courier Prime\',monospace;';
+        note.textContent = 'Finish a run to unlock the next one.';
+        host.appendChild(note);
+    }
+}
+
+function syncIntroStartLabel() {
+    if (!introStartBtn) return;
+    introStartBtn.textContent = (!currentRuns.length || currentRuns.length < 2)
+        ? 'Start Lesson \u2192'
+        : 'Start Run ' + (currentStepIdx + 1) + ' \u2192';
 }
 
 async function saveProgress(passed, wpm, acc, grade) {

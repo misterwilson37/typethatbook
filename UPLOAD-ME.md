@@ -1,33 +1,27 @@
-# Round 164 — Wipe today
+# Round 165 — School picks up where they left off
 
-**The code is already on `main` — nothing to upload.** ⚠️ **One manual step: the Firestore
-rules.** Until it's done, Wipe today still removes what's saved, but can't reach an open page
-(Reports will tell you).
+**Already on `main` — nothing to upload.** No rules change in this round.
+
+⚠️ **Still outstanding from Round 164:** if you haven't yet, paste `firebase/firestore.rules`
+(v2.18.0) into Firestore → Rules and Publish — Wipe today needs it to reach an open page.
 
 ## Order
 
-1. **Firestore → Rules:** paste the whole of `firebase/firestore.rules` (v2.18.0) and **Publish**.
-2. Firestore → `settings` → `appVersion` → `nonce` → increase by one (so open tabs pick up the
-   new pages within ten minutes).
+1. Firestore → `settings` → `appVersion` → `nonce` → increase by one (open tabs reload within
+   ten minutes).
 
 ## What changes
 
-* **Reports → choose a student → Wipe today…** Removes today's runs and minutes and puts every
-  lesson they touched today back the way it was this morning — passes included. Other days are
-  never touched.
-* **Their open page resets within a few seconds**, including time it hadn't saved yet. They can
-  keep typing and earn time again. A closed page cleans up the next time they sign in.
-* **Deleting a single run from today** now also reaches an open page (it reloads), instead of the
-  old total coming back five minutes later.
-* Leaderboard scores and Library book position are not changed by a wipe.
-* ⚠️ Lessons are only restorable for changes made **after** this update reached the student's
-  page — a lesson passed earlier today, before the reload, has no morning snapshot yet.
+* **School (learn.html)** opens a lesson on the next run after the furthest one the student
+  finished, like BETA does — no more starting over at run 1.
+* The lesson intro shows **"Start from which run?"** with a button per run; runs they haven't
+  reached are greyed out until they finish the one before. Mastered runs show in green.
+* School and BETA now differ only by the games.
 
 ## Check
 
-1. On a test student account, open a lesson in School and do a run or two (pass one if you can).
-2. In Reports, choose that student → **Wipe today…** → confirm.
-3. Within a few seconds the student's page reloads: today's time reads 0, and the lesson is back
-   where it was this morning. Type a little more — time counts again.
+Open School on a student who has finished a few runs of a lesson but not passed it. The intro
+should say **Start Run N →** with N the next run, and the run buttons above it should let them pick
+any run up to there.
 
-Expect **ALL 122 HARNESSES PASS** and **86 rules tests passing** (`npm run test:rules`).
+Expect **ALL 123 HARNESSES PASS.**

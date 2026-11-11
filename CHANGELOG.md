@@ -1,5 +1,18 @@
 # CHANGELOG — TypeThatBook
 
+## Round 165 — School picks up where they left off
+
+**School (learn.html) now does what School BETA did:** a lesson opens on the run after the
+furthest one the student has finished — not back at run 1 because earlier runs were passed with
+B's and C's rather than mastered — and the lesson intro offers **"Start from which run?"** with a
+button for every run they've reached (later ones stay locked until the one before is finished).
+Same shared code as BETA (`run-picker.js`), with the Deadline button left out. Runs still always
+start at the first character. learn.js v2.55.0, learn.html v1.3.0.
+
+**School and School BETA now differ only by the games.** Checked function by function and in the
+page markup; the new `learn-parity-test.mjs` fails if anything else drifts between them (it names
+each game-related difference and why it's allowed). (learn.js v2.47.0's header entry archived.)
+
 ## Round 164 — Wipe today
 
 **Reports → pick a student → Wipe today…** removes everything that student did **today**: today's
@@ -10765,6 +10778,38 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### versions.js v1.12.0 — archived Round 165, 8-entry budget
+
+Pushed over by v1.20.0. Verbatim.
+
+```
+// v1.12.0 — ⚠️⚠️ THE ⚠ NOTES ARE STAFF-ONLY NOW, AND THE DEFAULT IS OFF.
+//           renderBuildList(results, { notes }) — omit the option and you get
+//           NO notes. That direction is deliberate: this function has three
+//           call sites on three student-reachable surfaces (game.js, learn.js,
+//           index.html), so a caller that forgets the flag must fail toward
+//           silence, not toward a child reading "40 version entries (budget 6)"
+//           over their book. §0.-13.E's twin problem, defused by making the
+//           unsafe state the one you have to ASK for.
+//           ⚠️ IT DOES NOT GO SILENT — renderHiddenNotesLine(n) prints "n build
+//           notes — sign in as staff" and every caller ends with it. THAT IS
+//           LOAD-BEARING: Jake troubleshoots at a student's machine while
+//           signed in as nobody, and a panel that looked CLEAN when something
+//           was wrong would be a diagnostic that lies — the exact failure
+//           direction §0.-14.C is about. Hidden is fine. Absent is not.
+//           ⚠️ countBuildNotes(results) exists so a caller can add its own
+//           notes (game.js's renderer-drift line) to the same count.
+```
+
+### learn.js v2.49.0 — archived Round 165, 8-entry budget
+
+Pushed over by v2.55.0 (resume and run picker). Verbatim.
+
+```
+// v2.49.0 — Round 145: the same gated WAL recovery as game.js v3.54.0 — a teacher's
+//           correction is no longer undone by this browser's write-ahead log.
+```
 
 ### game.js v3.55.0 — archived Round 164, 8-entry budget
 
