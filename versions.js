@@ -1,5 +1,7 @@
-// versions.js v1.18.0 — reads every file's version constant out of the files as
+// versions.js v1.19.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.19.0 — Round 164: SOURCES gained day-wipe.js ("Wipe today" and the open-tab listener).
 //
 // v1.18.0 — Round 161: SOURCES gained goal-ladder.js, the one home of the
 //           class → own → none goals ladder (game.js, learn.js, learn2.js and
@@ -67,9 +69,7 @@
 //           ⚠️ countBuildNotes(results) exists so a caller can add its own
 //           notes (game.js's renderer-drift line) to the same count.
 //
-// v1.11.0 — SOURCES gained settings-panel.js (ROADMAP 0b). ⚠️ The D2 ratchet
-//           added in Round 27 caught this omission on the first test run after
-//           the module was created, which is what it is for.
+// ⚠️ v1.11.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
 // ⚠️ v1.10.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
@@ -137,6 +137,7 @@ const SOURCES = [
     { file: 'logdays.js',            pattern: /\bexport\s+const\s+LOGDAYS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'settings-panel.js',     pattern: /\bexport\s+const\s+SETTINGS_PANEL_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -176,7 +177,7 @@ const SOURCES = [
     { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 
-export const VERSIONS_VERSION = '1.18.0';
+export const VERSIONS_VERSION = '1.19.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

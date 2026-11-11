@@ -469,8 +469,8 @@ if (gameDeps && learnDeps) {
 
 // The module's own version, so a stale copy uploaded out of order is visible in
 // the test output rather than only in the footer.
-ok(mod.SESSION_LOG_VERSION === '1.7.0',
-   `session-log.js reports v1.7.0 (got ${mod.SESSION_LOG_VERSION})`);
+ok(mod.SESSION_LOG_VERSION === '1.8.0',
+   `session-log.js reports v1.8.0 (got ${mod.SESSION_LOG_VERSION})`);
 
 // ─── D. ⚠️ THE REPAIR RESYNC IS GONE, AND THIS PART NOW GUARDS ITS ABSENCE ───
 //

@@ -1,3 +1,5 @@
+// stats-wal.js v1.3.0 — Round 164: statsWalSave() refuses while day-wipe.js has locked saves
+//   (a wiped or corrected tab is about to reload — writing now would put the minutes back).
 // stats-wal.js v1.2.0 — Round 145: statsWalWouldMove() and statsWalRecoverChecked(). The
 //   recovery no longer beats a teacher's correction: see the block above statsWalSave().
 //
@@ -113,7 +115,8 @@
 // write the other's minutes, which IS §3.1. The tail is bounded by one flush
 // interval and reappears the next time that mode is opened. §3.1 was unbounded
 // and permanent.
-export const STATS_WAL_VERSION = '1.2.0';
+import { savesLocked } from './day-wipe.js';
+export const STATS_WAL_VERSION = '1.3.0';
 
 const KEY = 'ttb_statswal_v1';
 
@@ -226,6 +229,7 @@ export async function statsWalRecoverChecked(uid, stats, checkTeacherChange) {
 
 export function statsWalSave(uid, stats) {
     if (!uid || !stats) return;
+    if (savesLocked()) return;   // Round 164 — see day-wipe.js
     const merged = { ...stats };
     const prev = _read();
     // Fold in anything the OTHER page left behind, so switching between School

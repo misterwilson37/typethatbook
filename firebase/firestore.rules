@@ -1,6 +1,12 @@
 rules_version = '2';
 
-// firestore.rules v2.17.0 — TypeThatBook
+// firestore.rules v2.18.0 — TypeThatBook
+//
+// v2.18.0 — ROUND 164: staff stamping `users/{uid}.logsChangedAt` may also set
+//           `logsChangedDay` (the day the correction is to) and, for "Wipe today",
+//           `wipeAt` (server time only) and `wipeDay`. Same scope as the stamp
+//           itself. ⚠️ PASTE BEFORE USING "Wipe today" — without it the wipe's
+//           stamp is refused and an open tab never hears it (day-wipe.js).
 //
 // v2.17.0 — ⚠️ ROUND 148: a name or email a student saves on their own account must
 //           equal their sign-in token's — no renaming yourself as a classmate.
@@ -529,8 +535,17 @@ service cloud.firestore {
         // defeat later stamps.
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['logsChangedAt'])
+                 .hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay'])
             && request.resource.data.logsChangedAt == request.time
+            // v2.18.0 — the day the change is to, and "Wipe today" (day-wipe.js).
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['wipeAt'])
+                || request.resource.data.wipeAt == request.time)
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['wipeDay'])
+                || (request.resource.data.wipeDay is string
+                    && request.resource.data.wipeDay.size() == 10))
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['logsChangedDay'])
+                || (request.resource.data.logsChangedDay is string
+                    && request.resource.data.logsChangedDay.size() == 10))
             && (inMySchool(resource.data.schoolId)
                 || teachesClass(resource.data.classId)));
 

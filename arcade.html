@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- arcade.html v3.23.0 — Round 121 (Maskelyne): ⭐⭐ THE SESSION BAR, AND A
+<!-- arcade.html v3.24.0 — Round 164: ⭐ "Wipe today" reaches this page — it listens to the
+     student's own users/{uid} (day-wipe.js), refuses to save once a wipe arrives, and
+     reloads. A wiped lesson's tombstone counts as never started.
+
+     arcade.html v3.23.0 — Round 121 (Maskelyne): ⭐⭐ THE SESSION BAR, AND A
      CABINET THAT STARTS A GAME. Jake, 2026-09-14: *"we could put the 'which
      words/lessons' drop down on the arcade landing page, so they pick that once a
      session and then just pick their game."* WORDS and LEVEL move to the floor —
@@ -977,7 +981,7 @@ import { GAME_LAYOUT_VERSION } from './game-layout.js';
 // reported. A module that can silently remove a panel must be reportable from
 // the classroom. ⚠️ It reaches no Firebase, so importing it here is safe.
 import { GAME_NAMES_VERSION } from './game-names.js';
-const ARCADE_PAGE_VERSION = '3.23.0';
+const ARCADE_PAGE_VERSION = '3.24.0';
 // ⚠️⚠️ THE ARCADE IS DELIBERATELY ABSENT FROM versions.js SOURCES (Jake's
 // ruling: a draft is not a version, and while the games were inert the build
 // panel had no business fetching eight modules no student loaded). That is still
@@ -1037,7 +1041,8 @@ buildBadge();
 
 <script type="module">
 import { db, auth } from './firebase-config.js';
-import { collection, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from './read-meter.js';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion, onSnapshot } from './read-meter.js';
+import { watchAccount, savesLocked, isTombstone } from './day-wipe.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import { runPlan, gatesForRun, chunkSequence } from './run-grade.js';
 import { readWeek, localDateStr, dayLogPayloadFor } from './daylog.js';
@@ -1254,6 +1259,7 @@ let flushTimer = null;
  */
 async function flushArcadeSeconds() {
     if (!ARCADE_UID || !ARCADE_SECONDS) return;
+    if (savesLocked()) return;   // Round 164 — a wiped tab is about to reload
     const dateStr = localDateStr();
     const banked = ARCADE_SECONDS;
     try {
@@ -2613,6 +2619,20 @@ function finish(rep, r) {
  * ⚠️ FAILURE IS SILENT AND TOTAL: any error leaves MINUTES null and the game
  * simply omits the lines. Nothing here may block a student from playing.
  */
+// ⭐ Round 164 — one listener per page on the student's own users/{uid}: a
+// teacher's "Wipe today" (or a correction to today's minutes) reaches an open
+// tab in seconds. See day-wipe.js for the mechanism and its read cost.
+let _accountWatch = null;
+async function startAccountWatch(uid) {
+    if (_accountWatch && _accountWatch.uid === uid) return;
+    if (_accountWatch) _accountWatch.stop();
+    const w = watchAccount({ db, doc, onSnapshot, uid,
+                             today: () => localDateStr(),
+                             onReload: () => location.reload() });
+    _accountWatch = { uid, stop: w.stop };
+    await w.ready;
+}
+
 async function loadMinutes(user) {
     if (!user || user.isAnonymous) return;
     try {
@@ -2698,6 +2718,8 @@ function withTimeout(promise, what) {
 async function load(user) {
     // ⭐ Round 115 — the name costs no read, so it goes up before any read does.
     renderPlayer(user);
+    // ⭐ Round 164 — "Wipe today" reaches this tab too (day-wipe.js).
+    if (user && !user.isAnonymous) await startAccountWatch(user.uid);
     try {
         const lessonSnap = await withTimeout(getDocs(collection(db, 'lessons')), 'lessons');
         LESSONS = lessonSnap.docs
@@ -2707,7 +2729,8 @@ async function load(user) {
         if (user && !user.isAnonymous) {
             const pSnap = await withTimeout(
                 getDocs(collection(db, 'users', user.uid, 'lessonProgress')), 'your progress');
-            pSnap.forEach(d => { PROGRESS[d.id] = d.data(); });
+            // ⭐ Round 164 — a "Wipe today" tombstone is "never started".
+            pSnap.forEach(d => { const r = d.data(); if (!isTombstone(r)) PROGRESS[d.id] = r; });
         }
 
         // ⚠️⚠️ v3.0.0 — EVERY LESSON IS LISTED. NO LOCK, NO GATING.

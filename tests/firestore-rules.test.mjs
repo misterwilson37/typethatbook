@@ -46,7 +46,8 @@
 //
 import { initializeTestEnvironment, assertFails, assertSucceeds }
     from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, deleteDoc }
+import { doc, getDoc, setDoc, updateDoc, collection, getDocs, query, where, deleteDoc,
+         serverTimestamp }
     from 'firebase/firestore';
 import { readFileSync } from 'fs';
 import assert from 'assert';
@@ -772,5 +773,43 @@ describe('unauthenticated and role-less users', () => {
         const db = asKidEms().firestore();
         await assertFails(getDoc(doc(db, 'staff', TEACHER_EMS)));
         await assertFails(getDocs(query(collection(db, 'typing_logs'), where('schoolId', '==', EMS))));
+    });
+});
+
+// ⭐ Round 164 (rules v2.18.0) — "Wipe today". Staff stamping the change marker may
+// also name the day and the wipe, on the SERVER clock, for their own students only.
+describe('wipe today stamp (users/{uid})', () => {
+    const DAY = '2026-11-11';
+    it('a teacher may stamp a wipe on a student in their building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), logsChangedDay: DAY,
+            wipeAt: serverTimestamp(), wipeDay: DAY }));
+    });
+    it('and a plain correction may name its day', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), logsChangedDay: DAY }));
+    });
+    it('⚠️ but never a wipe stamped with a client clock', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), wipeAt: new Date('2099-01-01'), wipeDay: DAY }));
+    });
+    it('⚠️ and nothing else may ride along with it', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), wipeAt: serverTimestamp(), wipeDay: DAY,
+            classId: 'c_other' }));
+    });
+    it('⚠️ a malformed day is refused', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), wipeAt: serverTimestamp(), wipeDay: 'today' }));
+    });
+    it('⚠️ and never on a student in another building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_HMS), {
+            logsChangedAt: serverTimestamp(), wipeAt: serverTimestamp(), wipeDay: DAY }));
     });
 });

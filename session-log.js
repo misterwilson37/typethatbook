@@ -1,4 +1,7 @@
-// session-log.js v1.7.0
+// session-log.js v1.8.0
+//
+// v1.8.0 — Round 164: sessionLogPush() and sessionLogFlush() refuse while day-wipe.js has
+//          locked saves — a wiped tab must not queue or send the runs it is about to discard.
 //
 // v1.7.0 — ⚠️⚠️ THE WRITER. ROADMAP item 24. `_sessionLogFlushInner()` wrote
 //          every rollup with `addDoc()` — a RANDOM id — and cleared the local
@@ -96,10 +99,7 @@
 //          projection needs to know what is queued locally but not yet uploaded.
 //          See daylog.js projectDayTotal(). HANDOFF §0.0.
 //
-// v1.3.0 — SERIALIZED FLUSHES, closing the 2026-08-19 duplicate-session race
-//          (two flush handlers firing unawaited). Archived to CHANGELOG.md
-//          § ARCHIVED FILE HEADERS (line budget); the `_flushChain` note
-//          above `_sessionLogFlushInner` still cites it and resolves there.
+// ⚠️ v1.3.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, header budget).
 //
 // v1.2.1, v1.2.0, v1.1.0 — invariant-citation renumbering; the `continuation`
 //          exemption from the 5-second floor; and `serverAt`. ⚠️ The two of
@@ -217,7 +217,8 @@
 //     a tab close would then try to write an empty map into a timestamp field.
 //     Queued records carry `at` (a real ISO string) and nothing else time-like.
 
-export const SESSION_LOG_VERSION = '1.7.0';
+import { savesLocked } from './day-wipe.js';
+export const SESSION_LOG_VERSION = '1.8.0';
 
 const KEY = 'ttb_sessionq_v1';
 const RECORDS_PER_DOC = 200;   // firestore.rules: sprints.size() <= 200
@@ -464,6 +465,7 @@ function _prune(records) {
 // exists to fix, so an undated record is refused outright rather than guessed at.
 export function sessionLogPush(uid, record) {
     if (!uid || !record || !record.date) return false;
+    if (savesLocked()) return false;   // Round 164 — see day-wipe.js
     const seconds = Math.max(0, Math.round(record.seconds || 0));
     // ⚠️ THE FLOOR IS ABOUT UNITS, NOT ABOUT SECONDS. (v1.2.0) A standalone
     // 3-second run is noise and is refused. The 3-second TAIL of a sprint that
@@ -637,6 +639,7 @@ function _group(records) {
 let _flushChain = Promise.resolve();
 
 export function sessionLogFlush(uid, meta) {
+    if (savesLocked()) return Promise.resolve(false);   // Round 164 — see day-wipe.js
     // Both handlers re-run the inner flush regardless of whether the previous
     // one resolved or rejected — a failed flush leaves its records in the queue
     // precisely so the next attempt retries them.

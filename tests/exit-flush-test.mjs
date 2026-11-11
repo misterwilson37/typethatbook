@@ -62,6 +62,7 @@
 // builds by construction — it drives the old path deliberately, and it is the
 // only evidence that the other five parts are testing anything.
 
+import { withDayStart, isTombstone } from '../day-wipe.js';
 import { readFileSync } from 'fs';
 import { betterGrade, FIRE_GRADE } from '../run-grade.js';
 import { runScoreOf, pointsForGrade, MASTERY_POINTS } from '../lesson-gate.js';
@@ -141,6 +142,11 @@ function buildWorld({ flushFails = false, signedIn = true } = {}) {
         loadGateState: async () => {},
         cacheRead: () => (w.cache ? structuredClone(w.cache) : null),
         cacheWrite: (_k, payload) => { w.cache = structuredClone(payload); },
+        // Round 164 — day-wipe.js. The REAL snapshot helpers, a lock never set,
+        // and a fixed date: this harness is about the exit flush, not the wipe.
+        savesLocked: () => false, withDayStart, isTombstone,
+        getLocalDateStr: () => '2026-11-11',
+        deleteDoc: async () => {},
         PROGRESS_CACHE_KEY: 'p', PROGRESS_CACHE_MS: 1,
         _wal: () => { w.walWrites++; },
         // ⚠️ v2.34.0 (ROADMAP 14) — recordRunOutcome() now banks mastery points

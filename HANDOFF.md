@@ -1,6 +1,24 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-09 by Round 162, for whoever is next
+> ## ▶ START HERE — written 2026-11-11 by Round 164, for whoever is next
+>
+> **122 harnesses pass**, all of them (new: `day-wipe-test.mjs`), and all 86 rules tests
+> (`npm run test:rules` works in this container — Java is installed).
+>
+> ⚠️⚠️ **"WIPE TODAY" AND THE ACCOUNT LISTENER — READ `day-wipe.js`'s HEADER.** Every
+> student page now holds ONE Firestore listener on its own `users/{uid}`. A teacher stamp
+> (`logsChangedAt` + `logsChangedDay`, and for a wipe `wipeAt` + `wipeDay`) locks all
+> saves — `savesLocked()` is checked by flushAll/flushStats/flushArcadeSeconds/walSave/
+> learnWalSave/flushLessonProgress/saveProgress AND inside stats-wal.js and session-log.js —
+> purges local unsaved work, and reloads. ⚠️ **A NEW SAVE PATH MUST CHECK `savesLocked()`**
+> or a wiped tab's exit save puts the minutes back. ⚠️ **A NEW localStorage STORE OF
+> UNSAVED WORK MUST JOIN `LOCAL_STORES`.** ⚠️ Lesson records carry `dayStart*` (the
+> morning snapshot); every builder of a record must pass it through `withDayStart()`.
+> ⚠️ **ASK JAKE:** paste rules v2.18.0 (UPLOAD-ME.md). ROADMAP 145a is closed by this.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-09 by Round 162
 >
 > **121 harnesses pass**, all of them (new: `game-idle-time-test.mjs`).
 >

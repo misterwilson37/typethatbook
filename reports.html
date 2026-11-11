@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<!-- reports.html v1.22.0 — Round 161: the site-wide Daily/Weekly goal minutes are REMOVED
+<!-- reports.html v1.23.0 — Round 164: ⭐ WIPE TODAY… beside the student picker (any staff,
+     once a student is chosen). Removes TODAY's runs and minutes, restores every lesson the
+     student changed today to its start-of-day snapshot, then stamps users/{uid} (rules
+     v2.18.0) so an open tab throws away its unsaved time too. Every stamp now names its day.
+
+     reports.html v1.22.0 — Round 161: the site-wide Daily/Weekly goal minutes are REMOVED
      (goal-ladder.js) — goals are per class, or the student's own. The panel keeps
      "Week Starts On", and Save rewrites settings/goals with that field alone.
 
@@ -870,6 +875,11 @@
                     <button id="scope-student-delete" type="button" hidden
                             title="Permanently delete everything TypeThatBook stores about this student"
                             style="padding:4px 8px;border:1px solid var(--bad);color:var(--bad);background:transparent">Delete student…</button>
+                    <!-- ⭐ Round 164 — WIPE TODAY. Any staff member, once a real student is
+                         selected. TODAY ONLY, by construction: see wipeToday(). -->
+                    <button id="scope-student-wipe" type="button" hidden
+                            title="Remove this student's runs, minutes and lesson progress from TODAY only. Their open page resets within seconds; they can keep typing and earn time again."
+                            style="padding:4px 8px;border:1px solid var(--bad);color:var(--bad);background:transparent">Wipe today…</button>
                     <!-- ⚠️ ROADMAP 135b — SUPER-ADMIN ONLY. See openRetentionDialog(). -->
                     <button id="retention-open" type="button" hidden
                             title="Find and remove accounts with no typing in the last 24 months"
@@ -1462,7 +1472,8 @@
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
     // Saturday's typing was inside the child's number and outside the teacher's
     // report, every evening, which is when a teacher grades.
-    import { weekStartOf } from "./daylog.js";
+    import { weekStartOf, localDateStr } from "./daylog.js";
+    import { restoreForWipe, isTombstone } from "./day-wipe.js";
     // ROADMAP 15. ⚠️ THE GRADE RULE IS IMPORTED, NEVER RESTATED. Reconstructing a
     // grade needs calculateGrade(), the gates, the chunking and the continuation
     // merge — all four used to live only in learn.js, and a copy of any of them
@@ -2576,6 +2587,119 @@
         const sel = document.getElementById('scope-student');
         if (!btn || !sel) return;
         btn.hidden = !(isSuper() && sel.value && sel.value !== '__all__');
+        const wipe = document.getElementById('scope-student-wipe');
+        if (wipe) wipe.hidden = !(sel.value && sel.value !== '__all__');
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⭐ Round 164 — WIPE TODAY (day-wipe.js has the whole mechanism).
+    // ═════════════════════════════════════════════════════════════════════════
+    // Jake, 2026-11-11: catch a student cheating → remove everything they did
+    // TODAY, lessons included (*"If they felt they needed to cheat on it, they
+    // didn't learn it."*), and let them keep typing to earn it back honestly.
+    //
+    // ⚠️⚠️ TODAY ONLY, BY CONSTRUCTION. Every query is `date == today` or
+    // `dayStartDate == today`; the minutes doc is `{uid}_{today}` by id; and a
+    // lesson goes back to the snapshot its first change TODAY took. No other day
+    // is read for writing, so no other day can be touched.
+    //
+    // ⚠️ TWO PASSES AROUND THE STAMP. An open tab saves every few minutes; if one
+    // of those saves lands between our zeroing and the stamp, the second pass —
+    // three seconds after the stamp, by which time the tab has locked its saves
+    // and is reloading — removes it. A reloaded tab cannot have saved anything
+    // new in three seconds (runs save at their end; minutes every five).
+    const WIPE_TIME_FIELDS = ['seconds', 'chars', 'mistakes',
+        'secondsLibrary', 'charsLibrary', 'mistakesLibrary',
+        'secondsSchool', 'charsSchool', 'mistakesSchool',
+        'secondsArcade', 'charsArcade', 'mistakesArcade'];
+
+    async function wipeToday(uid) {
+        const day = localDateStr();
+        const got = { runs: 0, seconds: 0, lessons: 0 };
+        async function pass(first) {
+            // 1. Today's runs.
+            const ss = await getDocs(query(collection(db, 'typing_sessions'),
+                where('uid', '==', uid), where('date', '==', day)));
+            for (const d of ss.docs) {
+                const s = d.data();
+                const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+                if (!sprints.length && !s.seconds) continue;
+                if (first) got.runs += sprints.length || 1;
+                if (isSuper()) await deleteDoc(d.ref);
+                else await updateDoc(d.ref, { sprints: [], sprintCount: 0, seconds: 0,
+                                              chars: 0, mistakes: 0, wpm: 0, accuracy: 100 });
+            }
+            // 2. Today's minutes — every source's fields on today's one document.
+            const ref = doc(db, 'typing_logs', uid + '_' + day);
+            const ls = await getDoc(ref);
+            if (ls.exists()) {
+                const L = ls.data();
+                if (first) got.seconds = (L.secondsLibrary || 0) + (L.secondsSchool || 0)
+                    + (L.secondsArcade || 0) + (L.seconds || 0);
+                const zero = {};
+                for (const k of WIPE_TIME_FIELDS) if (k in L && L[k]) zero[k] = 0;
+                if (Object.keys(zero).length) await updateDoc(ref, { ...zero, lastUpdated: new Date() });
+            }
+            // 3. Lessons changed today → back to how they stood this morning.
+            const ps = await getDocs(query(collection(db, 'users', uid, 'lessonProgress'),
+                where('dayStartDate', '==', day)));
+            for (const d of ps.docs) {
+                const back = restoreForWipe(d.data(), d.id, day);
+                if (!back) continue;
+                if (first) got.lessons++;
+                await setDoc(d.ref, back);   // a full replace, never a merge
+            }
+        }
+        await pass(true);
+        // The signal. Rules v2.18.0. An open tab hears it in a second or two.
+        try {
+            await updateDoc(doc(db, 'users', uid), {
+                logsChangedAt: serverTimestamp(), logsChangedDay: day,
+                wipeAt: serverTimestamp(), wipeDay: day,
+            });
+        } catch (e) {
+            got.noSignal = true;
+            console.warn('[wipe] stamp refused — are rules v2.18.0 published?', e);
+            return got;
+        }
+        await new Promise(r => setTimeout(r, 3000));
+        await pass(false);
+        return got;
+    }
+
+    async function openWipeDialog(uid) {
+        if (!uid || uid === '__all__') return;
+        const sel = document.getElementById('scope-student');
+        const name = (sel && sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || 'this student';
+        if (!await ttbConfirm(
+            'Wipe today for ' + name + '?\n\n'
+            + 'Removes TODAY\u2019s runs and minutes, and puts every lesson they worked on today '
+            + 'back the way it was this morning \u2014 including any they passed. Nothing from '
+            + 'any other day is touched.\n\n'
+            + 'If their page is open, it resets within a few seconds, including time it had not '
+            + 'saved yet. They can keep typing and earn time again.',
+            { title: 'Wipe today', ok: 'Wipe today', danger: true })) return;
+        const btn = document.getElementById('scope-student-wipe');
+        if (btn) { btn.disabled = true; btn.textContent = 'Wiping\u2026'; }
+        try {
+            const g = await wipeToday(uid);
+            if (g.noSignal) {
+                ttbNotice('Removed today\u2019s saved runs, minutes and lessons for ' + name + ', but could '
+                    + 'NOT signal their open page \u2014 the Firestore rules need updating (v2.18.0). '
+                    + 'Until then, have them reload the page.', { bad: true });
+                return;
+            }
+            ttbNotice('Wiped today for ' + name + ': ' + g.runs + ' run' + (g.runs === 1 ? '' : 's')
+                + ', ' + Math.round(g.seconds / 60) + ' saved minute' + (Math.round(g.seconds / 60) === 1 ? '' : 's')
+                + ', ' + g.lessons + ' lesson' + (g.lessons === 1 ? '' : 's') + ' reset. '
+                + 'Their open page clears its unsaved time too. Re-run the report to see the new totals.');
+        } catch (e) {
+            console.error('Wipe today failed:', e);
+            ttbNotice('Could not finish the wipe: ' + (e.message || e)
+                + '. Nothing from other days was touched; try again.', { bad: true });
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Wipe today\u2026'; }
+        }
     }
 
     // PHASE 1 — READS ONLY. Nothing in this function writes.
@@ -3230,6 +3354,8 @@
 
     document.getElementById('scope-student-delete')?.addEventListener('click', () =>
         openPurgeDialog(document.getElementById('scope-student').value));
+    document.getElementById('scope-student-wipe')?.addEventListener('click', () =>
+        openWipeDialog(document.getElementById('scope-student').value));
     document.getElementById('scope-student')?.addEventListener('change', updatePurgeButton);
     // ⭐ Round 148: an empty picker fills from today's remembered list the moment it's opened.
     for (const ev of ['focus', 'mousedown'])
@@ -4708,7 +4834,7 @@
                 // ⚠️⚠️ ROUND 145: NOT QUITE "FULL STOP". The server was right; the
                 // student's own write-ahead log then put the old number back. The
                 // stamp lets their browser know to trust this correction.
-                await stampLogsChanged(uidOfLogDoc(log.docId));
+                await stampLogsChanged(uidOfLogDoc(log.docId), log.date);
 
                 const oldSeconds = log.seconds;
                 log.seconds = newSeconds;
@@ -5064,6 +5190,7 @@
         let fireTotal = 0, reconTotal = 0;
         snap.forEach(d => {
             const r = d.data();
+            if (isTombstone(r)) return;   // Round 164 — a wiped lesson is "never started"
             const grades = r.runGrades || {};
             const from   = r.runGradesFrom || {};
             const fires  = r.runFires || {};
@@ -5647,7 +5774,7 @@
             // ⚠️ v2.16.0 — NO MIRROR WRITE, same as the manual save above. A
             // rebuild lands on the document the student's HUD reads.
             // ⚠️⚠️ ROUND 145: and stamps it, for the same reason as the SAVE above.
-            await stampLogsChanged(uid);
+            await stampLogsChanged(uid, date);
 
             const oldSeconds = log.seconds;
             log.seconds = totalSec;
@@ -5861,10 +5988,21 @@
     // larger of its own copy and the server's for the whole week.
     // ⚠️ A FAILED STAMP DOES NOT UNDO THE SAVE. The day is corrected either way;
     // the notice says the student's own screen may lag until they next load.
-    async function stampLogsChanged(uid) {
+    async function stampLogsChanged(uid, day) {
         if (!uid) return;
         try {
-            await updateDoc(doc(db, 'users', uid), { logsChangedAt: serverTimestamp() });
+            // ⭐ Round 164 — WHICH day changed, so a student's OPEN tab reloads only
+            // when the correction is to today (day-wipe.js accountAction()).
+            try {
+                await updateDoc(doc(db, 'users', uid), day
+                    ? { logsChangedAt: serverTimestamp(), logsChangedDay: day }
+                    : { logsChangedAt: serverTimestamp() });
+            } catch (e) {
+                // ⚠️ RULES OLDER THAN v2.18.0 refuse `logsChangedDay`. Fall back to
+                // the bare stamp, which every rules version since v2.16.0 accepts.
+                if (!day) throw e;
+                await updateDoc(doc(db, 'users', uid), { logsChangedAt: serverTimestamp() });
+            }
         } catch (e) {
             console.warn('[stamp] could not mark the change for the student\u2019s screen', e);
             ttbNotice('Saved. The student\u2019s own screen may keep showing the old total until '

@@ -23,6 +23,8 @@ async function exercise(file, fnName, slotName, innerName, callers) {
   const factory = new Function(`
     let ${slotName} = null;
     const __track = arguments[0];
+    // Round 164 — day-wipe.js's save lock; never set in this harness.
+    const savesLocked = () => false;
     async function ${innerName}(reason, final) { await __track(); }
     ${body}
     return ${fnName};

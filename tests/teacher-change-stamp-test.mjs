@@ -1,4 +1,8 @@
-// teacher-change-stamp-test.mjs v1.0.0 — Round 145.
+// teacher-change-stamp-test.mjs v1.1.0 — Round 145.
+//
+// v1.1.0 — Round 164: the stamp may carry logsChangedDay and, for "Wipe today",
+//   wipeAt (server clock only) and wipeDay — nothing else (rules v2.18.0). Reports
+//   passes the day to stampLogsChanged().
 //
 // ⚠️⚠️⚠️ A TEACHER'S CORRECTION MUST SURVIVE THE STUDENT'S NEXT PAGE LOAD.
 //
@@ -36,9 +40,10 @@ const server = () => ({ lastDate: '2026-09-24', weekStart: WEEK, secondsToday: 5
 console.log('\nA — ⚠️⚠️ THE RULES LET A TEACHER STAMP A CHANGE, AND ONLY THAT');
 {
     const r = read('firebase/firestore.rules').replace(/^\s*\/\/.*$/gm, '');
-    const i = r.indexOf("hasOnly(['logsChangedAt'])");
+    const i = r.indexOf("hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay'])");
     const clause = i > 0 ? r.slice(r.lastIndexOf('|| (isStaff()', i), r.indexOf(';', i) + 1) : '';
-    ok(i > 0, 'A1 staff may update users/{uid} with logsChangedAt as the ONLY changed field');
+    ok(i > 0, 'A1 staff may update users/{uid} with logsChangedAt and only the day / wipe fields beside it');
+    ok(/wipeAt == request\.time/.test(clause), '⚠️ A4 a wipe is stamped on the SERVER clock too');
     ok(/logsChangedAt == request\.time/.test(clause), '⚠️ A2 set to the SERVER clock only — never a future date that defeats later stamps');
     ok(/inMySchool\(resource\.data\.schoolId\)[\s\S]*teachesClass\(resource\.data\.classId\)/.test(clause),
        'A3 and only for a student in the teacher\u2019s school or class');
@@ -129,8 +134,8 @@ console.log('\nE — YOUR SIDE: EVERY CORRECTION IS STAMPED');
     const r = read('reports.html');
     const save = r.indexOf('secondsLibrary: deleteField(), charsLibrary: deleteField()');
     const recalc = r.indexOf('...recalcPayload,');
-    ok(save > 0 && r.indexOf('await stampLogsChanged(uidOfLogDoc(log.docId));', save) > save, 'E1 the SAVE button stamps after writing');
-    ok(recalc > 0 && r.indexOf('await stampLogsChanged(uid);', recalc) > recalc,
+    ok(save > 0 && r.indexOf('await stampLogsChanged(uidOfLogDoc(log.docId), log.date);', save) > save, 'E1 the SAVE button stamps after writing');
+    ok(recalc > 0 && r.indexOf('await stampLogsChanged(uid, date);', recalc) > recalc,
        'E2 recalculation stamps after writing — and run-delete, session-delete and \u27f3 all go through it');
     ok(/logsChangedAt: serverTimestamp\(\)/.test(r), 'E3 with the server\u2019s clock');
     const uidOf = (docId) => String(docId || '').slice(0, String(docId || '').lastIndexOf('_'));

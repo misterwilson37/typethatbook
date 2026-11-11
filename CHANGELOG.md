@@ -1,5 +1,36 @@
 # CHANGELOG — TypeThatBook
 
+## Round 164 — Wipe today
+
+**Reports → pick a student → Wipe today…** removes everything that student did **today**: today's
+runs, today's minutes (Library, School and Arcade), and every lesson they worked on today goes back
+to how it stood that morning — **passes included** (Jake: *"If they felt they needed to cheat on it,
+they didn't learn it."*). Nothing from any other day is read for writing or touched.
+
+**And the student's open page hears it in a second or two.** Every student page now listens to the
+student's own account record (`day-wipe.js`). When the wipe's stamp arrives the page locks all its
+saves, throws away the time and lesson progress it had not saved yet, and reloads — so the
+"7 minutes in, 3 saved" case loses all 7. The student can keep typing and earn time honestly. A page
+that was closed gets the same clean-up at its next sign-in, before anything local is replayed.
+
+- **ROADMAP 145a closed:** the same listener carries an ordinary correction. Delete a run from
+  *today* and an open tab reloads instead of writing its old total back five minutes later. A
+  correction to another day leaves a student typing today alone.
+- **How "this morning" is known:** each lesson record's first change of the day now carries a
+  snapshot of how it stood before (`dayStartDate`, `dayStartAt`, `dayStartJson`), inside the write the
+  page was already making — no extra writes. A lesson first touched today is restored to a
+  "never started" tombstone, which the student's page deletes.
+- **Reads:** one per open page when it opens, plus one when the account record changes (rare).
+  A wipe itself costs Reports roughly today's runs + 1 + the lessons changed today, twice.
+- **⚠️ Rules v2.18.0 must be pasted** (staff may set `logsChangedDay`, `wipeAt` on the server clock,
+  `wipeDay`). Until then the wipe still clears what's saved but cannot signal an open page, and
+  says so. New emulator tests for the clause; all 86 rules tests pass.
+- Not included: leaderboard scores, and a Library book position.
+- day-wipe.js v1.0.0 (new); game.js v3.63.0, learn.js v2.54.0, learn2.js v0.14.0-staging,
+  arcade.html v3.24.0, reports.html v1.23.0, stats-wal.js v1.3.0, session-log.js v1.8.0,
+  versions.js v1.19.0, firestore.rules v2.18.0. New harness `day-wipe-test.mjs` (56 checks; the
+  save lock and the snapshot each fail it when removed).
+
 ## Round 163 — mashing doesn't count either
 
 **In every game, a run of wrong keys stops the day's minutes until the next correct key.** Jake:
@@ -10734,6 +10765,60 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.55.0 — archived Round 164, 8-entry budget
+
+Pushed over by v3.63.0 (Wipe today). Verbatim.
+
+```
+// v3.55.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Chapters now records the date
+//           its best was set, like Speed and Streak; a date is NEVER written blank, so an
+//           open tab cannot erase one stamped by reports' one-time backfill; and each
+//           board row shows the admin alone when its score was set, and whether it is a
+//           kept record from a student who has left. See tests/leaderboard-keep-test.mjs.
+```
+
+### learn.js v2.48.0 — archived Round 164, 8-entry budget
+
+Pushed over by v2.54.0 (Wipe today). Verbatim.
+
+```
+// v2.48.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. Mirrors
+//           game.js v3.50.0 exactly. `goals.weekStartDay` (0=Sun…6=Sat,
+//           default 6) resolves inside the SAME loadGoals() read as
+//           dailySeconds/weeklySeconds: class doc → settings/goals → 6, at
+//           the cost of one extra document ONLY in the new middle case (a
+//           class exists but doesn't override the anchor), once per student
+//           per LEARN_GOALS_MS window. `getWeekStart()` passes it to
+//           daylog.js's weekStartOf(); every readWeek() call site now sends
+//           `weekStartDay: goals.weekStartDay`. ⚠️ LEARN_GOALS_KEY BUMPED
+//           v1 → v2 — SAME KEY game.js WRITES, so a bare bump here without the
+//           matching one there would make each page invalidate the other's
+//           cache on every load. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK MOVES
+//           ITS CELEBRATION-LATCH KEY, same as game.js's note — harmless, not
+//           guarded, said here so it isn't rediscovered as a bug.
+```
+
+### versions.js v1.11.0 — archived Round 164, 8-entry budget
+
+Pushed over by v1.19.0 (Wipe today). Verbatim.
+
+```
+// v1.11.0 — SOURCES gained settings-panel.js (ROADMAP 0b). ⚠️ The D2 ratchet
+//           added in Round 27 caught this omission on the first test run after
+//           the module was created, which is what it is for.
+```
+
+### session-log.js v1.3.0 — archived Round 164, header line budget
+
+Pushed over by v1.8.0 (the day-wipe save lock). Verbatim.
+
+```
+// v1.3.0 — SERIALIZED FLUSHES, closing the 2026-08-19 duplicate-session race
+//          (two flush handlers firing unawaited). Archived to CHANGELOG.md
+//          § ARCHIVED FILE HEADERS (line budget); the `_flushChain` note
+//          above `_sessionLogFlushInner` still cites it and resolves there.
+```
 
 ### game.js v3.54.0 — archived Round 161, 8-entry budget
 

@@ -1,6 +1,8 @@
 # TYPETHATBOOK — ROADMAP
 
-### 145a — ⚠️⚠️ AN OPEN TAB CAN STILL OVERWRITE A SAME-DAY CORRECTION
+### 145a — ✅ CLOSED (Round 164). Open tabs listen to users/{uid} and reload on a same-day correction — see day-wipe.js. Original text below.
+
+#### ~~145a — AN OPEN TAB CAN STILL OVERWRITE A SAME-DAY CORRECTION~~
 
 `flushAll` writes `statsData.secondsToday` into today's record as an absolute
 number. A student with the page OPEN while a teacher deletes today's minutes still

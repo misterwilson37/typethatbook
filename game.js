@@ -1,4 +1,11 @@
-// game.js v3.62.0
+// game.js v3.63.0
+//
+// v3.63.0 — Round 164: ⭐ "WIPE TODAY" AND ROADMAP 145a. The page listens to the student's
+//           own users/{uid} (day-wipe.js watchAccount(), ~1 read per page). A teacher's
+//           wipe — or a correction to TODAY's minutes — locks every save (flushAll,
+//           walSave, and stats-wal/session-log via savesLocked()) and reloads, so the
+//           in-memory total can no longer be written back over the teacher's change. A
+//           wipe this browser missed while closed is purged at sign-in, before any replay.
 //
 // v3.62.0 — Round 161: ⭐ A TARGET EXISTS ONLY WHEN SOMEONE SET ONE (goal-ladder.js).
 //           Minutes: class → the student's own (⚙ Settings → Goals, saved on
@@ -67,11 +74,7 @@
 //           and warns once per kind of problem with the exact character's code point.
 //           See tests/hand-guide-test.mjs.
 //
-// v3.55.0 — Round 146: ⭐ INITIALS OUTLIVE THE STUDENT. Chapters now records the date
-//           its best was set, like Speed and Streak; a date is NEVER written blank, so an
-//           open tab cannot erase one stamped by reports' one-time backfill; and each
-//           board row shows the admin alone when its score was set, and whether it is a
-//           kept record from a student who has left. See tests/leaderboard-keep-test.mjs.
+// ⚠️ v3.55.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
 // ⚠️ v3.54.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
@@ -141,7 +144,8 @@ import { readOneDeployedVersion, readDeployedVersions, renderBuildList,
 // this file, and ⚠️ it must not be: a serverTimestamp() sentinel inside a
 // setDoc(merge:true) on typing_logs would be a second
 // dating scheme on the documents Round 12 spent a day reconciling.
-import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion } from "./read-meter.js";
+import { doc, getDoc, setDoc, deleteDoc, getDocs, collection, addDoc, query, orderBy, limit, where, updateDoc, getCountFromServer, serverTimestamp, arrayUnion, onSnapshot } from "./read-meter.js";
+import { watchAccount, savesLocked } from "./day-wipe.js";
 import { noteDay, ensureSince, reconcile } from "./logdays.js";
 import {
     onAuthStateChanged,
@@ -158,7 +162,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.62.0";
+const VERSION = "3.63.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -1610,6 +1614,8 @@ async function init() {
             // Skip full reload if login came from anon prompt (we handle it ourselves)
             if (anonLoginInProgress) return;
             try {
+                // ⭐ Round 164 — before ANY local replay (day-wipe.js).
+                if (!user.isAnonymous) await startAccountWatch(user.uid);
                 await loadBookMetadata();
                 // Order matters. loadProfileInfo() is the session's single read
                 // of profile/info; resolveViewMode() consumes it and settles
@@ -2095,6 +2101,20 @@ async function retroactiveSaveGuestSession(user) {
         console.warn('Guest session merge failed:', e);
         return false;
     }
+}
+
+// ⭐ Round 164 — one listener per page on the student's own users/{uid}: a
+// teacher's "Wipe today" (or a correction to today's minutes) reaches an open
+// tab in seconds. See day-wipe.js for the mechanism and its read cost.
+let _accountWatch = null;
+async function startAccountWatch(uid) {
+    if (_accountWatch && _accountWatch.uid === uid) return;
+    if (_accountWatch) _accountWatch.stop();
+    const w = watchAccount({ db, doc, onSnapshot, uid,
+                             today: () => getLocalDateStr(new Date()),
+                             onReload: () => location.reload() });
+    _accountWatch = { uid, stop: w.stop };
+    await w.ready;
 }
 
 function getLocalDateStr(date) {
@@ -4846,6 +4866,7 @@ function walSnapshot() {
 
 function walSave() {
     if (!currentUser || currentUser.isAnonymous) return;
+    if (savesLocked()) return;   // Round 164 — see day-wipe.js
     // ⚠️ THE COUNTERS GO SOMEWHERE ELSE NOW, AND THAT IS THE v3.21.0 FIX.
     //
     // This slot is book-scoped: walRecover() declines it when the bookId does
@@ -4934,6 +4955,9 @@ let _flushInFlight = null;
 // the thing to go and find, not the resync.
 
 async function flushAll(reason, final = false) {
+    // ⚠️⚠️ Round 164 — A WIPED (OR TEACHER-CORRECTED) TAB WRITES NOTHING ON ITS WAY
+    // OUT. Its in-memory totals are exactly what the teacher removed.
+    if (savesLocked()) return;
     while (_flushInFlight) {
         await _flushInFlight.catch(() => {});
     }

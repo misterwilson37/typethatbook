@@ -1,4 +1,11 @@
-// learn.js v2.53.0
+// learn.js v2.54.0
+//
+// v2.54.0 — Round 164: ⭐ "WIPE TODAY" (day-wipe.js). Listens to users/{uid} before any
+//           local replay; a live wipe or today-correction locks every save and reloads.
+//           ⭐ Each lesson record's first change of the day carries a snapshot of how it
+//           stood that morning (dayStartDate/At/Json, in the same write) — what the wipe
+//           restores, passes included. A wipe tombstone loads as "never started" and is
+//           deleted by the student's own page.
 //
 // v2.53.0 — Round 161: ⭐ A TARGET EXISTS ONLY WHEN SOMEONE SET ONE (goal-ladder.js).
 //           Minutes come from the class, else the student's own goals (⚙ Settings →
@@ -46,20 +53,7 @@
 // v2.49.0 — Round 145: the same gated WAL recovery as game.js v3.54.0 — a teacher's
 //           correction is no longer undone by this browser's write-ahead log.
 //
-// v2.48.0 — ⭐ ROADMAP 58 STEP TWO: A CLASS CAN CHOOSE ITS OWN WEEK. Mirrors
-//           game.js v3.50.0 exactly. `goals.weekStartDay` (0=Sun…6=Sat,
-//           default 6) resolves inside the SAME loadGoals() read as
-//           dailySeconds/weeklySeconds: class doc → settings/goals → 6, at
-//           the cost of one extra document ONLY in the new middle case (a
-//           class exists but doesn't override the anchor), once per student
-//           per LEARN_GOALS_MS window. `getWeekStart()` passes it to
-//           daylog.js's weekStartOf(); every readWeek() call site now sends
-//           `weekStartDay: goals.weekStartDay`. ⚠️ LEARN_GOALS_KEY BUMPED
-//           v1 → v2 — SAME KEY game.js WRITES, so a bare bump here without the
-//           matching one there would make each page invalidate the other's
-//           cache on every load. ⚠️ CHANGING A CLASS'S ANCHOR MID-WEEK MOVES
-//           ITS CELEBRATION-LATCH KEY, same as game.js's note — harmless, not
-//           guarded, said here so it isn't rediscovered as a bug.
+// ⚠️ v2.48.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
 // ⚠️ v2.47.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
@@ -153,8 +147,9 @@ import {
     // for it in flushStats(): a sentinel inside the typing_logs or
     // typing_logs merge writes would be a second dating scheme on the
     // two documents Round 12 spent a day getting to agree.
-    serverTimestamp
+    serverTimestamp, onSnapshot
 } from "./read-meter.js";
+import { watchAccount, savesLocked, withDayStart, isTombstone } from "./day-wipe.js";
 import {
     onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -174,7 +169,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.53.0";
+const LEARN_VERSION = "2.54.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -897,6 +892,10 @@ onAuthStateChanged(auth, async user => {
         // than the guard it replaces. See the comment on _lessonsInFlight.
         await loadLessons();
         await retroactiveSaveAnonSession(user);
+        // ⭐ Round 164 — LISTEN FOR "WIPE TODAY" BEFORE ANYTHING LOCAL IS REPLAYED.
+        // The first snapshot purges a wipe this browser has not seen; later ones
+        // reload the page. day-wipe.js.
+        if (!user.isAnonymous) await startAccountWatch(user.uid);
         await loadUserProgress();
         await loadUserStats();
         walRecoverLearn();   // replay unflushed lesson time from a dead session
@@ -1545,7 +1544,17 @@ async function loadUserProgress() {
 
     try {
         const snap = await getDocs(collection(db, 'users', currentUser.uid, 'lessonProgress'));
-        snap.forEach(d => { userProgress[d.id] = d.data(); });
+        snap.forEach(d => {
+            const rec = d.data();
+            // ⭐ Round 164 — a "Wipe today" TOMBSTONE means "never started". Staff
+            // may write lessonProgress but not delete it, so the student's own
+            // page removes it here, once.
+            if (isTombstone(rec)) {
+                deleteDoc(doc(db, 'users', currentUser.uid, 'lessonProgress', d.id)).catch(() => {});
+                return;
+            }
+            userProgress[d.id] = rec;
+        });
         // ⚠️ SET ONLY HERE, AFTER THE READ RESOLVED. The catch below deliberately
         // leaves it null: a failed read means the empty map in memory is
         // ignorance, not fact, and nothing may persist it.
@@ -4053,6 +4062,10 @@ function recordRunOutcome(runIdx, grade, advanced) {
         timeSpentSeconds: (prev.timeSpentSeconds || 0) + stepSeconds,
     });
 
+    // ⭐ Round 164 — the start-of-today snapshot that "Wipe today" restores
+    // (day-wipe.js). `prev` is the record before this run; it rides in the same
+    // write, no extra one.
+    Object.assign(userProgress[id], withDayStart(prev, {}, getLocalDateStr(new Date())));
     pendingProgress.add(id);
     learnDirty = true;
     learnWalSave();
@@ -4060,6 +4073,7 @@ function recordRunOutcome(runIdx, grade, advanced) {
 
 async function flushLessonProgress() {
     if (!currentUser || pendingProgress.size === 0) return true;
+    if (savesLocked()) return false;   // Round 164 — a wiped tab is about to reload
     let ok = true;
     for (const id of Array.from(pendingProgress)) {
         const rec = userProgress[id];
@@ -4179,8 +4193,22 @@ async function stampLastLockDay() {
     } catch (e) { console.warn('[TTB] lock stamp not written:', e); }
 }
 
+// ⭐ Round 164 — one listener per page on the student's own users/{uid}. See
+// day-wipe.js for the whole mechanism and its read cost (about one per page).
+let _accountWatch = null;
+async function startAccountWatch(uid) {
+    if (_accountWatch && _accountWatch.uid === uid) return;
+    if (_accountWatch) _accountWatch.stop();
+    const w = watchAccount({ db, doc, onSnapshot, uid,
+                             today: () => getLocalDateStr(new Date()),
+                             onReload: () => location.reload() });
+    _accountWatch = { uid, stop: w.stop };
+    await w.ready;
+}
+
 async function saveProgress(passed, wpm, acc, grade) {
     if (!currentUser || !currentLesson) return;
+    if (savesLocked()) return;   // Round 164 — a wiped tab is about to reload
     // ⚠️ ROADMAP 23 — the second of the two writers. saveProgress() marks the
     // WHOLE LESSON passed, which is the more damaging of the two if the run list
     // it was reached through did not belong to this lesson (see §0.-31.N: a
@@ -4255,6 +4283,8 @@ async function saveProgress(passed, wpm, acc, grade) {
     // with the lesson left in pendingProgress (and the WAL) until the write
     // lands — so a failed or unfinished write is retried by the normal flush
     // with passed:true in it instead of being lost.
+    // ⭐ Round 164 — start-of-today snapshot, see recordRunOutcome().
+    Object.assign(record, withDayStart(prev, {}, getLocalDateStr(new Date())));
     const lessonId = currentLesson.id;
     userProgress[lessonId] = record;
     pendingProgress.add(lessonId);
@@ -5298,6 +5328,7 @@ let learnStatsDocDirty = false;
 
 function learnWalSave() {
     if (!currentUser) return;
+    if (savesLocked()) return;   // Round 164 — see day-wipe.js
     // The page-agnostic half goes to the shared WAL so game.js can replay it.
     // This one keeps the lesson-scoped half (queued run progress), which means
     // nothing to the Library page.
@@ -5408,6 +5439,9 @@ let _learnFlushInFlight = null;
 // second copy of the numbers has returned; go and find that instead.
 
 async function flushStats(reason, final = false) {
+    // ⚠️⚠️ Round 164 — A WIPED (OR TEACHER-CORRECTED) TAB WRITES NOTHING ON ITS WAY
+    // OUT. Its in-memory totals are exactly what the teacher removed.
+    if (savesLocked()) return;
     while (_learnFlushInFlight) {
         await _learnFlushInFlight.catch(() => {});
     }
