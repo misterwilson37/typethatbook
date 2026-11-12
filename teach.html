@@ -91,6 +91,8 @@
                  background: var(--surface); }
         #manage-tabs a { padding: 6px 12px; border-radius: 5px; color: var(--ink-dim); }
         #manage-tabs a.on { background: var(--surface-2); color: var(--ink-bright); }
+        #reads-panel { position: fixed; right: 16px; top: 52px; z-index: 20; max-width: 560px; width: calc(100% - 32px);
+                       max-height: 70vh; overflow: auto; font-size: .82rem; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
     </style>
 </head>
 <body>
@@ -105,11 +107,12 @@
         <input id="find" class="hidden" list="find-list" placeholder="Find a student…" autocomplete="off">
         <datalist id="find-list"></datalist>
         <div class="spacer"></div>
-        <div class="meta"><span id="who"></span> · reads: <span id="reads">0</span> ·
+        <div class="meta"><span id="who"></span> · <a href="#" id="reads-link" title="What the reads went to">reads: <span id="reads">0</span></a> ·
             <a href="reports.html">Old Reports</a> · <a href="admin.html">Admin</a> ·
             <a href="./privacy.html">Privacy &amp; Data Policy</a><!-- COPPA 312.4(d): linked wherever sign-in collects information. --></div>
     </header>
 
+    <div id="reads-panel" class="card hidden"></div>
     <main>
         <div id="gate" class="gate">
             <p id="gate-msg">Checking your account…</p>

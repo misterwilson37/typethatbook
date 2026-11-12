@@ -84,7 +84,7 @@ export async function updateDoc(ref, data) { window.__writes.push({ op: 'update'
   if (!store.has(ref.path)) throw new Error('no doc'); store.set(ref.path, apply(store.get(ref.path), data)); }
 export async function deleteDoc(ref) { window.__writes.push({ op: 'delete', path: ref.path }); store.delete(ref.path); }
 export function onSnapshot() { return () => {}; }
-export const ttbMeter = { totals: () => ({ reads }) };
+export const ttbMeter = { totals: () => ({ reads, writes: window.__writes.length, byPath: [{ where: 'typing_logs', reads, writes: 0, calls: 1 }] }), day: () => ({ reads: reads + 100 }) };
 window.__writes = []; window.__store = store;
 `;
 }
@@ -189,6 +189,10 @@ await page.click('#nav-tools');
 await page.waitForSelector('#view-tools:not(.hidden)');
 check((await page.getAttribute('#tools-frame', 'src')) === 'reports.html?embed=1', 'School tools frames reports.html?embed=1');
 const reads = await page.evaluate(() => document.getElementById('reads').textContent);
+await page.click('#reads-link');
+const rp = await page.innerText('#reads-panel');
+check(/Reads on this page since it opened/.test(rp) && /day records/.test(rp) && /free 50,000/.test(rp),
+      'clicking "reads" explains them: by kind, the day\'s browser total, against the free allowance');
 check(Number(reads) > 0, 'the footer counts this page\'s reads (' + reads + ')');
 check(!errors.length, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
 console.log(results.join('\n'));

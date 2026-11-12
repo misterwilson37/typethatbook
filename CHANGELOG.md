@@ -1,6 +1,11 @@
 # CHANGELOG — TypeThatBook
 
-## Round 169 — "robinguessed"
+## Round 169 — "robinguessed" (and what the reads went to)
+
+**Teach's "reads" counter is clickable** (teach.js v0.4.0): what this page's reads went to (day
+records, run records, rosters, lesson progress…), this browser's total for the day across every page,
+and that as a share of Firestore's free 50,000 a day. Jake: *"I'm at 1004 reads. I don't have a ton
+of context for how many that really is."*
 
 **The game at the end of a BETA lesson no longer merges words.** Jake saw a student asked to type
 *"robinguessed"*; the lesson says *"robin guessed the garden…"*. A long step is cut into runs at a

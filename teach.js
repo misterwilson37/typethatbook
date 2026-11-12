@@ -1,3 +1,5 @@
+// teach.js v0.4.0 — Round 169: click "reads" for what they went to, the browser's day total, and
+// that against Firestore's free allowance (read-meter.js already kept the breakdown).
 // teach.js v0.3.0 — Round 168 (stage 2): MANAGE and SCHOOL TOOLS — Admin's tabs (students & CSV
 // import, classes, staff, books, lessons) and Reports' school-wide tools, framed in embed mode so
 // every staff task is reachable from Teach; links from the class and student pages.
@@ -43,7 +45,7 @@ import { formatTime, datesInRange, rangePreset, dayRow, idleSuspect, rollUp, toC
     from './teach-data.js';
 import { isTombstone } from './day-wipe.js';
 
-export const TEACH_VERSION = '0.3.0';
+export const TEACH_VERSION = '0.4.0';
 
 const FS = { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc,
              deleteField, serverTimestamp };
@@ -112,6 +114,37 @@ $('find').addEventListener('change', () => {
 
 // ─── reads counter ───────────────────────────────────────────────────────────
 setInterval(() => { try { $('reads').textContent = ttbMeter.totals().reads; } catch (_) {} }, 1500);
+// ⭐ Round 169 — WHAT THE READS WENT TO. Jake: *"I'm at 1004 reads. I don't have a ton of context
+// for how many that really is."* read-meter.js already keeps the breakdown; this shows it, plus
+// this browser's total for the day across every TypeThatBook page (frames included), and what
+// that is against Firestore's free daily allowance.
+$('reads-link').onclick = (e) => {
+    e.preventDefault();
+    const p = $('reads-panel');
+    if (!p.classList.contains('hidden')) { p.classList.add('hidden'); return; }
+    let t, day;
+    try { t = ttbMeter.totals(); day = ttbMeter.day(); } catch (_) { return; }
+    const label = (w) => ({
+        'typing_logs': 'day records (time per student per day)',
+        'typing_sessions': 'run records',
+        'users': 'student accounts / rosters',
+        'users/*/lessonProgress': 'lesson progress',
+        'classes': 'classes', 'schools': 'schools', 'lessons': 'lesson definitions',
+        'staff': 'your staff record', 'settings': 'settings',
+    }[w.replace(/\/\*$/, '')] || w);
+    const rowsHtml = (list) => list.filter(r => r.reads || r.writes).slice(0, 12).map(r =>
+        `<tr><td>${esc(label(r.where))}</td><td class="num">${r.reads}</td><td class="num">${r.writes}</td></tr>`).join('');
+    const dayReads = day && day.reads ? day.reads : t.reads;
+    p.innerHTML = `<b>Reads on this page since it opened: ${t.reads}</b> (writes: ${t.writes})
+        <table><thead><tr><th>What</th><th class="num">Reads</th><th class="num">Writes</th></tr></thead>
+        <tbody>${rowsHtml(t.byPath)}</tbody></table>
+        <div class="hint" style="margin-top:8px">Today in this browser, every TypeThatBook page together: <b>${dayReads}</b> reads
+        — ${(dayReads / 500).toFixed(1)}% of Firestore's free 50,000 a day (the allowance covers the whole school,
+        students included). Beyond the free allowance, reads cost cents per hundred thousand.</div>
+        <div class="bar"><button id="reads-close">Close</button></div>`;
+    p.classList.remove('hidden');
+    $('reads-close').onclick = () => p.classList.add('hidden');
+};
 
 // ─── sign-in ─────────────────────────────────────────────────────────────────
 $('login-btn').onclick = async () => {
