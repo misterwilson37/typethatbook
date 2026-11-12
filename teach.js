@@ -1,3 +1,6 @@
+// teach.js v0.3.0 — Round 168 (stage 2): MANAGE and SCHOOL TOOLS — Admin's tabs (students & CSV
+// import, classes, staff, books, lessons) and Reports' school-wide tools, framed in embed mode so
+// every staff task is reachable from Teach; links from the class and student pages.
 // teach.js v0.2.0 — Round 168: the student page EDITS — Delete a whole run (time AND lesson
 // credit, lesson-undo.js), set a day's time, Clear mastery; sign-in claims a pre-authorised role;
 // a banner points to Reports for the one-time school-consent confirmation.
@@ -40,7 +43,7 @@ import { formatTime, datesInRange, rangePreset, dayRow, idleSuspect, rollUp, toC
     from './teach-data.js';
 import { isTombstone } from './day-wipe.js';
 
-export const TEACH_VERSION = '0.2.0';
+export const TEACH_VERSION = '0.3.0';
 
 const FS = { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc,
              deleteField, serverTimestamp };
@@ -175,11 +178,35 @@ function route() {
     if (!me.role) return;
     const parts = (location.hash || '#/today').replace(/^#\/?/, '').split('/');
     const view = parts[0] || 'today';
-    for (const v of ['today', 'class', 'student']) $('view-' + v).classList.toggle('hidden', v !== view);
+    for (const v of ['today', 'class', 'student', 'manage', 'tools']) $('view-' + v).classList.toggle('hidden', v !== view);
     document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.nav === view));
     if (view === 'today') showToday();
     else if (view === 'class') showClass(decodeURIComponent(parts.slice(1).join('/') || ''));
     else if (view === 'student') showStudent(decodeURIComponent(parts[1] || ''));
+    else if (view === 'manage') showManage(parts[1] || 'students');
+    else if (view === 'tools') showTools();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MANAGE and SCHOOL TOOLS — Round 168. Admin's and Reports' own panels, framed in
+// embed mode (admin.html?embed=<tab>, reports.html?embed=1), so every staff task is
+// reachable from Teach without rewriting the deep tools (CSV import, class creation's
+// access refresh, purge, retention). Each moves in natively later, one at a time.
+// ═════════════════════════════════════════════════════════════════════════════
+function showManage(tab) {
+    const allowed = ['students', 'classes'];
+    if (isSuper() || me.role === 'building_admin') allowed.push('staff');
+    if (isSuper()) allowed.push('books', 'lessons');
+    if (!allowed.includes(tab)) tab = 'students';
+    document.querySelectorAll('#manage-tabs a').forEach(a => {
+        a.classList.toggle('hidden', !allowed.includes(a.dataset.mtab));
+        a.classList.toggle('on', a.dataset.mtab === tab);
+    });
+    const src = 'admin.html?embed=' + tab;
+    if ($('manage-frame').getAttribute('src') !== src) $('manage-frame').setAttribute('src', src);
+}
+function showTools() {
+    if (!$('tools-frame').getAttribute('src')) $('tools-frame').setAttribute('src', 'reports.html?embed=1');
 }
 const studentLink = (uid, name) => `<a href="#/student/${encodeURIComponent(uid)}">${esc(name || 'Unknown')}</a>`;
 const classLink = (id) => id && classesById[id]
@@ -558,6 +585,7 @@ async function showStudent(uid) {
     $('stu-sp').value = cleanPct(u.reqSpeedPct) ?? '';
     $('stu-ac').value = cleanPct(u.reqAccPct) ?? '';
     showReqHint();
+    $('stu-purge-hint').classList.toggle('hidden', !isSuper());
     const p = rangePreset('week', today(), anchorFor(u.classId));
     $('stu-start').value = p.start; $('stu-end').value = p.end;
     loadStudentDays();

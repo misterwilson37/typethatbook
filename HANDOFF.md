@@ -4,10 +4,12 @@
 >
 > **127 harnesses pass** (new: `lesson-undo-test.mjs`), and all 96 rules tests.
 >
-> ⭐ **Round 168 = Teach stage 1 (editing a student).** Jake asked for Teach to reach full parity
-> with Reports + Admin. Stages: 1 student editing (DONE), 2 class management (create/rename/delete,
-> add students, CSV import, queued/stuck), 3 school tools (school week, privacy/purge, retention,
-> popularity, leaderboard, scan for flags), 4 content + staff. ⚠️ **ANY STAFF WRITE TO
+> ⭐ **Round 168 = Teach reaches parity.** Native: Today, Classes (roster, CSV, settings), Student
+> (days → runs, Delete run with lesson undo, set day time, Clear mastery, requirements, move,
+> Wipe today). FRAMED (embed mode, unchanged code): Manage = admin.html?embed=<tab> (students & CSV
+> import, classes create/delete/teachers, staff, books, lessons), School tools = reports.html?embed=1
+> (school week, privacy/purge, retention, popularity, leaderboard, scan for flags). ⭐ NEXT: move the
+> framed tools in natively, ONE AT A TIME, in the order Jake's live-testing feedback asks for. ⚠️ **ANY STAFF WRITE TO
 > lessonProgress MUST STAMP `progressChangedAt`** (staff-actions.js does) or the student's open
 > page writes the old record back on its next flush.
 >

@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<!-- reports.html v1.26.0 — Round 168: the manual day-time save clears Arcade too (it added on
+<!-- reports.html v1.27.0 — Round 168: EMBED MODE (reports.html?embed=1 drops the header and
+     footer) for teach.html's School tools.
+
+     reports.html v1.26.0 — Round 168: the manual day-time save clears Arcade too (it added on
      top of the typed number), and Clear mastery tells the student's open page (rules v2.20.0).
 
      reports.html v1.25.0 — Round 167: ⚠️⚠️ ARCADE MINUTES NOW COUNT in every total and the CSV
@@ -705,12 +708,20 @@
             white-space: pre-wrap;
         }
         .ttb-banner.is-bad { border-left-color: var(--bad); background: var(--bad-fill); }
+        /* Round 168 — embed mode (teach.html "School tools"). */
+        html.ttb-embed body { padding: 8px 4px; }
+        html.ttb-embed #reports-head, html.ttb-embed #reports-footer { display: none; }
     </style>
 </head>
 <body>
 
+<script>
+/* ⭐ Round 168 — EMBED MODE, for teach.html's "School tools": reports.html?embed=1 drops the page
+   header and footer. Everything else is the same page, the same code. */
+if (new URLSearchParams(location.search).get('embed')) document.documentElement.classList.add('ttb-embed');
+</script>
 <div class="container">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
+    <div id="reports-head" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
         <h1>REPORTS</h1>
         <div style="display:flex; gap:20px;">
             <a href="teach.html">Teach (new)</a>

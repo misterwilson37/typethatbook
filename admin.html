@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<!-- admin.html v1.24.1 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.25.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.25.0 — Round 168: EMBED MODE — admin.html?embed=<tab> shows one tab without the page
+               chrome, for teach.html's Manage section. Nothing else changes.
 
      v1.24.1 — Round 167: a Teach link in the header.
 
@@ -357,6 +360,9 @@
         }
 
         body { background: var(--surface); color: var(--ink); font-family: 'Courier Prime', 'Courier New', monospace; padding: 20px; }
+        /* Round 168 — embed mode (see the script at the end of the page). */
+        html.ttb-embed body { padding: 8px 4px; }
+        html.ttb-embed #admin-head, html.ttb-embed .tab-bar, html.ttb-embed footer { display: none; }
 
         /* ── ROADMAP 40 — KEYBOARD USABILITY ────────────────────────────────
            One :focus rule in this whole file, and one for= across 60+ labels.
@@ -1438,7 +1444,7 @@
          above every panel on the page, so it is reachable regardless of
          which tab is open when the message fires. -->
     <div id="ttb-banner-host"></div>
-    <div class="u-display-flex u-justify-content-space-between u-align-items-center u-margin-bottom-20px">
+    <div id="admin-head" class="u-display-flex u-justify-content-space-between u-align-items-center u-margin-bottom-20px">
         <h1>ADMIN PANEL</h1>
         <div class="u-display-flex u-gap-20px">
             <a href="teach.html">Teach (new)</a>
@@ -2503,6 +2509,22 @@
     <div id="build-list" class="u-margin-top-6px u-font-size-0-95em u-line-height-1-5 u-text-align-left u-max-width-520px u-max-height-60vh u-overflow-auto" style="display:none;"></div>
 </footer>
 
+<script>
+/* ⭐ Round 168 — EMBED MODE, for teach.html's Manage pages: admin.html?embed=<tab> shows ONE
+   tab and none of the page chrome. Nothing else about Admin changes — the same panels, the same
+   code, the same writes; Teach frames them so every staff task is reachable from one place. */
+(function () {
+    var t = new URLSearchParams(location.search).get('embed');
+    if (!t || !/^(books|lessons|students|classes|staff)$/.test(t)) return;
+    document.documentElement.classList.add('ttb-embed');
+    var sec = document.getElementById('editor-section');
+    var go = function () { var b = document.getElementById('tab-' + t); if (b) b.click(); };
+    var done = false;
+    new MutationObserver(function () {
+        if (!done && !sec.classList.contains('hidden')) { done = true; setTimeout(go, 0); setTimeout(go, 500); }
+    }).observe(sec, { attributes: true, attributeFilter: ['class'] });
+})();
+</script>
 <script type="module" src="admin.js"></script>
 </body>
 </html>

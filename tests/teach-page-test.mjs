@@ -94,6 +94,8 @@ const page = await browser.newPage({ acceptDownloads: true });
 const errors = [];
 page.on('pageerror', e => errors.push(String(e)));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+// The framed Admin / Reports pages are their own harnesses' business; here they are blank.
+await page.route(/(admin|reports)\.html\?embed=/, r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>framed</title>' }));
 await page.route('**/firebase-config.js', r => r.fulfill({ contentType: 'text/javascript', body: `export const db = {}; export const auth = {}; export const ADMIN_EMAILS = [];` }));
 await page.route('**/read-meter.js', r => r.fulfill({ contentType: 'text/javascript', body: fakeFirestore(JSON.stringify(fx)) }));
 await page.route('https://www.gstatic.com/**', r => r.fulfill({ contentType: 'text/javascript', body:
@@ -178,6 +180,14 @@ check(csv2[0].endsWith('Adjusted,Class') && csv2.length === 5, 'all-my-classes C
 check(/Dee Dash.*speed 70%.*Period 2/.test(csv2[4]), 'Dee is in Period 2 with the class\'s speed 70%');
 check(!csv2.some(l => /Not mine/.test(l)), 'no class that is not mine');
 await page.waitForTimeout(2000);
+// Round 168 — Manage and School tools frame Admin's and Reports' own pages in embed mode.
+await page.goto(`http://localhost:${PORT}/teach.html#/manage/classes`);
+await page.waitForSelector('#view-manage:not(.hidden)');
+check((await page.getAttribute('#manage-frame', 'src')) === 'admin.html?embed=classes', 'Manage → Classes frames admin.html?embed=classes');
+check(await page.isHidden('#manage-tabs a[data-mtab="books"]'), 'a teacher is not offered Books (super only)');
+await page.click('#nav-tools');
+await page.waitForSelector('#view-tools:not(.hidden)');
+check((await page.getAttribute('#tools-frame', 'src')) === 'reports.html?embed=1', 'School tools frames reports.html?embed=1');
 const reads = await page.evaluate(() => document.getElementById('reads').textContent);
 check(Number(reads) > 0, 'the footer counts this page\'s reads (' + reads + ')');
 check(!errors.length, 'no page errors' + (errors.length ? ': ' + errors.join(' | ') : ''));

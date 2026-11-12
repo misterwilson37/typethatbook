@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- teach.html v0.1.0 — Round 167. ONE STAFF PAGE: TODAY → CLASS → STUDENT, CROSS-LINKED.
+<!-- teach.html v0.3.0 — Round 168: Manage and School tools sections (framed Admin / Reports).
+     teach.html v0.1.0 — Round 167. ONE STAFF PAGE: TODAY → CLASS → STUDENT, CROSS-LINKED.
      Jake, 2026-11-12: *"At some point, I need to redo how reports and admin works... Class control
      is one place but student progress is in another."* And the brief: Today shows who is typing,
      with flags, cheaply; a student is one click; a class is one click from either; requirements
@@ -85,6 +86,11 @@
         .runs td { font-size: .82rem; color: var(--ink-dim); }
         .hidden { display: none !important; }
         .gate { max-width: 520px; margin: 80px auto; text-align: center; }
+        /* Round 168 — framed Admin / Reports panels */
+        .frame { width: 100%; height: calc(100vh - 150px); border: 1px solid var(--rule); border-radius: 8px;
+                 background: var(--surface); }
+        #manage-tabs a { padding: 6px 12px; border-radius: 5px; color: var(--ink-dim); }
+        #manage-tabs a.on { background: var(--surface-2); color: var(--ink-bright); }
     </style>
 </head>
 <body>
@@ -93,6 +99,8 @@
         <nav id="nav" class="hidden">
             <a href="#/today" data-nav="today">Today</a>
             <a href="#/class" data-nav="class">Classes</a>
+            <a href="#/manage/students" data-nav="manage">Manage</a>
+            <a href="#/tools" data-nav="tools" id="nav-tools">School tools</a>
         </nav>
         <input id="find" class="hidden" list="find-list" placeholder="Find a student…" autocomplete="off">
         <datalist id="find-list"></datalist>
@@ -142,12 +150,33 @@
                 <button id="class-load" class="primary">Load</button>
                 <button id="class-csv" disabled>Export CSV</button>
             </div>
+            <div class="hint">New class, rename, delete, or who teaches it: <a href="#/manage/classes">Manage → Classes</a> ·
+                Add students or import a CSV: <a href="#/manage/students">Manage → Students</a></div>
             <div id="class-settings" class="card hidden"></div>
             <div class="status" id="class-status"></div>
             <table id="class-table" class="hidden">
                 <thead><tr id="class-head"></tr></thead>
                 <tbody id="class-body"></tbody>
             </table>
+        </section>
+
+        <!-- ═══ MANAGE (Round 168) — Admin's own panels, framed in Teach until each moves here ═══ -->
+        <section id="view-manage" class="hidden">
+            <div class="bar" id="manage-tabs">
+                <a href="#/manage/students" data-mtab="students">Students &amp; CSV import</a>
+                <a href="#/manage/classes" data-mtab="classes">Classes: create, rename, delete, teachers</a>
+                <a href="#/manage/staff" data-mtab="staff" class="hidden">Staff</a>
+                <a href="#/manage/books" data-mtab="books" class="hidden">Books</a>
+                <a href="#/manage/lessons" data-mtab="lessons" class="hidden">Lessons</a>
+            </div>
+            <iframe id="manage-frame" class="frame" title="Manage"></iframe>
+        </section>
+
+        <!-- ═══ SCHOOL TOOLS (Round 168) — Reports' school-wide tools, framed ═══ -->
+        <section id="view-tools" class="hidden">
+            <div class="sub">School week · privacy &amp; Delete student · Retention · Library popularity ·
+                leaderboard dating · Scan for flags — Reports' own tools, here until they move into Teach.</div>
+            <iframe id="tools-frame" class="frame" title="School tools"></iframe>
         </section>
 
         <!-- ═══ STUDENT ═══ -->
@@ -167,6 +196,8 @@
                     <div class="field"><button id="stu-wipe" class="danger" title="Remove TODAY's runs, minutes and lesson progress. Their open page resets within seconds.">Wipe today…</button></div>
                 </div>
                 <div class="hint" id="stu-req-hint"></div>
+                <div class="hint hidden" id="stu-purge-hint">Permanently delete this student and everything stored about them:
+                    <a href="#/tools">School tools</a> → choose them → <b>Delete student…</b></div>
                 <div class="msg" id="stu-msg"></div>
             </div>
             <div class="bar">

@@ -1,6 +1,15 @@
 # CHANGELOG — TypeThatBook
 
-## Round 168 — Teach, stage 1: editing a student
+## Round 168 — Teach, stage 1: editing a student (+ stage 2: everything reachable)
+
+**Stage 2 — every staff task is now reachable from Teach.** New **Manage** section: Students & CSV
+import, Classes (create / rename / delete / teachers), Staff, Books, Lessons — Admin's own panels,
+shown inside Teach in a new embed mode (`admin.html?embed=<tab>`), unchanged. New **School tools**:
+Reports' school-wide tools (school week, privacy & Delete student, retention, Library popularity,
+leaderboard dating, scan for flags) the same way (`reports.html?embed=1`). The class page links to
+Manage for creating classes and adding students; the student page (super-admin) links to Delete
+student. These framed tools move into Teach natively one at a time.
+
 
 **Deleting a run now takes back what the run earned, not just its time.** Jake: *"Deleting single
 runs of a lesson also should be reflected on the kid's experience."* It wasn't — Reports' own dialog

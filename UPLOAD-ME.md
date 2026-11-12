@@ -1,4 +1,4 @@
-# Round 168 — Teach stage 1: editing a student
+# Round 168 — Teach: editing a student, and everything reachable
 
 **Already on `main` — nothing to upload.** ⚠️ **Paste the rules (v2.20.0).**
 
@@ -17,6 +17,11 @@
   minutes.
 * Also there: **set a day's time**, and **Clear mastery** in the Lessons table.
 * Reports: setting a day's time no longer leaves Arcade minutes on top.
+* **Teach → Manage**: Students & CSV import, Classes (create/rename/delete/teachers), Staff, Books,
+  Lessons — Admin's own panels inside Teach. **Teach → School tools**: Reports' school-wide tools
+  (school week, privacy & Delete student, retention, popularity, leaderboard, scan for flags).
+  These are the old panels framed for now; tell me where the flow feels wrong and they move in
+  natively one by one.
 
 ## Check
 
