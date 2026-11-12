@@ -1,4 +1,7 @@
-// learn2.js v0.16.0-staging
+// learn2.js v0.17.0-staging
+//
+// v0.17.0 — Round 169: the Victory Lap's word pool keeps the space at every run boundary
+//   (game-shell.js poolRunSequences()) — it was merging words: "robinguessed".
 //
 // v0.16.0 — Round 167: "Your week" in Settings and on the Weekly hover, as learn.js v2.57.0.
 //
@@ -399,7 +402,7 @@ import {
 // arithmetic, is what keeps a run played here comparable to one played there.
 // mount() (aliased mountDeadline, matching arcade.html's own alias) is
 // game-deadline.js's only public entry point.
-import { missionConfigFromRun } from "./game-shell.js";
+import { missionConfigFromRun, poolRunSequences } from "./game-shell.js";
 import { mount as mountDeadline } from "./game-deadline.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -412,7 +415,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.16.0-staging";
+const LEARN_VERSION = "0.17.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -3709,7 +3712,9 @@ function attachGameSlot(lesson, runs) {
         //   • it runs in SURVIVAL, so play continues past that bar until they
         //     lose, and everything after it is leaderboard only.
         const sameStep = runs.filter(r => r.stepIdx === last.stepIdx);
-        const pool = [].concat.apply([], sameStep.map(r => r.sequence));
+        // ⚠️ Round 169 — joined WITH a space at each run boundary (game-shell.js
+        // poolRunSequences()). A plain concat merged words: Jake saw "robinguessed".
+        const pool = poolRunSequences(sameStep);
         const firstChunk = sameStep[0];
         runs.push({
             stepId: last.stepId,

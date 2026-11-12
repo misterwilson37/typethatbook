@@ -1,5 +1,15 @@
 # CHANGELOG — TypeThatBook
 
+## Round 169 — "robinguessed"
+
+**The game at the end of a BETA lesson no longer merges words.** Jake saw a student asked to type
+*"robinguessed"*; the lesson says *"robin guessed the garden…"*. A long step is cut into runs at a
+space, and that space belongs to neither run. The Victory Lap rebuilt the passage by gluing the runs
+end to end, so the last word of each run merged with the first word of the next — **71 merged words
+across 26 lessons** (kingthing, belowwhole, thesenight, oldhinges…). It now puts the space back
+(`game-shell.js` v1.17.0 `poolRunSequences()`); learn2.js v0.17.0-staging. School's typed runs and the
+Arcade were never affected. New harness `victory-lap-pool-test.mjs` drives the real lesson corpus.
+
 ## Round 168 — Teach, stage 1: editing a student (+ stage 2: everything reachable)
 
 **Stage 2 — every staff task is now reachable from Teach.** New **Manage** section: Students & CSV

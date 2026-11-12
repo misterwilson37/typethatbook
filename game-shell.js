@@ -1,3 +1,7 @@
+// game-shell.js v1.17.0 — Round 169: ⚠️⚠️ "robinguessed". poolRunSequences() — the runs of one
+// step joined back into the passage WITH A SPACE between them. chunkSequence() cuts at a space and
+// that space belongs to neither run, so gluing the runs end to end (learn2.js's Victory Lap did)
+// merged the last word of each run into the first word of the next — once per run boundary.
 // game-shell.js v1.16.0 — Round 128 (Bembo): ⚠️⚠️ JAKE RULED 125a OPTION C, AND THE
 // RELIEF IS A RATIO NOW. `HIT_PRESSURE_RELIEF` is 0.10 and was set when pressure
 // lived near 1.2, where it returned about 8%; Shatter died at pressure 2.799,
@@ -233,7 +237,7 @@
 import { budgetScale } from './typing-calibrator.js';
 import { safeGroup } from './drill-filter.js';
 
-export const GAME_SHELL_VERSION = '1.16.0';
+export const GAME_SHELL_VERSION = '1.17.0';
 
 // ═════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -700,6 +704,22 @@ export function accuracyPct(chars, mistakes) {
  * ⚠️ NEWLINES AND TABS ARE DELIMITERS TOO. `passage` steps carry both, and a
  * target containing a raw newline renders as a box.
  */
+/**
+ * ⭐ Round 169 — one step's runs joined back into its passage, a space between each.
+ * ⚠️ NOT a plain concat: run-grade.js chunkSequence() cuts at a space and drops it, so
+ * [..."robin"] + ["guessed", ...] concatenated reads "robinguessed" — Jake saw exactly that
+ * in a Victory Lap. Each boundary gets its space back.
+ */
+export function poolRunSequences(runs) {
+    const out = [];
+    (runs || []).forEach((r, i) => {
+        const seq = (r && r.sequence) || [];
+        if (i > 0 && out.length && seq.length && !/\s/.test(out[out.length - 1]) && !/\s/.test(seq[0])) out.push(' ');
+        for (const ch of seq) out.push(ch);
+    });
+    return out;
+}
+
 export function targetsFromSequence(seq) {
     const text = Array.isArray(seq) ? seq.join('') : String(seq || '');
     return text.split(/\s+/).filter(Boolean);

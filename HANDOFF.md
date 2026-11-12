@@ -2,7 +2,7 @@
 
 > ## ▶ START HERE — written 2026-11-12 by Round 168, for whoever is next
 >
-> **127 harnesses pass** (new: `lesson-undo-test.mjs`), and all 96 rules tests.
+> **128 harnesses pass** (new: `lesson-undo-test.mjs`; Round 169 `victory-lap-pool-test.mjs`), and all 96 rules tests.
 >
 > ✅ **Deployed state (Jake, 2026-11-12):** rules **v2.20.0** published; `appVersion.nonce` = **4**.
 >
