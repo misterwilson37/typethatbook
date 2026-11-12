@@ -4,6 +4,8 @@
 >
 > **127 harnesses pass** (new: `lesson-undo-test.mjs`), and all 96 rules tests.
 >
+> ✅ **Deployed state (Jake, 2026-11-12):** rules **v2.20.0** published; `appVersion.nonce` = **4**.
+>
 > ⭐ **Round 168 = Teach reaches parity.** Native: Today, Classes (roster, CSV, settings), Student
 > (days → runs, Delete run with lesson undo, set day time, Clear mastery, requirements, move,
 > Wipe today). FRAMED (embed mode, unchanged code): Manage = admin.html?embed=<tab> (students & CSV
@@ -40,7 +42,7 @@
 > classes/{id} and users/{uid}; student replaces class per field. ⚠️ **ANY NEW PLACE THAT GRADES
 > OR SHOWS A LESSON REQUIREMENT MUST GO THROUGH `effGates()` / `scaleGates()`** — a bare
 > `gatesForRun(currentStep…)` grades a CDC student against the full bar (`req-scale-test` C2).
-> ⚠️ Students are never shown a percentage (D1). ⚠️ **ASK JAKE:** paste rules v2.19.0.
+> ⚠️ Students are never shown a percentage (D1).
 >
 > ---
 >

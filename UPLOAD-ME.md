@@ -1,6 +1,6 @@
 # Round 168 — Teach: editing a student, and everything reachable
 
-**Already on `main` — nothing to upload.** ⚠️ **Paste the rules (v2.20.0).**
+**Already on `main` — nothing to upload.** ✅ Done 2026-11-12: rules v2.20.0 published, nonce → 4.
 
 ## Order
 
