@@ -1,4 +1,5 @@
 // lesson-gate-test.mjs v1.0.0 — Round 29. ROADMAP item 10.
+// Round 170: the reach-back no longer opens mastered lessons — Jake's ruling, see lesson-gate.js v1.4.0.
 //
 // ═════════════════════════════════════════════════════════════════════════════
 // ⚠️⚠️ THE FEATURE'S FAILURE MODE IS PUNISHING THE STRUGGLING STUDENT
@@ -119,10 +120,13 @@ console.log("\n─── C. THE RECEDING WINDOW — Jake's own worked example �
            `${days} active days stalled → reachBack ${expected}`);
     }
 
-    // At 7 days, exactly lessons 26 and 27 (indices 25, 26) are graded.
-    ok(mode(25, 26, rec(3), 7) === 'graded', 'stalled a week: lesson 26 opens');
-    ok(mode(24, 26, rec(3), 7) === 'practice', 'stalled a week: lesson 25 does NOT');
-    ok(mode(24, 26, rec(3), 14) === 'graded', 'stalled two weeks: lesson 25 opens');
+    // ⚠️⚠️ Round 170 — THE WINDOW NO LONGER OPENS ANYTHING. reachBackFor() still does its
+    // arithmetic (above), but nothing reads it: Jake, 2026-11-12, *"If it's mastered, it's
+    // mastered. It shouldn't count."* A stalled student's mastered runs stay practice.
+    ok(mode(25, 26, rec(3), 7) === 'practice', '⚠️ stalled a week: a mastered lesson stays PRACTICE');
+    ok(mode(24, 26, rec(3), 14) === 'practice', '⚠️ stalled two weeks: still practice');
+    ok(mode(26, 26, rec(3), 56) === 'practice',
+       '⚠️⚠️ the furthest lesson — the one Jake watched a student farm — is practice however long she stalls');
     // ⚠️⚠️ ROADMAP 14 DELETED "THE FURTHEST LESSON IS ALWAYS GRADED", AND THE
     // DELETION IS HALF THE FIX. Under the old rule that exception is what let
     // Jake master lesson 1 and keep farming it: nothing behind him ever locked
@@ -144,8 +148,8 @@ console.log("\n─── C. THE RECEDING WINDOW — Jake's own worked example �
        '⚠️⚠️ LESSON 1 IS STILL PRACTICE AFTER THE ENTIRE TWO-MONTH COURSE SPENT ' +
        'STANDING STILL. It needs 26 weeks. This is the single number Jake asked ' +
        'for by name: "I do not want kids to go back and do lesson 1."');
-    ok(mode(0, 26, rec(3), 26 * 7) === 'graded',
-       'and at 26 weeks it does open — the rule recedes, it does not wall off');
+    ok(mode(0, 26, rec(3), 26 * 7) === 'practice',
+       'and at 26 weeks it is STILL practice (Round 170: mastered is mastered)');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -167,11 +171,8 @@ console.log('\n─── D. ⚠️⚠️ PROGRESS RESETS THE WINDOW ───');
     });
     ok(coasting === 'practice',
        '⚠️ THE ADVANCING STUDENT NEVER SEES AN OLD LESSON — 2 days since advancing');
-    ok(stalled === 'graded',
-       '⚠️ THE STALLED STUDENT DOES — 20 days trying, same calendar, same lessons');
-    ok(coasting !== stalled,
-       'the two students differ ONLY in whether they progressed, which is the ' +
-       'whole design: the shape of the rule replaces a judgement call');
+    ok(stalled === 'practice',
+       '⚠️ Round 170 — the STALLED student does not either: mastered is mastered');
 
     ok(G.reachBackFor(20, 20) === 0, 'advancing today collapses the window to 0');
     ok(G.reachBackFor(5, null) === 0,
@@ -190,8 +191,8 @@ console.log('\n─── E. RE-LOCK ON RE-FIRE — one shot, not a licence ─�
 // unchanged: *"if they fireball lesson 1 after it unlocks, I want it immediately
 // locked again."*
 {
-    // Stalled 7 days with the last lock on day 0: lesson 26 (index 25) has opened.
-    ok(mode(25, 26, rec(3), 7) === 'graded', 'before: the opened lesson is graded');
+    // Round 170 — nothing re-opens now, so there is nothing to re-lock.
+    ok(mode(25, 26, rec(3), 7) === 'practice', 'a mastered lesson is practice from the start');
 
     // They re-master it on day 7, which stamps lastLockDay = 7.
     const after = (days) => G.lessonModeFor({
@@ -201,9 +202,7 @@ console.log('\n─── E. RE-LOCK ON RE-FIRE — one shot, not a licence ─�
     ok(after(7) === 'practice',
        '⚠️ IMMEDIATELY after re-firing it, the same lesson is practice again');
     ok(after(13) === 'practice', 'six active days later, still practice');
-    ok(after(14) === 'graded',
-       'a further full window later it opens again — the rule recedes rather than ' +
-       'permanently burning a lesson');
+    ok(after(14) === 'practice', 'and a full window later it is still practice (Round 170)');
     ok(mode(0, 27, rec(2), 0) === 'graded',
        '⚠️ the re-lock cannot reach an UNMASTERED lesson either — section A holds ' +
        'whatever the clock says');

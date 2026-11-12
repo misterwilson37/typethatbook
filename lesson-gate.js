@@ -1,3 +1,6 @@
+// lesson-gate.js v1.4.0 — Round 170: ⚠️⚠️ MASTERED IS MASTERED — runModeFor() returns 'practice' for
+//   every mastered run; the reach-back that re-graded a stalled student's mastered runs is retired
+//   (Jake: "If it's mastered, it's mastered. It shouldn't count."). reachBackFor() kept, unused.
 // lesson-gate.js v1.3.0 — Round 148: identityPlan(), the name and email saved once on the
 //   account. ⚠️ A deliberate second copy of the name — see the block above activeDayPlan().
 //
@@ -70,7 +73,7 @@
 // lesson-gate-test.mjs rather than reachable only by driving a browser, and it
 // is the same discipline daylog.js and drill-filter.js are built on.
 
-export const LESSON_GATE_VERSION = '1.3.0';
+export const LESSON_GATE_VERSION = '1.4.0';
 
 // Three A🔥 closes a lesson. Jake's number.
 export const MASTERY_FIRE_COUNT = 3;
@@ -336,24 +339,17 @@ export function runModeFor({
     // of the FINAL lesson in the curriculum has nothing graded left. That is a
     // student who has finished the course, and inventing a rule for them would be
     // inventing a rule Jake did not ask for. Flagged, not handled.
-    const reachBack = reachBackFor(activeDayCount, lastLockDay);
-
-    // ⚠️⚠️ ZERO IS A SPECIAL CASE AND IT IS THE ONE THAT CLOSES THE EXPLOIT.
-    // With no window open at all, NOTHING mastered is graded — including the
-    // furthest lesson. v1.0.0 reached this line with `index >= furthest - 0`,
-    // which reopened the furthest lesson instantly, so a student who mastered
-    // where they stood kept farming it forever. That is the hole Jake hit.
-    if (reachBack === 0) return 'practice';
-
-    // ⚠️ AND ABOVE ZERO THE COMPARISON IS UNCHANGED FROM v1.0.0, DELIBERATELY.
-    // I first wrote this as `>`, which closes the same hole but silently shifts
-    // JAKE'S OWN WORKED EXAMPLE (ROADMAP §10.D) by one lesson: at seven days he
-    // specified lessons 26 AND 27 open, and `>` opens only 27.
-    // ⚠️ lesson-gate-test.mjs SECTION C CAUGHT THAT, WHICH IS THE ENTIRE REASON
-    // THE WORKED EXAMPLE IS IN A HARNESS INSTEAD OF A DOCUMENT. The guard above
-    // fixes what `>` was reaching for without touching a number he set.
-    if (lessonIndex >= furthestLessonIndex - reachBack) return 'graded';
-
+    // ⚠️⚠️ Round 170 — MASTERED IS MASTERED. The reach-back that re-graded a stalled
+    // student's mastered runs (one lesson per 7 active days without a new mastery) is
+    // RETIRED, on Jake's ruling, 2026-11-12, after watching a student finish the same
+    // mastered run of unit 1 lesson 3 over and over because it still counted — while the
+    // run's own end screen told her "this run no longer counts time":
+    // *"I can't think of a time when reachback should count a mastered lesson. If it's
+    // mastered, it's mastered. It shouldn't count... If we allow it, kids could just type a
+    // mastered lesson forever as long as they don't pass the next one."*
+    // A mastered run stays PLAYABLE — review is never blocked — it just earns nothing, so
+    // the time requirement points the student at the runs they have NOT mastered.
+    // reachBackFor() is kept, pure and tested, so the history reads; nothing calls it now.
     return 'practice';
 }
 

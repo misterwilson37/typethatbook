@@ -4,7 +4,11 @@
 >
 > **128 harnesses pass** (new: `lesson-undo-test.mjs`; Round 169 `victory-lap-pool-test.mjs`), and all 96 rules tests.
 >
-> ✅ **Deployed state (Jake, 2026-11-12):** rules **v2.20.0** published; `appVersion.nonce` = **4**.
+> ✅ **Deployed state (Jake, 2026-11-12):** rules **v2.20.0** published; `appVersion.nonce` = **5**.
+>
+> ⚠️⚠️ **Round 170: REACH-BACK IS RETIRED — a mastered run is ALWAYS practice** (lesson-gate.js
+> v1.4.0, Jake: *"If it's mastered, it's mastered."*). Do not reintroduce any rule that re-grades
+> a mastered run, for any reason, without asking him.
 >
 > ⭐ **Round 168 = Teach reaches parity.** Native: Today, Classes (roster, CSV, settings), Student
 > (days → runs, Delete run with lesson undo, set day time, Clear mastery, requirements, move,

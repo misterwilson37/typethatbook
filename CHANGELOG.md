@@ -1,5 +1,18 @@
 # CHANGELOG — TypeThatBook
 
+## Round 170 — mastered is mastered
+
+**A mastered run never counts time again.** Jake watched a student finish the same run of unit 1,
+lesson 3 over and over: its end screen said *"Mastered · this run no longer counts time"* — and it
+counted. The cause was the **reach-back** rule: after 7 active days without mastering anything new,
+a stalled student's mastered runs in lessons at or near her furthest were graded again "for
+review" — including the lesson she was farming. Jake's ruling: *"I can't think of a time when
+reachback should count a mastered lesson. If it's mastered, it's mastered. It shouldn't count… If we
+allow it, kids could just type a mastered lesson forever as long as they don't pass the next one."*
+Reach-back is retired (`lesson-gate.js` v1.4.0 `runModeFor()`): mastered runs stay playable, earn
+nothing, and the end-of-run message is now always true. Unmastered runs always count, as before.
+`lesson-gate-test` updated to the new rule (77 pass).
+
 ## Round 169 — "robinguessed" (and what the reads went to)
 
 **Teach's "reads" counter is clickable** (teach.js v0.4.0): what this page's reads went to (day
