@@ -1,4 +1,7 @@
-// learn.js v2.56.0
+// learn.js v2.57.0
+//
+// v2.57.0 — Round 167: Settings shows "Your week" (the class's anchor, hud.js weekRuleText())
+//           and the Weekly figure's hover gives this week's dates.
 //
 // v2.56.0 — Round 166: ⭐ REQUIREMENTS AS A PERCENTAGE (req-scale.js). Every lesson run's
 //           speed and accuracy requirement goes through effGates() — the class's
@@ -53,9 +56,7 @@
 //           correction cannot trigger it. Held keys type once; script-made keys are
 //           refused (isRealKey). See tests/retype-farm-test.mjs.
 //
-// v2.50.1 — Round 149: saveProgress() no longer files a passed lesson under the
-//   NEXT lesson's id when the student clicks Next before the write lands; the
-//   progress cache key moves to v2 so already-affected students re-read Firestore.
+// ⚠️ v2.50.1's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 167, 8-entry budget).
 //
 // ⚠️ v2.50.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
@@ -108,7 +109,7 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
-         celebrationDone, celebrationMark, fmt } from "./hud.js";
+         celebrationDone, celebrationMark, fmt, weekRuleText, weekSpanText } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
 import { resolveReq, scaleGates, scaleLessonGates, scaleWpm, scaleAcc, NO_SCALE } from "./req-scale.js";
 // ⭐ Round 165 — WHERE THEY LEFT OFF, and the run picker: ported from learn2.js,
@@ -181,7 +182,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.56.0";
+const LEARN_VERSION = "2.57.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -815,6 +816,13 @@ function openSchoolSettings() {
                 onSave: saveOwnGoals,
             });
         }
+        // ⭐ Round 167 — HOW THEIR WEEK IS DEFINED (the class's own anchor, or the
+        // school's). Jake: "Does it show the kid anywhere how I define a week?"
+        rows.push({
+            kind: 'info', label: 'Your week',
+            value: weekRuleText(goals.weekStartDay),
+            hint: 'this week: ' + weekSpanText(getWeekStart(new Date())),
+        });
         // ⚠️ THE STUDENT ID. Round 27g DELETED the corner stamp that used to
         // carry it, so this and Library's Settings menu are now the only places
         // it appears. Same EIGHT characters reports.html prints beside each
@@ -5372,6 +5380,9 @@ function renderTimeHUD() {
     if (weekEl) {
         weekEl.textContent = hud.right;
         weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
+        // Round 167 — the hover says which days "Weekly" counts.
+        weekEl.title = 'This week: ' + weekSpanText(getWeekStart(new Date()))
+            + ' (' + weekRuleText(goals.weekStartDay) + ')';
     }
 }
 

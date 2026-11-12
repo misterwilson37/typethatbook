@@ -1,5 +1,10 @@
 <!DOCTYPE html>
-<!-- reports.html v1.24.0 — Round 166: ⭐ REQUIREMENTS… beside the student picker (a student's
+<!-- reports.html v1.25.0 — Round 167: ⚠️⚠️ ARCADE MINUTES NOW COUNT in every total and the CSV
+     (readLogTotals() had silently left them out — the student's own HUD always counted them).
+     Wipe today and the student Requirements write moved to staff-actions.js (shared with the new
+     teach.html). A Teach link in the header.
+
+     reports.html v1.24.0 — Round 166: ⭐ REQUIREMENTS… beside the student picker (a student's
      own speed / accuracy percentages, rules v2.19.0), every grade judged against the student's
      own bar, and an ADJUSTED column added LAST (and appended to the CSV) so nothing else moves.
 
@@ -705,6 +710,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 30px;">
         <h1>REPORTS</h1>
         <div style="display:flex; gap:20px;">
+            <a href="teach.html">Teach (new)</a>
             <a href="admin.html">Admin Panel</a>
             <a href="index.html">Library</a>
         </div>
@@ -1478,14 +1484,18 @@
     // ⚠️ SDK ROUTED THROUGH read-meter.js so this page can say what it COST.
     // Same shim the student pages use; `export *` keeps every SDK symbol.
     import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, documentId, limit, serverTimestamp, ttbMeter } from "./read-meter.js";
+    // Round 167 — the Firestore functions staff-actions.js is handed (injected, not imported there).
+    const STAFF_FS = { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc,
+                       deleteField, serverTimestamp };
     import { ledgerFrom, planReads } from "./logdays.js";
     // ⚠️ ROADMAP 58 — the week anchor, from its one home. THIS PAGE IS WHY THE
     // ITEM EXISTS: reports.html and daylog.js once named different Saturdays, and
     // Saturday's typing was inside the child's number and outside the teacher's
     // report, every evening, which is when a teacher grades.
     import { weekStartOf, localDateStr } from "./daylog.js";
-    import { restoreForWipe, isTombstone } from "./day-wipe.js";
+    import { isTombstone } from "./day-wipe.js";
     import { resolveReq, scaleGates, describeReq, isAdjusted, cleanPct, NO_SCALE } from "./req-scale.js";
+    import { wipeToday as staffWipeToday, saveStudentReq } from "./staff-actions.js";
     // ROADMAP 15. ⚠️ THE GRADE RULE IS IMPORTED, NEVER RESTATED. Reconstructing a
     // grade needs calculateGrade(), the gates, the chunking and the continuation
     // merge — all four used to live only in learn.js, and a copy of any of them
@@ -2622,63 +2632,9 @@
     // three seconds after the stamp, by which time the tab has locked its saves
     // and is reloading — removes it. A reloaded tab cannot have saved anything
     // new in three seconds (runs save at their end; minutes every five).
-    const WIPE_TIME_FIELDS = ['seconds', 'chars', 'mistakes',
-        'secondsLibrary', 'charsLibrary', 'mistakesLibrary',
-        'secondsSchool', 'charsSchool', 'mistakesSchool',
-        'secondsArcade', 'charsArcade', 'mistakesArcade'];
-
+    // ⭐ Round 167 — THE WIPE LIVES IN staff-actions.js NOW, shared with teach.html.
     async function wipeToday(uid) {
-        const day = localDateStr();
-        const got = { runs: 0, seconds: 0, lessons: 0 };
-        async function pass(first) {
-            // 1. Today's runs.
-            const ss = await getDocs(query(collection(db, 'typing_sessions'),
-                where('uid', '==', uid), where('date', '==', day)));
-            for (const d of ss.docs) {
-                const s = d.data();
-                const sprints = Array.isArray(s.sprints) ? s.sprints : [];
-                if (!sprints.length && !s.seconds) continue;
-                if (first) got.runs += sprints.length || 1;
-                if (isSuper()) await deleteDoc(d.ref);
-                else await updateDoc(d.ref, { sprints: [], sprintCount: 0, seconds: 0,
-                                              chars: 0, mistakes: 0, wpm: 0, accuracy: 100 });
-            }
-            // 2. Today's minutes — every source's fields on today's one document.
-            const ref = doc(db, 'typing_logs', uid + '_' + day);
-            const ls = await getDoc(ref);
-            if (ls.exists()) {
-                const L = ls.data();
-                if (first) got.seconds = (L.secondsLibrary || 0) + (L.secondsSchool || 0)
-                    + (L.secondsArcade || 0) + (L.seconds || 0);
-                const zero = {};
-                for (const k of WIPE_TIME_FIELDS) if (k in L && L[k]) zero[k] = 0;
-                if (Object.keys(zero).length) await updateDoc(ref, { ...zero, lastUpdated: new Date() });
-            }
-            // 3. Lessons changed today → back to how they stood this morning.
-            const ps = await getDocs(query(collection(db, 'users', uid, 'lessonProgress'),
-                where('dayStartDate', '==', day)));
-            for (const d of ps.docs) {
-                const back = restoreForWipe(d.data(), d.id, day);
-                if (!back) continue;
-                if (first) got.lessons++;
-                await setDoc(d.ref, back);   // a full replace, never a merge
-            }
-        }
-        await pass(true);
-        // The signal. Rules v2.18.0. An open tab hears it in a second or two.
-        try {
-            await updateDoc(doc(db, 'users', uid), {
-                logsChangedAt: serverTimestamp(), logsChangedDay: day,
-                wipeAt: serverTimestamp(), wipeDay: day,
-            });
-        } catch (e) {
-            got.noSignal = true;
-            console.warn('[wipe] stamp refused — are rules v2.18.0 published?', e);
-            return got;
-        }
-        await new Promise(r => setTimeout(r, 3000));
-        await pass(false);
-        return got;
+        return staffWipeToday({ db, fs: STAFF_FS, uid, isSuper: isSuper(), day: localDateStr() });
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -2736,29 +2692,15 @@
         el.onclick = (e) => { if (e.target === el) close(); };
         el.querySelector('#ttb-req-ok').onclick = async () => {
             const msg = el.querySelector('#ttb-req-msg');
-            const read = (id) => {
-                const raw = el.querySelector(id).value.trim();
-                if (raw === '') return { del: true };
-                const n = Number(raw);
-                if (!Number.isInteger(n) || n < 25 || n > 200) return { bad: true };
-                return { v: n };
-            };
-            const sp = read('#ttb-req-sp'), ac = read('#ttb-req-ac');
-            if (sp.bad || ac.bad) { msg.textContent = 'Use whole numbers from 25 to 200, or leave blank.'; msg.style.color = 'var(--bad)'; return; }
-            const patch = { reqSpeedPct: sp.del ? deleteField() : sp.v, reqAccPct: ac.del ? deleteField() : ac.v };
-            try {
-                await updateDoc(doc(db, 'users', uid), patch);
-                rosterUserDocs.set(uid, { classId: u.classId || '',
-                    reqSpeedPct: sp.del ? undefined : sp.v, reqAccPct: ac.del ? undefined : ac.v });
-                const r = resolveReq(cls, rosterUserDocs.get(uid));
-                close();
-                ttbNotice('Saved for ' + name + ': ' + (describeReq(r) || 'standard requirements')
-                    + '. Their open page uses it from the next run. Re-run the report to update the Adjusted column.');
-            } catch (e) {
-                msg.textContent = 'Could not save: ' + (e.message || e)
-                    + ' (are Firestore rules v2.19.0 published?)';
-                msg.style.color = 'var(--bad)';
-            }
+            // Round 167 — the shared write (staff-actions.js), same as teach.html's.
+            const res = await saveStudentReq({ db, fs: STAFF_FS, uid,
+                speed: el.querySelector('#ttb-req-sp').value, acc: el.querySelector('#ttb-req-ac').value });
+            if (!res.ok) { msg.textContent = res.error; msg.style.color = 'var(--bad)'; return; }
+            rosterUserDocs.set(uid, { classId: u.classId || '', ...res.values });
+            const r = resolveReq(cls, rosterUserDocs.get(uid));
+            close();
+            ttbNotice('Saved for ' + name + ': ' + (describeReq(r) || 'standard requirements')
+                + '. Their open page uses it from the next run. Re-run the report to update the Adjusted column.');
         };
         el.querySelector('#ttb-req-sp').focus();
     }
@@ -3711,10 +3653,15 @@
                     chars:    data.chars    || 0,
                     mistakes: data.mistakes || 0,
                 };
+                // ⚠️⚠️ Round 167 — ARCADE IS THE THIRD SOURCE AND IT SUMS IN HERE TOO.
+                // daylog.js totalsOf() (the student's HUD) has counted it since v1.10.0;
+                // this copy never did, so every Arcade player's report and CSV were
+                // short of the time their own screen showed. tests/week-agreement-test.mjs
+                // now drives Arcade days through both readers.
                 const split = {
-                    seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0),
-                    chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0),
-                    mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0),
+                    seconds:  (data.secondsLibrary  || 0) + (data.secondsSchool  || 0) + (data.secondsArcade  || 0),
+                    chars:    (data.charsLibrary    || 0) + (data.charsSchool    || 0) + (data.charsArcade    || 0),
+                    mistakes: (data.mistakesLibrary || 0) + (data.mistakesSchool || 0) + (data.mistakesArcade || 0),
                 };
                 if (dateStr && dateStr >= SOURCE_SPLIT_CUTOVER) {
                     return {

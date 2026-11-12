@@ -1,5 +1,42 @@
 # CHANGELOG — TypeThatBook
 
+## Round 167 — Teach: one staff page, and Arcade minutes count
+
+**⚠️⚠️ Reports now counts Arcade minutes.** Its own copy of the day-total rule added Library and
+School time and silently left out Arcade — while the student's top bar counted it. So every Arcade
+player's report and CSV were short. Jake: *"Arcade minutes should count for grades. I mean, they're
+minutes typing, right?"* Fixed; `week-agreement-test` now drives Arcade days through both readers
+(it had none, which is why the drift went unseen).
+
+**⭐ teach.html — the new staff page** (beside Reports and Admin, which keep working until it does
+everything they do). Jake's brief: Today → Class → Student, cross-linked.
+
+- **Today:** everyone who has typed today, newest first — time, School/Library/Arcade split, WPM,
+  accuracy, last active, and flags read off the same records (⏸ idle, "mashing", "errors") — one read
+  per active student, nothing else. **Who hasn't typed?** reads the roster on demand.
+- **Classes:** opens on nothing (no reads). One class, **all my classes**, or a whole school (building
+  staff). Totals for any range (Today / This week / Last week from the class's own week), Adjusted
+  column, click any name. One class shows its **settings** (goals, week start, requirement %).
+  **Export CSV** = Reports' CSV column for column; several classes → **one file** with a **Class
+  column appended**. Each student-day is read once (Reports reads it twice).
+- **Student:** their days (click a day for its runs, with lesson names), lesson progress, **Move to
+  class**, **Requirements**, **Wipe today**, and their class one click away.
+- Not yet here: deleting a single run / recalculating a day (links to Old Reports), Admin's
+  Students/Staff/Content tabs, privacy and retention tools.
+
+**Students can see how their week is defined.** Jake: *"Does it show the kid anywhere how I define a
+week?"* School, BETA and Library Settings show **Your week** ("Saturday to Friday", or the class's
+own), and hovering the **Weekly** figure shows the dates ("This week: Sat Nov 7 – Fri Nov 13"). The
+landing page now reads the week with the class's own anchor (it used none — a Monday class saw a
+Saturday week there).
+
+- New: teach.html v0.1.0, teach.js v0.1.0, teach-data.js v1.0.0, staff-actions.js v1.0.0 (Wipe today
+  and the student-requirement write, moved out of Reports and shared). hud.js v2.3.0
+  (weekRuleText/weekSpanText). reports.html v1.25.0, learn.js v2.57.0, learn2.js v0.16.0-staging,
+  game.js v3.65.0, index.html v3.26.0, admin.html v1.24.1, versions.js v1.22.0. New harnesses
+  `teach-data-test.mjs` and `teach-page-test.mjs` (the page run in real Chromium against an
+  in-memory Firestore; skips without Playwright). No rules change.
+
 ## Round 166 — requirements as a percentage
 
 **Speed and accuracy requirements can be set as a percentage, per class and per student.** Jake:
@@ -10805,6 +10842,36 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.57.0 — archived Round 167, 8-entry budget
+
+Pushed over by v3.65.0. Verbatim.
+
+```
+// v3.57.0 — Round 148: ⭐ each student's name and email are saved on their account, once
+//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
+//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
+```
+
+### learn.js v2.50.1 — archived Round 167, 8-entry budget
+
+Pushed over by v2.57.0. Verbatim.
+
+```
+// v2.50.1 — Round 149: saveProgress() no longer files a passed lesson under the
+//   NEXT lesson's id when the student clicks Next before the write lands; the
+//   progress cache key moves to v2 so already-affected students re-read Firestore.
+```
+
+### versions.js v1.14.0 — archived Round 167, 8-entry budget
+
+Pushed over by v1.22.0. Verbatim.
+
+```
+// v1.14.0 — ROADMAP 16: registers reports.html and admin.html. ⚠️ A STALE
+//           admin.js WAS INVISIBLE TO THE DRIFT DETECTOR, which is backwards for
+//           the file that writes every book in the library.
+```
 
 ### game.js v3.56.0 — archived Round 166, 8-entry budget
 

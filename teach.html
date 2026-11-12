@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- teach.html v0.1.0 — Round 167. ONE STAFF PAGE: TODAY → CLASS → STUDENT, CROSS-LINKED.
+     Jake, 2026-11-12: *"At some point, I need to redo how reports and admin works... Class control
+     is one place but student progress is in another."* And the brief: Today shows who is typing,
+     with flags, cheaply; a student is one click; a class is one click from either; requirements
+     can be edited for the class or for one kid; CSV for one class or all of them in one file.
+     Built as a THIRD page beside reports.html and admin.html, which keep working unchanged until
+     this one does everything they do (his ruling). Controller: teach.js. Numbers: teach-data.js. -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeThatBook — Teach</title>
+    <link href="fonts/fonts.css" rel="stylesheet">
+    <style>
+        /* Same role-named tokens as reports.html (ROADMAP 37/38): dark on purpose for a staff
+           table, one meaning per severity. Copied names, not invented ones. */
+        :root {
+            --surface: #111111; --surface-1: #191919; --surface-2: #222222;
+            --rule: #333333; --rule-strong: #444444;
+            --ink: #eeeeee; --ink-bright: #ffffff; --ink-dim: #aaaaaa; --ink-dimmer: #888888;
+            --ink-faint: #666666;
+            --accent: #4B9CD3;
+            --notice: #d9a441; --warn: #ff9800; --bad: #ff5555; --good: #22c55e;
+        }
+        * { box-sizing: border-box; }
+        body { background: var(--surface); color: var(--ink); margin: 0;
+               font-family: 'Courier Prime', 'Courier New', monospace; font-size: 15px; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        button, select, input { font-family: inherit; font-size: 0.9rem; }
+        button { background: var(--surface-2); color: var(--ink); border: 1px solid var(--rule-strong);
+                 border-radius: 5px; padding: 5px 12px; cursor: pointer; }
+        button:hover:not(:disabled) { border-color: var(--accent); }
+        button:disabled { opacity: .5; cursor: default; }
+        button.primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: bold; }
+        button.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+        select, input { background: var(--surface-1); color: var(--ink); border: 1px solid var(--rule-strong);
+                        border-radius: 5px; padding: 5px 8px; }
+        input[type=number] { width: 6em; }
+
+        header { position: sticky; top: 0; z-index: 10; background: var(--surface-1);
+                 border-bottom: 1px solid var(--rule); display: flex; align-items: center;
+                 gap: 18px; padding: 10px 20px; flex-wrap: wrap; }
+        .brand { font-weight: bold; color: var(--ink-bright); letter-spacing: 1px; }
+        .brand span { color: var(--accent); }
+        nav { display: flex; gap: 4px; }
+        nav a { padding: 6px 12px; border-radius: 5px; color: var(--ink-dim); }
+        nav a.on { background: var(--surface-2); color: var(--ink-bright); }
+        #find { width: 16em; }
+        .spacer { flex: 1; }
+        .meta { color: var(--ink-dimmer); font-size: .8rem; }
+        .meta a { color: var(--ink-dim); }
+
+        main { padding: 18px 20px 60px; max-width: 1300px; margin: 0 auto; }
+        h1 { font-size: 1.25rem; margin: 0 0 4px; color: var(--ink-bright); }
+        h2 { font-size: 1rem; margin: 22px 0 8px; color: var(--accent); letter-spacing: .5px; }
+        .sub { color: var(--ink-dimmer); font-size: .85rem; margin-bottom: 14px; }
+        .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+        .card { background: var(--surface-1); border: 1px solid var(--rule); border-radius: 8px;
+                padding: 14px 16px; margin: 12px 0; }
+        .card-row { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-end; }
+        .field label { display: block; font-size: .75rem; color: var(--ink-dimmer); margin-bottom: 3px; }
+        .hint { color: var(--ink-faint); font-size: .78rem; }
+        .msg { min-height: 1.2em; font-size: .85rem; margin-top: 6px; }
+        .msg.ok { color: var(--good); } .msg.bad { color: var(--bad); }
+        .status { color: var(--ink-dimmer); font-size: .85rem; margin: 8px 0; }
+        .empty { color: var(--ink-faint); font-style: italic; padding: 18px 0; }
+
+        table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+        th { text-align: left; color: var(--ink-dimmer); font-weight: normal; font-size: .78rem;
+             border-bottom: 1px solid var(--rule-strong); padding: 6px 8px; cursor: pointer;
+             white-space: nowrap; user-select: none; }
+        th.num, td.num { text-align: right; }
+        td { border-bottom: 1px solid var(--rule); padding: 7px 8px; vertical-align: top; }
+        tr.click { cursor: pointer; }
+        tr.click:hover td { background: var(--surface-2); }
+        .flag { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: .75rem;
+                margin-right: 4px; border: 1px solid currentColor; }
+        .flag.warn { color: var(--warn); } .flag.bad { color: var(--bad); } .flag.notice { color: var(--notice); }
+        .src { color: var(--ink-faint); font-size: .78rem; }
+        .chip { font-size: .75rem; color: var(--ink-dimmer); border: 1px solid var(--rule-strong);
+                border-radius: 4px; padding: 1px 6px; margin-left: 6px; cursor: copy; }
+        .runs { background: var(--surface); }
+        .runs td { font-size: .82rem; color: var(--ink-dim); }
+        .hidden { display: none !important; }
+        .gate { max-width: 520px; margin: 80px auto; text-align: center; }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">TYPE<span>THAT</span>BOOK · Teach</div>
+        <nav id="nav" class="hidden">
+            <a href="#/today" data-nav="today">Today</a>
+            <a href="#/class" data-nav="class">Classes</a>
+        </nav>
+        <input id="find" class="hidden" list="find-list" placeholder="Find a student…" autocomplete="off">
+        <datalist id="find-list"></datalist>
+        <div class="spacer"></div>
+        <div class="meta"><span id="who"></span> · reads: <span id="reads">0</span> ·
+            <a href="reports.html">Old Reports</a> · <a href="admin.html">Admin</a> ·
+            <a href="./privacy.html">Privacy &amp; Data Policy</a><!-- COPPA 312.4(d): linked wherever sign-in collects information. --></div>
+    </header>
+
+    <main>
+        <div id="gate" class="gate">
+            <p id="gate-msg">Checking your account…</p>
+            <button id="login-btn" class="primary hidden">Sign in with Google</button>
+        </div>
+
+        <!-- ═══ TODAY ═══ -->
+        <section id="view-today" class="hidden">
+            <h1>Today</h1>
+            <div class="sub" id="today-sub">Who has typed today, newest first. Flags cost nothing extra — they come from the same records.</div>
+            <div class="bar">
+                <label for="today-scope" class="meta">Watching</label>
+                <select id="today-scope"></select>
+                <button id="today-load" class="primary">Load</button>
+                <button id="today-missing" title="Reads the class rosters to list students who have not typed yet today">Who hasn't typed?</button>
+            </div>
+            <div class="status" id="today-status"></div>
+            <table id="today-table" class="hidden">
+                <thead><tr>
+                    <th>Student</th><th>Class</th><th class="num">Today</th><th>Where</th>
+                    <th class="num">WPM</th><th class="num">Accuracy</th><th>Last active</th><th>Flags</th>
+                </tr></thead>
+                <tbody id="today-body"></tbody>
+            </table>
+            <div id="today-missing-out"></div>
+        </section>
+
+        <!-- ═══ CLASS ═══ -->
+        <section id="view-class" class="hidden">
+            <h1 id="class-title">Classes</h1>
+            <div class="sub">Nothing loads until you choose — no reads wasted. One class, all of yours, or a whole school.</div>
+            <div class="bar">
+                <select id="class-pick"></select>
+                <input type="date" id="class-start"> → <input type="date" id="class-end">
+                <button data-preset="today">Today</button>
+                <button data-preset="week">This week</button>
+                <button data-preset="last">Last week</button>
+                <button id="class-load" class="primary">Load</button>
+                <button id="class-csv" disabled>Export CSV</button>
+            </div>
+            <div id="class-settings" class="card hidden"></div>
+            <div class="status" id="class-status"></div>
+            <table id="class-table" class="hidden">
+                <thead><tr id="class-head"></tr></thead>
+                <tbody id="class-body"></tbody>
+            </table>
+        </section>
+
+        <!-- ═══ STUDENT ═══ -->
+        <section id="view-student" class="hidden">
+            <h1 id="stu-name">Student</h1>
+            <div class="sub" id="stu-sub"></div>
+            <div class="card">
+                <div class="card-row">
+                    <div class="field"><label for="stu-move">Class</label>
+                        <select id="stu-move"></select> <button id="stu-move-save">Move</button></div>
+                    <div class="field"><label for="stu-sp">Speed requirement (%)</label>
+                        <input id="stu-sp" type="number" min="25" max="200" step="5"></div>
+                    <div class="field"><label for="stu-ac">Accuracy requirement (%)</label>
+                        <input id="stu-ac" type="number" min="25" max="200" step="5"></div>
+                    <div class="field"><button id="stu-req-save">Save requirements</button></div>
+                    <div class="spacer"></div>
+                    <div class="field"><button id="stu-wipe" class="danger" title="Remove TODAY's runs, minutes and lesson progress. Their open page resets within seconds.">Wipe today…</button></div>
+                </div>
+                <div class="hint" id="stu-req-hint"></div>
+                <div class="msg" id="stu-msg"></div>
+            </div>
+            <div class="bar">
+                <input type="date" id="stu-start"> → <input type="date" id="stu-end">
+                <button data-spreset="today">Today</button>
+                <button data-spreset="week">This week</button>
+                <button data-spreset="last">Last week</button>
+                <button id="stu-load" class="primary">Load</button>
+            </div>
+            <div class="status" id="stu-status"></div>
+            <table id="stu-days" class="hidden">
+                <thead><tr><th>Day</th><th class="num">Time</th><th>Where</th><th class="num">Characters</th>
+                    <th class="num">WPM</th><th class="num">Accuracy</th><th>Flags</th></tr></thead>
+                <tbody id="stu-days-body"></tbody>
+            </table>
+            <div class="hint" id="stu-days-hint"></div>
+            <h2>Lessons</h2>
+            <div class="bar"><button id="stu-lessons">Show lesson progress</button>
+                <span class="hint">Reads one record per lesson they have started.</span></div>
+            <div id="stu-lessons-out"></div>
+        </section>
+    </main>
+
+    <script type="module" src="teach.js"></script>
+</body>
+</html>

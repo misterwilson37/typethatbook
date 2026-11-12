@@ -212,14 +212,18 @@ for (const f of ['learn.js', 'learn2.js']) {
     ok(/isTombstone\(rec\)/.test(src), `F6 ${f}: a tombstone loads as "never started"`);
 }
 {
+    // ⚠️ Round 167 — the wipe moved into staff-actions.js (shared with teach.html).
+    // Reports must still hand it TODAY, and nothing else.
     const r = read('reports.html');
-    const fn = r.slice(r.indexOf('async function wipeToday('), r.indexOf('async function openWipeDialog('));
-    ok(/const day = localDateStr\(\);/.test(fn), 'F7 Reports wipes the CURRENT day');
+    ok(/staffWipeToday\(\{ db, fs: STAFF_FS, uid, isSuper: isSuper\(\), day: localDateStr\(\) \}\)/.test(r),
+       'F7 Reports wipes the CURRENT day, through the shared module');
+    const sa = read('staff-actions.js');
+    const fn = sa.slice(sa.indexOf('export async function wipeToday('), sa.indexOf('// REQUIREMENT PERCENTAGES'));
     ok(/where\('date', '==', day\)/.test(fn) && /where\('dayStartDate', '==', day\)/.test(fn)
        && /uid \+ '_' \+ day/.test(fn), '⚠️⚠️ F8 every read it writes from is scoped to that day — runs, minutes, lessons');
     ok(!/getDocs\(collection\(db, 'users', uid, 'lessonProgress'\)\)/.test(fn),
        '⚠️ F9 it never reads every lesson — only the ones changed today');
-    ok(fn.indexOf('await pass(true)') < fn.indexOf('wipeAt: serverTimestamp()')
+    ok(fn.length > 500 && fn.indexOf('await pass(true)') < fn.indexOf('wipeAt: serverTimestamp()')
        && fn.indexOf('wipeAt: serverTimestamp()') < fn.indexOf('await pass(false)'),
        '⚠️ F10 it removes, then stamps, then sweeps again (a save that landed in between)');
     ok(/setDoc\(d\.ref, back\)/.test(fn), 'F11 a lesson is replaced whole, never merged into');

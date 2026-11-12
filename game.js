@@ -1,4 +1,7 @@
-// game.js v3.64.0
+// game.js v3.65.0
+//
+// v3.65.0 — Round 167: Library's Settings shows "Your week" and the Weekly figure's hover gives
+//           this week's dates (hud.js weekRuleText()/weekSpanText()).
 //
 // v3.64.0 — Round 166: Library's 15 WPM / 80% gate is the BASE, scaled by the student's
 //           requirement percentages (req-scale.js) — 70% makes it 10.5 / 56, 110% makes it
@@ -67,9 +70,7 @@
 //           window.ttbGate is admins-only; a signed-out tab inherits the last
 //           student's gate. See tests/retype-farm-test.mjs.
 //
-// v3.57.0 — Round 148: ⭐ each student's name and email are saved on their account, once
-//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
-//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
+// ⚠️ v3.57.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 167, 8-entry budget).
 //
 // ⚠️ v3.56.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
@@ -111,7 +112,7 @@ import {
 // slot held three different quantities depending on settings, and School's held a
 // fourth. DOM-free: it returns strings and this file writes them.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
-         celebrationDone, celebrationMark } from "./hud.js";
+         celebrationDone, celebrationMark, weekRuleText, weekSpanText } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
 import { resolveReq, scaleWpm, scaleAcc, NO_SCALE } from "./req-scale.js";
 // ⚠️ v3.41.0 — THE CELEBRATIONS MOVED OUT. They were a hand-maintained twin of
@@ -162,7 +163,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.64.0";
+const VERSION = "3.65.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -3210,6 +3211,9 @@ function updateTimerUI() {
     if (hudWeekEl) {
         hudWeekEl.textContent = hud.right;
         hudWeekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
+        // Round 167 — the hover says which days "Weekly" counts.
+        hudWeekEl.title = 'This week: ' + weekSpanText(getWeekStart(new Date()))
+            + ' (' + weekRuleText(goals.weekStartDay) + ')';
     }
     renderHudContext();
 }
@@ -7077,6 +7081,13 @@ async function openMenuModal() {
                 <button id="own-goal-save" class="modal-btn" style="width:auto; padding:0 10px; font-size:12px;">Save goals</button>
             </div>
             <div id="own-goal-status" style="font-size:0.7em; color:#888; min-height:1em; margin-top:2px; text-align:center;">minutes \u2014 optional</div>`}
+        <!-- Round 167 — how their week is defined (the class's anchor, or the school's). -->
+        <div class="menu-label" style="margin-top:8px;">Your week</div>
+        <div style="font-size:0.75em; color:#ccc; margin-top:3px; text-align:center;"
+             title="${escapeHtml('This week: ' + weekSpanText(getWeekStart(new Date())))}">
+            ${escapeHtml(weekRuleText(goals.weekStartDay))}<br>
+            <span style="color:#aaa; font-size:0.9em;">${escapeHtml('this week: ' + weekSpanText(getWeekStart(new Date())))}</span>
+        </div>
     ` : '';
 
     const initialsHTML = (currentUser && !currentUser.isAnonymous) ? `

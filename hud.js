@@ -1,4 +1,10 @@
-// hud.js v2.2.0
+// hud.js v2.3.0
+//
+// v2.3.0 — Round 167: weekRuleText() and weekSpanText() — the words for how a student's WEEK
+//          is defined. Jake: *"Does it show the kid anywhere how I define a week? The class
+//          defined week should probably be available in settings or on a hover over the week."*
+//          Both pages' Settings show the rule ("Saturday to Friday"); the Weekly figure's hover
+//          shows the dates ("This week: Sat Nov 7 – Fri Nov 13"). DOM-free, like the rest.
 //
 // v2.2.0 — ⚠️⚠️ ROADMAP 12: THE SPRINT FIELD IS ALWAYS POPULATED NOW, ON EVERY
 //          SURFACE INCLUDING SCHOOL. Jake: "the sprint is how long it takes
@@ -160,10 +166,30 @@
 // decoration; versions.js parses THIS line and the build footer renders it.
 // It sat at '1.2.0' through v1.3.0 and v1.4.0 — bump it in the same edit that
 // writes the header entry, every time, or the file lies about itself.
-export const HUD_VERSION = '2.2.0';
+export const HUD_VERSION = '2.3.0';
 
 // m:ss. Not padded on minutes — `9:22` reads faster than `09:22` and a student's
 // day does not reach three digits. Seconds ALWAYS padded, or 9:7 appears.
+// ─── Round 167: the student's week, in words ─────────────────────────────────
+const _DAY_LONG  = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const _DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const _MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Saturday to Friday" for a week anchored on day `anchor` (0=Sun … 6=Sat). */
+export function weekRuleText(anchor = 6) {
+    const a = Number.isInteger(anchor) && anchor >= 0 && anchor <= 6 ? anchor : 6;
+    return _DAY_LONG[a] + ' to ' + _DAY_LONG[(a + 6) % 7];
+}
+
+/** "Sat Nov 7 – Fri Nov 13" for the week starting on `weekStart` ('YYYY-MM-DD'). */
+export function weekSpanText(weekStart) {
+    const s = new Date(String(weekStart) + 'T12:00:00');
+    if (isNaN(s)) return '';
+    const e = new Date(s); e.setDate(e.getDate() + 6);
+    const f = (d) => _DAY_SHORT[d.getDay()] + ' ' + _MON[d.getMonth()] + ' ' + d.getDate();
+    return f(s) + ' \u2013 ' + f(e);
+}
+
 export function fmt(seconds) {
     const s = Math.max(0, Math.round(seconds || 0));
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');

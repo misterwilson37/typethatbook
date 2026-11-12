@@ -147,7 +147,8 @@ console.log('\n─── D. GREP: both painters, both pages ───');
     // hand-rolled copy could drift unnoticed, because nobody compares the
     // landing page to a report.
     const idx = src('index.html');
-    ok(/import\s*\{\s*hudStrings\s*\}\s*from\s*["'.\/]*hud\.js["']/.test(idx),
+    // Round 167: the import may carry the week-wording helpers beside hudStrings.
+    ok(/import\s*\{\s*hudStrings\b[^}]*\}\s*from\s*["'.\/]*hud\.js["']/.test(idx),
        'D10 ⚠️ index.html: the landing page uses hud.js, not its own formatter');
     ok(!/function fmt\(s\)/.test(idx),
        'D11 ⚠️ index.html: the open-coded fmt() copy is gone');

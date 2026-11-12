@@ -1,4 +1,5 @@
-// week-agreement-test.mjs v1.3.0 — amended Round 21 (Hammond), ROADMAP Phase B.
+// week-agreement-test.mjs v1.4.0 — amended Round 21 (Hammond), ROADMAP Phase B.
+// v1.4.0 — Round 167: Arcade days in DOCS (the drift that went unseen without them).
 //
 // v1.3.0 — reports.html's getLastSaturday()/getNextFriday() gained a second
 //          `weekStartDay = 6` parameter for ROADMAP 58 step two; the lifted
@@ -154,6 +155,14 @@ const DOCS = [
     ['chars but no seconds key',     { chars: 5 }],
     ['empty document',               {}],
     ['flat zero over a legacy split', { seconds: 0, secondsLibrary: 120, secondsSchool: 90 }],
+    // ⚠️⚠️ Round 167 — ARCADE MINUTES. daylog.js v1.10.0 added the third source and the
+    // student's HUD has counted it since; reports.html's copy never did, so Jake's
+    // report and CSV were short of every Arcade player's time. No case here had an
+    // arcade field, which is the only reason this file stayed green over the drift.
+    ['an Arcade day',                { secondsSchool: 300, secondsArcade: 240,
+                                       charsSchool: 500, charsArcade: 410,
+                                       mistakesSchool: 9, mistakesArcade: 12 }],
+    ['Arcade only',                  { secondsArcade: 180, charsArcade: 300, mistakesArcade: 4 }],
 ];
 
 // ⚠️ EVERY DOCUMENT IS DRIVEN ON BOTH SIDES OF THE CUTOVER, AND WITH NO DATE AT

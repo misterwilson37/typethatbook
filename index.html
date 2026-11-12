@@ -546,6 +546,7 @@
              everywhere. tests/hud-lead-test.mjs no longer asserts it here. -->
         </div>
         <div class="header-links">
+            <a href="teach.html">Teach</a>
             <a href="reports.html">Reports</a>
             <a href="admin.html">Admin</a>
             <div id="auth-area">
@@ -705,11 +706,11 @@
         import { readDeployedVersions, renderBuildList,
                  countBuildNotes, renderHiddenNotesLine } from "./versions.js";
         // ⚠️ HANDOFF §0.0 — the shelf banner reads the GRADED document now.
-        import { readWeek } from "./daylog.js";
+        import { readWeek, weekStartOf } from "./daylog.js";
         // ⚠️ ROADMAP 50 — the mirror heal. daylog.js already imports this module,
         // so it is in the graph either way and costs no extra fetch.
         import { reconcile } from "./logdays.js";
-        import { hudStrings } from "./hud.js";
+        import { hudStrings, weekRuleText, weekSpanText } from "./hud.js";
         import { resolveMinuteGoals } from "./goal-ladder.js";
         // ⭐ ROADMAP 26 — the ONE copy of the chapter-position rule, shared by
         // renderBooks() and renderContinue(). See chapter-position.js.
@@ -719,6 +720,10 @@
         // This page's own version. The <title> and footer are both written from
         // it, because they used to be hardcoded separately and had already
         // drifted apart (title said 3.0.0, footer said 2.3.1).
+        //
+        // v3.26.0: Round 167 — the weekly figure is read with the class's week anchor (it used
+        //         none, so a Monday class saw a Saturday week here), its hover gives the dates,
+        //         and a Teach link joins Reports and Admin.
         //
         // v3.25.0: Round 161 — the HUD's goals come from goal-ladder.js (class →
         //         the student's own → none), and the goals cache key is the shared
@@ -930,7 +935,7 @@
         //         build-info panel that reads every other file's version constant
         //         out of the deployed files. See versions.js for why it fetches
         //         rather than imports.
-        const INDEX_VERSION = "3.25.0";
+        const INDEX_VERSION = "3.26.0";
 
         document.title = `TypeThatBook — Library v${INDEX_VERSION}`;
         const _fv = document.getElementById('footer-version');
@@ -2535,6 +2540,11 @@
         const IDX_GOALS_CACHE_KEY = 'ttb_goalsCache_v3';   // written by game.js / learn.js
         const IDX_GOALS_CACHE_MS  = 86400000;
         let indexGoals = { dailySeconds: 0, weeklySeconds: 0 };
+        // ⚠️ Round 167 — THE WEEK'S ANCHOR. This page read the week with no anchor at all,
+        // so a class whose week starts Monday saw Saturday-to-Friday here and Monday-to-
+        // Sunday everywhere else. The class's own anchor when it has one; 6 (the school
+        // default) otherwise — the same 6 this page always used.
+        let indexWeekStartDay = 6;
 
         // Cache first, exactly as game.js does it, keyed and TTL'd identically so
         // the two cannot disagree about what is fresh. A miss costs two reads.
@@ -2550,6 +2560,7 @@
                     if (c && c.uid === currentUser.uid && (Date.now() - c.at) < IDX_GOALS_CACHE_MS) {
                         indexGoals = { dailySeconds: c.dailySeconds || 0,
                                        weeklySeconds: c.weeklySeconds || 0 };
+                        if (Number.isInteger(c.weekStartDay)) indexWeekStartDay = c.weekStartDay;
                         return;
                     }
                 }
@@ -2584,6 +2595,7 @@
                 }
                 const g = resolveMinuteGoals({ classDoc, userDoc: ud });
                 indexGoals = { dailySeconds: g.dailySeconds, weeklySeconds: g.weeklySeconds };
+                if (classDoc && Number.isInteger(classDoc.weekStartDay)) indexWeekStartDay = classDoc.weekStartDay;
             } catch (_) { /* goals are a denominator; without them we show the figure alone */ }
         }
 
@@ -2596,7 +2608,8 @@
                     String(now.getMonth()+1).padStart(2,'0') + '-' +
                     String(now.getDate()).padStart(2,'0');
                 const read = await readWeek({ db, doc, getDoc,
-                                              uid: currentUser.uid, dateStr: todayStr });
+                                              uid: currentUser.uid, dateStr: todayStr,
+                                              weekStartDay: indexWeekStartDay });
                 // ⚠️ A PARTIAL READ SHOWS NOTHING RATHER THAN AN UNDERCOUNT. Same
                 // ruling as before: a missing number here is a gap, a wrong one
                 // is a child told they have less time than they earned.
@@ -2617,6 +2630,9 @@
                 if (weekEl) {
                     weekEl.textContent = hud.right;
                     weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
+                    // Round 167 — the hover says which days "Weekly" counts.
+                    weekEl.title = 'This week: ' + weekSpanText(weekStartOf(todayStr, indexWeekStartDay))
+                        + ' (' + weekRuleText(indexWeekStartDay) + ')';
                 }
             } catch(e) { /* stats are non-critical */ }
         }

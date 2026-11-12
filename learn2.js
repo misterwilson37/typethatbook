@@ -1,4 +1,6 @@
-// learn2.js v0.15.0-staging
+// learn2.js v0.16.0-staging
+//
+// v0.16.0 — Round 167: "Your week" in Settings and on the Weekly hover, as learn.js v2.57.0.
 //
 // v0.15.0 — Round 166: requirement percentages, exactly as learn.js v2.56.0, plus Deadline's
 //   pace from the scaled lesson gates.
@@ -325,7 +327,7 @@ import {
 // The time readout, shared with game.js. ⚠️ Both pages render the SAME string in
 // the SAME element id — see hud.js for why that is the whole point.
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
-         celebrationDone, celebrationMark, fmt } from "./hud.js";
+         celebrationDone, celebrationMark, fmt, weekRuleText, weekSpanText } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
 import { resolveReq, scaleGates, scaleLessonGates, scaleWpm, scaleAcc, NO_SCALE } from "./req-scale.js";
 // ⚠️ v2.26.0 — THE "copied from game.js" BLOCK IS GONE, and its header said so
@@ -410,7 +412,7 @@ import { mount as mountDeadline } from "./game-deadline.js";
 // number, not a deploy number: it means nothing to any student-facing page,
 // the way game-deadline.js's own 1.0.0 meant nothing until Round 82's ruling
 // that "nothing to this moment has had a version" applied to it.
-const LEARN_VERSION = "0.15.0-staging";
+const LEARN_VERSION = "0.16.0-staging";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1050,6 +1052,13 @@ function openSchoolSettings() {
                 onSave: saveOwnGoals,
             });
         }
+        // ⭐ Round 167 — HOW THEIR WEEK IS DEFINED (the class's own anchor, or the
+        // school's). Jake: "Does it show the kid anywhere how I define a week?"
+        rows.push({
+            kind: 'info', label: 'Your week',
+            value: weekRuleText(goals.weekStartDay),
+            hint: 'this week: ' + weekSpanText(getWeekStart(new Date())),
+        });
         // ⚠️ THE STUDENT ID. Round 27g DELETED the corner stamp that used to
         // carry it, so this and Library's Settings menu are now the only places
         // it appears. Same EIGHT characters reports.html prints beside each
@@ -6387,6 +6396,9 @@ function renderTimeHUD() {
     if (weekEl) {
         weekEl.textContent = hud.right;
         weekEl.style.color = hud.weeklyDone ? '#22c55e' : '#888';
+        // Round 167 — the hover says which days "Weekly" counts.
+        weekEl.title = 'This week: ' + weekSpanText(getWeekStart(new Date()))
+            + ' (' + weekRuleText(goals.weekStartDay) + ')';
     }
 }
 

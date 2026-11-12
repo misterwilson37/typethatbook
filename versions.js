@@ -1,5 +1,8 @@
-// versions.js v1.21.0 — reads every file's version constant out of the files as
+// versions.js v1.22.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.22.0 — Round 167: SOURCES gained teach.js, teach-data.js and staff-actions.js — the new
+//           Teach page and the staff writes it shares with Reports.
 //
 // v1.21.0 — Round 166: SOURCES gained req-scale.js (requirement percentages).
 //
@@ -41,9 +44,7 @@
 //           "version entries out of order" on a clean checkout. Moved up here.
 //           The audit was RIGHT and had been red in the repo as delivered.
 //
-// v1.14.0 — ROADMAP 16: registers reports.html and admin.html. ⚠️ A STALE
-//           admin.js WAS INVISIBLE TO THE DRIFT DETECTOR, which is backwards for
-//           the file that writes every book in the library.
+// ⚠️ v1.14.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 167, 8-entry budget).
 //
 //
 // ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
@@ -121,6 +122,9 @@ const SOURCES = [
     { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'run-picker.js',         pattern: /\bexport\s+const\s+RUN_PICKER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'req-scale.js',          pattern: /\bexport\s+const\s+REQ_SCALE_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'staff-actions.js',      pattern: /\bexport\s+const\s+STAFF_ACTIONS_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'teach-data.js',         pattern: /\bexport\s+const\s+TEACH_DATA_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'teach.js',              pattern: /\bexport\s+const\s+TEACH_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -160,7 +164,7 @@ const SOURCES = [
     { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 
-export const VERSIONS_VERSION = '1.21.0';
+export const VERSIONS_VERSION = '1.22.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

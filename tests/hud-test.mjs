@@ -42,13 +42,13 @@
 // and hold no second formatter.
 
 import { readFileSync } from 'fs';
-import { hudStrings, fmt, HUD_VERSION } from '../hud.js';
+import { hudStrings, fmt, HUD_VERSION, weekRuleText, weekSpanText } from '../hud.js';
 
 let pass = 0, fail = 0;
 const ok = (cond, msg) => { if (cond) { pass++; } else { fail++; console.log('  FAIL: ' + msg); } };
 
 console.log('\n─── A. formatting ───');
-ok(HUD_VERSION === '2.2.0', `hud.js reports v2.2.0 (got ${HUD_VERSION})`);
+ok(HUD_VERSION === '2.3.0', `hud.js reports v2.3.0 (got ${HUD_VERSION})`);
 ok(fmt(0) === '0:00', 'zero is 0:00');
 ok(fmt(7) === '0:07', 'seconds are padded (0:07, never 0:7)');
 ok(fmt(562) === '9:22', '562 seconds is 9:22');
@@ -245,6 +245,27 @@ ok(learnHits === 0,
 // value it described.
 ok(!/Today:\s*<span/.test(learnHtml),
    'the hardcoded "Today:" label is gone from learn.html — the label is part of the string now');
+
+// ─── Round 167: the student can see how their week is defined ────────────────
+// Jake: *"Does it show the kid anywhere how I define a week? The class defined week should
+// probably be available in settings or on a hover over the week."*
+ok(weekRuleText(6) === 'Saturday to Friday' && weekRuleText(1) === 'Monday to Sunday'
+   && weekRuleText(0) === 'Sunday to Saturday', 'week rule: the anchor day to the day before it');
+ok(weekSpanText('2026-11-07') === 'Sat Nov 7 \u2013 Fri Nov 13', 'week span: seven days from the start');
+ok(weekSpanText('2026-12-27') === 'Sun Dec 27 \u2013 Sat Jan 2', 'week span crosses a year cleanly');
+for (const f of ['learn.js', 'learn2.js']) {
+    const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+    ok(/label: 'Your week',\s*value: weekRuleText\(goals\.weekStartDay\)/.test(src), `${f}: Settings shows "Your week"`);
+    ok(/weekEl\.title = 'This week: ' \+ weekSpanText\(getWeekStart\(new Date\(\)\)\)/.test(src), `${f}: the Weekly figure's hover gives the dates`);
+}
+{
+    const g = readFileSync(new URL('../game.js', import.meta.url), 'utf8');
+    ok(/Your week<\/div>/.test(g) && /weekRuleText\(goals\.weekStartDay\)/.test(g), 'game.js: Library\'s Settings shows the week');
+    ok(/hudWeekEl\.title = 'This week: '/.test(g), 'game.js: the Weekly figure\'s hover gives the dates');
+    const ix = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    ok(/weekStartDay: indexWeekStartDay/.test(ix),
+       '⚠️ index.html reads the week with the class\'s anchor — it used none, so a Monday class saw Saturday weeks here');
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

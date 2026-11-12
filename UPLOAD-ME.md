@@ -1,30 +1,30 @@
-# Round 166 — requirements as a percentage
+# Round 167 — Teach, and Arcade minutes count
 
-**The code is already on `main` — nothing to upload.** ⚠️ **One manual step: the Firestore
-rules (v2.19.0).** Until then, setting a *student's* percentage in Reports is refused (it says
-so). Class percentages in the Class Manager work without it.
+**Already on `main` — nothing to upload, and no rules change.** (If Round 166's rules v2.19.0 aren't
+pasted yet, that's still needed for per-student requirements.)
 
 ## Order
 
-1. **Firestore → Rules:** paste the whole of `firebase/firestore.rules` (v2.19.0) and **Publish**.
-2. Firestore → `settings` → `appVersion` → `nonce` → increase by one.
+1. Firestore → `settings` → `appVersion` → `nonce` → increase by one.
 
-## How to use it
+## What changes
 
-* **A whole class:** admin → Class Manager → Edit the class → **Speed requirement (%)** and
-  **Accuracy requirement (%)**. 70 = easier, 110 = harder, blank = standard. Save.
-* **One student:** Reports → choose the student → **Requirements…**. Blank follows the class.
-  A student's own number replaces the class's (speed and accuracy separately).
-* 70% turns a 20 WPM / 90% run into 14 WPM / 63%; 110% into 22 / 99. Accuracy never goes over
-  100%. Library's 15 / 80 gate scales the same way. Students only ever see their own numbers.
-* Reports grades each student against their own bar; the new **Adjusted** column (last, also at
-  the end of the CSV) shows who has a setting.
+* ⚠️ **Reports and its CSV now include Arcade minutes.** They had been left out of every total,
+  while the student's own screen counted them. Arcade players' totals will go up to match what they
+  see.
+* ⭐ **New page: Teach** (link in Reports, Admin and the home page footer, or `/teach.html`):
+  * **Today** — who has typed today with flags; *Who hasn't typed?* on demand.
+  * **Classes** — one class, all your classes, or the school; any date range; class settings;
+    **Export CSV** — same columns as Reports, and for several classes one file with a Class column.
+  * **Student** — days → runs, lessons, move class, requirements, Wipe today.
+  * For deleting a single run or recalculating a day, it links to Old Reports for now.
+* Students see **how their week is defined**: "Your week" in Settings, and the dates when they
+  hover the Weekly figure.
 
 ## Check
 
-1. Set a test student to 70% / 70% in Reports → Requirements… .
-2. As that student, open a School lesson: the card and the result screen show the lower targets
-   (e.g. "63%+", "14+"). A run at 15 WPM / 70% that used to fail now passes.
-3. Run a report: their Adjusted cell reads "speed 70% · accuracy 70%".
+Open Teach. Today should list your students who have typed. Click one, then their class, then
+**Export CSV** for **All my classes** and open it next to last week's Reports export — the first nine
+columns line up (totals will be higher only for students who played Arcade).
 
-Expect **ALL 124 HARNESSES PASS** and **91 rules tests passing**.
+Expect **ALL 126 HARNESSES PASS**.

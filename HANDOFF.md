@@ -1,6 +1,22 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-12 by Round 166, for whoever is next
+> ## ▶ START HERE — written 2026-11-12 by Round 167, for whoever is next
+>
+> **126 harnesses pass**, all of them (new: `teach-data-test.mjs`, `teach-page-test.mjs` — the
+> latter runs teach.html in real Chromium against an in-memory Firestore; it skips without
+> Playwright), and all 91 rules tests.
+>
+> ⭐⭐ **teach.html IS THE FUTURE OF REPORTS + ADMIN** (Jake: *"start building this as a third page —
+> eventually it will just replace the other two"*). Today → Class → Student, cross-linked; see
+> teach.js's header. ⚠️ Its numbers come from teach-data.js → daylog.js totalsOf() and its writes
+> from staff-actions.js — **never add a local copy of either** (Reports' copy of the totals rule
+> dropped every Arcade minute until this round). Next to move over: run delete / day recalculate,
+> then Admin's Students tab (CSV import), then Staff/Content/privacy. Keep the CSV's first nine
+> columns identical to Reports' (`teach-data-test` C1/C2).
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-12 by Round 166
 >
 > **124 harnesses pass**, all of them (new: `req-scale-test.mjs`), and all 91 rules tests
 > (`npm run test:rules` works in this container — Java is installed).
