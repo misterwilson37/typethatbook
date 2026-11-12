@@ -1,4 +1,7 @@
-// run-grade.js v1.2.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+// run-grade.js v1.3.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+//
+// v1.3.0 — Round 168: each merged attempt carries `members` — the sprints it was built from —
+//          so Teach can delete one whole run. Additive; nothing else changed.
 //
 // v1.2.0 — Round 166: gradeMergedRun() takes an optional 4th argument, a function that
 //          scales the gates (req-scale.js), so Reports grades a student against their own
@@ -45,7 +48,7 @@
 // two agree on run count for every step type, which is the ratchet that stops
 // this becoming a twin.
 
-export const RUN_GRADE_VERSION = "1.2.0";
+export const RUN_GRADE_VERSION = "1.3.0";
 
 // A🔥 as a string, built from a code point so no source file has to carry a
 // surrogate pair literally — HANDOFF §0.-24 is about a heredoc that died on one.
@@ -400,6 +403,9 @@ export function mergeRunAttempts(sprints) {
                 date: s.date, label: s.label, runIdx: s.runIdx,
                 seconds: 0, chars: 0, mistakes: 0, fragments: 0,
                 at: s.at || '', orphan: s.continuation === true,
+                // ⭐ Round 168 — the sprints this attempt is made of, so a teacher can
+                // delete a whole run (all its fragments) and nothing else.
+                members: [],
             };
             attempts.push(att);
             open.set(key, att);
@@ -408,6 +414,7 @@ export function mergeRunAttempts(sprints) {
         att.chars    += Number(s.chars)    || 0;
         att.mistakes += Number(s.mistakes) || 0;
         att.fragments += 1;
+        att.members.push(s);
     }
 
     for (const a of attempts) {

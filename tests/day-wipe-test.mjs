@@ -228,7 +228,7 @@ for (const f of ['learn.js', 'learn2.js']) {
        '⚠️ F10 it removes, then stamps, then sweeps again (a save that landed in between)');
     ok(/setDoc\(d\.ref, back\)/.test(fn), 'F11 a lesson is replaced whole, never merged into');
     const rules = read('firebase/firestore.rules').replace(/^\s*\/\/.*$/gm, '');
-    ok(/hasOnly\(\['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay'\]\)/.test(rules)
+    ok(/hasOnly\(\['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay', 'progressChangedAt'\]\)/.test(rules)
        && /wipeAt == request\.time/.test(rules), 'F12 rules: staff may stamp a wipe, on the server clock, and nothing else');
 }
 

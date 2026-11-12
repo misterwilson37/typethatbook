@@ -1,3 +1,6 @@
+// teach.js v0.2.0 — Round 168: the student page EDITS — Delete a whole run (time AND lesson
+// credit, lesson-undo.js), set a day's time, Clear mastery; sign-in claims a pre-authorised role;
+// a banner points to Reports for the one-time school-consent confirmation.
 // teach.js v0.1.0 — Round 167. THE CONTROLLER FOR teach.html: TODAY → CLASS → STUDENT.
 //
 // See teach.html's header for Jake's brief. Three views behind one hash router, every name a
@@ -24,15 +27,20 @@ import { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, dele
          serverTimestamp, ttbMeter } from './read-meter.js';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-import { localDateStr } from './daylog.js';
+import { localDateStr, SOURCE_SPLIT_CUTOVER } from './daylog.js';
 import { ledgerFrom, planReads } from './logdays.js';
-import { resolveReq, describeReq, cleanPct, NO_SCALE } from './req-scale.js';
-import { wipeToday, saveStudentReq, classReqPatch } from './staff-actions.js';
+import { resolveReq, describeReq, cleanPct, NO_SCALE, scaleGates } from './req-scale.js';
+import { mergeRunAttempts, gradeMergedRun, runPlan } from './run-grade.js';
+import { MASTERY_POINTS } from './lesson-gate.js';
+import { undoRunAttempt } from './lesson-undo.js';
+import { wipeToday, saveStudentReq, classReqPatch, deleteRunAttempt, setDayTime, clearLessonMastery, sprintKeyOf,
+         claimPendingRole, hasCoppaAttestation }
+    from './staff-actions.js';
 import { formatTime, datesInRange, rangePreset, dayRow, idleSuspect, rollUp, toCsv, agoText }
     from './teach-data.js';
 import { isTombstone } from './day-wipe.js';
 
-export const TEACH_VERSION = '0.1.0';
+export const TEACH_VERSION = '0.2.0';
 
 const FS = { collection, getDocs, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc,
              deleteField, serverTimestamp };
@@ -115,6 +123,7 @@ onAuthStateChanged(auth, async (user) => {
         return;
     }
     me.uid = user.uid; me.email = user.email || '';
+    await claimPendingRole({ db, fs: FS, user });   // Round 168 — a new teacher's first page can be Teach
     try {
         const s = await getDoc(doc(db, 'staff', user.uid));
         if (s.exists() && s.data().active !== false) {
@@ -148,6 +157,16 @@ onAuthStateChanged(auth, async (user) => {
     loadKnown();
     fillPickers();
     route();
+    // Round 168 — the one-time school-consent confirmation lives in Reports (one form, one
+    // record); Teach points to it rather than keeping a second copy.
+    if (!(await hasCoppaAttestation({ db, fs: FS, uid: me.uid }))) {
+        const b = document.createElement('div');
+        b.className = 'card';
+        b.style.borderColor = 'var(--notice)';
+        b.innerHTML = 'Before you go further: please confirm, once, that your school has approved TypeThatBook — '
+            + '<a href="reports.html">open Reports</a> and answer the question it shows. (It is only asked once.)';
+        document.querySelector('main').prepend(b);
+    }
 });
 
 // ─── router ──────────────────────────────────────────────────────────────────
@@ -595,6 +614,7 @@ $('stu-wipe').onclick = async () => {
     finally { btn.disabled = false; btn.textContent = 'Wipe today…'; }
 };
 
+let lastDays = [];
 async function loadStudentDays() {
     if (!stu.uid || !stu.data) return;
     const dates = datesInRange($('stu-start').value, $('stu-end').value);
@@ -610,6 +630,7 @@ async function loadStudentDays() {
         } catch (_) {}
     });
     days.sort((a, b) => b.date.localeCompare(a.date));
+    lastDays = days;
     const tot = days.reduce((a, d) => ({ s: a.s + d.seconds, c: a.c + d.chars, m: a.m + d.mistakes }), { s: 0, c: 0, m: 0 });
     st.textContent = days.length
         ? `${formatTime(tot.s)} over ${days.length} day${days.length === 1 ? '' : 's'} · click a day to see its runs`
@@ -625,6 +646,13 @@ async function loadStudentDays() {
     $('stu-days-hint').innerHTML = 'To delete a single run or recalculate a day, use <a href="reports.html">Old Reports</a> for now — it moves here next.';
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+// A DAY'S RUNS — Round 168: whole runs, each deletable, and the day's time editable.
+// ═════════════════════════════════════════════════════════════════════════════
+// A lesson run can be saved in fragments (an interrupted run continues); run-grade.js
+// mergeRunAttempts() joins them, and each attempt carries its `members`, so Delete removes
+// the whole run and nothing else. Library sprints and practice laps are listed one by one
+// and delete their time only — they earn nothing in a lesson.
 async function toggleRuns(tr) {
     const next = tr.nextElementSibling;
     if (next && next.classList.contains('runs')) { next.remove(); return; }
@@ -632,55 +660,168 @@ async function toggleRuns(tr) {
     row.className = 'runs';
     row.innerHTML = '<td colspan="7" class="src">Loading runs…</td>';
     tr.after(row);
+    await renderRuns(row, tr.dataset.date);
+}
+
+async function renderRuns(row, date) {
     try {
         const snap = await getDocs(query(collection(db, 'typing_sessions'),
-            where('uid', '==', stu.uid), where('date', '==', tr.dataset.date)));
-        const runs = [];
+            where('uid', '==', stu.uid), where('date', '==', date)));
+        const flat = [];
         snap.forEach(d => {
             const s = d.data();
-            (Array.isArray(s.sprints) ? s.sprints : []).forEach(sp => runs.push({ ...sp, source: sp.source || s.source,
-                label: sp.label || s.lessonId || s.bookId || '' }));
+            (Array.isArray(s.sprints) ? s.sprints : []).forEach(sp => flat.push({ ...sp, _sid: d.id,
+                _source: s.source || sp.source || '', label: sp.label || s.lessonId || s.bookId || '' }));
         });
-        runs.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
-        const lessons = await lessonTitles();
-        row.innerHTML = `<td colspan="7">${runs.length ? `<table><thead><tr><th>Time</th><th>Where</th><th>What</th>
-            <th class="num">Length</th><th class="num">WPM</th><th class="num">Accuracy</th></tr></thead><tbody>${runs.map(r => `
-            <tr><td>${esc(String(r.at || '').slice(11, 16))}</td><td>${esc(r.source || '')}</td>
-                <td>${esc(lessons[r.label] || r.label || '')}${r.detail != null && r.detail !== '' ? ' <span class="src">· ' + esc(r.detail) + '</span>' : ''}</td>
-                <td class="num">${formatTime(r.seconds || 0)}</td><td class="num">${r.wpm || 0}</td><td class="num">${r.accuracy ?? ''}%</td></tr>`).join('')}
-            </tbody></table>` : '<span class="src">No run records for this day (Arcade games keep no run records).</span>'}</td>`;
+        const defs = await lessonDefs();
+        const req = studentReq();
+        const attempts = mergeRunAttempts(flat.filter(sp => sp._source === 'school'));
+        const used = new Set();
+        const rows = attempts.map(att => {
+            att.members.forEach(m => used.add(sprintKeyOf(m) + m._sid));
+            const lesson = defs[att.label];
+            const g = lesson ? gradeMergedRun(att, lesson, null, x => scaleGates(x, req)) : { ok: false };
+            return { kind: 'run', att, members: att.members, at: att.at, source: 'school', label: att.label,
+                     what: (lesson && lesson.title) || att.label, runIdx: att.runIdx, grade: g.ok ? g.grade : '',
+                     advances: g.ok ? g.advances : false, seconds: att.seconds, chars: att.chars,
+                     mistakes: att.mistakes, wpm: att.wpm, accuracy: att.accuracy, parts: att.fragments };
+        });
+        for (const sp of flat) {
+            if (used.has(sprintKeyOf(sp) + sp._sid)) continue;
+            const lesson = defs[sp.label];
+            rows.push({ kind: 'sprint', members: [sp], at: sp.at || '', source: sp._source || 'library',
+                        label: sp.label, what: (lesson && lesson.title) || sp.label + (sp.detail != null && sp.detail !== '' ? ' · ' + sp.detail : ''),
+                        runIdx: null, grade: sp.practice ? 'practice' : '', seconds: sp.seconds || 0,
+                        chars: sp.chars || 0, mistakes: sp.mistakes || 0, wpm: sp.wpm || 0,
+                        accuracy: sp.accuracy ?? '', parts: 1 });
+        }
+        rows.sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+        const tot = rows.reduce((a, r) => a + r.seconds, 0);
+        row.innerHTML = `<td colspan="7">${rows.length ? `<table><thead><tr><th>Time</th><th>Where</th><th>What</th>
+            <th>Run</th><th>Grade</th><th class="num">Length</th><th class="num">WPM</th><th class="num">Accuracy</th><th></th></tr></thead><tbody>${rows.map((r, i) => `
+            <tr><td>${esc(String(r.at || '').slice(11, 16))}</td><td>${esc(r.source)}</td>
+                <td>${esc(r.what)}</td><td>${r.runIdx != null ? 'run ' + (r.runIdx + 1) + (r.parts > 1 ? ` <span class="src">(${r.parts} parts)</span>` : '') : ''}</td>
+                <td>${esc(r.grade)}</td><td class="num">${formatTime(r.seconds)}</td><td class="num">${r.wpm}</td>
+                <td class="num">${r.accuracy}%</td>
+                <td><button class="danger" data-del="${i}" title="Delete this run: its time${r.kind === 'run' ? ' and what it earned in the lesson' : ''}">Delete</button></td></tr>`).join('')}
+            </tbody></table>` : '<span class="src">No run records for this day (Arcade games keep no run records).</span>'}
+            <div class="bar">
+                <span class="src">Set this day's time:</span>
+                <input type="number" min="0" class="dt-min" style="width:5em"> min <input type="number" min="0" max="59" class="dt-sec" style="width:4em"> s
+                <button class="dt-save">Save</button>
+                <span class="src">replaces the whole day with this one number (runs listed: ${formatTime(tot)})</span>
+            </div><div class="msg dt-msg"></div></td>`;
+        row.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteRow(row, date, rows[Number(b.dataset.del)], rows));
+        row.querySelector('.dt-save').onclick = () => saveDayTime(row, date);
     } catch (e) { row.innerHTML = `<td colspan="7" class="src">Could not load runs: ${esc(e.message)}</td>`; }
 }
 
-// Lesson titles, read once per day per browser (the lessons change about once a term).
-let _lessonTitles = null;
-async function lessonTitles() {
-    if (_lessonTitles) return _lessonTitles;
-    const KEY = 'ttb_teachLessons_v1';
+function studentReq() {
+    const u = stu.data || {};
+    return resolveReq(u.classId ? classesById[u.classId] : null, u);
+}
+
+async function deleteRow(row, date, r, all) {
+    const msgEl = row.querySelector('.dt-msg');
+    const when = String(r.at || '').slice(11, 16);
+    const isRun = r.kind === 'run';
+    if (!confirm(isRun
+        ? `Delete run ${r.runIdx + 1} of "${r.what}" at ${when} (${formatTime(r.seconds)}, grade ${r.grade || '—'})?\n\n`
+          + `• Its ${formatTime(r.seconds)} come off ${date}.\n• In the lesson it takes back what this run earned: one attempt, its mastery points, and — if this run passed the lesson — the pass.\n\n`
+          + `Their open page updates within seconds. Nothing else is touched.`
+        : `Delete this ${r.source} run at ${when} (${formatTime(r.seconds)})?\n\nIts time comes off ${date}. Their open page updates within seconds.`)) return;
+    msgEl.className = 'msg dt-msg'; msgEl.textContent = 'Deleting…';
     try {
-        const c = JSON.parse(localStorage.getItem(KEY) || 'null');
-        if (c && c.day === today()) return (_lessonTitles = c.map);
-    } catch (_) {}
+        let lessonId = null, lessonRecord = null, notes = [];
+        if (isRun && r.grade) {
+            const ref = doc(db, 'users', stu.uid, 'lessonProgress', r.label);
+            const recSnap = await getDoc(ref);
+            const lesson = (await lessonDefs())[r.label];
+            if (recSnap.exists() && lesson) {
+                const rec = recSnap.data();
+                const k = String(r.runIdx);
+                // Other known attempts of this run: the rest of this day, plus the record's
+                // stored best when this run did not set it (see lesson-undo.js's header).
+                const other = all.filter(x => x !== r && x.kind === 'run' && x.label === r.label && x.runIdx === r.runIdx).map(x => x.grade);
+                const stored = (rec.runGrades || {})[k];
+                if (stored && stored !== r.grade) other.push(stored);
+                const u = undoRunAttempt(rec, { runIdx: r.runIdx, grade: r.grade, advanced: r.advances,
+                    isFinalRun: r.runIdx === runPlan(lesson).length - 1, seconds: r.seconds, otherGrades: other });
+                lessonId = r.label; lessonRecord = u.record; notes = u.notes;
+            }
+        }
+        await deleteRunAttempt({ db, fs: FS, uid: stu.uid, date, members: r.members,
+            totals: { seconds: r.seconds, chars: r.chars, mistakes: r.mistakes },
+            source: r.source === 'library' ? 'library' : 'school', splitCutover: SOURCE_SPLIT_CUTOVER,
+            lessonId, lessonRecord, isSuper: isSuper() });
+        const smsg = $('stu-msg');
+        smsg.className = 'msg ok';
+        smsg.textContent = `Deleted the ${when} run (${formatTime(r.seconds)} off ${date})`
+            + (notes.length ? '; in the lesson: ' + notes.join('; ') : '') + '.';
+        await loadStudentDays();
+        const tr = $('stu-days-body').querySelector(`tr[data-date="${date}"]`);
+        if (tr) toggleRuns(tr);
+        if ($('stu-lessons-out').innerHTML) loadLessons();
+    } catch (e) {
+        msgEl.className = 'msg bad dt-msg';
+        msgEl.textContent = 'Could not delete: ' + e.message + ' (are Firestore rules v2.20.0 published?)';
+    }
+}
+
+async function saveDayTime(row, date) {
+    const msgEl = row.querySelector('.dt-msg');
+    const mins = parseInt(row.querySelector('.dt-min').value, 10) || 0;
+    const secs = Math.min(59, Math.max(0, parseInt(row.querySelector('.dt-sec').value, 10) || 0));
+    const seconds = mins * 60 + secs;
+    const day = (lastDays || []).find(d => d.date === date) || { chars: 0, mistakes: 0 };
+    if (!confirm(`Set ${date} to ${formatTime(seconds)} for this student?\n\nThis replaces the whole day — School, Library and Arcade — with one number. Their open page updates within seconds.`)) return;
+    try {
+        await setDayTime({ db, fs: FS, uid: stu.uid, date, seconds, chars: day.chars, mistakes: day.mistakes });
+        $('stu-msg').className = 'msg ok';
+        $('stu-msg').textContent = `${date} is now ${formatTime(seconds)}.`;
+        await loadStudentDays();
+    } catch (e) { msgEl.className = 'msg bad dt-msg'; msgEl.textContent = 'Could not save: ' + e.message; }
+}
+
+// Lesson definitions (titles, steps, gates), read once per page load.
+let _lessonDefs = null;
+async function lessonDefs() {
+    if (_lessonDefs) return _lessonDefs;
     const map = {};
-    try { (await getDocs(collection(db, 'lessons'))).forEach(d => { map[d.id] = d.data().title || d.id; }); } catch (_) {}
-    try { localStorage.setItem(KEY, JSON.stringify({ day: today(), map })); } catch (_) {}
-    return (_lessonTitles = map);
+    try { (await getDocs(collection(db, 'lessons'))).forEach(d => { map[d.id] = { id: d.id, ...d.data() }; }); } catch (_) {}
+    return (_lessonDefs = map);
 }
 
 async function loadLessons() {
     const out = $('stu-lessons-out');
     out.innerHTML = '<div class="status">Reading lesson progress…</div>';
     try {
-        const [snap, titles] = await Promise.all([
-            getDocs(collection(db, 'users', stu.uid, 'lessonProgress')), lessonTitles()]);
+        const [snap, defs] = await Promise.all([
+            getDocs(collection(db, 'users', stu.uid, 'lessonProgress')), lessonDefs()]);
         const recs = [];
         snap.forEach(d => { const r = d.data(); if (!isTombstone(r)) recs.push({ id: d.id, ...r }); });
-        recs.sort((a, b) => String(b.lastSeenAt || b.completedAt || '').localeCompare(String(a.lastSeenAt || a.completedAt || '')));
+        const order = (id) => { const l = defs[id]; return l && typeof l.order === 'number' ? l.order : 9999; };
+        recs.sort((a, b) => order(a.id) - order(b.id) || a.id.localeCompare(b.id));
+        const mastered = (r) => Object.values(r.runScores || {}).filter(v => v >= MASTERY_POINTS).length;
         out.innerHTML = recs.length ? `<table><thead><tr><th>Lesson</th><th>Passed</th><th>Best grade</th>
-            <th class="num">Runs reached</th><th>Last worked on</th></tr></thead><tbody>${recs.map(r => `
-            <tr><td>${esc(titles[r.id] || r.id)}</td><td>${r.passed ? '✓' : ''}</td><td>${esc(r.grade || '')}</td>
+            <th class="num">Runs reached</th><th>Run grades</th><th class="num">Mastered runs</th><th>Last worked on</th><th></th></tr></thead><tbody>${recs.map(r => `
+            <tr><td>${esc((defs[r.id] && defs[r.id].title) || r.id)}</td><td>${r.passed ? '✓' : ''}</td><td>${esc(r.grade || '')}</td>
                 <td class="num">${r.runCount ? Math.min(r.runCount, (r.furthestRunIdx || 0) + 1) + ' / ' + r.runCount : ''}</td>
-                <td class="src">${esc(String(r.lastSeenAt || r.completedAt || '').slice(0, 10))}</td></tr>`).join('')}
+                <td class="src">${Object.keys(r.runGrades || {}).sort((a, b) => a - b).map(k => (Number(k) + 1) + ':' + esc(r.runGrades[k])).join(' ')}</td>
+                <td class="num">${mastered(r) || ''}</td>
+                <td class="src">${esc(String(r.lastSeenAt || r.completedAt || '').slice(0, 10))}</td>
+                <td>${mastered(r) ? `<button data-clear="${esc(r.id)}" title="Every run goes back to being graded so they can earn credit again. Grades and attempts are kept.">Clear mastery</button>` : ''}</td></tr>`).join('')}
             </tbody></table>` : '<div class="empty">No lessons started.</div>';
+        out.querySelectorAll('[data-clear]').forEach(b => b.onclick = async () => {
+            const id = b.dataset.clear;
+            if (!confirm(`Clear mastery for "${(defs[id] && defs[id].title) || id}"?\n\nEvery run in this lesson goes back to being graded, so they can earn credit in it again. Grades, fireballs and attempt counts are kept. Their open page updates within seconds.`)) return;
+            b.disabled = true;
+            try {
+                const { lockNote } = await clearLessonMastery({ db, fs: FS, uid: stu.uid, lessonId: id });
+                $('stu-msg').className = lockNote ? 'msg bad' : 'msg ok';
+                $('stu-msg').textContent = lockNote || 'Mastery cleared.';
+                loadLessons();
+            } catch (e) { $('stu-msg').className = 'msg bad'; $('stu-msg').textContent = 'Could not clear: ' + e.message; b.disabled = false; }
+        });
     } catch (e) { out.innerHTML = `<div class="status">Could not read lesson progress: ${esc(e.message)}</div>`; }
 }

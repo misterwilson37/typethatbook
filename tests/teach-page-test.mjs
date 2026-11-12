@@ -36,10 +36,15 @@ const fx = {
   [`typing_logs/d_${T}`]: { uid: 'd', date: T, classId: 'c2', schoolId: 's1', displayName: 'Dee Dash', email: 'dee@x',
      secondsSchool: 200, charsSchool: 300, mistakesSchool: 400, lastUpdated: ts(Date.now() - 60000) },
   [`typing_sessions/s1`]: { uid: 'a', date: T, source: 'school', sprints: [
-     { at: T + 'T09:05:00', seconds: 200, wpm: 18, accuracy: 96, label: 'u1_l1', detail: 'run 1' },
-     { at: T + 'T09:10:00', seconds: 220, wpm: 20, accuracy: 97, label: 'u1_l1', detail: 'run 2' }] },
-  'lessons/u1_l1': { title: 'Home Row 1' },
-  'users/a/lessonProgress/u1_l1': { passed: true, grade: 'A', runCount: 4, furthestRunIdx: 3, lastSeenAt: T + 'T09:10:00' },
+     { at: T + 'T09:05:00', seconds: 200, chars: 300, mistakes: 6, wpm: 18, accuracy: 96, label: 'u1_l1', detail: 'run 1' },
+     { at: T + 'T09:10:00', seconds: 220, chars: 400, mistakes: 4, wpm: 20, accuracy: 97, label: 'u1_l1', detail: 'run 2' }] },
+  // Four passage steps of ~40 characters -> four runs (run-grade.js runPlan()).
+  'lessons/u1_l1': { title: 'Home Row 1', order: 1, gates: { minWPM: 15, minAccuracy: 85 },
+     steps: [1, 2, 3, 4].map(i => ({ type: 'passage', text: 'the quick brown fox jumps over a lazy dog ' + i })) },
+  // Ann did run 1 (B) and run 2 (A) today; runs 3-4 earlier, the lesson passed on run 4.
+  'users/a/lessonProgress/u1_l1': { lessonId: 'u1_l1', passed: true, grade: 'A', runCount: 4, furthestRunIdx: 3,
+     lastSeenAt: T + 'T09:10:00', runAttempts: { 0: 1, 1: 1, 2: 1, 3: 1 }, runScores: { 0: 0, 1: 1, 2: 4, 3: 1 },
+     runGrades: { 0: 'B', 1: 'A', 2: 'A', 3: 'A' }, runLocks: { 2: 5 } },
 };
 const server = createServer((req, res) => {
   const p = ROOT + decodeURIComponent(req.url.split('?')[0]);
@@ -122,6 +127,23 @@ check(/Home Row 1/.test(runs) && /run 2/.test(runs), 'clicking a day shows its r
 await page.click('#stu-lessons');
 await page.waitForSelector('#stu-lessons-out table');
 check(/Home Row 1.*✓.*A.*4 \/ 4/s.test(await page.innerText('#stu-lessons-out')), 'lesson progress table');
+// Round 168 - delete run 2 (graded A) from today: its time AND its lesson credit.
+await page.waitForSelector('.runs [data-del]');
+page.once('dialog', d => d.accept());
+const delBtn = await page.$$('.runs [data-del]');
+await delBtn[1].click();
+await page.waitForFunction(() => /Deleted the/.test(document.getElementById('stu-msg').textContent));
+let st = await page.evaluate(() => Object.fromEntries(window.__store));
+const sess = st['typing_sessions/s1'];
+check(sess && sess.sprints.length === 1 && sess.sprints[0].detail === 'run 1', 'Delete run removes run 2 - and only run 2 - from the session');
+check(st[`typing_logs/a_${T}`].secondsSchool === 200 && st[`typing_logs/a_${T}`].secondsArcade === 120,
+      'its 220 s come off the day (School 420 -> 200); Arcade untouched');
+const lp = st['users/a/lessonProgress/u1_l1'];
+check(lp && !lp.runAttempts['1'] && !lp.runScores['1'] && !lp.runGrades['1'], 'the lesson record loses run 2\'s attempt, point and grade');
+check(lp.runGrades['2'] === 'A' && lp.runLocks['2'] === 5 && lp.passed === true, '...and nothing else (run 3 mastery and the pass from run 4 stay)');
+check(typeof st['users/a'].progressChangedAt === 'object' && st['users/a'].logsChangedDay === T,
+      'the student\'s page is told: minutes changed today AND lesson records changed');
+check(/in the lesson:/.test(await page.innerText('#stu-msg')), 'the teacher is told what changed in the lesson');
 await page.fill('#stu-sp', '70'); await page.click('#stu-req-save');
 await page.waitForFunction(() => /Saved/.test(document.getElementById('stu-msg').textContent));
 let w = await page.evaluate(() => window.__writes);
@@ -139,7 +161,7 @@ const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#clas
 const csv = readFileSync(await dl.path(), 'utf8');
 check(csv.split('\n')[0] === 'Name,Email,Total Seconds,Total Time,Characters,Avg WPM,Accuracy %,Days Active,Adjusted', 'one-class CSV header = Reports\'');
 // Yesterday is in "this week" unless today is the week's first day (Saturday, anchor 6).
-const annWeek = now.getDay() === 6 ? '540,9m 0s' : '840,14m 0s';
+const annWeek = now.getDay() === 6 ? '320,5m 20s' : '620,10m 20s';   // after run 2 (220 s) was deleted above
 check(new RegExp('Ann Able,ann@x,' + annWeek).test(csv), 'Ann\'s week includes her Arcade minutes (' + annWeek + ')');
 // class settings save
 await page.fill('#cs-sp', '80'); await page.click('#cs-save');

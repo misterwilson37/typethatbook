@@ -1,4 +1,8 @@
-// staff-actions.js v1.0.0 — Round 167. THE STAFF WRITES, IN ONE PLACE.
+// staff-actions.js v1.1.0 — Round 167. THE STAFF WRITES, IN ONE PLACE.
+//
+// v1.1.0 — Round 168: deleteRunAttempt() (a whole run, its time AND — via lesson-undo.js — its
+//          lesson credit), setDayTime() (Reports' manual save, Arcade now cleared too), and
+//          clearLessonMastery() (Reports' clear, now telling the student's open page).
 //
 // Reports and the new Teach page (teach.html) both wipe a student's day and set a student's
 // requirement percentages. Two copies of a write is how this project's numbers have drifted
@@ -15,7 +19,7 @@
 
 import { restoreForWipe } from './day-wipe.js';
 
-export const STAFF_ACTIONS_VERSION = '1.0.0';
+export const STAFF_ACTIONS_VERSION = '1.1.0';
 
 export const WIPE_TIME_FIELDS = ['seconds', 'chars', 'mistakes',
     'secondsLibrary', 'charsLibrary', 'mistakesLibrary',
@@ -126,4 +130,163 @@ export function classReqPatch(fs, speedRaw, accRaw, isEdit) {
         else out[key] = r.v;
     }
     return { patch: out, cleared };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Round 168 — RUN, DAY AND MASTERY EDITS (Teach's student page)
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Reports' identity for one sprint inside a session — at, detail, seconds, chars. */
+export const sprintKeyOf = (sp) => [sp.at || '', sp.detail || '', sp.seconds || 0, sp.chars || 0].join('\u0001');
+
+// The day-log fields a source owns, and the cutover after which they are the live ones.
+const SRC = {
+    school:  ['secondsSchool', 'charsSchool', 'mistakesSchool'],
+    library: ['secondsLibrary', 'charsLibrary', 'mistakesLibrary'],
+};
+
+/**
+ * The patch that takes `t` = { seconds, chars, mistakes } off a day document for one source.
+ * After the cutover the source's own fields are live; before it (or when they are absent) the
+ * flat triple is. Never below zero.
+ */
+export function subtractFromDay(data, source, t, splitCutover, date) {
+    const d = data || {};
+    const own = SRC[source];
+    const useSplit = own && date >= splitCutover && (own[0] in d);
+    const [fs, fc, fm] = useSplit ? own : ['seconds', 'chars', 'mistakes'];
+    return {
+        [fs]: Math.max(0, (d[fs] || 0) - (t.seconds || 0)),
+        [fc]: Math.max(0, (d[fc] || 0) - (t.chars || 0)),
+        [fm]: Math.max(0, (d[fm] || 0) - (t.mistakes || 0)),
+    };
+}
+
+/**
+ * Delete ONE run attempt — all of its fragments — from a student's day:
+ *   1. its sprints out of their typing_sessions documents (totals recomputed, as Reports does)
+ *   2. its time off that day's minutes, for its own source (delta, not a rebuild)
+ *   3. if `lessonRecord` is given (lesson-undo.js), the lesson record replaced with it
+ *   4. the stamp, so the student's open page reloads (today) and drops its lesson copy
+ * members: the attempt's sprints, each carrying `_sid` (its session's id) and `_source`.
+ */
+export async function deleteRunAttempt({ db, fs, uid, date, members, totals, source, splitCutover,
+                                         lessonId = null, lessonRecord = null, isSuper }) {
+    const { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } = fs;
+    const bySession = new Map();
+    for (const m of members) {
+        if (!bySession.has(m._sid)) bySession.set(m._sid, new Set());
+        bySession.get(m._sid).add(sprintKeyOf(m));
+    }
+    let removed = 0;
+    for (const [sid, keys] of bySession) {
+        const ref = doc(db, 'typing_sessions', sid);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) continue;
+        const s = snap.data();
+        const sprints = Array.isArray(s.sprints) ? s.sprints : [];
+        const kept = sprints.filter(sp => !keys.has(sprintKeyOf(sp)));
+        removed += sprints.length - kept.length;
+        if (kept.length === sprints.length) continue;
+        if (!kept.length && isSuper) { await deleteDoc(ref); continue; }
+        const secs  = kept.reduce((a, sp) => a + (sp.seconds  || 0), 0);
+        const chars = kept.reduce((a, sp) => a + (sp.chars    || 0), 0);
+        const miss  = kept.reduce((a, sp) => a + (sp.mistakes || 0), 0);
+        await updateDoc(ref, {
+            sprints: kept, sprintCount: kept.length, seconds: secs, chars, mistakes: miss,
+            wpm: secs > 0 ? Math.round((chars / 5) / (secs / 60)) : 0,
+            accuracy: (chars + miss) > 0 ? Math.round((chars / (chars + miss)) * 100) : 100,
+        });
+    }
+    const logRef = doc(db, 'typing_logs', uid + '_' + date);
+    const log = await getDoc(logRef);
+    if (log.exists()) {
+        await updateDoc(logRef, { ...subtractFromDay(log.data(), source, totals, splitCutover, date),
+                                  lastUpdated: new Date() });
+    }
+    if (lessonId && lessonRecord) {
+        await setDoc(doc(db, 'users', uid, 'lessonProgress', lessonId), lessonRecord);   // full replace
+    }
+    const stamp = { logsChangedAt: serverTimestamp(), logsChangedDay: date };
+    if (lessonId && lessonRecord) stamp.progressChangedAt = serverTimestamp();
+    await updateDoc(doc(db, 'users', uid), stamp);
+    return { removed };
+}
+
+/**
+ * Reports' manual "set this day's time": the day becomes one flat number. ⚠️ Round 168 —
+ * the ARCADE fields are cleared too (Reports' version left them, so a corrected day still
+ * added its Arcade minutes on top of the number the teacher typed).
+ */
+export async function setDayTime({ db, fs, uid, date, seconds, chars, mistakes }) {
+    const { doc, updateDoc, deleteField, serverTimestamp } = fs;
+    await updateDoc(doc(db, 'typing_logs', uid + '_' + date), {
+        seconds, chars, mistakes,
+        secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
+        secondsSchool:  deleteField(), charsSchool:  deleteField(), mistakesSchool:  deleteField(),
+        secondsArcade:  deleteField(), charsArcade:  deleteField(), mistakesArcade:  deleteField(),
+        lastUpdated: new Date(),
+    });
+    await updateDoc(doc(db, 'users', uid), { logsChangedAt: serverTimestamp(), logsChangedDay: date });
+}
+
+/**
+ * Reports' "Clear mastery": every run in the lesson goes back to being graded (runScores and
+ * runLocks removed; grades, fireballs and attempts kept), and the student's reach-back clock
+ * (lastLockDay) is re-derived from whatever mastery is left. ⚠️ Round 168 — and the student's
+ * open page is told (progressChangedAt), or its next flush would put the scores straight back.
+ * Returns { lockNote } — '' on success, a sentence when lastLockDay could not be re-derived.
+ */
+export async function clearLessonMastery({ db, fs, uid, lessonId }) {
+    const { doc, getDocs, collection, updateDoc, deleteField, serverTimestamp } = fs;
+    await updateDoc(doc(db, 'users', uid, 'lessonProgress', lessonId), {
+        runScores: deleteField(), runLocks: deleteField(),
+    });
+    let lockNote = '';
+    try {
+        let maxLock = null;
+        const all = await getDocs(collection(db, 'users', uid, 'lessonProgress'));
+        all.forEach(d => Object.values(d.data().runLocks || {}).forEach(v => {
+            const n = Number(v);
+            if (Number.isFinite(n) && (maxLock === null || n > maxLock)) maxLock = n;
+        }));
+        await updateDoc(doc(db, 'users', uid), { lastLockDay: maxLock === null ? deleteField() : maxLock });
+    } catch (e) {
+        lockNote = 'Mastery cleared, but the reach-back clock could not be recalculated (' + (e.message || e) + ').';
+    }
+    try { await updateDoc(doc(db, 'users', uid), { progressChangedAt: serverTimestamp() }); }
+    catch (e) { lockNote = (lockNote ? lockNote + ' ' : '') + 'Their open page was not told (are rules v2.20.0 published?).'; }
+    return { lockNote };
+}
+
+/**
+ * Round 168 — Reports' sign-in step, shared: a staff role pre-authorised for this email
+ * (pendingStaffRoles/{email}) is claimed onto staff/{uid}, so a new teacher's FIRST page can
+ * be Teach. Never throws.
+ */
+export async function claimPendingRole({ db, fs, user }) {
+    const { doc, getDoc, setDoc, deleteDoc } = fs;
+    try {
+        const lower = String(user.email || '').toLowerCase();
+        if (!lower) return;
+        const pend = await getDoc(doc(db, 'pendingStaffRoles', lower));
+        if (!pend.exists()) return;
+        const p = pend.data();
+        await setDoc(doc(db, 'staff', user.uid), {
+            email: lower, displayName: user.displayName || '',
+            role: p.role, schoolIds: p.schoolIds, readScope: p.readScope, active: true,
+        }, { merge: true });
+        await deleteDoc(doc(db, 'pendingStaffRoles', lower));
+    } catch (e) { console.warn('Could not claim a pre-authorised role:', e); }
+}
+
+/** Round 168 — has this staff member confirmed school consent (Reports' COPPA attestation)? */
+export async function hasCoppaAttestation({ db, fs, uid, version = 'v1' }) {
+    const localKey = `ttb_coppa_attested_${uid}_${version}`;
+    try { if (localStorage.getItem(localKey) === '1') return true; } catch (_) {}
+    try {
+        const s = await fs.getDoc(fs.doc(db, 'coppaAttestations', `${uid}_${version}`));
+        if (s.exists()) { try { localStorage.setItem(localKey, '1'); } catch (_) {} return true; }
+        return false;
+    } catch (_) { return true; }   // a failed check never blocks; Reports asks next visit
 }

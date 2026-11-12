@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<!-- reports.html v1.25.0 — Round 167: ⚠️⚠️ ARCADE MINUTES NOW COUNT in every total and the CSV
+<!-- reports.html v1.26.0 — Round 168: the manual day-time save clears Arcade too (it added on
+     top of the typed number), and Clear mastery tells the student's open page (rules v2.20.0).
+
+     reports.html v1.25.0 — Round 167: ⚠️⚠️ ARCADE MINUTES NOW COUNT in every total and the CSV
      (readLogTotals() had silently left them out — the student's own HUD always counted them).
      Wipe today and the student Requirements write moved to staff-actions.js (shared with the new
      teach.html). A Teach link in the header.
@@ -4901,6 +4904,8 @@
                     mistakes: log.mistakes,
                     secondsLibrary: deleteField(), charsLibrary: deleteField(), mistakesLibrary: deleteField(),
                     secondsSchool: deleteField(), charsSchool: deleteField(), mistakesSchool: deleteField(),
+                    // ⚠️ Round 168 — and Arcade, or its minutes still add on top of this number.
+                    secondsArcade: deleteField(), charsArcade: deleteField(), mistakesArcade: deleteField(),
                     lastUpdated: new Date()
                 });
 
@@ -5240,6 +5245,11 @@
             } else {
                 await updateDoc(doc(db, 'users', uid), { lastLockDay: maxLock });
             }
+
+            // ⭐ Round 168 — tell the student's open page (day-wipe.js), or its next lesson
+            // flush puts the cleared scores straight back. Rules v2.20.0.
+            try { await updateDoc(doc(db, 'users', uid), { progressChangedAt: serverTimestamp() }); }
+            catch (e) { console.warn('[mastery] progress stamp refused — rules v2.20.0?', e); }
 
             const panel = btn ? btn.closest('.grades-panel') : null;
             if (panel) await showGrades(uid, panel);

@@ -1,6 +1,19 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-12 by Round 167, for whoever is next
+> ## ▶ START HERE — written 2026-11-12 by Round 168, for whoever is next
+>
+> **127 harnesses pass** (new: `lesson-undo-test.mjs`), and all 96 rules tests.
+>
+> ⭐ **Round 168 = Teach stage 1 (editing a student).** Jake asked for Teach to reach full parity
+> with Reports + Admin. Stages: 1 student editing (DONE), 2 class management (create/rename/delete,
+> add students, CSV import, queued/stuck), 3 school tools (school week, privacy/purge, retention,
+> popularity, leaderboard, scan for flags), 4 content + staff. ⚠️ **ANY STAFF WRITE TO
+> lessonProgress MUST STAMP `progressChangedAt`** (staff-actions.js does) or the student's open
+> page writes the old record back on its next flush.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-12 by Round 167
 >
 > **126 harnesses pass**, all of them (new: `teach-data-test.mjs`, `teach-page-test.mjs` — the
 > latter runs teach.html in real Chromium against an in-memory Firestore; it skips without

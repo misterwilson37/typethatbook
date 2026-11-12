@@ -1,6 +1,11 @@
 rules_version = '2';
 
-// firestore.rules v2.19.0 — TypeThatBook
+// firestore.rules v2.20.0 — TypeThatBook
+//
+// v2.20.0 — ROUND 168: the staff change-stamp may carry `progressChangedAt` (server time
+//           only) — "this student's lesson records changed" (a deleted run, cleared mastery),
+//           so their open page drops its stale copy (day-wipe.js). A lesson-only change may
+//           stamp it without logsChangedAt.
 //
 // v2.19.0 — ROUND 166: requirement percentages (req-scale.js). Staff may set or remove
 //           `users/{uid}.reqSpeedPct` / `reqAccPct` (whole numbers 25..200) for a student
@@ -558,8 +563,15 @@ service cloud.firestore {
         // defeat later stamps.
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay'])
-            && request.resource.data.logsChangedAt == request.time
+                 .hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay', 'progressChangedAt'])
+            // v2.20.0 — at least one stamp, and every stamp on the SERVER clock. A lesson-only
+            // change (clear mastery) stamps progressChangedAt alone.
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['logsChangedAt', 'progressChangedAt'])
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['logsChangedAt'])
+                || request.resource.data.logsChangedAt == request.time)
+            && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['progressChangedAt'])
+                || request.resource.data.progressChangedAt == request.time)
             // v2.18.0 — the day the change is to, and "Wipe today" (day-wipe.js).
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['wipeAt'])
                 || request.resource.data.wipeAt == request.time)

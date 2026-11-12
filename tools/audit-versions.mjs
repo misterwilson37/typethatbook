@@ -116,6 +116,7 @@ const SOURCES = [
     { file: 'staff-actions.js',      pattern: /\bexport\s+const\s+STAFF_ACTIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'teach-data.js',         pattern: /\bexport\s+const\s+TEACH_DATA_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'teach.js',              pattern: /\bexport\s+const\s+TEACH_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'lesson-undo.js',        pattern: /\bexport\s+const\s+LESSON_UNDO_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

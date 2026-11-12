@@ -1,4 +1,11 @@
-// day-wipe.js v1.1.0 — Round 164. "WIPE TODAY", AND THE OPEN TAB THAT HEARS IT.
+// day-wipe.js v1.2.0 — Round 164. "WIPE TODAY", AND THE OPEN TAB THAT HEARS IT.
+//
+// v1.2.0 — Round 168: a third signal, `progressChangedAt` — a teacher changed this student's
+//          LESSON records (deleted a run, cleared mastery). An open tab drops its copy of lesson
+//          progress (the cache and the WAL's pending records) and reloads; a closed one drops
+//          them at sign-in. ⚠️ Unsaved MINUTES are kept (stats WAL untouched) — only lessons
+//          changed. Without this, the tab's next lesson flush (a merge of its whole in-memory
+//          record) would write the deleted run's credit straight back.
 //
 // v1.1.0 — Round 166: watchAccount() takes an optional `onData(data)`, called with every
 //          server snapshot of users/{uid} (the first included), so a page can read the
@@ -41,7 +48,7 @@
 
 import { ackTeacherChange, LOGS_CHANGED_FIELD } from './daylog.js';
 
-export const DAY_WIPE_VERSION = '1.1.0';
+export const DAY_WIPE_VERSION = '1.2.0';
 
 // ─── The save lock ───────────────────────────────────────────────────────────
 let _locked = false;
@@ -67,6 +74,16 @@ export function ackWipe(uid, ms) {
     if (!uid || !ms) return;
     try { localStorage.setItem(WIPE_ACK_PREFIX + uid, String(ms)); } catch (_) {}
 }
+const PROGRESS_ACK_PREFIX = 'ttbProgressAck:';
+function _progressAck(uid) {
+    try { return Number(localStorage.getItem(PROGRESS_ACK_PREFIX + uid)) || 0; } catch (_) { return 0; }
+}
+export function ackProgress(uid, ms) {
+    if (!uid || !ms) return;
+    try { localStorage.setItem(PROGRESS_ACK_PREFIX + uid, String(ms)); } catch (_) {}
+}
+export const PROGRESS_CHANGED_FIELD = 'progressChangedAt';
+
 function _logsAck(uid) {
     try { return Number(localStorage.getItem('ttbLogsAck:' + uid)) || 0; } catch (_) { return 0; }
 }
@@ -86,11 +103,41 @@ export function accountAction(data, uid, today) {
         return { kind: 'wipe', day: data.wipeDay, wipeMs, logsMs: msOf(data[LOGS_CHANGED_FIELD]) };
     }
     const logsMs = msOf(data[LOGS_CHANGED_FIELD]);
+    let todayChanged = false;
     if (logsMs && logsMs > _logsAck(uid)) {
         const day = data.logsChangedDay;
-        if (!day || day === today) return { kind: 'today', logsMs };
+        if (!day || day === today) todayChanged = true;
     }
+    // Round 168 — a staff change to lesson records.
+    const progressMs = msOf(data[PROGRESS_CHANGED_FIELD]);
+    const progressChanged = !!progressMs && progressMs > _progressAck(uid);
+    if (todayChanged) return { kind: 'today', logsMs, progress: progressChanged, progressMs };
+    if (progressChanged) return { kind: 'progress', progressMs };
     return null;
+}
+
+/**
+ * Round 168 — drop this browser's copy of lesson progress: the cached records, and the
+ * pending (unflushed) records inside the learn WAL. The WAL's MINUTES stay.
+ */
+export function purgeProgress(uid) {
+    try {
+        const raw = localStorage.getItem('ttb_lessonProgCache_v2');
+        if (raw) {
+            let owner = null; try { owner = JSON.parse(raw).uid; } catch (_) {}
+            if (!owner || owner === uid) localStorage.removeItem('ttb_lessonProgCache_v2');
+        }
+    } catch (_) {}
+    try {
+        const raw = localStorage.getItem('ttb_learnwal_v1');
+        if (raw) {
+            const w = JSON.parse(raw);
+            if (w && (!w.uid || w.uid === uid) && w.progress) {
+                delete w.progress;
+                localStorage.setItem('ttb_learnwal_v1', JSON.stringify(w));
+            }
+        }
+    } catch (_) {}
 }
 
 // ─── Purging what this browser had not saved ─────────────────────────────────
@@ -156,7 +203,7 @@ export function watchAccount({ db, doc, onSnapshot, uid, today, onReload, onData
     // down browser may refuse; without these, every later write the STUDENT makes to
     // their own users doc (the ledger note, lastLockDay) would re-deliver the same
     // unacknowledged stamp and reload the page again. A stamp acts once per page.
-    let seenWipe = 0, seenLogs = 0;
+    let seenWipe = 0, seenLogs = 0, seenProgress = 0;
     const handle = (snap) => {
         const data = snap && snap.exists && snap.exists() ? snap.data() : null;
         if (onData) { try { onData(data); } catch (e) { console.warn('[wipe] onData', e); } }
@@ -164,12 +211,17 @@ export function watchAccount({ db, doc, onSnapshot, uid, today, onReload, onData
         const wasFirst = first;
         first = false;
         if (act && !wasFirst) {
-            const ms = act.kind === 'wipe' ? act.wipeMs : act.logsMs;
-            if (ms <= (act.kind === 'wipe' ? seenWipe : seenLogs)) act = null;
+            if (act.kind === 'wipe' && act.wipeMs <= seenWipe) act = null;
+            else if (act.kind === 'progress' && act.progressMs <= seenProgress) act = null;
+            else if (act.kind === 'today' && act.logsMs <= seenLogs) {
+                // The minutes stamp is old news; a fresh progress stamp may still ride along.
+                act = (act.progress && act.progressMs > seenProgress) ? { kind: 'progress', progressMs: act.progressMs } : null;
+            }
         }
         if (data) {
             seenWipe = Math.max(seenWipe, msOf(data.wipeAt));
             seenLogs = Math.max(seenLogs, msOf(data[LOGS_CHANGED_FIELD]));
+            seenProgress = Math.max(seenProgress, msOf(data[PROGRESS_CHANGED_FIELD]));
         }
         if (!act) return;
         if (act.kind === 'wipe') {
@@ -179,6 +231,13 @@ export function watchAccount({ db, doc, onSnapshot, uid, today, onReload, onData
             if (act.logsMs) ackTeacherChange(uid, act.logsMs);
             if (!wasFirst) onReload('wipe');
             return;
+        }
+        // Round 168 — lesson records changed: drop our copy (open or closed tab alike).
+        if (act.progress || act.kind === 'progress') {
+            if (!wasFirst) lockSaves();
+            purgeProgress(uid);
+            ackProgress(uid, act.progressMs);
+            if (act.kind === 'progress') { if (!wasFirst) onReload('progress'); return; }
         }
         if (act.kind === 'today' && !wasFirst) {
             lockSaves();

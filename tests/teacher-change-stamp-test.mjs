@@ -40,7 +40,7 @@ const server = () => ({ lastDate: '2026-09-24', weekStart: WEEK, secondsToday: 5
 console.log('\nA — ⚠️⚠️ THE RULES LET A TEACHER STAMP A CHANGE, AND ONLY THAT');
 {
     const r = read('firebase/firestore.rules').replace(/^\s*\/\/.*$/gm, '');
-    const i = r.indexOf("hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay'])");
+    const i = r.indexOf("hasOnly(['logsChangedAt', 'logsChangedDay', 'wipeAt', 'wipeDay', 'progressChangedAt'])");
     const clause = i > 0 ? r.slice(r.lastIndexOf('|| (isStaff()', i), r.indexOf(';', i) + 1) : '';
     ok(i > 0, 'A1 staff may update users/{uid} with logsChangedAt and only the day / wipe fields beside it');
     ok(/wipeAt == request\.time/.test(clause), '⚠️ A4 a wipe is stamped on the SERVER clock too');

@@ -1,5 +1,37 @@
 # CHANGELOG — TypeThatBook
 
+## Round 168 — Teach, stage 1: editing a student
+
+**Deleting a run now takes back what the run earned, not just its time.** Jake: *"Deleting single
+runs of a lesson also should be reflected on the kid's experience."* It wasn't — Reports' own dialog
+said "This does NOT clear mastery". In **Teach → student → a day → Delete** on a run:
+- its time comes off that day (its own source only — School or Library; Arcade untouched),
+- and in the lesson (`lesson-undo.js`): one attempt off, its mastery points and fireball off, its
+  grade replaced by the best other known attempt, furthest-run falls back so they resume there, and
+  **if that run passed the lesson, the lesson is no longer passed** (unless another passing attempt
+  of the final run remains). The teacher is told exactly what changed.
+- A run saved in fragments is deleted whole; Library and practice laps delete their time only.
+- **The student's open page is told** (`progressChangedAt`, day-wipe.js v1.2.0): it drops its copy
+  of lesson progress and reloads — unsaved minutes are kept. Without this its next save would have
+  written the credit straight back.
+
+**Also on Teach's student page:** set a day's time (Reports' manual save), and **Clear mastery** per
+lesson (with each lesson's run grades and mastered-run count). Sign-in claims a pre-authorised staff
+role (a new teacher can land on Teach first), and a banner points to Reports for the one-time
+school-consent confirmation.
+
+**Reports fixes:** its manual day-time save left Arcade fields in place, so a corrected day still
+added the Arcade minutes on top — cleared now. Its Clear mastery now tells the student's open page.
+
+**⚠️ Rules v2.20.0** (paste): the staff change-stamp may carry `progressChangedAt` (server clock),
+alone or with the minutes stamp. 5 new emulator tests; 96 pass.
+
+- lesson-undo.js v1.0.0 (new), staff-actions.js v1.1.0 (deleteRunAttempt, setDayTime,
+  clearLessonMastery, claimPendingRole), day-wipe.js v1.2.0, run-grade.js v1.3.0 (attempts carry
+  their `members`), teach.js v0.2.0, reports.html v1.26.0, firestore.rules v2.20.0. New harness
+  `lesson-undo-test.mjs`; `teach-page-test` now deletes a run and checks the session, the day, the
+  lesson record and the stamp.
+
 ## Round 167 — Teach: one staff page, and Arcade minutes count
 
 **⚠️⚠️ Reports now counts Arcade minutes.** Its own copy of the day-total rule added Library and

@@ -1,30 +1,27 @@
-# Round 167 — Teach, and Arcade minutes count
+# Round 168 — Teach stage 1: editing a student
 
-**Already on `main` — nothing to upload, and no rules change.** (If Round 166's rules v2.19.0 aren't
-pasted yet, that's still needed for per-student requirements.)
+**Already on `main` — nothing to upload.** ⚠️ **Paste the rules (v2.20.0).**
 
 ## Order
 
-1. Firestore → `settings` → `appVersion` → `nonce` → increase by one.
+1. **Firestore → Rules:** paste the whole of `firebase/firestore.rules` (v2.20.0) and **Publish**.
+   Without it, deleting a run in Teach removes the time and the lesson credit but can't tell the
+   student's open page (it says so).
+2. Firestore → `settings` → `appVersion` → `nonce` → increase by one.
 
 ## What changes
 
-* ⚠️ **Reports and its CSV now include Arcade minutes.** They had been left out of every total,
-  while the student's own screen counted them. Arcade players' totals will go up to match what they
-  see.
-* ⭐ **New page: Teach** (link in Reports, Admin and the home page footer, or `/teach.html`):
-  * **Today** — who has typed today with flags; *Who hasn't typed?* on demand.
-  * **Classes** — one class, all your classes, or the school; any date range; class settings;
-    **Export CSV** — same columns as Reports, and for several classes one file with a Class column.
-  * **Student** — days → runs, lessons, move class, requirements, Wipe today.
-  * For deleting a single run or recalculating a day, it links to Old Reports for now.
-* Students see **how their week is defined**: "Your week" in Settings, and the dates when they
-  hover the Weekly figure.
+* **Teach → a student → click a day → Delete** on a run: its time comes off, and in the lesson it
+  takes back what that run earned (attempt, mastery points, grade — and the pass, if that run
+  passed the lesson). The student's open page updates within seconds and keeps their unsaved
+  minutes.
+* Also there: **set a day's time**, and **Clear mastery** in the Lessons table.
+* Reports: setting a day's time no longer leaves Arcade minutes on top.
 
 ## Check
 
-Open Teach. Today should list your students who have typed. Click one, then their class, then
-**Export CSV** for **All my classes** and open it next to last week's Reports export — the first nine
-columns line up (totals will be higher only for students who played Arcade).
+On a test student, do two runs of a lesson in School. In Teach, open them, click today, and delete
+the second run. The message lists what changed in the lesson; in School the student resumes at that
+run.
 
-Expect **ALL 126 HARNESSES PASS**.
+Expect **ALL 127 HARNESSES PASS** and **96 rules tests**.

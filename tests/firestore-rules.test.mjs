@@ -839,3 +839,28 @@ describe('requirement percentages (users/{uid})', () => {
         await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), { lastLockDay: 3 }));
     });
 });
+
+// ⭐ Round 168 (rules v2.20.0) — "this student's lesson records changed".
+describe('progress stamp (users/{uid})', () => {
+    it('a teacher may stamp progressChangedAt alone', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), { progressChangedAt: serverTimestamp() }));
+    });
+    it('or with a minutes stamp', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), {
+            logsChangedAt: serverTimestamp(), logsChangedDay: '2026-11-10', progressChangedAt: serverTimestamp() }));
+    });
+    it('⚠️ never on a client clock', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { progressChangedAt: new Date('2099-01-01') }));
+    });
+    it('⚠️ and a day with no stamp at all is refused', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { logsChangedDay: '2026-11-10' }));
+    });
+    it('⚠️ never for another building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_HMS), { progressChangedAt: serverTimestamp() }));
+    });
+});

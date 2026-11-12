@@ -125,6 +125,7 @@ const SOURCES = [
     { file: 'staff-actions.js',      pattern: /\bexport\s+const\s+STAFF_ACTIONS_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'teach-data.js',         pattern: /\bexport\s+const\s+TEACH_DATA_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'teach.js',              pattern: /\bexport\s+const\s+TEACH_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'lesson-undo.js',        pattern: /\bexport\s+const\s+LESSON_UNDO_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
