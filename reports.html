@@ -1,5 +1,9 @@
 <!DOCTYPE html>
-<!-- reports.html v1.23.0 — Round 164: ⭐ WIPE TODAY… beside the student picker (any staff,
+<!-- reports.html v1.24.0 — Round 166: ⭐ REQUIREMENTS… beside the student picker (a student's
+     own speed / accuracy percentages, rules v2.19.0), every grade judged against the student's
+     own bar, and an ADJUSTED column added LAST (and appended to the CSV) so nothing else moves.
+
+     reports.html v1.23.0 — Round 164: ⭐ WIPE TODAY… beside the student picker (any staff,
      once a student is chosen). Removes TODAY's runs and minutes, restores every lesson the
      student changed today to its start-of-day snapshot, then stamps users/{uid} (rules
      v2.18.0) so an open tab throws away its unsaved time too. Every stamp now names its day.
@@ -880,6 +884,10 @@
                     <button id="scope-student-wipe" type="button" hidden
                             title="Remove this student's runs, minutes and lesson progress from TODAY only. Their open page resets within seconds; they can keep typing and earn time again."
                             style="padding:4px 8px;border:1px solid var(--bad);color:var(--bad);background:transparent">Wipe today…</button>
+                    <!-- ⭐ Round 166 — REQUIREMENTS. Any staff, once a student is chosen. -->
+                    <button id="scope-student-req" type="button" hidden
+                            title="Set this student's speed and accuracy requirements as a percentage of each lesson's (and Library's) standard"
+                            style="padding:4px 8px">Requirements…</button>
                     <!-- ⚠️ ROADMAP 135b — SUPER-ADMIN ONLY. See openRetentionDialog(). -->
                     <button id="retention-open" type="button" hidden
                             title="Find and remove accounts with no typing in the last 24 months"
@@ -941,6 +949,9 @@
                         <th data-col="wpm">Avg WPM <span class="sort-arrow">▲</span></th>
                         <th data-col="accuracy">Accuracy <span class="sort-arrow">▲</span></th>
                         <th data-col="days">Days Active <span class="sort-arrow">▲</span></th>
+                        <!-- ⭐ Round 166 — ITS OWN COLUMN, LAST, so nothing Jake already reads
+                             moves (his ruling). Blank = the standard requirements. -->
+                        <th data-col="adjusted" title="Requirement percentages in force for this student (Reports → Requirements…, or their class). Blank = standard.">Adjusted <span class="sort-arrow">▲</span></th>
                         <th style="width:50px;"></th>
                     </tr>
                 </thead>
@@ -1474,6 +1485,7 @@
     // report, every evening, which is when a teacher grades.
     import { weekStartOf, localDateStr } from "./daylog.js";
     import { restoreForWipe, isTombstone } from "./day-wipe.js";
+    import { resolveReq, scaleGates, describeReq, isAdjusted, cleanPct, NO_SCALE } from "./req-scale.js";
     // ROADMAP 15. ⚠️ THE GRADE RULE IS IMPORTED, NEVER RESTATED. Reconstructing a
     // grade needs calculateGrade(), the gates, the chunking and the continuation
     // merge — all four used to live only in learn.js, and a copy of any of them
@@ -2589,6 +2601,8 @@
         btn.hidden = !(isSuper() && sel.value && sel.value !== '__all__');
         const wipe = document.getElementById('scope-student-wipe');
         if (wipe) wipe.hidden = !(sel.value && sel.value !== '__all__');
+        const reqBtn = document.getElementById('scope-student-req');
+        if (reqBtn) reqBtn.hidden = !(sel.value && sel.value !== '__all__');
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -2665,6 +2679,88 @@
         await new Promise(r => setTimeout(r, 3000));
         await pass(false);
         return got;
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // ⭐ Round 166 — REQUIREMENTS… (req-scale.js). A student's own speed and
+    // accuracy percentages; blank = follow the class (or the standard).
+    // Jake: 70% makes a 10 WPM requirement 7; 110% makes it 11; accuracy never
+    // goes past 100%. The student's open page picks it up live (it listens to
+    // users/{uid} already — day-wipe.js) and never sees a percentage.
+    // ═════════════════════════════════════════════════════════════════════════
+    async function openReqDialog(uid) {
+        if (!uid || uid === '__all__' || document.getElementById('ttb-req')) return;
+        const sel = document.getElementById('scope-student');
+        const name = (sel && sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || 'this student';
+        let u = {}, cls = null;
+        try {
+            const us = await getDoc(doc(db, 'users', uid));
+            u = us.exists() ? us.data() : {};
+            cls = u.classId ? (classesById[u.classId] || null) : null;
+            if (u.classId && !cls) {
+                const cs = await getDoc(doc(db, 'classes', u.classId));
+                cls = cs.exists() ? cs.data() : null;
+            }
+        } catch (e) { ttbNotice('Could not read ' + name + '\u2019s account: ' + (e.message || e), { bad: true }); return; }
+        const classSp = cleanPct(cls && cls.reqSpeedPct), classAc = cleanPct(cls && cls.reqAccPct);
+        const el = document.createElement('div');
+        el.id = 'ttb-req';
+        el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+        el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;'
+            + 'justify-content:center;background:rgba(0,0,0,.6);padding:16px';
+        const fallback = (p) => p != null ? 'class: ' + p + '%' : 'standard: 100%';
+        el.innerHTML = `<div style="max-width:460px;width:100%;background:var(--surface);color:var(--ink);
+                border:1px solid var(--rule-strong);border-radius:10px;padding:18px 20px;line-height:1.5">
+            <b>Requirements for ${escapeHtml(name)}</b>
+            <div style="opacity:.75;font-size:.85em;margin:6px 0 12px">A percentage of every lesson\u2019s
+                requirement and of Library\u2019s 15 WPM / 80%. 70% makes 20 WPM into 14; 110% makes it 22.
+                Accuracy never goes above 100%. Blank follows the class. The student only ever sees the
+                resulting numbers.</div>
+            <label for="ttb-req-sp" style="display:block;margin:6px 0">Speed
+                <input id="ttb-req-sp" type="number" min="25" max="200" step="5" style="width:5em"
+                       value="${cleanPct(u.reqSpeedPct) ?? ''}" placeholder="${classSp ?? 100}"> %
+                <span style="opacity:.6;font-size:.85em">(blank = ${fallback(classSp)})</span></label>
+            <label for="ttb-req-ac" style="display:block;margin:6px 0">Accuracy
+                <input id="ttb-req-ac" type="number" min="25" max="200" step="5" style="width:5em"
+                       value="${cleanPct(u.reqAccPct) ?? ''}" placeholder="${classAc ?? 100}"> %
+                <span style="opacity:.6;font-size:.85em">(blank = ${fallback(classAc)})</span></label>
+            <div id="ttb-req-msg" style="min-height:1.2em;font-size:.85em;margin:6px 0"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" id="ttb-req-x">Cancel</button>
+                <button type="button" id="ttb-req-ok">Save</button></div></div>`;
+        document.body.appendChild(el);
+        const close = () => { el.remove(); document.removeEventListener('keydown', onKey); };
+        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        document.addEventListener('keydown', onKey);
+        el.querySelector('#ttb-req-x').onclick = close;
+        el.onclick = (e) => { if (e.target === el) close(); };
+        el.querySelector('#ttb-req-ok').onclick = async () => {
+            const msg = el.querySelector('#ttb-req-msg');
+            const read = (id) => {
+                const raw = el.querySelector(id).value.trim();
+                if (raw === '') return { del: true };
+                const n = Number(raw);
+                if (!Number.isInteger(n) || n < 25 || n > 200) return { bad: true };
+                return { v: n };
+            };
+            const sp = read('#ttb-req-sp'), ac = read('#ttb-req-ac');
+            if (sp.bad || ac.bad) { msg.textContent = 'Use whole numbers from 25 to 200, or leave blank.'; msg.style.color = 'var(--bad)'; return; }
+            const patch = { reqSpeedPct: sp.del ? deleteField() : sp.v, reqAccPct: ac.del ? deleteField() : ac.v };
+            try {
+                await updateDoc(doc(db, 'users', uid), patch);
+                rosterUserDocs.set(uid, { classId: u.classId || '',
+                    reqSpeedPct: sp.del ? undefined : sp.v, reqAccPct: ac.del ? undefined : ac.v });
+                const r = resolveReq(cls, rosterUserDocs.get(uid));
+                close();
+                ttbNotice('Saved for ' + name + ': ' + (describeReq(r) || 'standard requirements')
+                    + '. Their open page uses it from the next run. Re-run the report to update the Adjusted column.');
+            } catch (e) {
+                msg.textContent = 'Could not save: ' + (e.message || e)
+                    + ' (are Firestore rules v2.19.0 published?)';
+                msg.style.color = 'var(--bad)';
+            }
+        };
+        el.querySelector('#ttb-req-sp').focus();
     }
 
     async function openWipeDialog(uid) {
@@ -3356,6 +3452,8 @@
         openPurgeDialog(document.getElementById('scope-student').value));
     document.getElementById('scope-student-wipe')?.addEventListener('click', () =>
         openWipeDialog(document.getElementById('scope-student').value));
+    document.getElementById('scope-student-req')?.addEventListener('click', () =>
+        openReqDialog(document.getElementById('scope-student').value));
     document.getElementById('scope-student')?.addEventListener('change', updatePurgeButton);
     // ⭐ Round 148: an empty picker fills from today's remembered list the moment it's opened.
     for (const ev of ['focus', 'mousedown'])
@@ -3370,6 +3468,31 @@
             const sel = document.getElementById('scope-student');
             if (sel) sel.innerHTML = '<option value="__all__">All students</option>';
         }));
+
+    // ⭐ Round 166 — REQUIREMENT PERCENTAGES (req-scale.js). A student is graded here
+    // against their own bar, and the Adjusted column says what that bar is.
+    const rosterUserDocs = new Map();   // uid -> { classId, reqSpeedPct, reqAccPct }
+    function reqFromRoster(uid) {
+        const u = rosterUserDocs.get(uid);
+        if (!u) return null;
+        return resolveReq(u.classId ? classesById[u.classId] : null, u);
+    }
+    /** The student's bar; reads their account (and class) only if no report has. */
+    async function reqForUid(uid) {
+        const known = reqFromRoster(uid);
+        if (known) return known;
+        try {
+            const us = await getDoc(doc(db, 'users', uid));
+            const u = us.exists() ? us.data() : {};
+            let c = u.classId ? classesById[u.classId] : null;
+            if (u.classId && !c) {
+                const cs = await getDoc(doc(db, 'classes', u.classId));
+                c = cs.exists() ? cs.data() : null;
+            }
+            rosterUserDocs.set(uid, { classId: u.classId || '', reqSpeedPct: u.reqSpeedPct, reqAccPct: u.reqAccPct });
+            return resolveReq(c, u);
+        } catch (_) { return NO_SCALE; }
+    }
 
     async function readRosterUids(startDate, endDate) {
         const schoolId = document.getElementById('scope-school').value;
@@ -3398,6 +3521,10 @@
                 // nothing and saves the sweep below (roster × days) point reads.
                 out.set(d.id, { classId: u.classId || '', name: u.displayName || '',
                                 email: u.email || '', ledger: ledgerFrom(u, d.id) });
+                // ⭐ Round 166 — the student's requirement percentages, free with
+                // this read. reqForUid() and the Adjusted column read it.
+                rosterUserDocs.set(d.id, { classId: u.classId || '',
+                    reqSpeedPct: u.reqSpeedPct, reqAccPct: u.reqAccPct });
             });
         }
         return out;
@@ -3837,6 +3964,9 @@
                 dailyLogs: u.dailyLogs.sort((a, b) => a.date.localeCompare(b.date)),
                 wpm: u.seconds > 0 ? Math.round((u.chars / 5) / (u.seconds / 60)) : 0,
                 accuracy: (u.chars + u.mistakes) > 0 ? Math.round((u.chars / (u.chars + u.mistakes)) * 100) : 100,
+                // ⭐ Round 166 — "speed 70% · accuracy 90%", or '' for standard.
+                adjusted: describeReq(reqFromRoster(u.uid) || NO_SCALE),
+                adjustedFrom: (() => { const q = reqFromRoster(u.uid); return q ? [q.speedFrom, q.accFrom] : []; })(),
             }));
 
             if (reportData.length === 0) {
@@ -4196,10 +4326,11 @@
                 <td>${r.days}${(r.dailyLogs || []).some(l => idleTimeSuspect(l.seconds, l.chars))
                     ? `<span class="idle-flag" title="At least one day for this student has credited time with almost no typing \u2014 possibly a held key. Open Details to see which.">\u23f8</span>`
                     : ''}</td>
+                <td title="${r.adjusted ? escapeHtml('Set on the ' + ((r.adjustedFrom || []).includes('student') ? 'student' : 'class')) : ''}">${escapeHtml(r.adjusted || '')}</td>
                 <td><button class="details-row-btn" data-idx="${idx}">Details</button></td>
             </tr>
             <tr class="detail-row hidden" id="detail-${idx}">
-                <td colspan="8">
+                <td colspan="9">
                     <div class="daily-logs">
                         ${r.dailyLogs.map((log, li) => {
                             const mins = Math.floor(log.seconds / 60);
@@ -4369,7 +4500,7 @@
                     // a clean day, and that is the one place this scan is weaker
                     // than it looks. Said in the legend, not hidden.
                     try {
-                        const graded = await gradeSprintsForDay(sprints);
+                        const graded = await gradeSprintsForDay(sprints, r.uid);
                         let streak = 0;
                         for (const sp of sprints) {
                             const g = graded.get(sprintIdentity(sp));
@@ -4524,7 +4655,7 @@
                 sessions.forEach(s => (s.sprints || []).forEach(sp => allSprints.push(sp)));
                 // ROADMAP 15 — grade the day's attempts once, then stamp each row.
                 let _spGrades = new Map();
-                try { _spGrades = await gradeSprintsForDay(allSprints); }
+                try { _spGrades = await gradeSprintsForDay(allSprints, uid); }
                 catch (err) { console.warn('[grades] sprint grading failed', err); }
                 const spWPMs = allSprints.map(sp => sp.wpm || 0);
                 const spMean = spWPMs.length ? spWPMs.reduce((a, b) => a + b, 0) / spWPMs.length : 0;
@@ -4952,9 +5083,12 @@
     // ⚠️ RETURNS A MAP KEYED ON THE SPRINT'S OWN IDENTITY, not on its index — a
     // sprint appears in more than one rollup when rollups overlap (ROADMAP 24),
     // and both copies must resolve to the same attempt.
-    async function gradeSprintsForDay(flatSprints) {
+    async function gradeSprintsForDay(flatSprints, uid) {
         const out = new Map();
         const defs = await lessonDefs();
+        // Round 166 — judged against this student's own bar.
+        const req = uid ? await reqForUid(uid) : NO_SCALE;
+        const scale = (g) => scaleGates(g, req);
         const attempts = mergeRunAttempts(flatSprints);
 
         // Which attempt does each sprint belong to? Re-derive with the same rule
@@ -4963,7 +5097,7 @@
         const perRun = new Map();
         for (const att of attempts) {
             const lesson = defs.get(att.label);
-            const res = lesson ? gradeMergedRun(att, lesson, null) : { ok: false, reason: 'lesson not found' };
+            const res = lesson ? gradeMergedRun(att, lesson, null, scale) : { ok: false, reason: 'lesson not found' };
             const k = `${att.label}\u0000${att.runIdx}`;
             const list = perRun.get(k) || [];
             list.push({ at: att.at, res });
@@ -5316,6 +5450,10 @@
         const snap = await getDocs(query(collection(db, "typing_sessions"),
                                          where("uid", "==", uid), where("date", "==", date)));
         if (snap.empty) { ttbNotice(`No session records for ${name} on ${date}.`); return; }
+        // ⭐ Round 166 — rebuilt grades are judged against this student's own bar,
+        // exactly as their page graded them (req-scale.js).
+        const _req = await reqForUid(uid);
+        const _reqScaleFn = (g) => scaleGates(g, _req);
 
         // ⚠️ SCHOOL ONLY. A Library sprint has no lesson and no run index; its
         // `bookId` is a book. Grading one would invent a lesson that was never
@@ -5363,7 +5501,7 @@
             const rec    = records.get(att.label);
             if (!lesson) { refused.push(`${att.label || '(no lesson id)'} run ${att.runIdx + 1} — lesson not found`); continue; }
 
-            const res = gradeMergedRun(att, lesson, rec ? rec.runCount : null);
+            const res = gradeMergedRun(att, lesson, rec ? rec.runCount : null, _reqScaleFn);
             if (!res.ok) { refused.push(`${att.label} run ${att.runIdx + 1} — ${res.detail || res.reason}`); continue; }
 
             const k = `${att.label}\u0000${att.runIdx}`;
@@ -5884,7 +6022,8 @@
         // reconciliation columns that used to be appended here only ever
         // appeared after a sweep had run, so a CSV exported without one came
         // out exactly like this. Nothing about an existing export moves.
-        const headers = ['Name', 'Email', 'Total Seconds', 'Total Time', 'Characters', 'Avg WPM', 'Accuracy %', 'Days Active'];
+        // Round 166 — Adjusted is APPENDED, so a spreadsheet reading the first eight is unchanged.
+        const headers = ['Name', 'Email', 'Total Seconds', 'Total Time', 'Characters', 'Avg WPM', 'Accuracy %', 'Days Active', 'Adjusted'];
         const rows = reportData.map(r => [
             r.name,
             r.email,
@@ -5893,7 +6032,8 @@
             r.chars,
             r.wpm,
             r.accuracy,
-            r.days
+            r.days,
+            r.adjusted || ''
         ]);
 
         let csv = headers.join(',') + '\n';

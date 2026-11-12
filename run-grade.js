@@ -1,4 +1,8 @@
-// run-grade.js v1.1.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+// run-grade.js v1.2.0 — THE GRADE RULE, IN ONE PLACE, WITH NOTHING ELSE IN IT.
+//
+// v1.2.0 — Round 166: gradeMergedRun() takes an optional 4th argument, a function that
+//          scales the gates (req-scale.js), so Reports grades a student against their own
+//          requirement percentages. Absent → unchanged.
 //
 // v1.1.0 — ⚠️⚠️ mergeContinuations() IS REPLACED BY mergeRunAttempts(), AND THE
 //          OLD ONE WROTE A WRONG GRADE ONTO A REAL STUDENT'S RECORD. It merged
@@ -41,7 +45,7 @@
 // two agree on run count for every step type, which is the ratchet that stops
 // this becoming a twin.
 
-export const RUN_GRADE_VERSION = "1.1.0";
+export const RUN_GRADE_VERSION = "1.2.0";
 
 // A🔥 as a string, built from a code point so no source file has to carry a
 // surrogate pair literally — HANDOFF §0.-24 is about a heredoc that died on one.
@@ -424,7 +428,9 @@ export function mergeRunAttempts(sprints) {
 // `storedRunCount` is the count the student's own record was written with; when
 // it disagrees with the lesson as authored now, the mapping is unsafe and the
 // only honest answer is to say so.
-export function gradeMergedRun(run, lesson, storedRunCount) {
+// ⭐ Round 166 — `scale` (optional): a function applied to the run's gates before
+// grading, so Reports judges a student against THEIR bar (req-scale.js scaleGates).
+export function gradeMergedRun(run, lesson, storedRunCount, scale = null) {
     if (!lesson) return { ok: false, reason: 'no-lesson' };
 
     // ⚠️⚠️ v1.1.0 — AN ORPHAN FRAGMENT IS NEVER GRADED. mergeRunAttempts() sets
@@ -448,7 +454,8 @@ export function gradeMergedRun(run, lesson, storedRunCount) {
                  detail: `run ${run.runIdx + 1} does not exist in a ${plan.length}-run lesson` };
     }
 
-    const gates = gatesForRun(plan[run.runIdx], (lesson.gates) || {});
+    const raw   = gatesForRun(plan[run.runIdx], (lesson.gates) || {});
+    const gates = typeof scale === 'function' ? scale(raw) : raw;
     const grade = calculateGrade(run.wpm, run.accuracy, gates.minWPM, gates.minAccuracy, run.clean);
     return { ok: true, grade, gates, advances: gradeAdvances(grade, gates) };
 }

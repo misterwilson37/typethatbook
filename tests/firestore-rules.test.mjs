@@ -813,3 +813,29 @@ describe('wipe today stamp (users/{uid})', () => {
             logsChangedAt: serverTimestamp(), wipeAt: serverTimestamp(), wipeDay: DAY }));
     });
 });
+
+// ⭐ Round 166 (rules v2.19.0) — requirement percentages on users/{uid}.
+describe('requirement percentages (users/{uid})', () => {
+    it('a teacher may set a student\'s speed and accuracy percentages', async () => {
+        const db = asTeacherEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), { reqSpeedPct: 70, reqAccPct: 90 }));
+    });
+    it('⚠️ but only whole numbers from 25 to 200', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { reqSpeedPct: 10 }));
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { reqAccPct: 500 }));
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { reqSpeedPct: 70.5 }));
+    });
+    it('⚠️ and never for a student in another building', async () => {
+        const db = asTeacherEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_HMS), { reqSpeedPct: 70 }));
+    });
+    it('⚠️⚠️ a student may not set their own', async () => {
+        const db = asKidEms().firestore();
+        await assertFails(updateDoc(doc(db, 'users', KID_EMS), { reqSpeedPct: 25 }));
+    });
+    it('…while the student\'s ordinary writes still work', async () => {
+        const db = asKidEms().firestore();
+        await assertSucceeds(updateDoc(doc(db, 'users', KID_EMS), { lastLockDay: 3 }));
+    });
+});

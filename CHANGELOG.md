@@ -1,5 +1,32 @@
 # CHANGELOG — TypeThatBook
 
+## Round 166 — requirements as a percentage
+
+**Speed and accuracy requirements can be set as a percentage, per class and per student.** Jake:
+*"if the requirement is 10%, I can go in and say 70%, which would make it 7%... I could make their
+requirements 110%, so they have to be better (but not over 100%, obviously). This would also
+maintain the climb in requirements."*
+
+- **Where it applies:** every School lesson run (pass bar and grade, both School and BETA),
+  Library's 15 WPM / 80% gate, and Deadline's pace in BETA lessons. 70% turns 20 WPM / 90% into
+  14 / 63; 110% into 22 / 99. **Accuracy never goes above 100%.** Runs with no speed gate keep none.
+- **Where you set it:** the class in **admin → Class Manager** (two new boxes; blank = standard), a
+  student in **Reports → choose the student → Requirements…**. **A student's own setting replaces the
+  class's, field by field** (set only their speed and their accuracy still follows the class).
+- **Students see only their numbers** — "Target 14+" — never a percentage or the word "adjusted".
+  A change for one student reaches their open page live (it rides on the account listener from
+  Round 164); a class change applies from the student's next page load.
+- **Reports grades each student against their own bar**, and shows the setting in a new **Adjusted**
+  column added **last** (and appended to the CSV), so nothing you already read moves.
+- **Rules v2.19.0** (must be pasted): staff may set a student's percentages (whole numbers 25–200,
+  own school or class); a student cannot set their own. 5 new emulator tests; 91 pass.
+- **Reads:** one more per page load for a student in a class (the class's percentages are read
+  fresh, not from the day-long cache, so your change shows the same day).
+- New `req-scale.js` v1.0.0 (one home for the arithmetic). learn.js v2.56.0, learn2.js
+  v0.15.0-staging, game.js v3.64.0, reports.html v1.24.0, admin.html v1.24.0, lessons-admin.js
+  v1.24.0, run-grade.js v1.2.0 (optional scaling in gradeMergedRun), day-wipe.js v1.1.0 (onData),
+  versions.js v1.21.0, firestore.rules v2.19.0. New harness `req-scale-test.mjs`.
+
 ## Round 165 — School picks up where they left off
 
 **School (learn.html) now does what School BETA did:** a lesson opens on the run after the
@@ -10778,6 +10805,64 @@ Adventure mode was fixed this way some time ago. Classic never was, and Classic 
 what a student sees by default.
 
 ## ARCHIVED FILE HEADERS — moved 2026-08-22 (Round 28, Daugherty)
+
+### game.js v3.56.0 — archived Round 166, 8-entry budget
+
+Pushed over by v3.64.0. Verbatim.
+
+```
+// v3.56.0 — Round 147: ⚠️ THE HAND GUIDE REPORTS ON ITSELF. In standard mode the dash key
+//           lit up but its finger circle never appeared; the live cause could not be
+//           found from the code. updateHandGuide() now falls back to the lit key when it
+//           can't place a finger, records every decision (ttbGuide.last() in the console),
+//           and warns once per kind of problem with the exact character's code point.
+//           See tests/hand-guide-test.mjs.
+```
+
+### learn.js v2.50.0 — archived Round 166, 8-entry budget
+
+Pushed over by v2.56.0. Verbatim.
+
+```
+// v2.50.0 — Round 148: ⭐ each student's name and email are saved on their account, once
+//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
+//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
+```
+
+### lessons-admin.js v1.17.0 — archived Round 166, 8-entry budget
+
+Pushed over by v1.24.0. Verbatim.
+
+```
+// v1.17.0 — ⚠️⚠️ THE CLASS MANAGER'S DELETE BUTTON CARRIED TWO `class`
+//           ATTRIBUTES. HTML keeps the first and silently discards the second, so
+//           `class-del-btn` was never on the element. Two consequences, and both
+//           were live: the click had to be found by `[data-id]:last-child` —
+//           correct only for as long as Delete stays the last child — and the
+//           HOVER WAS DEAD, because the inline `background:#500` beat
+//           `.lbtn:hover` exactly as the eighteen inline backgrounds in admin.js
+//           v3.42.0 did. That is ROADMAP 56c's second button, and Jake found it
+//           by hovering.
+//           ⚠️ `.lbtn-danger` already declared this exact treatment AND a hover,
+//           four lines apart in admin.html; the inline copy was a second spelling
+//           of a rule that already existed. Both are gone.
+```
+
+### versions.js v1.13.0 — archived Round 166, 8-entry budget
+
+Pushed over by v1.21.0. Verbatim.
+
+```
+// v1.13.0 — ⚠️⚠️ THE BUILD PANEL NO LONGER ANSWERS FROM A COPY IT TOOK AT PAGE
+//           LOAD. The sessionStorage cache is replaced by module state with a
+//           60-second TTL. Module state dies with the page, which is the
+//           lifetime the old comment already CLAIMED ("the tab's lifetime" was
+//           what it said and what it meant was "this page load"); the TTL is
+//           what saves a Chromebook tab left open for a week. ⚠️ A DEPLOY
+//           INSTRUMENT MAY BE CHEAP OR IT MAY BE CACHED, NOT BOTH — this one is
+//           read exactly when someone doubts what is running, which is exactly
+//           when a remembered answer is the wrong one. HANDOFF §0.-22.
+```
 
 ### versions.js v1.12.0 — archived Round 165, 8-entry budget
 

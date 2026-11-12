@@ -1,26 +1,30 @@
-# Round 165 — School picks up where they left off
+# Round 166 — requirements as a percentage
 
-**Already on `main` — nothing to upload.** No rules change in this round.
-
-✅ Done 2026-11-11: rules v2.18.0 published and the nonce bumped.
+**The code is already on `main` — nothing to upload.** ⚠️ **One manual step: the Firestore
+rules (v2.19.0).** Until then, setting a *student's* percentage in Reports is refused (it says
+so). Class percentages in the Class Manager work without it.
 
 ## Order
 
-1. Firestore → `settings` → `appVersion` → `nonce` → increase by one (open tabs reload within
-   ten minutes).
+1. **Firestore → Rules:** paste the whole of `firebase/firestore.rules` (v2.19.0) and **Publish**.
+2. Firestore → `settings` → `appVersion` → `nonce` → increase by one.
 
-## What changes
+## How to use it
 
-* **School (learn.html)** opens a lesson on the next run after the furthest one the student
-  finished, like BETA does — no more starting over at run 1.
-* The lesson intro shows **"Start from which run?"** with a button per run; runs they haven't
-  reached are greyed out until they finish the one before. Mastered runs show in green.
-* School and BETA now differ only by the games.
+* **A whole class:** admin → Class Manager → Edit the class → **Speed requirement (%)** and
+  **Accuracy requirement (%)**. 70 = easier, 110 = harder, blank = standard. Save.
+* **One student:** Reports → choose the student → **Requirements…**. Blank follows the class.
+  A student's own number replaces the class's (speed and accuracy separately).
+* 70% turns a 20 WPM / 90% run into 14 WPM / 63%; 110% into 22 / 99. Accuracy never goes over
+  100%. Library's 15 / 80 gate scales the same way. Students only ever see their own numbers.
+* Reports grades each student against their own bar; the new **Adjusted** column (last, also at
+  the end of the CSV) shows who has a setting.
 
 ## Check
 
-Open School on a student who has finished a few runs of a lesson but not passed it. The intro
-should say **Start Run N →** with N the next run, and the run buttons above it should let them pick
-any run up to there.
+1. Set a test student to 70% / 70% in Reports → Requirements… .
+2. As that student, open a School lesson: the card and the result screen show the lower targets
+   (e.g. "63%+", "14+"). A run at 15 WPM / 70% that used to fail now passes.
+3. Run a report: their Adjusted cell reads "speed 70% · accuracy 70%".
 
-Expect **ALL 123 HARNESSES PASS.**
+Expect **ALL 124 HARNESSES PASS** and **91 rules tests passing**.

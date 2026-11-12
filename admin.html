@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<!-- admin.html v1.23.2 — versioned the same way style.css and game.html are: a comment
+<!-- admin.html v1.24.0 — versioned the same way style.css and game.html are: a comment
      near the top, because this file holds no runtime constant of its own. The
      JS it loads (admin.js) carries its own version separately; this number is
      the MARKUP's. ⚠️ versions.js SOURCES parses this exact line — bump it when
      the markup changes, and do not reformat it. ROADMAP 16.
+
+     v1.24.0 — Round 166: the Class Manager's speed and accuracy requirement percentages
+               (req-scale.js; saveClass() in lessons-admin.js).
 
      v1.23.2 — Round 161: the class picker's "No class (default goals)" now reads
                "No class (no goals unless they set their own)" — goal-ladder.js.
@@ -2358,6 +2361,20 @@
                 <div id="class-teachers-wrap" class="u-display-none u-margin-bottom-8px">
                     <label class="l-label">Teachers <span class="u-color-888 u-font-size-0-8em">(who teaches this class — admin only)</span></label>
                     <select id="class-teachers-select" class="l-field" multiple size="4"></select>
+                </div>
+                <!-- ⭐ Round 166 — REQUIREMENTS AS A PERCENTAGE (req-scale.js). Blank = the
+                     standard 100%. A student's own setting (Reports → Requirements…)
+                     replaces these. Students see only the resulting numbers. -->
+                <div class="u-display-flex u-gap-8px u-margin-bottom-8px u-align-items-flex-end u-flex-wrap-wrap">
+                    <div>
+                        <label class="l-label" for="class-reqspeed-input">Speed requirement (%)</label>
+                        <input id="class-reqspeed-input" class="l-field u-width-160px" type="number" min="25" max="200" step="5" placeholder="100">
+                    </div>
+                    <div>
+                        <label class="l-label" for="class-reqacc-input">Accuracy requirement (%)</label>
+                        <input id="class-reqacc-input" class="l-field u-width-160px" type="number" min="25" max="200" step="5" placeholder="100">
+                    </div>
+                    <div class="u-color-888 u-font-size-0-8em u-max-width-520px">Percent of every lesson's requirement and Library's 15 WPM / 80%. 70% = easier, 110% = harder; accuracy never goes above 100%. Blank = standard.</div>
                 </div>
                 <div class="u-display-flex u-gap-8px">
                     <button id="class-save-btn" class="lbtn lbtn-primary u-width-auto u-padding-6px-20px">Save Class</button>

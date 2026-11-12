@@ -1,4 +1,8 @@
-// game.js v3.63.0
+// game.js v3.64.0
+//
+// v3.64.0 — Round 166: Library's 15 WPM / 80% gate is the BASE, scaled by the student's
+//           requirement percentages (req-scale.js) — 70% makes it 10.5 / 56, 110% makes it
+//           16.5 / 88. The student is shown their own line, never a percentage.
 //
 // v3.63.0 — Round 164: ⭐ "WIPE TODAY" AND ROADMAP 145a. The page listens to the student's
 //           own users/{uid} (day-wipe.js watchAccount(), ~1 read per page). A teacher's
@@ -67,12 +71,7 @@
 //           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
 //           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
 //
-// v3.56.0 — Round 147: ⚠️ THE HAND GUIDE REPORTS ON ITSELF. In standard mode the dash key
-//           lit up but its finger circle never appeared; the live cause could not be
-//           found from the code. updateHandGuide() now falls back to the lit key when it
-//           can't place a finger, records every decision (ttbGuide.last() in the console),
-//           and warns once per kind of problem with the exact character's code point.
-//           See tests/hand-guide-test.mjs.
+// ⚠️ v3.56.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
 // ⚠️ v3.55.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 164, 8-entry budget).
 //
@@ -114,6 +113,7 @@ import {
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
+import { resolveReq, scaleWpm, scaleAcc, NO_SCALE } from "./req-scale.js";
 // ⚠️ v3.41.0 — THE CELEBRATIONS MOVED OUT. They were a hand-maintained twin of
 // learn.js's, and the two had already drifted. celebrate.js owns them now; this
 // file decides WHETHER to celebrate, that file decides HOW. Do not re-add a
@@ -162,7 +162,7 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 // therefore invisible from the chair. Bump it in the SAME EDIT as the header
 // entry above, always. tests/version-stamp-test.mjs now fails the suite if you
 // do not.
-const VERSION = "3.63.0";
+const VERSION = "3.64.0";
 
 // Hand the shared session queue its Firestore surface. Done at module scope,
 // once, because session-log.js imports no SDK of its own on purpose — one page
@@ -2107,12 +2107,18 @@ async function retroactiveSaveGuestSession(user) {
 // teacher's "Wipe today" (or a correction to today's minutes) reaches an open
 // tab in seconds. See day-wipe.js for the mechanism and its read cost.
 let _accountWatch = null;
+// ⭐ Round 166 — requirement percentages (req-scale.js) for the Library gate below.
+// Student's own from the account listener; the class's from the class doc.
+let reqClassDoc = null, reqUserDoc = null, reqScale = NO_SCALE;
+function refreshReqScale() { reqScale = resolveReq(reqClassDoc, reqUserDoc); }
+
 async function startAccountWatch(uid) {
     if (_accountWatch && _accountWatch.uid === uid) return;
     if (_accountWatch) _accountWatch.stop();
     const w = watchAccount({ db, doc, onSnapshot, uid,
                              today: () => getLocalDateStr(new Date()),
-                             onReload: () => location.reload() });
+                             onReload: () => location.reload(),
+                             onData: (d) => { reqUserDoc = d; refreshReqScale(); } });
     _accountWatch = { uid, stop: w.stop };
     await w.ready;
 }
@@ -2386,6 +2392,15 @@ async function loadGoals() {
                     ttbSchoolId = c.schoolId || '';
                     goals.source = c.source || (c.classId ? 'class' : 'none');
                     applyGoalCelebrationState();
+                    // ⭐ Round 166 — the class's requirement percentages are not cached,
+                    // so a Class Manager change reaches the class the same day.
+                    // ⚠️ AWAITED, so a lesson card is never drawn with the standard numbers first.
+                    if (c.classId) {
+                        try {
+                            const s = await getDoc(doc(db, 'classes', c.classId));
+                            reqClassDoc = s.exists() ? s.data() : null; refreshReqScale();
+                        } catch (_) { /* standard requirements until the next load */ }
+                    }
                     return;
                 }
             }
@@ -2409,6 +2424,7 @@ async function loadGoals() {
                     if (classSnap.exists()) {
                         const cd = classSnap.data();
                         classDoc = cd;
+                        reqClassDoc = cd; refreshReqScale();   // Round 166
                         ttbClassName = cd.name || '';
                         // A class knows its building; the user doc may not yet.
                         if (!ttbSchoolId && cd.schoolId) ttbSchoolId = cd.schoolId;
@@ -3520,8 +3536,12 @@ document.addEventListener('keydown', (e) => {
 // who clears it by hand gains, at most, the minute Jake is willing to give anyway.
 
 const GATE_WINDOW_MS = 60000;     // one minute of ACTIVE typing per judgement
-const GATE_MIN_WPM = 15;          // Jake, 2026-09-23 — the course requirement
-const GATE_MIN_ACC = 80;          // Jake, 2026-09-23
+const GATE_BASE_WPM = 15;         // Jake, 2026-09-23 — the course requirement
+const GATE_BASE_ACC = 80;         // Jake, 2026-09-23
+// ⭐ Round 166 — at THIS student's percentage (req-scale.js): 70% → 10.5 WPM / 56%.
+// Read at every judgement, so a change in Reports applies from the next minute.
+function gateMinWpm() { return scaleWpm(GATE_BASE_WPM, reqScale); }
+function gateMinAcc() { return scaleAcc(GATE_BASE_ACC, reqScale); }
 // ⚠️ THE FALLBACK. A child who never ends a sentence would otherwise never see the
 // choice. After this long pending, the next SPACE is a trigger too — a word
 // boundary, never mid-word.
@@ -3599,7 +3619,7 @@ function gateMeasure(w) {
     const acc = entries > 0 ? (w.correct / entries) * 100 : 100;
     return { wpm: Math.round(wpm), acc: Math.round(acc) };
 }
-function gatePasses(m) { return m.wpm >= GATE_MIN_WPM && m.acc >= GATE_MIN_ACC; }
+function gatePasses(m) { return m.wpm >= gateMinWpm() && m.acc >= gateMinAcc(); }
 function gateResetWindow() { gate.win = { ms: 0, correct: 0, mistakes: 0 }; }
 function gateResetSprintMarkers() {
     // ⚠️ THE SAME RESET the rest of this file uses to begin a run — INCLUDING THE
@@ -3674,7 +3694,7 @@ function gateShow(kind) {
         <div style="margin-bottom:14px">
           ${second ? 'This minute' : 'Over the last minute'} you typed about
           <b>${m.wpm} words a minute</b> with <b>${m.acc}% accuracy</b>.
-          Books count once you are at <b>${GATE_MIN_WPM} WPM and ${GATE_MIN_ACC}%</b> \u2014
+          Books count once you are at <b>${gateMinWpm()} WPM and ${gateMinAcc()}%</b> \u2014
           that is what the typing class expects, and the lessons are built to get you there.
           ${second ? '<br><br>You can keep typing here, but <b>your time will not count</b> until your typing is back above the line. Practise anywhere \u2014 the lessons are the fastest way.' : ''}
         </div>
@@ -3754,7 +3774,7 @@ function gateApplyTimerLook() {
     }
     timerDisplay.classList.toggle('ttb-uncounted', gateLocked());
     timerDisplay.title = gateLocked()
-        ? `Not counting \u2014 your time resumes once you type ${GATE_MIN_WPM}+ WPM at ${GATE_MIN_ACC}%+ for a minute.`
+        ? `Not counting \u2014 your time resumes once you type ${gateMinWpm()}+ WPM at ${gateMinAcc()}%+ for a minute.`
         : '';
 }
 

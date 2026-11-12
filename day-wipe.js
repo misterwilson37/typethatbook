@@ -1,4 +1,9 @@
-// day-wipe.js v1.0.0 — Round 164. "WIPE TODAY", AND THE OPEN TAB THAT HEARS IT.
+// day-wipe.js v1.1.0 — Round 164. "WIPE TODAY", AND THE OPEN TAB THAT HEARS IT.
+//
+// v1.1.0 — Round 166: watchAccount() takes an optional `onData(data)`, called with every
+//          server snapshot of users/{uid} (the first included), so a page can read the
+//          student's own settings — req-scale.js's percentages — off the listener it
+//          already holds instead of paying a second read. Called before any action.
 //
 // Jake, 2026-11-11: *"Let's say I catch a kid cheating in class. I want to delete
 // everything he's done to that moment, resetting his progress to the start of the
@@ -36,7 +41,7 @@
 
 import { ackTeacherChange, LOGS_CHANGED_FIELD } from './daylog.js';
 
-export const DAY_WIPE_VERSION = '1.0.0';
+export const DAY_WIPE_VERSION = '1.1.0';
 
 // ─── The save lock ───────────────────────────────────────────────────────────
 let _locked = false;
@@ -144,7 +149,7 @@ export function purgeLocal(uid, day) {
  *
  * Returns { stop } — the unsubscribe.
  */
-export function watchAccount({ db, doc, onSnapshot, uid, today, onReload,
+export function watchAccount({ db, doc, onSnapshot, uid, today, onReload, onData = null,
                                firstTimeoutMs = 4000 }) {
     let first = true, stop = () => {};
     // ⚠️ IN-MEMORY HIGH-WATER MARKS. The acks live in localStorage, which a locked-
@@ -154,6 +159,7 @@ export function watchAccount({ db, doc, onSnapshot, uid, today, onReload,
     let seenWipe = 0, seenLogs = 0;
     const handle = (snap) => {
         const data = snap && snap.exists && snap.exists() ? snap.data() : null;
+        if (onData) { try { onData(data); } catch (e) { console.warn('[wipe] onData', e); } }
         let act = accountAction(data, uid, today());
         const wasFirst = first;
         first = false;

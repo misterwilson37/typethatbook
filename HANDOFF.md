@@ -1,6 +1,19 @@
 # HANDOFF — TypeThatBook
 
-> ## ▶ START HERE — written 2026-11-11 by Round 165, for whoever is next
+> ## ▶ START HERE — written 2026-11-12 by Round 166, for whoever is next
+>
+> **124 harnesses pass**, all of them (new: `req-scale-test.mjs`), and all 91 rules tests
+> (`npm run test:rules` works in this container — Java is installed).
+>
+> ⭐ **Round 166: requirement percentages (`req-scale.js`).** `reqSpeedPct` / `reqAccPct` on
+> classes/{id} and users/{uid}; student replaces class per field. ⚠️ **ANY NEW PLACE THAT GRADES
+> OR SHOWS A LESSON REQUIREMENT MUST GO THROUGH `effGates()` / `scaleGates()`** — a bare
+> `gatesForRun(currentStep…)` grades a CDC student against the full bar (`req-scale-test` C2).
+> ⚠️ Students are never shown a percentage (D1). ⚠️ **ASK JAKE:** paste rules v2.19.0.
+>
+> ---
+>
+> ## ▶ PREVIOUS START HERE — written 2026-11-11 by Round 165
 >
 > **123 harnesses pass**, all of them (new: `learn-parity-test.mjs`), and all 86 rules tests
 > (`npm run test:rules` works in this container — Java is installed).

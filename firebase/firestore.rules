@@ -1,6 +1,11 @@
 rules_version = '2';
 
-// firestore.rules v2.18.0 — TypeThatBook
+// firestore.rules v2.19.0 — TypeThatBook
+//
+// v2.19.0 — ROUND 166: requirement percentages (req-scale.js). Staff may set or remove
+//           `users/{uid}.reqSpeedPct` / `reqAccPct` (whole numbers 25..200) for a student
+//           in their school or class; the student may NOT set or change their own. The
+//           class-level pair lives on classes/{id}, which class teachers can already edit.
 //
 // v2.18.0 — ROUND 164: staff stamping `users/{uid}.logsChangedAt` may also set
 //           `logsChangedDay` (the day the correction is to) and, for "Wipe today",
@@ -493,7 +498,10 @@ service cloud.firestore {
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['displayName'])
                 || request.resource.data.displayName == request.auth.token.name)
             && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['email'])
-                || request.resource.data.email == request.auth.token.email))
+                || request.resource.data.email == request.auth.token.email)
+            // v2.19.0 — a student may not set their own requirement percentages.
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                  .hasAny(['reqSpeedPct', 'reqAccPct']))
         // Staff assign a student to a class (CSV import, Add One Student). THIS
         // WAS MISSING and would have denied both outright — the audit's main find.
         // Restricted to two fields; a teacher has no business rewriting anything
@@ -517,6 +525,21 @@ service cloud.firestore {
         // ⚠️ THE VALUE IS CLAMPED. It is a day count, so a negative or absurd
         // number would push reach-back out past any real date and silently lock a
         // child out of everything. 20000 days is ~55 years.
+        // v2.19.0 — Round 166: a teacher may set a student's requirement
+        // percentages (req-scale.js), 25..200 whole numbers, or remove them.
+        || (isStaff()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reqSpeedPct', 'reqAccPct'])
+            && (!('reqSpeedPct' in request.resource.data)
+                || (request.resource.data.reqSpeedPct is int
+                    && request.resource.data.reqSpeedPct >= 25
+                    && request.resource.data.reqSpeedPct <= 200))
+            && (!('reqAccPct' in request.resource.data)
+                || (request.resource.data.reqAccPct is int
+                    && request.resource.data.reqAccPct >= 25
+                    && request.resource.data.reqAccPct <= 200))
+            && (inMySchool(resource.data.schoolId)
+                || teachesClass(resource.data.classId)))
         || (isStaff()
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['lastLockDay'])
@@ -554,7 +577,9 @@ service cloud.firestore {
             && (!('displayName' in request.resource.data)
                 || request.resource.data.displayName == request.auth.token.name)
             && (!('email' in request.resource.data)
-                || request.resource.data.email == request.auth.token.email))
+                || request.resource.data.email == request.auth.token.email)
+            && !('reqSpeedPct' in request.resource.data)
+            && !('reqAccPct' in request.resource.data))
         || (isStaff()
             && request.resource.data.keys().hasOnly(['classId', 'schoolId'])
             && inMySchool(request.resource.data.schoolId));

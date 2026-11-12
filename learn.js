@@ -1,4 +1,9 @@
-// learn.js v2.55.0
+// learn.js v2.56.0
+//
+// v2.56.0 — Round 166: ⭐ REQUIREMENTS AS A PERCENTAGE (req-scale.js). Every lesson run's
+//           speed and accuracy requirement goes through effGates() — the class's
+//           percentages (Class Manager) or the student's own (Reports → Requirements…),
+//           student replacing class field by field. The student sees only the numbers.
 //
 // v2.55.0 — Round 165: ⭐ WHERE THEY LEFT OFF, AND THE RUN PICKER — from learn2.js. A
 //           lesson opens on the run after the furthest one finished (run-picker.js
@@ -52,9 +57,7 @@
 //   NEXT lesson's id when the student clicks Next before the write lands; the
 //   progress cache key moves to v2 so already-affected students re-read Firestore.
 //
-// v2.50.0 — Round 148: ⭐ each student's name and email are saved on their account, once
-//           (lesson-gate.js identityPlan()), in a write separate from the day stamp.
-//           ⚠️ A deliberate second copy — Rule 9 explicitly overruled by Jake, 2026-09-25.
+// ⚠️ v2.50.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
 // ⚠️ v2.49.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 165, 8-entry budget).
 //
@@ -107,6 +110,7 @@ import {
 import { hudStrings, HUD_VERSION, hudCacheSave, hudCacheLoad,
          celebrationDone, celebrationMark, fmt } from "./hud.js";
 import { resolveMinuteGoals, ownGoalsPatch, describeGoals } from "./goal-ladder.js";
+import { resolveReq, scaleGates, scaleLessonGates, scaleWpm, scaleAcc, NO_SCALE } from "./req-scale.js";
 // ⭐ Round 165 — WHERE THEY LEFT OFF, and the run picker: ported from learn2.js,
 // whose arithmetic was moved into run-picker.js precisely so both pages could share it.
 import { typedRunCount, maxReachableRunIdx, openingRunIdx } from './run-picker.js';
@@ -177,7 +181,7 @@ import {
 // steps tell Jake to read THIS. It sat at "2.23.1" across five releases. Bump it
 // in the SAME EDIT as the header entry above, always.
 // tests/version-stamp-test.mjs now fails the suite if you do not.
-const LEARN_VERSION = "2.55.0";
+const LEARN_VERSION = "2.56.0";
 
 // Hand the shared session queue its Firestore surface, once, at module scope.
 // session-log.js imports no SDK of its own on purpose — see that file.
@@ -1939,9 +1943,10 @@ function renderMap() {
 function mapMeta(lesson) {
     const runs = buildRunList(lesson).length;
     const g    = lesson.gates || {};
-    const acc  = g.minAccuracy == null ? 85 : g.minAccuracy;
+    // Round 166 — the student's own bar (req-scale.js), never a percentage.
+    const acc  = scaleAcc(g.minAccuracy == null ? 85 : g.minAccuracy, reqScale);
     const prose = (lesson.steps || []).some(s => !DRILL_TYPES.has(s.type));
-    const wpm  = g.minWPM == null ? 15 : g.minWPM;
+    const wpm  = scaleWpm(g.minWPM == null ? 15 : g.minWPM, reqScale);
     return runs + (runs === 1 ? ' run · ' : ' runs · ') + acc + '%' +
            (prose ? ' · ' + wpm + ' WPM' : '');
 }
@@ -3495,7 +3500,7 @@ function showStepModal(wpm, acc, nextIdx, totalSteps) {
     document.getElementById('drill-keyboard-wrap').style.display = 'none';
     idleSideHands();
 
-    const gates    = gatesForRun(currentStep, currentLesson && currentLesson.gates);
+    const gates    = effGates(currentStep, currentLesson && currentLesson.gates);
     const minWPM   = gates.minWPM;
     const minAcc   = gates.minAccuracy;
     const grade    = calculateGrade(wpm, acc, minWPM, minAcc, mistakes === 0);
@@ -3669,7 +3674,7 @@ function renderPracticeResult(wpm, acc, grade) {
 }
 
 function showLessonResultModal(wpm, acc) {
-    const gates  = gatesForRun(currentStep, currentLesson && currentLesson.gates);
+    const gates  = effGates(currentStep, currentLesson && currentLesson.gates);
     const minWPM = gates.minWPM;
     const minAcc = gates.minAccuracy;
 
@@ -4214,6 +4219,14 @@ async function stampLastLockDay() {
     } catch (e) { console.warn('[TTB] lock stamp not written:', e); }
 }
 
+// ⭐ Round 166 — REQUIREMENTS AS A PERCENTAGE (req-scale.js). The class's setting comes
+// from the class doc; the student's own from the account listener's snapshots, so a
+// change in Reports reaches an open page without a reload. Student replaces class,
+// field by field. Every lesson gate goes through effGates().
+let reqClassDoc = null, reqUserDoc = null, reqScale = NO_SCALE;
+function refreshReqScale() { reqScale = resolveReq(reqClassDoc, reqUserDoc); }
+function effGates(run, lessonGates) { return scaleGates(gatesForRun(run, lessonGates), reqScale); }
+
 // ⭐ Round 164 — one listener per page on the student's own users/{uid}. See
 // day-wipe.js for the whole mechanism and its read cost (about one per page).
 let _accountWatch = null;
@@ -4222,7 +4235,8 @@ async function startAccountWatch(uid) {
     if (_accountWatch) _accountWatch.stop();
     const w = watchAccount({ db, doc, onSnapshot, uid,
                              today: () => getLocalDateStr(new Date()),
-                             onReload: () => location.reload() });
+                             onReload: () => location.reload(),
+                             onData: (d) => { reqUserDoc = d; refreshReqScale(); } });
     _accountWatch = { uid, stop: w.stop };
     await w.ready;
 }
@@ -5212,6 +5226,16 @@ async function loadGoals() {
                           weeklySeconds: goals.weeklySeconds };
             updateClassDisplay();
             applyGoalCelebrationState();
+            // ⭐ Round 166 — the class's requirement percentages are NOT cached: a
+            // teacher's change in the Class Manager must reach the class the same
+            // day. One class read per page load.
+            // ⚠️ AWAITED, so a lesson card is never drawn with the standard numbers first.
+            if (c.classId) {
+                try {
+                    const s = await getDoc(doc(db, 'classes', c.classId));
+                    reqClassDoc = s.exists() ? s.data() : null; refreshReqScale();
+                } catch (_) { /* standard requirements until the next load */ }
+            }
             return;
         }
 
@@ -5231,6 +5255,7 @@ async function loadGoals() {
                     if (classSnap.exists()) {
                         const cd = classSnap.data();
                         classDoc = cd;
+                        reqClassDoc = cd; refreshReqScale();   // Round 166
                         // ⚠️ v2.48.0 — mirrors game.js exactly: an absent key here
                         // means "inherit the school default", not zero. See
                         // saveClass() in lessons-admin.js.

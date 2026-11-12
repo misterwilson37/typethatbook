@@ -1,4 +1,7 @@
-// lessons-admin.js — TypeThatBook Lesson Panel v1.23.1
+// lessons-admin.js — TypeThatBook Lesson Panel v1.24.0
+//
+// v1.24.0 — Round 166: the Class Manager saves `reqSpeedPct` / `reqAccPct` — the class's
+//           requirement percentages (req-scale.js). Blank removes them on an edit.
 //
 // v1.23.1 — Round 161: two strings only. "No class (default goals)" and "will revert
 //           to default goals" became "no goals unless they set their own" — there is
@@ -118,22 +121,11 @@
 //           ⚠️ week-agreement-test.mjs Part B2 now DISCOVERS every .js/.html in
 //           the repo and fails if any but daylog.js contains that expression.
 //
-// v1.17.0 — ⚠️⚠️ THE CLASS MANAGER'S DELETE BUTTON CARRIED TWO `class`
-//           ATTRIBUTES. HTML keeps the first and silently discards the second, so
-//           `class-del-btn` was never on the element. Two consequences, and both
-//           were live: the click had to be found by `[data-id]:last-child` —
-//           correct only for as long as Delete stays the last child — and the
-//           HOVER WAS DEAD, because the inline `background:#500` beat
-//           `.lbtn:hover` exactly as the eighteen inline backgrounds in admin.js
-//           v3.42.0 did. That is ROADMAP 56c's second button, and Jake found it
-//           by hovering.
-//           ⚠️ `.lbtn-danger` already declared this exact treatment AND a hover,
-//           four lines apart in admin.html; the inline copy was a second spelling
-//           of a rule that already existed. Both are gone.
+// ⚠️ v1.17.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
 // ⚠️ v1.16.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 161, 8-entry budget).
 //
-window.LESSONS_ADMIN_VERSION = '1.23.1';
+window.LESSONS_ADMIN_VERSION = '1.24.0';
 
 // ⚠️ ROADMAP 58 — the week anchor, from its one home. daylog.js imports only
 // logdays.js, which this page's siblings already load, so this adds no machinery.
@@ -1440,6 +1432,9 @@ function renderClassList() {
             '</div>' +
             '<div style="font-size:0.75em;color:#666;">' +
             'Daily: ' + dm + 'min&nbsp;&nbsp;Weekly: ' + wm + 'min' +
+            // Round 166 — requirement percentages, shown only when set.
+            (Number.isInteger(cls.reqSpeedPct) ? '&nbsp;&nbsp;Speed req: ' + cls.reqSpeedPct + '%' : '') +
+            (Number.isInteger(cls.reqAccPct)   ? '&nbsp;&nbsp;Accuracy req: ' + cls.reqAccPct + '%' : '') +
             '&nbsp;&nbsp;<span style="color:#444;">ID: ' + escHtml(cls.id) + '</span>' +
             '</div>' +
             '</div>' +
@@ -1554,6 +1549,26 @@ async function saveClass() {
     // deleteField() — merge:true never removes a key that isn't in the payload,
     // so writing nothing here would leave a stale explicit day standing after
     // someone picked "School default" specifically to undo it.
+    // ⭐ Round 166 — requirement percentages (req-scale.js). Blank = standard, and on
+    // an edit that means REMOVING the key (deleteField), same reasoning as the week
+    // anchor below. Whole numbers 25..200 only.
+    const clearedReq = [];
+    for (const [id, key] of [['class-reqspeed-input', 'reqSpeedPct'], ['class-reqacc-input', 'reqAccPct']]) {
+        const el = document.getElementById(id);
+        const raw = el ? String(el.value).trim() : '';
+        if (raw === '') {
+            if (editId) { record[key] = deleteField(); clearedReq.push(key); }
+            continue;
+        }
+        const n = Number(raw);
+        if (!Number.isInteger(n) || n < 25 || n > 200) {
+            statusEl.textContent = 'Requirements must be whole numbers from 25 to 200 (or blank).';
+            statusEl.style.color = '#ff6b6b';
+            return;
+        }
+        record[key] = n;
+    }
+
     let clearedWeekStartDay = false;
     const weekStartSel = document.getElementById('class-weekstart-select');
     const weekStartVal = weekStartSel ? weekStartSel.value : '';
@@ -1593,6 +1608,7 @@ async function saveClass() {
         // cached copy instead of copying it in.
         _classCache[classId] = { id: classId, ..._classCache[classId], ...record };
         if (clearedWeekStartDay) delete _classCache[classId].weekStartDay;
+        for (const k of clearedReq) delete _classCache[classId][k];   // Round 166 — no sentinels in the cache
         statusEl.textContent = isNew ? 'Class created.' : 'Saved.';
         statusEl.style.color = '#00ff41';
 
@@ -1698,6 +1714,9 @@ function startClassEdit(classId) {
     // follow it.
     document.getElementById('class-weekstart-select').value =
         Number.isInteger(cls.weekStartDay) ? String(cls.weekStartDay) : '';
+    // Round 166 — blank means "standard", never a written 100.
+    document.getElementById('class-reqspeed-input').value = Number.isInteger(cls.reqSpeedPct) ? cls.reqSpeedPct : '';
+    document.getElementById('class-reqacc-input').value   = Number.isInteger(cls.reqAccPct)   ? cls.reqAccPct   : '';
     document.getElementById('class-form-title').textContent = 'Edit Class';
     // ⚠️ CLASS, NOT INLINE STYLE (Round 74). These elements are hidden by
     // `u-display-none`, which has no `!important` — so `style.display = ''`
@@ -1722,6 +1741,8 @@ function cancelClassEdit() {
     // all (see saveClass()), so the picker resetting to the same choice is not
     // decorative.
     document.getElementById('class-weekstart-select').value = '';
+    document.getElementById('class-reqspeed-input').value = '';   // Round 166
+    document.getElementById('class-reqacc-input').value   = '';
     document.getElementById('class-form-title').textContent = 'New Class';
     document.getElementById('class-cancel-btn').classList.add('u-display-none');
     // ⚠️ ROADMAP 62 — a fresh "New Class" auto-assigns its creator

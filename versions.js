@@ -1,5 +1,7 @@
-// versions.js v1.20.0 — reads every file's version constant out of the files as
+// versions.js v1.21.0 — reads every file's version constant out of the files as
 // actually deployed, so index.html can show a full build list.
+//
+// v1.21.0 — Round 166: SOURCES gained req-scale.js (requirement percentages).
 //
 // v1.20.0 — Round 165: SOURCES gained run-picker.js (School now imports it, not only BETA).
 //
@@ -44,15 +46,7 @@
 //           the file that writes every book in the library.
 //
 //
-// v1.13.0 — ⚠️⚠️ THE BUILD PANEL NO LONGER ANSWERS FROM A COPY IT TOOK AT PAGE
-//           LOAD. The sessionStorage cache is replaced by module state with a
-//           60-second TTL. Module state dies with the page, which is the
-//           lifetime the old comment already CLAIMED ("the tab's lifetime" was
-//           what it said and what it meant was "this page load"); the TTL is
-//           what saves a Chromebook tab left open for a week. ⚠️ A DEPLOY
-//           INSTRUMENT MAY BE CHEAP OR IT MAY BE CACHED, NOT BOTH — this one is
-//           read exactly when someone doubts what is running, which is exactly
-//           when a remembered answer is the wrong one. HANDOFF §0.-22.
+// ⚠️ v1.13.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 166, 8-entry budget).
 //
 // ⚠️ v1.12.0's ENTRY IS IN CHANGELOG.md § ARCHIVED FILE HEADERS (Round 165, 8-entry budget).
 //
@@ -126,6 +120,7 @@ const SOURCES = [
     { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'run-picker.js',         pattern: /\bexport\s+const\s+RUN_PICKER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'req-scale.js',          pattern: /\bexport\s+const\s+REQ_SCALE_VERSION\s*=\s*["']([^"']+)["']/ },
     // Stylesheets carry theirs in a comment on line 1 as well as in a
     // body::before / body::after stamp. The comment is what we parse here,
     // because a page that doesn't load the stylesheet can still report it.
@@ -165,7 +160,7 @@ const SOURCES = [
     { file: 'index.html',            pattern: /\bconst\s+INDEX_VERSION\s*=\s*["']([^"']+)["']/ },
 ];
 
-export const VERSIONS_VERSION = '1.20.0';
+export const VERSIONS_VERSION = '1.21.0';
 
 // ⚠️ v1.13.0 — THE OLD sessionStorage KEY, KEPT ONLY TO BE CLEARED. A tab that
 // loaded v1.12.0 or earlier has a stale build list sitting in sessionStorage

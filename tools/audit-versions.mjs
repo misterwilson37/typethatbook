@@ -1,5 +1,7 @@
-// audit-versions.mjs v1.9.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
+// audit-versions.mjs v1.10.0 — Round 15 (Sholes's successor), Round 17 (Linotype),
 // Round 27 (Chicago), Round 28 (Daugherty), Round 58 (Emerson), Round 81 (Fox).
+//
+// v1.10.0 — Round 166: SOURCES mirrors versions.js v1.21.0: req-scale.js added.
 //
 // v1.9.0 — Round 165: SOURCES mirrors versions.js v1.20.0: run-picker.js added.
 //
@@ -108,6 +110,7 @@ const SOURCES = [
     { file: 'goal-ladder.js',        pattern: /\bexport\s+const\s+GOAL_LADDER_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'day-wipe.js',           pattern: /\bexport\s+const\s+DAY_WIPE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'run-picker.js',         pattern: /\bexport\s+const\s+RUN_PICKER_VERSION\s*=\s*["']([^"']+)["']/ },
+    { file: 'req-scale.js',          pattern: /\bexport\s+const\s+REQ_SCALE_VERSION\s*=\s*["']([^"']+)["']/ },
     { file: 'style.css',             pattern: /style\.css\s+v([0-9][^\s*]*)/ },
     { file: 'adventure.css',         pattern: /adventure\.css\s+v([0-9][^\s*]*)/ },
     { file: 'game.html',             pattern: /game\.html\s+v([0-9][^\s\->]*)/ },

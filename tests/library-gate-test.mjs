@@ -1,4 +1,6 @@
-// library-gate-test.mjs v1.0.0 — Round 134 (Bodoni II). ROADMAP 131a.
+// library-gate-test.mjs v1.1.0 — Round 134 (Bodoni II). ROADMAP 131a.
+// v1.1.0 — Round 166: the 15 / 80 line is the BASE, scaled by the student's requirement
+//   percentage (req-scale.js). Section I drives it at 70% and 110%.
 //
 // ⚠️ NOT lesson-gate-test.mjs, WHICH ALREADY EXISTS AND TESTS SOMETHING ELSE —
 // lesson-gate.js, the arcade's graded gate (Round 29). This file tests the LIBRARY
@@ -19,6 +21,7 @@
 // whether the real logic asked for the right thing at the right moment.
 
 import { readFileSync } from 'fs';
+import { scaleWpm, scaleAcc, resolveReq, NO_SCALE } from '../req-scale.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,20 +45,21 @@ const constLine = (name) => { const m = new RegExp(`const ${name} = [^;]+;`).exe
 const FNS = ['gateToday', 'gateStorageKey', 'gateFresh', 'gateEnsure', 'gateSave', 'gateLocked',
              'gateOnActiveTick', 'gateOnKey', 'gateMeasure', 'gatePasses', 'gateResetWindow',
              'gateResetSprintMarkers', 'gateJudge', 'gateMaybeShow',
-             'gateChooseLessons', 'gateChooseChance', 'gateChooseLock'];
-const CONSTS = ['GATE_WINDOW_MS', 'GATE_MIN_WPM', 'GATE_MIN_ACC', 'GATE_FALLBACK_MS', 'GATE_KEY'];
+             'gateChooseLessons', 'gateChooseChance', 'gateChooseLock', 'gateMinWpm', 'gateMinAcc'];
+const CONSTS = ['GATE_WINDOW_MS', 'GATE_BASE_WPM', 'GATE_BASE_ACC', 'GATE_FALLBACK_MS', 'GATE_KEY'];
 
 console.log('\nA — THE RULING, READ OUT OF game.js');
 ok(FNS.every(f => !!extractFn(game, f)), `A0 game.js defines all ${FNS.length} gate functions`);
 ok(CONSTS.every(c => !!constLine(c)), 'A0b and all five constants');
-ok(/const GATE_MIN_WPM = 15;/.test(game), '⭐ A1 the speed line is 15 WPM — Jake\u2019s number');
-ok(/const GATE_MIN_ACC = 80;/.test(game), '⭐ A2 the accuracy line is 80% — Jake\u2019s number');
+ok(/const GATE_BASE_WPM = 15;/.test(game), '⭐ A1 the speed line is 15 WPM — Jake\u2019s number');
+ok(/const GATE_BASE_ACC = 80;/.test(game), '⭐ A2 the accuracy line is 80% — Jake\u2019s number');
 ok(/const GATE_WINDOW_MS = 60000;/.test(game), '⭐ A3 one judging window is one minute');
 
 function sandbox(env) {
     const src = CONSTS.map(constLine).join('\n') + '\n' + FNS.map(f => extractFn(game, f)).join('\n');
-    return new Function('env', `
+    return new Function('env', 'scaleWpm', 'scaleAcc', `
         let currentUser = env.user;
+        const reqScale = env.req;
         const localStorage = env.ls;
         function getLocalDateStr() { return env.today(); }
         let sprintSeconds = 60, sprintMistakes = 3, sprintCharStart = 0, currentCharIndex = 0;
@@ -77,10 +81,10 @@ function sandbox(env) {
             sprint: () => ({ sprintSeconds, sprintMistakes }),
             ageP: (ms) => { gateEnsure(); gate.pendingSince -= ms; },
         };
-    `)(env);
+    `)(env, scaleWpm, scaleAcc);
 }
 const memLS = () => { const m = new Map(); return { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)) }; };
-const mkEnv = (over = {}) => ({ user: { uid: 'kid1' }, ls: memLS(), today: () => '2026-09-24',
+const mkEnv = (over = {}) => ({ user: { uid: 'kid1' }, ls: memLS(), today: () => '2026-09-24', req: NO_SCALE,
                                 shown: [], looks: [], toasts: [], logged: [], watermarks: 0, ...over });
 
 // One minute of ACTIVE typing at a given speed and accuracy, delivered in the same
@@ -220,6 +224,27 @@ console.log('\nH — ⚠️⚠️⚠️ WHILE LOCKED, NOTHING IS RECORDED — TH
     ok(/learn\.html/.test(gs), 'H9 "Go to lessons" goes to School');
     ok(!/logOpenSprint/.test(extractFn(game, 'gateChooseLessons')),
        '⚠️ H10 going to lessons does NOT log the run itself — the unload flush does, once');
+}
+
+console.log('\nI — ⭐ ROUND 166: THE LINE MOVES WITH THE STUDENT\'S PERCENTAGE');
+{
+    // A CDC student at 70%: 15 → 10.5 WPM, 80 → 56%.
+    const easy = resolveReq({ reqSpeedPct: 70, reqAccPct: 70 }, null);
+    const g = sandbox(mkEnv({ req: easy }));
+    typeMinute(g, 11, 60);
+    ok(!g.state().pending, '⭐ I1 at 70%, 11 WPM at 60% PASSES (the line is 10.5 / 56)');
+    const g0 = sandbox(mkEnv());
+    typeMinute(g0, 11, 60);
+    ok(g0.state().pending, 'I2 …which fails at the standard line');
+    // A challenge student at 110%: 15 → 16.5, 80 → 88.
+    const hard = resolveReq(null, { reqSpeedPct: 110, reqAccPct: 110 });
+    const gh = sandbox(mkEnv({ req: hard }));
+    typeMinute(gh, 16, 90);
+    ok(gh.state().pending, '⭐ I3 at 110%, 16 WPM falls short (the line is 16.5)');
+    ok(/function gatePasses\(m\) \{ return m\.wpm >= gateMinWpm\(\) && m\.acc >= gateMinAcc\(\); \}/.test(game),
+       'I4 the judgement reads the scaled line every time, not a number frozen at load');
+    ok(!/\$\{GATE_BASE_WPM\}|\$\{GATE_BASE_ACC\}/.test(game),
+       '⚠️ I5 the student is shown their own line, never the base one');
 }
 
 console.log(fails.length ? `\nFAIL — ${pass} ok, ${fails.length} failed` : `\nPASS — ${pass} ok, 0 failed`);
